@@ -2235,6 +2235,88 @@ body {
   color: #fee2e2;
 }
 
+.pitch-token-action-badge.badge-goal {
+  background: linear-gradient(90deg, #15803d, #ca8a04);
+  border: 1.5px solid #fef08a;
+  color: #ffffff;
+}
+
+/* Chamada rápida no centro do campo (1,5s antes do próximo lance) para Drible, Roubo e Pós-Gol */
+.pitch-center-callout {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 21;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 2px;
+  max-width: 82%;
+  padding: 7px 14px;
+  border-radius: 12px;
+  background: rgba(5, 13, 34, 0.88);
+  border: 1.5px solid rgba(148, 163, 184, 0.55);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(2px);
+  animation: calloutPop 0.18s ease-out;
+}
+
+@keyframes calloutPop {
+  from { opacity: 0; transform: translate(-50%, -50%) scale(0.88); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+.pitch-center-callout .callout-tag {
+  font-size: 0.58rem;
+  font-weight: 900;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+  color: #93c5fd;
+}
+
+.pitch-center-callout strong {
+  font-size: 0.82rem;
+  font-weight: 900;
+  color: #ffffff;
+}
+
+.pitch-center-callout span:last-child {
+  font-size: 0.7rem;
+  font-weight: 800;
+  color: #e2e8f0;
+}
+
+.pitch-center-callout.callout-dribble {
+  border-color: #c084fc;
+  background: rgba(46, 16, 101, 0.88);
+}
+
+.pitch-center-callout.callout-dribble .callout-tag {
+  color: #e9d5ff;
+}
+
+.pitch-center-callout.callout-steal {
+  border-color: #38bdf8;
+  background: rgba(8, 47, 73, 0.88);
+}
+
+.pitch-center-callout.callout-steal .callout-tag {
+  color: #bae6fd;
+}
+
+.pitch-center-callout.callout-goal {
+  border-color: #facc15;
+  background: linear-gradient(135deg, rgba(20, 83, 45, 0.92), rgba(113, 63, 18, 0.92));
+  box-shadow: 0 0 24px rgba(250, 204, 21, 0.45), 0 8px 24px rgba(0, 0, 0, 0.75);
+}
+
+.pitch-center-callout.callout-goal .callout-tag {
+  color: #fef08a;
+}
+
 .pitch-ball-dot {
   position: absolute;
   transform: translate(-50%, -50%);

@@ -212,6 +212,8 @@
       clashTimer1: null,
       clashTimer2: null,
       pendingClashFinish: null,
+      actionBeatTimer: null,
+      pendingBeatFinish: null,
       showRunSummary: false
     }
   };
@@ -982,7 +984,7 @@
   function getTickMs() {
     if (state.simSpeed === 4) return 85;
     if (state.simSpeed === 2) return 200;
-    return 480; // 1x tático: cada tick avança posse, passes no mapa e duelos animados
+    return 680; // 1x tático: tempo legível entre passes e movimentação no campo
   }
 
   function startTournamentGo() {
@@ -1033,6 +1035,8 @@
       clashTimer1: null,
       clashTimer2: null,
       pendingClashFinish: null,
+      actionBeatTimer: null,
+      pendingBeatFinish: null,
       showRunSummary: false
     };
 
@@ -1123,6 +1127,18 @@
       clearTimeout(state.tournament.clashTimer2);
       state.tournament.clashTimer2 = null;
     }
+    if (state.tournament.actionBeatTimer) {
+      clearTimeout(state.tournament.actionBeatTimer);
+      state.tournament.actionBeatTimer = null;
+    }
+
+    const calloutEl = document.getElementById("pitch-center-callout");
+    if (calloutEl) {
+      calloutEl.innerHTML = "";
+      calloutEl.style.display = "none";
+      calloutEl.className = "pitch-center-callout";
+    }
+
     if (resolvePending && typeof state.tournament.pendingClashFinish === "function") {
       const fn = state.tournament.pendingClashFinish;
       state.tournament.pendingClashFinish = null;
@@ -1139,6 +1155,14 @@
         slot.innerHTML = "";
         slot.style.display = "none";
       }
+    }
+
+    if (resolvePending && typeof state.tournament.pendingBeatFinish === "function") {
+      const bfn = state.tournament.pendingBeatFinish;
+      state.tournament.pendingBeatFinish = null;
+      bfn(true);
+    } else {
+      state.tournament.pendingBeatFinish = null;
     }
   }
 
@@ -2138,6 +2162,7 @@
           ${tokensHTML}
           <div id="live-pitch-ball" class="pitch-ball-dot" style="left:${pitch.ballX}%; top:${pitch.ballY}%;">⚽</div>
           <div id="pitch-float-badge" class="pitch-float-badge"></div>
+          <div id="pitch-center-callout" class="pitch-center-callout" style="display:none;"></div>
           <div id="shot-clash-slot" class="pitch-clash-modal" style="display:none;"></div>
         </div>
 
@@ -2152,11 +2177,62 @@
     `;
   }
 
-  function playShotClashAndContinue(st, clash, onImpactOutcome, ovrDiff, onAfterBanner = null) {
-    // Em 2x/4x resolve instantaneamente sem abrir o palco 1x
+  function pauseForPitchBeat(st, calloutHTML, calloutCls, durationMs, ovrDiff, onBeatDone = null) {
+    if (state.simSpeed !== 1) {
+      if (onBeatDone) onBeatDone();
+      syncLivePitchDOM(st);
+      handleMinuteEndBoundaries(st, ovrDiff);
+      return;
+    }
+
+    if (state.tournament.timerId) {
+      clearInterval(state.tournament.timerId);
+      state.tournament.timerId = null;
+    }
+
+    const calloutEl = document.getElementById("pitch-center-callout");
+    if (calloutEl && calloutHTML) {
+      calloutEl.className = `pitch-center-callout ${calloutCls || ""}`.trim();
+      calloutEl.innerHTML = calloutHTML;
+      calloutEl.style.display = "flex";
+    }
+
+    let beatResolved = false;
+    const finishBeat = (skipRestart = false) => {
+      if (beatResolved) return;
+      beatResolved = true;
+      state.tournament.pendingBeatFinish = null;
+      if (state.tournament.actionBeatTimer) {
+        clearTimeout(state.tournament.actionBeatTimer);
+        state.tournament.actionBeatTimer = null;
+      }
+
+      const cEl = document.getElementById("pitch-center-callout");
+      if (cEl) {
+        cEl.innerHTML = "";
+        cEl.style.display = "none";
+        cEl.className = "pitch-center-callout";
+      }
+
+      if (onBeatDone) onBeatDone();
+      syncLivePitchDOM(st);
+      const matchEnded = handleMinuteEndBoundaries(st, ovrDiff);
+      if (!matchEnded && !skipRestart && st.running && !st.finished) {
+        startMatchInterval();
+      }
+    };
+
+    state.tournament.pendingBeatFinish = finishBeat;
+    state.tournament.actionBeatTimer = setTimeout(() => {
+      finishBeat(false);
+    }, durationMs);
+  }
+
+  function playShotClashAndContinue(st, clash, onImpactOutcome, ovrDiff, onModalClosed = null) {
+    // Em 2x/4x resolve instantaneamente sem abrir o modal
     if (state.simSpeed !== 1) {
       if (onImpactOutcome) onImpactOutcome();
-      if (onAfterBanner) onAfterBanner();
+      if (onModalClosed) onModalClosed(true);
       syncLivePitchDOM(st);
       handleMinuteEndBoundaries(st, ovrDiff);
       return;
@@ -2171,7 +2247,7 @@
     const slotEl = document.getElementById("shot-clash-slot");
     if (!slotEl) {
       if (onImpactOutcome) onImpactOutcome();
-      if (onAfterBanner) onAfterBanner();
+      if (onModalClosed) onModalClosed(true);
       syncLivePitchDOM(st);
       if (!handleMinuteEndBoundaries(st, ovrDiff)) startMatchInterval();
       return;
@@ -2189,8 +2265,8 @@
         <div class="fireball-orb">${buildFireballSVG()}</div>
       </div>
     `;
-    const actionMs = 2350;
-    const bannerMs = 1250;
+    const actionMs = 1950;
+    const bannerMs = 850;
 
     slotEl.style.display = "flex";
 
@@ -2243,14 +2319,18 @@
         impactApplied = true;
         onImpactOutcome();
       }
-      if (!afterApplied && onAfterBanner) {
-        afterApplied = true;
-        onAfterBanner();
-      }
       syncLivePitchDOM(st);
-      const matchEnded = handleMinuteEndBoundaries(st, ovrDiff);
-      if (!matchEnded && !skipRestart && st.running && !st.finished) {
-        startMatchInterval();
+
+      let beatOwned = false;
+      if (!afterApplied && onModalClosed) {
+        afterApplied = true;
+        beatOwned = Boolean(onModalClosed(skipRestart));
+      }
+      if (!beatOwned) {
+        const matchEnded = handleMinuteEndBoundaries(st, ovrDiff);
+        if (!matchEnded && !skipRestart && st.running && !st.finished) {
+          startMatchInterval();
+        }
       }
     };
 
@@ -2337,7 +2417,7 @@
       const strictForward = decision.strictForward;
 
       const isSafeProtectedPass = Boolean(decision.safeRestart || carrier.role === "GK");
-      const passFlightMs = state.simSpeed === 4 ? 70 : state.simSpeed === 2 ? 155 : 350;
+      const passFlightMs = state.simSpeed === 4 ? 70 : state.simSpeed === 2 ? 155 : 460;
 
       // ----------------------------------------------------------------------
       // AÇÃO 1: PASSE INDIVIDUAL (GOLEIRO E SAÍDA DE BOLA SÃO 100% PROTEGIDOS CONTRA ROUBO!)
@@ -2440,8 +2520,8 @@
             "INTERCEPT",
             "#38bdf8"
           );
-          showNodeBadge(pitch, carrier.uid, "❌ Interceptado", "badge-lost", 1300);
-          showNodeBadge(pitch, interceptor.uid, `🛡️ Roubou • ${stealMove}`, "badge-steal", 1500);
+          showNodeBadge(pitch, carrier.uid, "❌ Interceptado", "badge-lost", 1550);
+          showNodeBadge(pitch, interceptor.uid, `🛡️ Roubou • ${stealMove}`, "badge-steal", 1550);
 
           if (!attIsUser) {
             pitch.stats.userSteals++;
@@ -2456,7 +2536,13 @@
             { name: carrier.player.name, sprite: carrier.player.sprite, side: carrier.side }
           );
           syncLivePitchDOM(st);
-          handleMinuteEndBoundaries(st, ovrDiff);
+          pauseForPitchBeat(
+            st,
+            `<span class="callout-tag">ROUBO DE BOLA</span><strong>${interceptor.player.name}</strong><span>【${stealMove}】</span>`,
+            "callout-steal",
+            1500,
+            ovrDiff
+          );
           return;
         }
       }
@@ -2526,7 +2612,7 @@
             flightDuration: 280,
             fadeUntil: performance.now() + 680
           };
-          showNodeBadge(pitch, carrier.uid, `💨 Avançou • ${ofMove}`, "badge-dribble", 1500);
+          showNodeBadge(pitch, carrier.uid, `💨 Avançou • ${ofMove}`, "badge-dribble", 1550);
           pitch.ticker = `${st.minute}' 💨 ${carrier.player.name} avançou com ${ofMove} sobre ${marker.player.name}!`;
           prependNarrationLine(
             st,
@@ -2535,6 +2621,15 @@
             { name: carrier.player.name, sprite: carrier.player.sprite, side: carrier.side },
             { name: marker.player.name, sprite: marker.player.sprite, side: marker.side }
           );
+          syncLivePitchDOM(st);
+          pauseForPitchBeat(
+            st,
+            `<span class="callout-tag">DRIBLE · AVANÇOU</span><strong>${carrier.player.name}</strong><span>【${ofMove}】</span>`,
+            "callout-dribble",
+            1500,
+            ovrDiff
+          );
+          return;
         } else {
           const tackleX = Math.max(12, Math.min(88, startX + (attIsUser ? 1.8 : -1.8)));
           const tackleY = startY;
@@ -2548,8 +2643,8 @@
           pitch.ballX = tackleX + (marker.side === "user" ? 2.2 : -2.2);
           pitch.ballY = tackleY + 1.2;
           pitch.passTrail = null;
-          showNodeBadge(pitch, carrier.uid, "❌ Perdeu a bola", "badge-lost", 1300);
-          showNodeBadge(pitch, marker.uid, `🛡️ Roubou • ${dfMove}`, "badge-steal", 1500);
+          showNodeBadge(pitch, carrier.uid, "❌ Perdeu a bola", "badge-lost", 1550);
+          showNodeBadge(pitch, marker.uid, `🛡️ Roubou • ${dfMove}`, "badge-steal", 1550);
           if (!attIsUser) {
             pitch.stats.userSteals++;
             recordUserPlayerStat(pitch, marker, "steals", 1);
@@ -2562,10 +2657,16 @@
             { name: marker.player.name, sprite: marker.player.sprite, side: marker.side },
             { name: carrier.player.name, sprite: carrier.player.sprite, side: carrier.side }
           );
+          syncLivePitchDOM(st);
+          pauseForPitchBeat(
+            st,
+            `<span class="callout-tag">ROUBO DE BOLA</span><strong>${marker.player.name}</strong><span>【${dfMove}】</span>`,
+            "callout-steal",
+            1500,
+            ovrDiff
+          );
+          return;
         }
-        syncLivePitchDOM(st);
-        handleMinuteEndBoundaries(st, ovrDiff);
-        return;
       }
 
       // ----------------------------------------------------------------------
@@ -2637,14 +2738,14 @@
         pinNodeToCoord(pitch, defTarget, duelX, duelY, false);
       }
 
-      // Fase 1: bola voa continuamente até o momento do impacto (2150ms no modo 1x)
+      // Fase 1: bola voa continuamente até o momento do impacto (1850ms no modo 1x)
       startBallFlight(
         pitch,
         shotOriginX,
         shotOriginY,
         duelX,
         duelY,
-        state.simSpeed === 1 ? 2150 : passFlightMs,
+        state.simSpeed === 1 ? 1850 : passFlightMs,
         3.2,
         "SHOT",
         "#f97316"
@@ -2653,7 +2754,7 @@
       pitch.ticker = `${st.minute}' 🔥 CHUTE! ${shooterNode.player.name} (${shotInfo.label}) vs ${defTarget.player.name}!`;
       syncLivePitchDOM(st);
 
-      // Fase 2 (No impacto): se foi gol, bola entra e FICA na rede; se não, vai para o defensor/goleiro!
+      // Fase 2 (No impacto): se foi gol, bola entra e FICA visível na rede após o modal fechar!
       const applyShotImpact = () => {
         if (isGoal) {
           pitch.carrierUid = null;
@@ -2661,8 +2762,9 @@
           pitch.holdBallPos = { x: goalX, y: goalY };
           startBallFlight(pitch, duelX, duelY, goalX, goalY, state.simSpeed === 1 ? 360 : 50, 0.8, "GOAL", "#facc15");
           pitch.goalFlashSide = attIsUser ? "right" : "left";
-          pitch.goalFlashUntil = performance.now() + 1300;
-          showPitchBadge(pitch, goalX, goalY, "⚽ GOOOL!!", "badge-goal", 1200);
+          pitch.goalFlashUntil = performance.now() + 2600;
+          showPitchBadge(pitch, goalX, goalY, "⚽ GOOOL!!", "badge-goal", 1600);
+          showNodeBadge(pitch, shooterNode.uid, `⚽ GOOOL! • ${shotInfo.label}`, "badge-goal", 1650);
 
           if (attIsUser) {
             st.userScore++;
@@ -2765,13 +2867,39 @@
         }
       };
 
-      // Fase 3: Após gol, quem SOFREU o gol recomeça obrigatoriamente do círculo central (50%, 50%)!
-      const applyAfterGoalKickoff = () => {
+      // Fase 3 (Após o modal fechar): deixa o usuário VER a bola na rede por 1,5s antes do reinício no centro!
+      const onShotModalClosed = (skipRestart = false) => {
         if (isGoal) {
           const concedingSide = attIsUser ? "opp" : "user";
-          resetPitchForKickoff(pitch, concedingSide, true);
-          pitch.ticker = `${st.minute}' ⚽ Saída no centro com ${concedingSide === "user" ? "Dream Team" : st.oppTeam.name}!`;
+          const doKickoffReset = () => {
+            resetPitchForKickoff(pitch, concedingSide, true);
+            pitch.ticker = `${st.minute}' ⚽ Saída no centro com ${concedingSide === "user" ? "Dream Team" : st.oppTeam.name}!`;
+          };
+          if (skipRestart || state.simSpeed !== 1) {
+            doKickoffReset();
+            return false;
+          }
+          pauseForPitchBeat(
+            st,
+            `<span class="callout-tag">GOOOL!</span><strong>${shooterNode.player.name}</strong><span>${st.userScore} x ${st.oppScore} · ${shotInfo.label}</span>`,
+            "callout-goal",
+            1500,
+            ovrDiff,
+            doKickoffReset
+          );
+          return true;
         }
+
+        showNodeBadge(
+          pitch,
+          defTarget.uid,
+          `${defCategory === "DF" ? "🛡️ Bloqueou" : "🧤 Defendeu"} • ${defMoveName}`,
+          "badge-steal",
+          1100
+        );
+        if (skipRestart || state.simSpeed !== 1) return false;
+        pauseForPitchBeat(st, "", "", 700, ovrDiff, null);
+        return true;
       };
 
       const bannerText = isGoal
@@ -2801,7 +2929,7 @@
         },
         applyShotImpact,
         ovrDiff,
-        applyAfterGoalKickoff
+        onShotModalClosed
       );
     }, getTickMs());
   }
@@ -4304,7 +4432,7 @@
       speedBtn.addEventListener("click", () => {
         state.simSpeed = state.simSpeed === 1 ? 2 : state.simSpeed === 2 ? 4 : 1;
         speedBtn.innerHTML = `<span>Vel: ${state.simSpeed}x</span>`;
-        if (state.simSpeed !== 1 && state.tournament.pendingClashFinish) {
+        if (state.simSpeed !== 1 && (state.tournament.pendingClashFinish || state.tournament.pendingBeatFinish)) {
           clearTournamentTimers(true);
         }
         if (st.running && !st.finished) {
