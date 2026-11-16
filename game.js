@@ -136,6 +136,7 @@
     swapSlotId: null,
     rerollsLeft: 3,
     isSpinning: false,
+    spinTimerId: null,
     usedTeamIds: [],
     simSpeed: 1, // 1 = 420ms/min, 2 = 200ms/min, 4 = 80ms/min
     tournament: {
@@ -339,6 +340,11 @@
     const container = document.getElementById("main-screen-container");
     if (!container) return;
 
+    if (state.spinTimerId) {
+      clearTimeout(state.spinTimerId);
+      state.spinTimerId = null;
+    }
+
     const pickedCount = getPickedCount();
     const pickedIds = getPickedPlayerIds();
     const openSlots = getOpenSlots();
@@ -371,6 +377,98 @@
       .filter(Boolean)
       .join(" ");
 
+    function buildRevealedTeamHTML() {
+      return `
+        <div class="roster-fade-in">
+          <div class="drawn-team-header" style="margin-bottom: 12px;">
+            <div style="display:flex; align-items:center; gap:12px;">
+              <img src="${team.emblem}" alt="" style="width:46px; height:46px; object-fit:contain;" />
+              <div>
+                <h3 style="font-size:1.15rem; font-weight:900; color:#fff;" id="drawn-team-title">
+                  ${team.name}
+                </h3>
+                <p style="font-size:0.76rem; color:#94a3b8;">
+                  Toque em <strong>1 personagem</strong> abaixo para abrir o campo e escalá-lo na sua seleção:
+                </p>
+              </div>
+            </div>
+
+            <div class="drawn-team-actions">
+              <button class="ui-btn" id="btn-peek-field">
+                👁️ Ver Campo (${pickedCount}/11)
+              </button>
+              <button class="ui-btn" id="btn-reroll-team" ${state.rerollsLeft <= 0 ? "disabled" : ""}>
+                🎲 Girar Outro (${state.rerollsLeft})
+              </button>
+            </div>
+          </div>
+
+          <div class="roster-grid">
+            ${sortedPlayers
+              .map((p) => {
+                const alreadyPicked = pickedIds.has(p.id);
+                const hasNaturalSlot = openRoles.has(p.pos);
+                const elem = DB.elements[p.element] || { icon: "⚡" };
+                const movesSummary = formatPlayerMovesSummary(p);
+                const hasLink = !alreadyPicked && hasAffinityWithCurrentSquad({ ...p, teamId: team.id });
+
+                return `
+                  <div class="roster-player-card ${alreadyPicked ? "disabled-card" : ""} ${!hasNaturalSlot && !alreadyPicked ? "pos-full-card" : ""}"
+                       data-player-id="${p.id}">
+                    <img class="roster-sprite" src="${p.sprite}" alt="${p.name}" />
+                    <div class="roster-meta">
+                      <div class="roster-name">#${p.number} ${p.name}</div>
+                      <div class="roster-sub">${movesSummary}</div>
+                      <div class="roster-badges">
+                        <span class="node-pos-pill pos-${p.pos}">${p.pos}</span>
+                        <span class="ovr-tag">${state.hideOvrBeforePick && !alreadyPicked ? "OVR ??" : `OVR ${p.ovr}`}</span>
+                        <span style="font-size:0.72rem;">${elem.icon}</span>
+                        ${hasLink ? `<span class="affinity-badge">🤝 +Química</span>` : ""}
+                        ${!hasNaturalSlot && !alreadyPicked ? `<span style="font-size:0.62rem; color:#facc15;">(Cheia)</span>` : ""}
+                      </div>
+                    </div>
+                  </div>
+                `;
+              })
+              .join("")}
+          </div>
+        </div>
+      `;
+    }
+
+    function bindRosterEvents() {
+      const peekBtn = document.getElementById("btn-peek-field");
+      if (peekBtn) {
+        peekBtn.addEventListener("click", () => {
+          state.peekField = true;
+          renderMainScreen();
+        });
+      }
+
+      const rerollBtn = document.getElementById("btn-reroll-team");
+      if (rerollBtn) {
+        rerollBtn.addEventListener("click", () => spinNextTeam(true));
+      }
+
+      container.querySelectorAll(".roster-player-card").forEach((card) => {
+        card.addEventListener("click", () => {
+          if (state.isSpinning) return;
+          const pid = card.getAttribute("data-player-id");
+          const player = team.players.find((x) => x.id === pid);
+          if (player && !pickedIds.has(player.id)) {
+            state.selectedPlayer = {
+              ...player,
+              teamId: team.id,
+              teamName: team.name,
+              teamEmblem: team.emblem
+            };
+            state.swapSlotId = null;
+            renderMainScreen();
+          }
+        });
+      });
+    }
+
     container.innerHTML = `
       <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
         <div style="font-size:0.8rem; font-weight:900; color:#facc15; text-transform:uppercase;">
@@ -399,60 +497,13 @@
         </div>
       </div>
 
-      <!-- Elenco do Time Sorteado -->
-      <div id="roster-reveal-section" style="opacity: ${animateWheel ? "0.18" : "1"}; pointer-events: ${animateWheel ? "none" : "auto"}; transition: opacity 0.3s ease;">
-        <div class="drawn-team-header" style="margin-bottom: 12px;">
-          <div style="display:flex; align-items:center; gap:12px;">
-            <img src="${team.emblem}" alt="" style="width:46px; height:46px; object-fit:contain;" />
-            <div>
-              <h3 style="font-size:1.15rem; font-weight:900; color:#fff;" id="drawn-team-title">
-                ${animateWheel ? "Sorteando time na roleta..." : team.name}
-              </h3>
-              <p style="font-size:0.76rem; color:#94a3b8;">
-                Toque em <strong>1 personagem</strong> abaixo para abrir o campo e escalá-lo na sua seleção:
-              </p>
-            </div>
-          </div>
-
-          <div class="drawn-team-actions">
-            <button class="ui-btn" id="btn-peek-field">
-              👁️ Ver Campo (${pickedCount}/11)
-            </button>
-            <button class="ui-btn" id="btn-reroll-team" ${state.rerollsLeft <= 0 ? "disabled" : ""}>
-              🎲 Girar Outro (${state.rerollsLeft})
-            </button>
-          </div>
-        </div>
-
-        <div class="roster-grid">
-          ${sortedPlayers
-            .map((p) => {
-              const alreadyPicked = pickedIds.has(p.id);
-              const hasNaturalSlot = openRoles.has(p.pos);
-              const elem = DB.elements[p.element] || { icon: "⚡" };
-              const movesSummary = formatPlayerMovesSummary(p);
-              const hasLink = !alreadyPicked && hasAffinityWithCurrentSquad({ ...p, teamId: team.id });
-
-              return `
-                <div class="roster-player-card ${alreadyPicked ? "disabled-card" : ""} ${!hasNaturalSlot && !alreadyPicked ? "pos-full-card" : ""}"
-                     data-player-id="${p.id}">
-                  <img class="roster-sprite" src="${p.sprite}" alt="${p.name}" />
-                  <div class="roster-meta">
-                    <div class="roster-name">#${p.number} ${p.name}</div>
-                    <div class="roster-sub">${movesSummary}</div>
-                    <div class="roster-badges">
-                      <span class="node-pos-pill pos-${p.pos}">${p.pos}</span>
-                      <span class="ovr-tag">${state.hideOvrBeforePick && !alreadyPicked ? "OVR ??" : `OVR ${p.ovr}`}</span>
-                      <span style="font-size:0.72rem;">${elem.icon}</span>
-                      ${hasLink ? `<span class="affinity-badge">🤝 +Química</span>` : ""}
-                      ${!hasNaturalSlot && !alreadyPicked ? `<span style="font-size:0.62rem; color:#facc15;">(Cheia)</span>` : ""}
-                    </div>
-                  </div>
-                </div>
-              `;
-            })
-            .join("")}
-        </div>
+      <!-- Elenco do Time Sorteado: só é revelado após a roleta parar! -->
+      <div id="roster-reveal-section">
+        ${
+          animateWheel
+            ? `<div class="wheel-waiting-box">🎡 Girando a roleta... revelando o próximo time em instantes!</div>`
+            : buildRevealedTeamHTML()
+        }
       </div>
     `;
 
@@ -467,58 +518,24 @@
     if (animateWheel && stripEl) {
       stripEl.style.transition = "none";
       stripEl.style.transform = `translateX(0px)`;
-      // Força reflow e aplica transição suave de 1.5s
       void stripEl.offsetWidth;
       stripEl.style.transition = "transform 1.55s cubic-bezier(0.12, 0.82, 0.18, 1)";
       stripEl.style.transform = `translateX(${finalOffset}px)`;
 
-      setTimeout(() => {
+      state.spinTimerId = setTimeout(() => {
+        state.spinTimerId = null;
         state.isSpinning = false;
         const rev = document.getElementById("roster-reveal-section");
-        const titleEl = document.getElementById("drawn-team-title");
         if (rev) {
-          rev.style.opacity = "1";
-          rev.style.pointerEvents = "auto";
+          rev.innerHTML = buildRevealedTeamHTML();
+          bindRosterEvents();
         }
-        if (titleEl) {
-          titleEl.textContent = team.name;
-        }
-      }, 1550);
+      }, 1620);
     } else if (stripEl) {
       state.isSpinning = false;
       stripEl.style.transform = `translateX(${finalOffset}px)`;
+      bindRosterEvents();
     }
-
-    const peekBtn = document.getElementById("btn-peek-field");
-    if (peekBtn) {
-      peekBtn.addEventListener("click", () => {
-        state.peekField = true;
-        renderMainScreen();
-      });
-    }
-
-    const rerollBtn = document.getElementById("btn-reroll-team");
-    if (rerollBtn) {
-      rerollBtn.addEventListener("click", () => spinNextTeam(true));
-    }
-
-    container.querySelectorAll(".roster-player-card").forEach((card) => {
-      card.addEventListener("click", () => {
-        if (state.isSpinning) return;
-        const pid = card.getAttribute("data-player-id");
-        const player = team.players.find((x) => x.id === pid);
-        if (player && !pickedIds.has(player.id)) {
-          state.selectedPlayer = {
-            ...player,
-            teamId: team.id,
-            teamName: team.name,
-            teamEmblem: team.emblem
-          };
-          state.swapSlotId = null;
-          renderMainScreen();
-        }
-      });
-    });
   }
 
   function placeSelectedPlayerOnPitch(slotId) {
@@ -692,16 +709,33 @@
     return { isHissatsu: false, label: normalDesc };
   }
 
+  function buildNarrationItemHTML(item) {
+    let avatarsHTML = "";
+    if (item.actor) {
+      const actorSideCls = item.actor.side === "user" ? "side-user" : "side-opp";
+      const actorImg = item.actor.sprite
+        ? `<img class="nar-avatar ${actorSideCls}" src="${item.actor.sprite}" alt="${item.actor.name}" title="${item.actor.name}" />`
+        : "";
+      let targetImg = "";
+      if (item.target && item.target.sprite) {
+        const targetSideCls = item.target.side === "user" ? "side-user" : "side-opp";
+        targetImg = `<span class="nar-vs-arrow">➔</span><img class="nar-avatar ${targetSideCls}" src="${item.target.sprite}" alt="${item.target.name}" title="${item.target.name}" />`;
+      }
+      if (actorImg) {
+        avatarsHTML = `<div class="nar-avatars">${actorImg}${targetImg}</div>`;
+      }
+    }
+    return `<div class="narration-item ${item.cls || ""}">${avatarsHTML}<div class="nar-text">${item.text}</div></div>`;
+  }
+
   // Insere apenas 1 linha nova no topo do histórico de narração sem tocar no resto da página!
-  function prependNarrationLine(st, cls, text) {
-    st.narration.unshift({ cls, text });
+  function prependNarrationLine(st, cls, text, actor = null, target = null) {
+    const item = { cls, text, actor, target };
+    st.narration.unshift(item);
     const feedEl = document.getElementById("live-narration-feed");
     const countEl = document.getElementById("live-narration-count");
     if (feedEl) {
-      feedEl.insertAdjacentHTML(
-        "afterbegin",
-        `<div class="narration-item ${cls}">${text}</div>`
-      );
+      feedEl.insertAdjacentHTML("afterbegin", buildNarrationItemHTML(item));
     }
     if (countEl) {
       countEl.textContent = st.narration.length;
@@ -801,7 +835,9 @@
           "nar-goal-user",
           shotInfo.isHissatsu
             ? `⚽ ${st.minute}' GOOOL DA SUA SELEÇÃO! ${scorer.name} disparou a técnica de chute 【${shotInfo.label}】 sem chances para ${oppGk.name}! (${st.userScore} x ${st.oppScore})`
-            : `⚽ ${st.minute}' GOOOL DA SUA SELEÇÃO! ${scorer.name} recebeu na área e marcou com um ${shotInfo.label.toLowerCase()}! (${st.userScore} x ${st.oppScore})`
+            : `⚽ ${st.minute}' GOOOL DA SUA SELEÇÃO! ${scorer.name} recebeu na área e marcou com um ${shotInfo.label.toLowerCase()}! (${st.userScore} x ${st.oppScore})`,
+          { name: scorer.name, sprite: scorer.sprite, side: "user" },
+          { name: oppGk.name, sprite: oppGk.sprite, side: "opp" }
         );
       }
       // 2) Chance de Gol do Adversário
@@ -829,7 +865,9 @@
           "nar-goal-opp",
           shotInfo.isHissatsu
             ? `💥 ${st.minute}' GOL DE ${st.oppTeam.name.toUpperCase()}! ${oppScorer.name} finalizou usando 【${shotInfo.label}】! (${st.userScore} x ${st.oppScore})`
-            : `💥 ${st.minute}' GOL DE ${st.oppTeam.name.toUpperCase()}! ${oppScorer.name} marcou com um ${shotInfo.label.toLowerCase()}! (${st.userScore} x ${st.oppScore})`
+            : `💥 ${st.minute}' GOL DE ${st.oppTeam.name.toUpperCase()}! ${oppScorer.name} marcou com um ${shotInfo.label.toLowerCase()}! (${st.userScore} x ${st.oppScore})`,
+          { name: oppScorer.name, sprite: oppScorer.sprite, side: "opp" },
+          userGk ? { name: userGk.name, sprite: userGk.sprite, side: "user" } : null
         );
       }
       // 3) Lances de Narração a cada 10 minutos (Dribles OF, Roubos DF e Defesas GK)
@@ -852,7 +890,9 @@
               "nar-dribble",
               ofMove
                 ? `💨 ${st.minute}' [Drible] ${dribbler.name} usou 【${ofMove}】 e passou por ${marker.name} pelo meio-campo!`
-                : `💨 ${st.minute}' [Jogada] ${dribbler.name} aplicou um drible rápido em ${marker.name} e armou o ataque!`
+                : `💨 ${st.minute}' [Jogada] ${dribbler.name} aplicou um drible rápido em ${marker.name} e armou o ataque!`,
+              { name: dribbler.name, sprite: dribbler.sprite, side: isUserPlay ? "user" : "opp" },
+              { name: marker.name, sprite: marker.sprite, side: isUserPlay ? "opp" : "user" }
             );
           }
         } else if (rollType < 0.68) {
@@ -871,7 +911,9 @@
               "nar-steal",
               dfMove
                 ? `🛡️ ${st.minute}' [Roubo de Bola] ${defender.name} ativou 【${dfMove}】 e travou o avanço de ${runner.name}!`
-                : `🛡️ ${st.minute}' [Defesa] ${defender.name} antecipou a jogada e roubou a bola limpa de ${runner.name}!`
+                : `🛡️ ${st.minute}' [Defesa] ${defender.name} antecipou a jogada e roubou a bola limpa de ${runner.name}!`,
+              { name: defender.name, sprite: defender.sprite, side: isUserDef ? "user" : "opp" },
+              { name: runner.name, sprite: runner.sprite, side: isUserDef ? "opp" : "user" }
             );
           }
         } else {
@@ -890,7 +932,9 @@
               "nar-save",
               gkMove
                 ? `🧤 ${st.minute}' [Defesa de Goleiro] ${gk.name} acionou 【${gkMove}】 e espalmou ${shotPart}!`
-                : `🧤 ${st.minute}' [Defesa de Goleiro] ${gk.name} saltou no ângulo e salvou ${shotPart}!`
+                : `🧤 ${st.minute}' [Defesa de Goleiro] ${gk.name} saltou no ângulo e salvou ${shotPart}!`,
+              { name: gk.name, sprite: gk.sprite, side: isUserSave ? "user" : "opp" },
+              { name: shooter.name, sprite: shooter.sprite, side: isUserSave ? "opp" : "user" }
             );
           }
         }
@@ -1392,7 +1436,7 @@
           </div>
           <div class="narration-feed" id="live-narration-feed">
             ${st.narration
-              .map((item) => `<div class="narration-item ${item.cls}">${item.text}</div>`)
+              .map((item) => buildNarrationItemHTML(item))
               .join("")}
           </div>
         </div>
@@ -1459,6 +1503,11 @@
 
   function goToMenu() {
     if (state.tournament.timerId) clearInterval(state.tournament.timerId);
+    if (state.spinTimerId) {
+      clearTimeout(state.spinTimerId);
+      state.spinTimerId = null;
+    }
+    state.isSpinning = false;
     state.phase = "menu";
     state.squad = {};
     state.selectedPlayer = null;
@@ -1476,6 +1525,11 @@
     const autoBtn = document.getElementById("btn-auto-draft");
     if (autoBtn) {
       autoBtn.addEventListener("click", () => {
+        if (state.spinTimerId) {
+          clearTimeout(state.spinTimerId);
+          state.spinTimerId = null;
+        }
+        state.isSpinning = false;
         if (state.phase === "menu") state.phase = "draft";
         const openSlots = getOpenSlots();
         const pickedIds = getPickedPlayerIds();
