@@ -3811,27 +3811,16 @@
       .sort((a, b) => a.distShooter - b.distShooter);
 
     const gkNode = defNodes.find((n) => n.role === "GK") || defNodes[0];
-    const vsDefender = laneBlockers.length > 0 && Math.random() < 0.34;
-    const defTarget = vsDefender ? laneBlockers[0].node : gkNode;
-    const defCategory = vsDefender ? "DF" : "GK";
+    const hasBlockerInLane = laneBlockers.length > 0 && Math.random() < 0.36;
+    const blockerNode = hasBlockerInLane ? laneBlockers[0].node : null;
 
     const isLongShot = effRole === "MF" || Math.hypot(shooterNode.x - goalX, shooterNode.y - 50) > 25;
-    const shotScore =
-      calcNodeDuelScore(shooterNode, attSupport, defTarget?.player?.element) - (isLongShot ? 3.5 : 0);
-    const stopScore = calcNodeDuelScore(defTarget, defSupport, shooterNode?.player?.element);
-
-    const goalProb = vsDefender
-      ? logisticWinProb(shotScore, stopScore, -4.8, 0.08, 0.48)
-      : logisticWinProb(shotScore, stopScore, -7.4, 0.08, 0.50);
-    const isGoal = Math.random() < goalProb;
+    const baseShotScore =
+      calcNodeDuelScore(shooterNode, attSupport, (blockerNode || gkNode)?.player?.element) - (isLongShot ? 3.5 : 0);
 
     const shotInfo = buildGoalShotLabel(shooterNode.player);
-    const pickedDefMove = pickPlayerMove(defTarget.player, defCategory);
-    const defMoveName =
-      pickedDefMove || (defCategory === "DF" ? "Bloqueio de Corpo" : "Defesa Direta");
-
     spendStamina(shooterNode, shotInfo.isHissatsu ? 19 : 9);
-    spendStamina(defTarget, pickedDefMove ? 15 : 8);
+
     const shotAssistCandidate =
       pitch.lastAssistCandidate &&
       pitch.lastAssistCandidate.side === shooterNode.side &&
@@ -3851,196 +3840,293 @@
       pitch.stats.oppShots++;
     }
 
-    const shotOriginX = shooterNode.x;
-    const shotOriginY = shooterNode.y;
-    const duelX = vsDefender
-      ? defTarget.x
-      : attIsUser
-      ? 91.5
-      : 8.5;
-    const duelY = vsDefender
-      ? defTarget.y
-      : Math.max(41, Math.min(59, 50 + (shotOriginY - 50) * 0.22));
+    const resolveAgainstGk = (effectiveShotScore, fromX, fromY, weakenedByBlocker, forceInstant = false) => {
+      const pickedGkMove = pickPlayerMove(gkNode.player, "GK");
+      const gkMoveName = pickedGkMove || "Defesa Direta";
+      spendStamina(gkNode, pickedGkMove ? 15 : 8);
 
-    pitch.ballMode = "SHOT_FLIGHT";
-    pitch.carrierUid = null;
-    pitch.challengerUid = defTarget.uid;
-    pitch.holdBallPos = { x: duelX, y: duelY };
-    pitch.lastClashMinute = st.minute;
+      const gkStopScore = calcNodeDuelScore(gkNode, defSupport, shooterNode?.player?.element);
+      const goalProb = logisticWinProb(effectiveShotScore, gkStopScore, -7.4, 0.08, 0.50);
+      const isGoal = Math.random() < goalProb;
 
-    const flightMs = state.simSpeed === 1 ? 1650 : 75;
-    startBallFlight(pitch, shotOriginX, shotOriginY, duelX, duelY, flightMs, 3.0, "SHOT", "#f97316");
-    showPitchBadge(pitch, shotOriginX, shotOriginY, shotInfo.label, "badge-shot", state.simSpeed === 1 ? 1750 : 600, "SH");
-    pitch.ticker = `${st.minute}' CHUTE! ${shooterNode.player.name} (${shotInfo.label}) vs ${defTarget.player.name}!`;
-    syncLivePitchDOM(st);
+      const duelX = attIsUser ? 91.5 : 8.5;
+      const duelY = Math.max(41, Math.min(59, 50 + (fromY - 50) * 0.22));
+      const instantMode = forceInstant || state.simSpeed !== 1;
 
-    const applyShotImpact = () => {
-      if (isGoal) {
-        pitch.ballMode = "GOAL_NET";
-        pitch.carrierUid = null;
-        pitch.challengerUid = null;
-        pitch.holdBallPos = { x: goalX, y: goalY };
-        startBallFlight(pitch, duelX, duelY, goalX, goalY, state.simSpeed === 1 ? 360 : 40, 0.8, "GOAL", "#facc15");
-        const gSide = attIsUser ? "right" : "left";
-        pitch.goalFlashSide = gSide;
-        pitch.goalFlashUntil = performance.now() + 2600;
-        if (state.simSpeed !== 1) triggerGoalLightningBurst(pitch, gSide);
-        showPitchBadge(pitch, goalX, goalY, "GOOOL!!", "badge-goal", 1600, "SH");
-        showNodeBadge(pitch, shooterNode.uid, `GOOOL! • ${shotInfo.label}`, "badge-goal", 1650, "SH");
+      pitch.ballMode = "SHOT_FLIGHT";
+      pitch.carrierUid = null;
+      pitch.challengerUid = gkNode.uid;
+      pitch.holdBallPos = { x: duelX, y: duelY };
+      pitch.lastClashMinute = st.minute;
 
-        if (attIsUser) {
-          st.userScore++;
-          recordUserPlayerStat(pitch, shooterNode, "goals", 1);
-          const assistNode = shotAssistCandidate ? findPitchNode(pitch, shotAssistCandidate.passerUid) : null;
-          if (assistNode && assistNode.side === "user") {
-            recordUserPlayerStat(pitch, assistNode, "assists", 1);
+      const flightMs = instantMode ? 75 : weakenedByBlocker ? 620 : 1650;
+      startBallFlight(pitch, fromX, fromY, duelX, duelY, flightMs, weakenedByBlocker ? 1.8 : 3.0, "SHOT", "#f97316");
+      if (!weakenedByBlocker) {
+        showPitchBadge(pitch, fromX, fromY, shotInfo.label, "badge-shot", instantMode ? 600 : 1750, "SH");
+      }
+      pitch.ticker = `${st.minute}' CHUTE! ${shooterNode.player.name} (${shotInfo.label}) vs ${gkNode.player.name}!`;
+      syncLivePitchDOM(st);
+
+      const applyShotImpact = () => {
+        if (isGoal) {
+          pitch.ballMode = "GOAL_NET";
+          pitch.carrierUid = null;
+          pitch.challengerUid = null;
+          pitch.holdBallPos = { x: goalX, y: goalY };
+          startBallFlight(pitch, duelX, duelY, goalX, goalY, instantMode ? 40 : 360, 0.8, "GOAL", "#facc15");
+          const gSide = attIsUser ? "right" : "left";
+          pitch.goalFlashSide = gSide;
+          pitch.goalFlashUntil = performance.now() + 2600;
+          if (instantMode) triggerGoalLightningBurst(pitch, gSide);
+          showPitchBadge(pitch, goalX, goalY, "GOOOL!!", "badge-goal", 1600, "SH");
+          showNodeBadge(pitch, shooterNode.uid, `GOOOL! • ${shotInfo.label}`, "badge-goal", 1650, "SH");
+
+          const weakNote = weakenedByBlocker ? " (mesmo após desvio da zaga)" : "";
+          if (attIsUser) {
+            st.userScore++;
+            recordUserPlayerStat(pitch, shooterNode, "goals", 1);
+            const assistNode = shotAssistCandidate ? findPitchNode(pitch, shotAssistCandidate.passerUid) : null;
+            if (assistNode && assistNode.side === "user") {
+              recordUserPlayerStat(pitch, assistNode, "assists", 1);
+            }
+            const assistTag = assistNode ? ` (assist. de ${assistNode.player.name})` : "";
+            const goalObj = {
+              minute: st.minute,
+              name: shooterNode.player.name,
+              sprite: shooterNode.player.sprite,
+              shotLabel: shotInfo.label,
+              isHissatsu: shotInfo.isHissatsu,
+              assistName: assistNode ? assistNode.player.name : null
+            };
+            st.goalsUser.push(goalObj);
+            const scoreUserEl = document.getElementById("live-score-user");
+            if (scoreUserEl) scoreUserEl.textContent = st.userScore;
+            appendGoalItemDOM("user", goalObj);
+            prependNarrationLine(
+              st,
+              "nar-goal-user",
+              shotInfo.isHissatsu
+                ? `${st.minute}' GOOOL DO DREAM TEAM! ${shooterNode.player.name} disparou 【${shotInfo.label}】${assistTag}${weakNote} e furou 【${gkMoveName}】 de ${gkNode.player.name}! (${st.userScore} x ${st.oppScore})`
+                : `${st.minute}' GOOOL DO DREAM TEAM! ${shooterNode.player.name} superou ${gkNode.player.name} com um ${shotInfo.label.toLowerCase()}${assistTag}${weakNote}! (${st.userScore} x ${st.oppScore})`,
+              { name: shooterNode.player.name, sprite: shooterNode.player.sprite, side: "user" },
+              { name: gkNode.player.name, sprite: gkNode.player.sprite, side: "opp" },
+              "SH"
+            );
+          } else {
+            st.oppScore++;
+            const goalObj = {
+              minute: st.minute,
+              name: shooterNode.player.name,
+              sprite: shooterNode.player.sprite,
+              shotLabel: shotInfo.label,
+              isHissatsu: shotInfo.isHissatsu
+            };
+            st.goalsOpp.push(goalObj);
+            const scoreOppEl = document.getElementById("live-score-opp");
+            if (scoreOppEl) scoreOppEl.textContent = st.oppScore;
+            appendGoalItemDOM("opp", goalObj);
+            prependNarrationLine(
+              st,
+              "nar-goal-opp",
+              shotInfo.isHissatsu
+                ? `${st.minute}' GOL DE ${st.oppTeam.name.toUpperCase()}! ${shooterNode.player.name} usou 【${shotInfo.label}】${weakNote} e venceu 【${gkMoveName}】 de ${gkNode.player.name}! (${st.userScore} x ${st.oppScore})`
+                : `${st.minute}' GOL DE ${st.oppTeam.name.toUpperCase()}! ${shooterNode.player.name} venceu ${gkNode.player.name} com um ${shotInfo.label.toLowerCase()}${weakNote}! (${st.userScore} x ${st.oppScore})`,
+              { name: shooterNode.player.name, sprite: shooterNode.player.sprite, side: "opp" },
+              { name: gkNode.player.name, sprite: gkNode.player.sprite, side: "user" },
+              "SH"
+            );
           }
-          const assistTag = assistNode ? ` (assist. de ${assistNode.player.name})` : "";
-          const goalObj = {
-            minute: st.minute,
-            name: shooterNode.player.name,
-            sprite: shooterNode.player.sprite,
-            shotLabel: shotInfo.label,
-            isHissatsu: shotInfo.isHissatsu,
-            assistName: assistNode ? assistNode.player.name : null
-          };
-          st.goalsUser.push(goalObj);
-          const scoreUserEl = document.getElementById("live-score-user");
-          if (scoreUserEl) scoreUserEl.textContent = st.userScore;
-          appendGoalItemDOM("user", goalObj);
-          prependNarrationLine(
-            st,
-            "nar-goal-user",
-            shotInfo.isHissatsu
-              ? `${st.minute}' GOOOL DO DREAM TEAM! ${shooterNode.player.name} disparou 【${shotInfo.label}】${assistTag} e furou 【${defMoveName}】 de ${defTarget.player.name}! (${st.userScore} x ${st.oppScore})`
-              : `${st.minute}' GOOOL DO DREAM TEAM! ${shooterNode.player.name} superou ${defTarget.player.name} com um ${shotInfo.label.toLowerCase()}${assistTag}! (${st.userScore} x ${st.oppScore})`,
-            { name: shooterNode.player.name, sprite: shooterNode.player.sprite, side: "user" },
-            { name: defTarget.player.name, sprite: defTarget.player.sprite, side: "opp" },
-            "SH"
-          );
+          pitch.ticker = `${st.minute}' GOOOL de ${shooterNode.player.name}! (${st.userScore} x ${st.oppScore})`;
         } else {
-          st.oppScore++;
-          const goalObj = {
-            minute: st.minute,
-            name: shooterNode.player.name,
-            sprite: shooterNode.player.sprite,
-            shotLabel: shotInfo.label,
-            isHissatsu: shotInfo.isHissatsu
-          };
-          st.goalsOpp.push(goalObj);
-          const scoreOppEl = document.getElementById("live-score-opp");
-          if (scoreOppEl) scoreOppEl.textContent = st.oppScore;
-          appendGoalItemDOM("opp", goalObj);
-          prependNarrationLine(
-            st,
-            "nar-goal-opp",
-            shotInfo.isHissatsu
-              ? `${st.minute}' GOL DE ${st.oppTeam.name.toUpperCase()}! ${shooterNode.player.name} usou 【${shotInfo.label}】 e venceu 【${defMoveName}】 de ${defTarget.player.name}! (${st.userScore} x ${st.oppScore})`
-              : `${st.minute}' GOL DE ${st.oppTeam.name.toUpperCase()}! ${shooterNode.player.name} venceu ${defTarget.player.name} com um ${shotInfo.label.toLowerCase()}! (${st.userScore} x ${st.oppScore})`,
-            { name: shooterNode.player.name, sprite: shooterNode.player.sprite, side: "opp" },
-            { name: defTarget.player.name, sprite: defTarget.player.sprite, side: "user" },
-            "SH"
-          );
-        }
-        pitch.ticker = `${st.minute}' GOOOL de ${shooterNode.player.name}! (${st.userScore} x ${st.oppScore})`;
-      } else {
-        pitch.ballSide = attIsUser ? "opp" : "user";
-        pitch.ballMode = "CARRIED";
-        pitch.carrierUid = defTarget.uid;
-        pitch.challengerUid = null;
-        pitch.holdBallPos = null;
-        defTarget.carryTime = 0;
-        defTarget.decisionTimer = 0.35;
-        defTarget.duelCooldown = 1.8;
-        pitch.ballFlight = null;
-        pitch.ballX = defTarget.x + (defTarget.side === "user" ? 1.9 : -1.9);
-        pitch.ballY = defTarget.y + 1.0;
-        pitch.passTrail = null;
-        if (state.simSpeed !== 1) triggerSaveImplosion(pitch, duelX, duelY);
-        showPitchBadge(pitch, defTarget.x, defTarget.y, defMoveName, "badge-steal", 1000, defCategory);
+          pitch.ballSide = attIsUser ? "opp" : "user";
+          pitch.ballMode = "CARRIED";
+          pitch.carrierUid = gkNode.uid;
+          pitch.challengerUid = null;
+          pitch.holdBallPos = null;
+          gkNode.carryTime = 0;
+          gkNode.decisionTimer = 0.35;
+          gkNode.duelCooldown = 1.8;
+          pitch.ballFlight = null;
+          pitch.ballX = gkNode.x + (gkNode.side === "user" ? 1.9 : -1.9);
+          pitch.ballY = gkNode.y + 1.0;
+          pitch.passTrail = null;
+          if (instantMode) triggerSaveImplosion(pitch, duelX, duelY);
+          showPitchBadge(pitch, gkNode.x, gkNode.y, gkMoveName, "badge-steal", 1000, "GK");
 
-        if (defCategory === "DF") {
-          if (!attIsUser) {
-            pitch.stats.userSteals++;
-            pitch.stats.userBlocks = (pitch.stats.userBlocks || 0) + 1;
-            recordUserPlayerStat(pitch, defTarget, "blocks", 1);
-            recordUserPlayerStat(pitch, defTarget, "steals", 1);
-          }
-          pitch.ticker = `${st.minute}' ${defTarget.player.name} bloqueou o chute de ${shooterNode.player.name}!`;
-          prependNarrationLine(
-            st,
-            "nar-steal",
-            `${st.minute}' [Bloqueio da Zaga] ${defTarget.player.name} entrou na frente com 【${defMoveName}】 e bloqueou 【${shotInfo.label}】 de ${shooterNode.player.name}!`,
-            { name: defTarget.player.name, sprite: defTarget.player.sprite, side: defTarget.side },
-            { name: shooterNode.player.name, sprite: shooterNode.player.sprite, side: shooterNode.side },
-            "DF"
-          );
-        } else {
           if (!attIsUser) {
             pitch.stats.userSaves++;
-            recordUserPlayerStat(pitch, defTarget, "saves", 1);
+            recordUserPlayerStat(pitch, gkNode, "saves", 1);
           }
-          pitch.ticker = `${st.minute}' ${defTarget.player.name} defendeu o chute de ${shooterNode.player.name}!`;
+          pitch.ticker = `${st.minute}' ${gkNode.player.name} defendeu o chute de ${shooterNode.player.name}!`;
           prependNarrationLine(
             st,
             "nar-save",
-            `${st.minute}' [Defesa de Goleiro] ${defTarget.player.name} acionou 【${defMoveName}】 e espalmou 【${shotInfo.label}】 de ${shooterNode.player.name}!`,
-            { name: defTarget.player.name, sprite: defTarget.player.sprite, side: defTarget.side },
+            `${st.minute}' [Defesa de Goleiro] ${gkNode.player.name} acionou 【${gkMoveName}】 e espalmou ${weakenedByBlocker ? "o chute enfraquecido " : ""}【${shotInfo.label}】 de ${shooterNode.player.name}!`,
+            { name: gkNode.player.name, sprite: gkNode.player.sprite, side: gkNode.side },
             { name: shooterNode.player.name, sprite: shooterNode.player.sprite, side: shooterNode.side },
             "GK"
           );
         }
-      }
-    };
+      };
 
-    const onShotModalClosed = (skipRestart = false) => {
-      if (isGoal) {
-        const gSide = attIsUser ? "right" : "left";
-        const concedingSide = attIsUser ? "opp" : "user";
-        const doKickoffReset = () => {
-          resetPitchForKickoff(pitch, concedingSide, true);
-          pitch.ticker = `${st.minute}' Saída no centro com ${concedingSide === "user" ? "Dream Team" : st.oppTeam.name}!`;
-        };
-        if (skipRestart || state.simSpeed !== 1) {
-          doKickoffReset();
-          return false;
+      const onShotModalClosed = (skipRestart = false) => {
+        if (isGoal) {
+          const gSide = attIsUser ? "right" : "left";
+          const concedingSide = attIsUser ? "opp" : "user";
+          const doKickoffReset = () => {
+            resetPitchForKickoff(pitch, concedingSide, true);
+            pitch.ticker = `${st.minute}' Saída no centro com ${concedingSide === "user" ? "Dream Team" : st.oppTeam.name}!`;
+          };
+          if (skipRestart || instantMode) {
+            doKickoffReset();
+            return false;
+          }
+          pitch.goalFlashSide = gSide;
+          pitch.goalFlashUntil = performance.now() + 1800;
+          triggerGoalLightningBurst(pitch, gSide);
+          pauseForPitchBeat(
+            st,
+            `<span class="callout-tag">GOOOL!</span><strong>${shooterNode.player.name}</strong><span>${st.userScore} x ${st.oppScore} · ${shotInfo.label}</span>`,
+            "callout-goal",
+            1500,
+            ovrDiff,
+            doKickoffReset
+          );
+          return true;
         }
-        pitch.goalFlashSide = gSide;
-        pitch.goalFlashUntil = performance.now() + 1800;
-        triggerGoalLightningBurst(pitch, gSide);
-        pauseForPitchBeat(
-          st,
-          `<span class="callout-tag">GOOOL!</span><strong>${shooterNode.player.name}</strong><span>${st.userScore} x ${st.oppScore} · ${shotInfo.label}</span>`,
-          "callout-goal",
-          1500,
-          ovrDiff,
-          doKickoffReset
-        );
+
+        if (!instantMode) {
+          triggerSaveImplosion(pitch, pitch.ballX, pitch.ballY);
+        }
+        showNodeBadge(pitch, gkNode.uid, `Defendeu • ${gkMoveName}`, "badge-steal", 1100, "GK");
+        if (skipRestart || instantMode) return false;
+        pauseForPitchBeat(st, "", "", 780, ovrDiff, null);
+        return true;
+      };
+
+      if (forceInstant) {
+        applyShotImpact();
+        onShotModalClosed(true);
+        syncLivePitchDOM(st);
+        handleMinuteEndBoundaries(st, ovrDiff);
         return true;
       }
 
-      if (state.simSpeed === 1) {
-        triggerSaveImplosion(pitch, pitch.ballX, pitch.ballY);
-      }
-      showNodeBadge(
-        pitch,
-        defTarget.uid,
-        `${defCategory === "DF" ? "Bloqueou" : "Defendeu"} • ${defMoveName}`,
-        "badge-steal",
-        1100,
-        defCategory
+      playShotClashAndContinue(
+        st,
+        {
+          kind: "SHOT",
+          dir: attIsUser ? "ltr" : "rtl",
+          userPlayer: attIsUser
+            ? { name: shooterNode.player.name, sprite: resolveDynamicNodeSprite(shooterNode, pitch), roleText: weakenedByBlocker ? "CHUTE (-FORÇA)" : "CHUTE" }
+            : { name: gkNode.player.name, sprite: resolveDynamicNodeSprite(gkNode, pitch), roleText: "GOLEIRO" },
+          oppPlayer: attIsUser
+            ? { name: gkNode.player.name, sprite: resolveDynamicNodeSprite(gkNode, pitch), roleText: "GOLEIRO" }
+            : { name: shooterNode.player.name, sprite: resolveDynamicNodeSprite(shooterNode, pitch), roleText: weakenedByBlocker ? "CHUTE (-FORÇA)" : "CHUTE" },
+          topMoveName: weakenedByBlocker ? `${shotInfo.label} (Enfraquecido)` : shotInfo.label,
+          bottomMoveName: gkMoveName,
+          bottomIcon: "GK",
+          outcomePositive: isGoal ? attIsUser : !attIsUser,
+          resultBannerText: isGoal ? "GOOOL!!" : "DEFENDEU!"
+        },
+        applyShotImpact,
+        ovrDiff,
+        onShotModalClosed
       );
-      if (skipRestart || state.simSpeed !== 1) return false;
-      pauseForPitchBeat(st, "", "", 780, ovrDiff, null);
       return true;
     };
 
-    const bannerText = isGoal
-      ? "GOOOL!!"
-      : defCategory === "DF"
-      ? "BLOQUEADO PELA ZAGA!"
-      : "DEFENDEU!";
-    const defRoleBadge = defCategory === "DF" ? "ZAGA • BLOQUEIO" : "GOLEIRO";
+    if (!blockerNode) {
+      resolveAgainstGk(baseShotScore, shooterNode.x, shooterNode.y, false);
+      return;
+    }
+
+    // Etapa 1: Defensor na linha tenta bloquear o chute!
+    const pickedBlockMove = pickPlayerMove(blockerNode.player, "DF");
+    const blockMoveName = pickedBlockMove || "Bloqueio de Corpo";
+    spendStamina(blockerNode, pickedBlockMove ? 15 : 8);
+
+    const blockerStopScore = calcNodeDuelScore(blockerNode, defSupport, shooterNode?.player?.element);
+    const passBlockerProb = logisticWinProb(baseShotScore, blockerStopScore, -1.6, 0.38, 0.80);
+    const passedBlocker = Math.random() < passBlockerProb;
+
+    const duelX = blockerNode.x;
+    const duelY = blockerNode.y;
+    pitch.ballMode = "SHOT_FLIGHT";
+    pitch.carrierUid = null;
+    pitch.challengerUid = blockerNode.uid;
+    pitch.holdBallPos = { x: duelX, y: duelY };
+    pitch.lastClashMinute = st.minute;
+
+    const blockFlightMs = state.simSpeed === 1 ? 1400 : 65;
+    startBallFlight(pitch, shooterNode.x, shooterNode.y, duelX, duelY, blockFlightMs, 2.6, "SHOT", "#f97316");
+    showPitchBadge(pitch, shooterNode.x, shooterNode.y, shotInfo.label, "badge-shot", state.simSpeed === 1 ? 1600 : 600, "SH");
+    pitch.ticker = `${st.minute}' CHUTE! ${shooterNode.player.name} (${shotInfo.label}) enfrenta bloqueio de ${blockerNode.player.name}!`;
+    syncLivePitchDOM(st);
+
+    const applyBlockerImpact = () => {
+      if (!passedBlocker) {
+        pitch.ballSide = attIsUser ? "opp" : "user";
+        pitch.ballMode = "CARRIED";
+        pitch.carrierUid = blockerNode.uid;
+        pitch.challengerUid = null;
+        pitch.holdBallPos = null;
+        blockerNode.carryTime = 0;
+        blockerNode.decisionTimer = 0.35;
+        blockerNode.duelCooldown = 1.8;
+        pitch.ballFlight = null;
+        pitch.ballX = blockerNode.x + (blockerNode.side === "user" ? 1.9 : -1.9);
+        pitch.ballY = blockerNode.y + 1.0;
+        pitch.passTrail = null;
+        if (state.simSpeed !== 1) triggerSaveImplosion(pitch, duelX, duelY);
+        showPitchBadge(pitch, blockerNode.x, blockerNode.y, blockMoveName, "badge-steal", 1000, "DF");
+
+        if (!attIsUser) {
+          pitch.stats.userSteals++;
+          pitch.stats.userBlocks = (pitch.stats.userBlocks || 0) + 1;
+          recordUserPlayerStat(pitch, blockerNode, "blocks", 1);
+          recordUserPlayerStat(pitch, blockerNode, "steals", 1);
+        }
+        pitch.ticker = `${st.minute}' ${blockerNode.player.name} bloqueou o chute de ${shooterNode.player.name}!`;
+        prependNarrationLine(
+          st,
+          "nar-steal",
+          `${st.minute}' [Bloqueio da Zaga] ${blockerNode.player.name} entrou na frente com 【${blockMoveName}】 e bloqueou 【${shotInfo.label}】 de ${shooterNode.player.name}!`,
+          { name: blockerNode.player.name, sprite: blockerNode.player.sprite, side: blockerNode.side },
+          { name: shooterNode.player.name, sprite: shooterNode.player.sprite, side: shooterNode.side },
+          "DF"
+        );
+      } else {
+        blockerNode.staggerTimer = 1.25;
+        blockerNode.duelCooldown = 1.8;
+        showPitchBadge(pitch, blockerNode.x, blockerNode.y, "Desviou (-Força)", "badge-shot", 850, "DF");
+        pitch.ticker = `${st.minute}' ${shooterNode.player.name} furou o bloqueio de ${blockerNode.player.name} — bola vai para o gol!`;
+        prependNarrationLine(
+          st,
+          "nar-shot",
+          `${st.minute}' [Bloqueio Parcial] ${blockerNode.player.name} tentou travar 【${shotInfo.label}】 com 【${blockMoveName}】 — o chute perdeu força, mas passou para ${gkNode.player.name}!`,
+          { name: shooterNode.player.name, sprite: shooterNode.player.sprite, side: shooterNode.side },
+          { name: blockerNode.player.name, sprite: blockerNode.player.sprite, side: blockerNode.side },
+          "DF"
+        );
+      }
+    };
+
+    const onBlockerModalClosed = (skipRestart = false) => {
+      if (!passedBlocker) {
+        if (state.simSpeed === 1) {
+          triggerSaveImplosion(pitch, pitch.ballX, pitch.ballY);
+        }
+        showNodeBadge(pitch, blockerNode.uid, `Bloqueou • ${blockMoveName}`, "badge-steal", 1100, "DF");
+        if (skipRestart || state.simSpeed !== 1) return false;
+        pauseForPitchBeat(st, "", "", 780, ovrDiff, null);
+        return true;
+      }
+
+      // Chute passou pelo defensor com força reduzida -> agora o goleiro tenta defender!
+      const weakenedScore = baseShotScore - 5.2;
+      return resolveAgainstGk(weakenedScore, duelX, duelY, true, skipRestart);
+    };
 
     playShotClashAndContinue(
       st,
@@ -4049,19 +4135,19 @@
         dir: attIsUser ? "ltr" : "rtl",
         userPlayer: attIsUser
           ? { name: shooterNode.player.name, sprite: resolveDynamicNodeSprite(shooterNode, pitch), roleText: "CHUTE" }
-          : { name: defTarget.player.name, sprite: resolveDynamicNodeSprite(defTarget, pitch), roleText: defRoleBadge },
+          : { name: blockerNode.player.name, sprite: resolveDynamicNodeSprite(blockerNode, pitch), roleText: "ZAGA • BLOQUEIO" },
         oppPlayer: attIsUser
-          ? { name: defTarget.player.name, sprite: resolveDynamicNodeSprite(defTarget, pitch), roleText: defRoleBadge }
+          ? { name: blockerNode.player.name, sprite: resolveDynamicNodeSprite(blockerNode, pitch), roleText: "ZAGA • BLOQUEIO" }
           : { name: shooterNode.player.name, sprite: resolveDynamicNodeSprite(shooterNode, pitch), roleText: "CHUTE" },
         topMoveName: shotInfo.label,
-        bottomMoveName: defMoveName,
-        bottomIcon: defCategory,
-        outcomePositive: isGoal ? attIsUser : !attIsUser,
-        resultBannerText: bannerText
+        bottomMoveName: blockMoveName,
+        bottomIcon: "DF",
+        outcomePositive: passedBlocker ? attIsUser : !attIsUser,
+        resultBannerText: passedBlocker ? "PASSOU • PERDEU FORÇA!" : "BLOQUEADO PELA ZAGA!"
       },
-      applyShotImpact,
+      applyBlockerImpact,
       ovrDiff,
-      onShotModalClosed
+      onBlockerModalClosed
     );
   }
 
