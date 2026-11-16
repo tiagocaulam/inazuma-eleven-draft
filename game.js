@@ -294,10 +294,16 @@
     return pairs;
   }
 
+  function calcPlayerPowerContribution(effOvr) {
+    // Contribuição progressiva por OVR: craques 90+ geram vantagem real e impedem inversões 81 > 92
+    return Math.pow(Math.max(40, effOvr) / 85, 2.7) * 100;
+  }
+
   // Cálculo unificado de Química, Poder e Sinergia de Proximidade (usado tanto no Dream Team quanto no Adversário!)
   function evaluateTeamStats(slots, getPlayerForSlot, options = {}) {
     const { isOpponent = false, ovrAdjust = 0, clubIdHint = null, oppStageIdx = 0 } = options;
     let sumOvr = 0;
+    let sumBasePwr = 0;
     let count = 0;
     let atkSum = 0, atkCnt = 0;
     let midSum = 0, midCnt = 0;
@@ -324,6 +330,7 @@
         ? Math.max(55, adjP.ovr - (adjP.pos === s.role ? 0 : 4))
         : getEffectiveOvr(adjP, s.role);
       sumOvr += eff;
+      sumBasePwr += calcPlayerPowerContribution(eff);
 
       const tId = p.teamId || clubIdHint || "club";
       teamsCount[tId] = (teamsCount[tId] || 0) + 1;
@@ -336,17 +343,97 @@
     });
 
     const avgRawOvr = count > 0 ? sumOvr / count : 80;
-    // Escala pelo nível do elenco (time base 80 não ganha o mesmo bônus bruto que seleção final 95)
-    const tierScale = Math.max(0.55, Math.min(1.12, Math.pow(avgRawOvr / 90, 1.35)));
+    // Escala pelo nível do elenco (elencos de OVR baixo não ganham o mesmo bônus bruto que seleções 92+)
+    const tierScale = Math.max(0.55, Math.min(1.16, Math.pow(avgRawOvr / 90, 1.45)));
 
     let chem = 0;
     let bondsPower = 0;
     const activeBonds = [];
 
-    // 0. Química & Poder por Posições Corretas (Regra Tática!)
+    // Parâmetros de Sinergia Elemental em PROXIMIDADE (jogadores colados ao lado, acima ou abaixo)
+    const adjPairs = getAdjacentSlotPairs(slots);
+    adjPairs.forEach(([sA, sB]) => {
+      const pA = slotPlayerMap[sA.id];
+      const pB = slotPlayerMap[sB.id];
+      if (pA && pB && pA.element && pA.element === pB.element) {
+        activeElemPairs.push({ a: sA, b: sB, element: pA.element });
+        elemCountsByLink[pA.element] = (elemCountsByLink[pA.element] || 0) + 1;
+      }
+    });
+
+    if (isOpponent) {
+      // Adversários baseiam Poder principalmente no OVR dos jogadores + Links Elementais em proximidade (sem loteria de Química/Amizade)
+      if (count > 0) {
+        const posChem = Math.round(correctPosCount * 2.0);
+        const posPwr = Math.round(correctPosCount * 4.5 * tierScale);
+        chem += posChem;
+        bondsPower += posPwr;
+        activeBonds.push({
+          type: correctPosCount === 11 ? "perfect-formation" : "team",
+          label: `📐 Formação Tática ${correctPosCount}/11 (+${posChem}% Quím • +${posPwr} Poder)`
+        });
+      }
+
+      if (activeElemPairs.length > 0) {
+        const linkChem = Math.min(35, activeElemPairs.length * 5);
+        const rawLinkPwr =
+          activeElemPairs.length <= 4
+            ? activeElemPairs.length * 13
+            : 52 + (activeElemPairs.length - 4) * 5;
+        const linkPwr = Math.min(Math.round(80 * tierScale), Math.round(rawLinkPwr * tierScale));
+        chem += linkChem;
+        bondsPower += linkPwr;
+        const summaryParts = Object.keys(elemCountsByLink)
+          .map((el) => `${DB.elements[el]?.icon || "⚡"}×${elemCountsByLink[el]}`)
+          .join(" ");
+        activeBonds.push({
+          type: "element",
+          label: `🔗 ${activeElemPairs.length}x Links Elementais Próximos (${summaryParts}) (+${linkChem}% • +${linkPwr} Poder)`
+        });
+      }
+
+      const maxClub = Math.max(0, ...Object.values(teamsCount));
+      if (maxClub >= 2) {
+        const clubChem = Math.min(28, Math.round(12 + maxClub * 1.5));
+        const clubPwr = Math.round(Math.min(48, maxClub * 4.2) * tierScale);
+        chem += clubChem;
+        bondsPower += clubPwr;
+        activeBonds.push({
+          type: "team",
+          label: `🏟️ Entrosamento de Elenco (+${clubChem}% • +${clubPwr} Poder)`
+        });
+      }
+
+      chem = Math.min(100, Math.max(0, chem));
+      const oppChemOvr = oppStageIdx >= 3 ? 2 : oppStageIdx >= 1 ? 1 : 0;
+      const ovr = count > 0 ? Math.min(99, Math.round(avgRawOvr) + oppChemOvr) : 0;
+
+      const chemPower = Math.round(chem * 0.55 * tierScale);
+      const basePower = Math.round(sumBasePwr);
+      const power = count > 0 ? basePower + chemPower + bondsPower : 0;
+
+      return {
+        count,
+        correctPosCount,
+        ovr,
+        power,
+        basePower,
+        chemPower,
+        bondsPower,
+        elemLinksCount: activeElemPairs.length,
+        activeElemPairs,
+        atk: atkCnt > 0 ? Math.round(atkSum / atkCnt) : 0,
+        mid: midCnt > 0 ? Math.round(midSum / midCnt) : 0,
+        def: defCnt > 0 ? Math.round(defSum / defCnt) : 0,
+        chem,
+        activeBonds
+      };
+    }
+
+    // 0. Química & Poder por Posições Corretas (Dream Team)
     if (count > 0) {
       if (correctPosCount === 11) {
-        const pwr = Math.round(115 * tierScale);
+        const pwr = Math.round(92 * tierScale);
         chem += 20;
         bondsPower += pwr;
         activeBonds.push({
@@ -354,8 +441,8 @@
           label: `📐 Formação Perfeita 11/11 (+20% Quím • +${pwr} Poder)`
         });
       } else {
-        const posChem = Math.round(correctPosCount * 1.5);
-        const posPwr = Math.round(correctPosCount * 7 * tierScale);
+        const posChem = Math.round(correctPosCount * 1.4);
+        const posPwr = Math.round(correctPosCount * 5 * tierScale);
         const improvised = count - correctPosCount;
         chem += posChem;
         bondsPower += posPwr;
@@ -369,23 +456,14 @@
       }
     }
 
-    // 1. Química & Poder por Sinergia Elemental em PROXIMIDADE (jogadores colados ao lado, acima ou abaixo!)
-    const adjPairs = getAdjacentSlotPairs(slots);
-    adjPairs.forEach(([sA, sB]) => {
-      const pA = slotPlayerMap[sA.id];
-      const pB = slotPlayerMap[sB.id];
-      if (pA && pB && pA.element && pA.element === pB.element) {
-        activeElemPairs.push({ a: sA, b: sB, element: pA.element });
-        elemCountsByLink[pA.element] = (elemCountsByLink[pA.element] || 0) + 1;
-      }
-    });
-
+    // 1. Química & Poder por Sinergia Elemental em PROXIMIDADE (Dream Team)
     if (activeElemPairs.length > 0) {
       const linkChem = Math.min(35, activeElemPairs.length * 5);
-      const linkPwr = Math.min(
-        Math.round(175 * tierScale),
-        Math.round(activeElemPairs.length * 24 * tierScale)
-      );
+      const rawLinkPwr =
+        activeElemPairs.length <= 5
+          ? activeElemPairs.length * 20
+          : 100 + (activeElemPairs.length - 5) * 10;
+      const linkPwr = Math.min(Math.round(135 * tierScale), Math.round(rawLinkPwr * tierScale));
       chem += linkChem;
       bondsPower += linkPwr;
       const summaryParts = Object.keys(elemCountsByLink)
@@ -397,12 +475,12 @@
       });
     }
 
-    // 2. Química & Poder por Mesmo Clube/Escola (teto justo para elencos completos de escola)
+    // 2. Química & Poder por Mesmo Clube/Escola
     Object.keys(teamsCount).forEach((tId) => {
       const c = teamsCount[tId];
       if (c >= 2) {
-        const chemBonus = c <= 4 ? (c - 1) * 10 : Math.min(42, 30 + Math.round((c - 4) * 2));
-        const rawPwr = c <= 4 ? (c - 1) * 34 : Math.min(130, 102 + (c - 4) * 4);
+        const chemBonus = c <= 4 ? (c - 1) * 9 : Math.min(38, 27 + Math.round((c - 4) * 2));
+        const rawPwr = c <= 4 ? (c - 1) * 25 : Math.min(100, 75 + (c - 4) * 3);
         const pwrBonus = Math.round(rawPwr * tierScale);
         chem += chemBonus;
         bondsPower += pwrBonus;
@@ -422,7 +500,7 @@
           bond,
           extraCount: matched.length - 1,
           rawChem: (matched.length - 1) * bond.chemPerMatch,
-          rawPwr: (matched.length - 1) * 58
+          rawPwr: (matched.length - 1) * 42
         });
       }
     });
@@ -431,7 +509,7 @@
     const decayWeights = [1.0, 0.55, 0.30, 0.15];
     let friendChemTotal = 0;
     let friendPwrTotal = 0;
-    const maxFriendPwr = Math.round(185 * tierScale);
+    const maxFriendPwr = Math.round(135 * tierScale);
 
     matchedBonds.forEach((entry, idx) => {
       const w = decayWeights[Math.min(idx, decayWeights.length - 1)];
@@ -456,19 +534,14 @@
 
     let ovr = 0;
     if (count > 0) {
-      if (isOpponent) {
-        const oppChemOvr = oppStageIdx >= 3 ? 2 : oppStageIdx >= 1 ? 1 : 0;
-        ovr = Math.min(99, Math.round(avgRawOvr) + oppChemOvr);
-      } else {
-        const chemOvrBonus = chem >= 80 ? 3 : chem >= 55 ? 2 : chem >= 30 ? 1 : 0;
-        const perfectPosOvrBonus = correctPosCount === 11 ? 2 : 0;
-        ovr = Math.min(99, Math.round(avgRawOvr) + chemOvrBonus + perfectPosOvrBonus);
-      }
+      const chemOvrBonus = chem >= 80 ? 3 : chem >= 55 ? 2 : chem >= 30 ? 1 : 0;
+      const perfectPosOvrBonus = correctPosCount === 11 ? 2 : 0;
+      ovr = Math.min(99, Math.round(avgRawOvr) + chemOvrBonus + perfectPosOvrBonus);
     }
 
-    // Poder Final Total = Soma dos OVRs + Química (até 200) + Bônus de Sinergia
-    const chemPower = Math.round(chem * 2.0 * tierScale);
-    const basePower = Math.round(sumOvr);
+    // Poder Final Total = Soma Progressiva dos OVRs + Química + Bônus de Sinergia
+    const chemPower = Math.round(chem * 1.4 * tierScale);
+    const basePower = Math.round(sumBasePwr);
     const power = count > 0 ? basePower + chemPower + bondsPower : 0;
 
     return {
@@ -495,26 +568,38 @@
 
   function getOpponentSlotAssignments(oppTeam) {
     const raw = (oppTeam.players || []).slice();
-    const usedIds = new Set();
-    const pickByRole = (role) => {
-      const idx = raw.findIndex((p) => !usedIds.has(p.id) && p.pos === role);
-      if (idx >= 0) {
-        usedIds.add(raw[idx].id);
-        return raw[idx];
+    const formOrder = ["4-4-2", "4-3-3", "3-4-3", "3-5-2"];
+    let best = null;
+
+    formOrder.forEach((fKey) => {
+      const formSlots = DB.formations[fKey].slots;
+      const usedIds = new Set();
+      const assignments = {};
+      let correct = 0;
+      const pickByRole = (role) => {
+        const idx = raw.findIndex((p) => !usedIds.has(p.id) && p.pos === role);
+        if (idx >= 0) {
+          usedIds.add(raw[idx].id);
+          return raw[idx];
+        }
+        const fallback = raw.find((p) => !usedIds.has(p.id));
+        if (fallback) {
+          usedIds.add(fallback.id);
+          return fallback;
+        }
+        return oppTeam.players[0];
+      };
+      formSlots.forEach((slot) => {
+        const chosen = pickByRole(slot.role);
+        assignments[slot.id] = chosen;
+        if (chosen && chosen.pos === slot.role) correct++;
+      });
+      if (!best || correct > best.correct) {
+        best = { formSlots, assignments, correct };
       }
-      const fallback = raw.find((p) => !usedIds.has(p.id));
-      if (fallback) {
-        usedIds.add(fallback.id);
-        return fallback;
-      }
-      return oppTeam.players[0];
-    };
-    const formSlots = DB.formations["4-4-2"].slots;
-    const assignments = {};
-    formSlots.forEach((slot) => {
-      assignments[slot.id] = pickByRole(slot.role);
     });
-    return { formSlots, assignments };
+
+    return { formSlots: best.formSlots, assignments: best.assignments };
   }
 
   function calcOpponentStats(oppTeam, stageIdx) {
