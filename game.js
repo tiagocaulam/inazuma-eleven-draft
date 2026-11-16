@@ -899,10 +899,20 @@
       const fn = state.tournament.pendingClashFinish;
       state.tournament.pendingClashFinish = null;
       const slot = document.getElementById("shot-clash-slot");
-      if (slot) slot.innerHTML = "";
+      if (slot) {
+        slot.innerHTML = "";
+        slot.style.display = "none";
+      }
       fn(true);
     } else {
       state.tournament.pendingClashFinish = null;
+      const slot = document.getElementById("shot-clash-slot");
+      if (slot) {
+        slot.innerHTML = "";
+        slot.style.display = "none";
+      }
+      const goalsBox = document.getElementById("goals-columns-box");
+      if (goalsBox) goalsBox.style.display = "";
     }
   }
 
@@ -994,6 +1004,10 @@
     const defCls = clash.defender.side === "user" ? "side-user" : "side-opp";
     const defRoleText = clash.defCategory === "DF" ? "ZAGA • BLOQUEIO" : "GOLEIRO";
 
+    const goalsBox = document.getElementById("goals-columns-box");
+    if (goalsBox) goalsBox.style.display = "none";
+    slotEl.style.display = "block";
+
     slotEl.innerHTML = `
       <div class="shot-clash-stage">
         <div class="clash-arena-grid">
@@ -1033,7 +1047,12 @@
     const finishClash = (skipRestart = false) => {
       state.tournament.pendingClashFinish = null;
       const mountSlot = document.getElementById("shot-clash-slot");
-      if (mountSlot) mountSlot.innerHTML = "";
+      if (mountSlot) {
+        mountSlot.innerHTML = "";
+        mountSlot.style.display = "none";
+      }
+      const restoreGoalsBox = document.getElementById("goals-columns-box");
+      if (restoreGoalsBox) restoreGoalsBox.style.display = "";
       applyOutcome();
       const matchEnded = handleMinuteEndBoundaries(st, ovrDiff);
       if (!matchEnded && !skipRestart && st.running && !st.finished) {
@@ -1765,8 +1784,6 @@
           </div>
         </div>
 
-        <div id="shot-clash-slot"></div>
-
         ${
           st.penaltiesText
             ? `<div style="text-align:center; background:rgba(250,204,21,0.15); border:1px solid #facc15; padding:6px; border-radius:8px; font-weight:800; color:#fde047; font-size:0.82rem;">
@@ -1775,7 +1792,9 @@
             : ""
         }
 
-        <div class="goals-columns">
+        <div id="shot-clash-slot" style="display:none;"></div>
+
+        <div id="goals-columns-box" class="goals-columns">
           <div class="goals-list" id="live-goals-user">
             <div style="font-size:0.7rem; font-weight:800; color:#4ade80; text-transform:uppercase; display:flex; align-items:center; gap:5px;">
               ${moveIconHTML("SH")} <span>Gols do Dream Team</span>
