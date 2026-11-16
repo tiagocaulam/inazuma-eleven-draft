@@ -8,42 +8,45 @@
 </head>
 <body>
   <header class="topbar">
-    <div class="brand">
-      <span class="brand-icon">⚡</span>
-      <h1>Inazuma Eleven Dream Team</h1>
+    <div class="brand" id="topbar-brand">
+      <img id="topbar-emblem" class="brand-emblem-img" alt="Inazuma" />
+      <div class="brand-text-col">
+        <h1>INAZUMA ELEVEN</h1>
+        <span class="brand-sub">DREAM TEAM • FUTEBOL FRONTEIRA</span>
+      </div>
     </div>
 
     <div class="topbar-btns">
-      <button id="btn-auto-draft" class="ui-btn" title="Preencher vagas automaticamente">
-        ⚡ Autopreencher
+      <button id="btn-auto-draft" class="ie-cmd-btn ie-cmd-blue" title="Preencher vagas automaticamente">
+        Auto Escalar
       </button>
-      <button id="btn-reset" class="ui-btn btn-danger" title="Voltar ao Menu Inicial">
-        🏠 Menu
+      <button id="btn-reset" class="ie-cmd-btn ie-cmd-red" title="Voltar ao Menu Inicial">
+        Menu
       </button>
     </div>
   </header>
 
   <main class="app-wrap">
-    <!-- HUD Superior (oculto na tela inicial do menu) -->
+    <!-- HUD Superior estilo Placar/Menu de Jogo -->
     <div id="hud-bars-wrap" style="display:none; flex-direction:column; gap:8px;">
       <div class="ovr-header-bar">
         <div class="ovr-pill main-ovr">
-          <small>OVERALL</small>
+          <small>TOTAL OVR</small>
           <strong id="val-ovr">0</strong>
         </div>
         <div class="ovr-pill">
-          <small>ATAQUE</small>
+          <small>ATA</small>
           <strong id="val-atk">0</strong>
         </div>
         <div class="ovr-pill">
-          <small>MEIO</small>
+          <small>MEI</small>
           <strong id="val-mid">0</strong>
         </div>
         <div class="ovr-pill">
-          <small>DEF / GOL</small>
+          <small>DEF/GOL</small>
           <strong id="val-def">0</strong>
         </div>
-        <div class="ovr-pill main-ovr">
+        <div class="ovr-pill chem-ovr">
           <small>QUÍMICA</small>
           <strong id="val-chem">0%</strong>
         </div>
@@ -53,10 +56,11 @@
       <div class="chemistry-bonds-bar" id="bonds-bar"></div>
     </div>
 
-    <!-- Container Principal (Menu Inicial -> Roleta de Times -> Campo -> Mata-Mata) -->
+    <!-- Container Principal -->
     <section class="screen-card" id="main-screen-container"></section>
   </main>
 
+  <script src="ui_assets.js"></script>
   <script src="data.js"></script>
   <script src="game.js"></script>
 </body>

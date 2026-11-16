@@ -2,6 +2,7 @@ cloudflared.exe
 scraped_teams.json
 scraper.js
 enrich_hissatsu.js
+fetch_ui_assets.js
 bundle.js
 server.js
 start_tunnel.js

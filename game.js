@@ -2,6 +2,34 @@
 
 (function () {
   const DB = window.INAZUMA_DB;
+  const UI = window.INAZUMA_UI || {};
+
+  function posIconHTML(role, small = false) {
+    const src = UI["pos" + role];
+    if (!src) return `<span>${role}</span>`;
+    return `<img class="${small ? "pos-icon-sm" : "pos-icon-img"}" src="${src}" alt="${role}" title="${role}" />`;
+  }
+
+  function elemIconHTML(elemName, cls = "elem-icon-img") {
+    const map = { Fogo: "elemFire", Vento: "elemWind", Floresta: "elemForest", Montanha: "elemMountain" };
+    const src = UI[map[elemName]];
+    if (!src) return `<span>${DB.elements[elemName]?.icon || "⚡"}</span>`;
+    return `<img class="${cls}" src="${src}" alt="${elemName}" title="${elemName}" />`;
+  }
+
+  function moveIconHTML(cat) {
+    const src = UI["move" + cat];
+    if (!src) return "";
+    return `<img class="move-icon-img" src="${src}" alt="${cat}" />`;
+  }
+
+  function captainIconHTML() {
+    return UI.captain ? `<img class="captain-icon-img" src="${UI.captain}" alt="Capitão" title="Capitão" />` : "";
+  }
+
+  function formationIconHTML() {
+    return UI.formation ? `<img class="form-icon-img" src="${UI.formation}" alt="" />` : "";
+  }
 
   const NORMAL_SHOT_DESCRIPTIONS = [
     "Chute colocado no ângulo",
@@ -220,12 +248,12 @@
   function formatPlayerMovesSummary(p) {
     if (!p || !p.moves) return p.hissatsu || "";
     const parts = [];
-    if (p.pos === "GK" && p.moves.GK?.length) parts.push(`🧤 ${p.moves.GK[0]}`);
-    if (p.moves.SH?.length) parts.push(`⚽ ${p.moves.SH[0]}`);
-    if (p.moves.OF?.length && parts.length < 2) parts.push(`💨 ${p.moves.OF[0]}`);
-    if (p.moves.DF?.length && parts.length < 2) parts.push(`🛡️ ${p.moves.DF[0]}`);
-    if (p.moves.GK?.length && parts.length === 0) parts.push(`🧤 ${p.moves.GK[0]}`);
-    return parts.join(" • ") || p.hissatsu;
+    if (p.pos === "GK" && p.moves.GK?.length) parts.push(`${moveIconHTML("GK")} <span>${p.moves.GK[0]}</span>`);
+    if (p.moves.SH?.length) parts.push(`${moveIconHTML("SH")} <span>${p.moves.SH[0]}</span>`);
+    if (p.moves.OF?.length && parts.length < 2) parts.push(`${moveIconHTML("OF")} <span>${p.moves.OF[0]}</span>`);
+    if (p.moves.DF?.length && parts.length < 2) parts.push(`${moveIconHTML("DF")} <span>${p.moves.DF[0]}</span>`);
+    if (p.moves.GK?.length && parts.length === 0) parts.push(`${moveIconHTML("GK")} <span>${p.moves.GK[0]}</span>`);
+    return parts.slice(0, 2).join(" ") || `<span>${p.hissatsu}</span>`;
   }
 
   // Verifica se um jogador do sorteio atual teria link de amizade/mesmo time com alguém já escalado!
@@ -408,7 +436,7 @@
       .map((r) => {
         const cnt = openSlots.filter((s) => s.role === r).length;
         return cnt > 0
-          ? `<span class="node-pos-pill pos-${r}" style="font-size:0.72rem; padding:2px 8px;">${r}: ${cnt}</span>`
+          ? `<span style="display:inline-flex; align-items:center; gap:3px; background:rgba(9,22,50,0.85); border:1px solid rgba(96,165,250,0.4); border-radius:4px; padding:2px 6px; font-size:0.72rem; font-weight:900;">${posIconHTML(r, true)} ×${cnt}</span>`
           : "";
       })
       .filter(Boolean)
@@ -419,23 +447,23 @@
         <div class="roster-fade-in">
           <div class="drawn-team-header" style="margin-bottom: 12px;">
             <div style="display:flex; align-items:center; gap:12px;">
-              <img src="${team.emblem}" alt="" style="width:46px; height:46px; object-fit:contain;" />
+              <img src="${team.emblem}" alt="" style="width:48px; height:48px; object-fit:contain;" />
               <div>
-                <h3 style="font-size:1.15rem; font-weight:900; color:#fff;" id="drawn-team-title">
+                <h3 style="font-size:1.12rem; font-weight:900; color:#fff;" id="drawn-team-title">
                   ${team.name}
                 </h3>
-                <p style="font-size:0.76rem; color:#94a3b8;">
-                  Toque em <strong>1 personagem</strong> abaixo para abrir o campo e escalá-lo na sua seleção:
+                <p style="font-size:0.74rem; color:#bfdbfe;">
+                  Selecione <strong>1 jogador</strong> abaixo para escalar na sua formação:
                 </p>
               </div>
             </div>
 
             <div class="drawn-team-actions">
-              <button class="ui-btn" id="btn-peek-field">
-                👁️ Ver Campo (${pickedCount}/11)
+              <button class="ie-cmd-btn" id="btn-peek-field">
+                ${formationIconHTML()} <span>Campo (${pickedCount}/11)</span>
               </button>
-              <button class="ui-btn" id="btn-reroll-team" ${state.rerollsLeft <= 0 ? "disabled" : ""}>
-                🎲 Girar Outro (${state.rerollsLeft})
+              <button class="ie-cmd-btn ie-cmd-gold" id="btn-reroll-team" ${state.rerollsLeft <= 0 ? "disabled" : ""}>
+                <span>Girar Outro (${state.rerollsLeft})</span>
               </button>
             </div>
           </div>
@@ -445,7 +473,6 @@
               .map((p) => {
                 const alreadyPicked = pickedIds.has(p.id);
                 const hasNaturalSlot = openRoles.has(p.pos);
-                const elem = DB.elements[p.element] || { icon: "⚡" };
                 const movesSummary = formatPlayerMovesSummary(p);
                 const hasLink = !alreadyPicked && hasAffinityWithCurrentSquad({ ...p, teamId: team.id });
 
@@ -454,13 +481,13 @@
                        data-player-id="${p.id}">
                     <img class="roster-sprite" src="${p.sprite}" alt="${p.name}" />
                     <div class="roster-meta">
-                      <div class="roster-name">#${p.number} ${p.name}</div>
+                      <div class="roster-name">${p.isCaptain ? captainIconHTML() : ""} <span>#${p.number} ${p.name}</span></div>
                       <div class="roster-sub">${movesSummary}</div>
                       <div class="roster-badges">
-                        <span class="node-pos-pill pos-${p.pos}">${p.pos}</span>
+                        ${posIconHTML(p.pos, true)}
                         <span class="ovr-tag">${state.hideOvrBeforePick && !alreadyPicked ? "OVR ??" : `OVR ${p.ovr}`}</span>
-                        <span style="font-size:0.72rem;">${elem.icon}</span>
-                        ${hasLink ? `<span class="affinity-badge">🤝 +Química</span>` : ""}
+                        ${elemIconHTML(p.element)}
+                        ${hasLink ? `<span class="affinity-badge">+Química</span>` : ""}
                         ${!hasNaturalSlot && !alreadyPicked ? `<span style="font-size:0.62rem; color:#facc15;">(Cheia)</span>` : ""}
                       </div>
                     </div>
@@ -507,12 +534,11 @@
     }
 
     container.innerHTML = `
-      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
-        <div style="font-size:0.8rem; font-weight:900; color:#facc15; text-transform:uppercase;">
-          🎡 Roleta de Times • Rodada ${pickedCount + 1} de 11
+      <div class="ie-section-bar">
+        <div class="ie-section-title">
+          ${formationIconHTML()} <span>SCOUTING • RODADA ${pickedCount + 1} DE 11</span>
         </div>
-        <div style="display:flex; gap:6px; align-items:center;">
-          <span style="font-size:0.74rem; color:#94a3b8;">Faltam:</span>
+        <div style="display:flex; gap:5px; align-items:center; flex-wrap:wrap;">
           ${openRolesSummary}
         </div>
       </div>
@@ -538,7 +564,10 @@
       <div id="roster-reveal-section">
         ${
           animateWheel
-            ? `<div class="wheel-waiting-box">🎡 Girando a roleta... revelando o próximo time em instantes!</div>`
+            ? `<div class="wheel-waiting-box">
+                 ${UI.raimonEmblem ? `<img src="${UI.raimonEmblem}" alt="" style="width:40px; height:40px; object-fit:contain; opacity:0.85;" />` : ""}
+                 <span>Girando a roleta de times... revelando em instantes!</span>
+               </div>`
             : buildRevealedTeamHTML()
         }
       </div>
@@ -641,9 +670,9 @@
             <div class="field-node ${targetClass}"
                  style="left:${slot.x}%; top:${slot.y}%;"
                  data-slot="${slot.id}">
-              <span class="node-pos-pill pos-${slot.role}">${slot.label} (${slot.role})</span>
-              <span style="font-size:1.25rem; color:rgba(255,255,255,0.65); margin:1px 0;">＋</span>
-              <span style="font-size:0.62rem; color:#f8fafc; font-weight:800;">${hintText}</span>
+              ${posIconHTML(slot.role, true)}
+              <span style="font-size:1.15rem; color:rgba(255,255,255,0.65); margin:1px 0;">＋</span>
+              <span style="font-size:0.6rem; color:#f8fafc; font-weight:800;">${hintText}</span>
             </div>
           `;
         }
@@ -657,11 +686,13 @@
                data-slot="${slot.id}">
             ${p.teamEmblem ? `<img class="node-team-emblem" src="${p.teamEmblem}" alt="" />` : ""}
             <div class="node-ovr">${effOvr}</div>
+            ${elemIconHTML(p.element, "node-elem-mini")}
             <img class="node-avatar" src="${p.sprite}" alt="${p.name}" />
             <div class="node-name">${p.name}</div>
-            <span class="node-pos-pill pos-${slot.role}">
-              ${slot.label}${isImprovised ? ` (${p.pos}⚠️)` : ""}
-            </span>
+            <div style="display:flex; align-items:center; gap:3px; margin-top:1px;">
+              ${posIconHTML(slot.role, true)}
+              <span class="node-slot-label">${slot.label}${isImprovised ? "⚠️" : ""}</span>
+            </div>
           </div>
         `;
       })
@@ -671,7 +702,9 @@
       <div class="soccer-pitch">
         <div class="pitch-penalty-top"></div>
         <div class="pitch-half-line"></div>
-        <div class="pitch-center-circle">⚡</div>
+        <div class="pitch-center-circle">
+          ${UI.raimonEmblem ? `<img class="pitch-center-emblem" src="${UI.raimonEmblem}" alt="" />` : "⚡"}
+        </div>
         <div class="pitch-penalty-bottom"></div>
         <div id="pitch-nodes-container">${nodesHTML}</div>
       </div>
@@ -790,9 +823,9 @@
         `<div class="goal-item ${side === "user" ? "user-goal" : "opp-goal"}">
           <img src="${goalObj.sprite}" alt="" />
           <div>
-            <div style="font-weight:800; color:#fff;">⚽ ${goalObj.minute}' ${goalObj.name}</div>
-            <div style="font-size:0.68rem; color:${color};">
-              ${goalObj.isHissatsu ? `⚡ Hissatsu: ${goalObj.shotLabel}` : `👟 ${goalObj.shotLabel}`}
+            <div style="font-weight:800; color:#fff;">${goalObj.minute}' ${goalObj.name}</div>
+            <div style="font-size:0.68rem; color:${color}; display:flex; align-items:center; gap:4px;">
+              ${goalObj.isHissatsu ? `${moveIconHTML("SH")} <span>${goalObj.shotLabel}</span>` : `<span>${goalObj.shotLabel}</span>`}
             </div>
           </div>
         </div>`
@@ -1089,51 +1122,62 @@
     }
   }
 
-  // TELA 1: MENU INICIAL LIMPO
+  // TELA 1: MENU INICIAL ESTILO JOGO
   function renderStartMenuScreen() {
     const container = document.getElementById("main-screen-container");
     if (!container) return;
 
+    const stadiumStyle = UI.stadiumBg ? `background-image: url('${UI.stadiumBg}');` : "";
+
     container.innerHTML = `
       <div class="start-menu-card">
-        <div class="start-logo-bolt">⚡⚽</div>
-        <h2>INAZUMA ELEVEN DREAM TEAM</h2>
-        <p>
-          Gire a roleta de times, escolha 1 personagem de cada equipe sorteada para montar o seu <strong>Dream Team</strong> e conquiste o mata-mata do <strong>Futebol Fronteira</strong>!
-        </p>
-
-        <div class="option-group">
-          <label>1. Escolha a Dificuldade:</label>
-          <div class="difficulty-grid">
-            <div class="diff-card ${!state.hideOvrBeforePick ? "selected" : ""}" data-diff="visible">
-              <strong>🌟 Modo Fácil (Com Overall)</strong>
-              <span>Mostra o Overall de todos os jogadores do time sorteado antes de você escolher.</span>
-            </div>
-            <div class="diff-card ${state.hideOvrBeforePick ? "selected" : ""}" data-diff="hidden">
-              <strong>🔥 Modo Difícil (Sem Overall)</strong>
-              <span>O Overall fica oculto na lista e só é revelado quando você escala o jogador no campo!</span>
-            </div>
+        <div class="start-hero-banner" style="${stadiumStyle}">
+          <div class="start-hero-overlay"></div>
+          <div class="start-hero-content">
+            ${UI.ieLogo ? `<img class="start-ie-logo" src="${UI.ieLogo}" alt="Inazuma Eleven" />` : `<h2>INAZUMA ELEVEN</h2>`}
+            <div class="start-title-ribbon">DREAM TEAM</div>
+            ${UI.ffLogo ? `<img class="start-ff-badge" src="${UI.ffLogo}" alt="Football Frontier" />` : ""}
           </div>
         </div>
 
-        <div class="option-group">
-          <label>2. Escolha a Formação Tática:</label>
-          <div class="formation-pills">
-            ${["4-3-3", "4-4-2", "3-4-3", "3-5-2"]
-              .map(
-                (f) => `
-              <div class="form-pill ${state.formation === f ? "selected" : ""}" data-form="${f}">
-                ${f}
+        <div class="start-body">
+          <p>
+            Gire a roleta entre <strong>57 times</strong> de todas as sagas, escale 1 jogador por clube sorteado e conquiste o <strong>Futebol Fronteira</strong>!
+          </p>
+
+          <div class="option-group">
+            <label>${captainIconHTML()} 1. Escolha a Dificuldade:</label>
+            <div class="difficulty-grid">
+              <div class="diff-card ${!state.hideOvrBeforePick ? "selected" : ""}" data-diff="visible">
+                <strong>${elemIconHTML("Vento")} Modo Fácil (Com Overall)</strong>
+                <span>Mostra o Overall dos jogadores do time sorteado antes de você escolher.</span>
               </div>
-            `
-              )
-              .join("")}
+              <div class="diff-card ${state.hideOvrBeforePick ? "selected" : ""}" data-diff="hidden">
+                <strong>${elemIconHTML("Fogo")} Modo Difícil (Sem Overall)</strong>
+                <span>O Overall fica oculto na lista e só é revelado quando você escala no campo!</span>
+              </div>
+            </div>
           </div>
-        </div>
 
-        <button class="start-big-btn" id="btn-start-game-now">
-          ⚡ COMEÇAR JOGO E GIRAR ROLETA!
-        </button>
+          <div class="option-group">
+            <label>${formationIconHTML()} 2. Escolha a Formação Tática:</label>
+            <div class="formation-pills">
+              ${["4-3-3", "4-4-2", "3-4-3", "3-5-2"]
+                .map(
+                  (f) => `
+                <div class="form-pill ${state.formation === f ? "selected" : ""}" data-form="${f}">
+                  ${f}
+                </div>
+              `
+                )
+                .join("")}
+            </div>
+          </div>
+
+          <button class="start-big-btn" id="btn-start-game-now">
+            COMEÇAR JOGO E GIRAR ROLETA!
+          </button>
+        </div>
       </div>
     `;
 
@@ -1174,15 +1218,15 @@
       const stats = calcSquadStats();
       container.innerHTML = `
         <div class="go-ready-banner">
-          <div style="font-size:2rem;">⚡⚽🏆</div>
+          ${UI.ffLogo ? `<img src="${UI.ffLogo}" alt="Futebol Fronteira" style="max-width:190px; height:auto; margin-bottom:6px;" />` : ""}
           <h2 style="font-size:1.35rem; font-weight:900; color:#4ade80;">
-            SELEÇÃO PRONTA! (OVERALL ${stats.ovr} • QUÍMICA ${stats.chem}%)
+            DREAM TEAM COMPLETO! (OVR ${stats.ovr} • QUÍMICA ${stats.chem}%)
           </h2>
-          <p style="font-size:0.82rem; color:#cbd5e1; max-width:560px; margin:4px auto 0;">
-            Seus 11 titulares foram escalados! Clique em dois jogadores no campo se quiser trocar posições ou clique em <strong>DAR GO!</strong> para começar o Futebol Fronteira!
+          <p style="font-size:0.82rem; color:#dbeafe; max-width:560px; margin:4px auto 10px;">
+            Seus 11 titulares estão em campo! Toque em dois jogadores se quiser trocar posições ou clique em <strong>DAR GO!</strong> para o Futebol Fronteira!
           </p>
-          <button class="big-go-btn" id="btn-start-go">
-            ⚽ DAR GO! — INICIAR FUTEBOL FRONTEIRA
+          <button class="ie-cmd-btn ie-cmd-green" id="btn-start-go" style="padding:13px 28px; font-size:1rem;">
+            <span>DAR GO! — INICIAR FUTEBOL FRONTEIRA</span>
           </button>
         </div>
 
@@ -1212,35 +1256,35 @@
                   <img src="${sel.sprite}" alt="${sel.name}" />
                   <div>
                     <div style="font-size:0.7rem; font-weight:900; color:#4ade80; text-transform:uppercase;">
-                      🎯 Posicionando no Campo (${pickedCount + 1} de 11)
+                      POSICIONANDO NO CAMPO (${pickedCount + 1} DE 11)
                     </div>
-                    <div style="font-size:1.1rem; font-weight:900; color:#fff;">
-                      #${sel.number} ${sel.name} <span class="node-pos-pill pos-${sel.pos}">${sel.pos}</span>
+                    <div style="font-size:1.05rem; font-weight:900; color:#fff; display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                      <span>#${sel.number} ${sel.name}</span> ${posIconHTML(sel.pos, true)} ${elemIconHTML(sel.element)}
                     </div>
-                    <div style="font-size:0.76rem; color:#cbd5e1;">
+                    <div style="font-size:0.74rem; color:#dbeafe; margin-top:2px;">
                       ${
                         hasNaturalOpen
                           ? `Toque em uma vaga de <strong>${sel.pos}</strong> destacada em verde no campo abaixo!`
-                          : `⚠️ Vagas de ${sel.pos} ocupadas! Toque em outra vaga vazia para improvisar ou volte para escolher outro jogador.`
+                          : `Vagas de ${sel.pos} ocupadas! Toque em outra vaga vazia para improvisar ou volte para escolher outro jogador.`
                       }
                     </div>
                   </div>
                 </div>
-                <button class="ui-btn btn-primary" id="btn-back-to-team">
-                  ⬅️ Voltar ao Time
+                <button class="ie-cmd-btn ie-cmd-gold" id="btn-back-to-team">
+                  <span>⬅️ Voltar ao Time</span>
                 </button>`
               : `<div class="placing-player-info">
                   <div>
-                    <div style="font-size:1rem; font-weight:900; color:#facc15;">
-                      👁️ Seu Campo Atual (${pickedCount}/11 Escalados)
+                    <div style="font-size:1rem; font-weight:900; color:#facc15; display:flex; align-items:center; gap:6px;">
+                      ${formationIconHTML()} <span>Seu Campo Atual (${pickedCount}/11 Escalados)</span>
                     </div>
-                    <div style="font-size:0.76rem; color:#cbd5e1;">
+                    <div style="font-size:0.75rem; color:#dbeafe;">
                       Toque em dois jogadores para inverter posições ou volte para a roleta.
                     </div>
                   </div>
                 </div>
-                <button class="ui-btn btn-primary" id="btn-back-to-team">
-                  ⬅️ Voltar à Roleta
+                <button class="ie-cmd-btn ie-cmd-gold" id="btn-back-to-team">
+                  <span>⬅️ Voltar à Roleta</span>
                 </button>`
           }
         </div>
@@ -1357,23 +1401,28 @@
       }
     }
 
+    const stadiumStyle = UI.stadiumBg ? `background-image: url('${UI.stadiumBg}');` : "";
+
     container.innerHTML = `
       <div class="bracket-row">${bracketHTML}</div>
 
       <div class="broadcast-card">
         <div class="broadcast-header">
-          <div>
-            <span style="font-size:0.72rem; font-weight:900; color:#facc15; text-transform:uppercase;">
-              🏆 Futebol Fronteira • ${st.stageName}
-            </span>
-            <h3 style="font-size:1rem; color:#fff;">Sua Seleção vs ${st.oppTeam.name}</h3>
+          <div style="display:flex; align-items:center; gap:10px;">
+            ${UI.ffLogo ? `<img src="${UI.ffLogo}" alt="Futebol Fronteira" style="height:28px; width:auto;" />` : ""}
+            <div>
+              <span style="font-size:0.7rem; font-weight:900; color:#facc15; text-transform:uppercase;">
+                ${st.stageName}
+              </span>
+              <h3 style="font-size:0.96rem; color:#fff;">Dream Team vs ${st.oppTeam.name}</h3>
+            </div>
           </div>
           <div style="display:flex; align-items:center; gap:8px;">
-            <button class="ui-btn" id="btn-toggle-speed" style="padding:5px 10px; font-size:0.74rem;">
-              ⏩ Velocidade: ${state.simSpeed}x
+            <button class="ie-cmd-btn" id="btn-toggle-speed" style="padding:5px 10px; font-size:0.72rem;">
+              <span>Vel: ${state.simSpeed}x</span>
             </button>
             <div class="minute-clock" id="live-clock-text">
-              ⏱️ ${st.minute}' ${st.finished ? "FIM" : ""}
+              ${st.minute}' ${st.finished ? "FIM" : ""}
             </div>
           </div>
         </div>
@@ -1382,16 +1431,17 @@
           <div class="time-bar-fill" id="live-bar-fill" style="width:${pct}%;"></div>
         </div>
 
-        <div class="live-scoreboard">
+        <div class="live-scoreboard" style="${stadiumStyle}">
+          <div class="scoreboard-overlay"></div>
           <div class="score-team">
-            <div style="font-size:1.9rem;">⚡</div>
-            <div style="font-weight:900; font-size:0.95rem;">Sua Seleção</div>
+            ${UI.raimonEmblem ? `<img class="score-emblem" src="${UI.raimonEmblem}" alt="Dream Team" />` : `<div style="font-size:1.9rem;">⚡</div>`}
+            <div style="font-weight:900; font-size:0.95rem;">Dream Team</div>
             <div style="font-size:0.72rem; color:#4ade80; font-weight:700;">OVR ${stats.ovr} • Quím. ${stats.chem}%</div>
           </div>
 
           <div class="score-digits">
             <span id="live-score-user">${st.userScore}</span>
-            <span style="font-size:1.2rem; color:#64748b;">X</span>
+            <span style="font-size:1.2rem; color:#93c5fd;">X</span>
             <span id="live-score-opp">${st.oppScore}</span>
           </div>
 
@@ -1405,15 +1455,15 @@
         ${
           st.penaltiesText
             ? `<div style="text-align:center; background:rgba(250,204,21,0.15); border:1px solid #facc15; padding:6px; border-radius:8px; font-weight:800; color:#fde047; font-size:0.82rem;">
-                ⚽ ${st.penaltiesText}
+                ${moveIconHTML("SH")} ${st.penaltiesText}
               </div>`
             : ""
         }
 
         <div class="goals-columns">
           <div class="goals-list" id="live-goals-user">
-            <div style="font-size:0.7rem; font-weight:800; color:#4ade80; text-transform:uppercase;">
-              ⚽ Gols da Sua Seleção
+            <div style="font-size:0.7rem; font-weight:800; color:#4ade80; text-transform:uppercase; display:flex; align-items:center; gap:5px;">
+              ${moveIconHTML("SH")} <span>Gols do Dream Team</span>
             </div>
             ${
               st.goalsUser.length === 0
@@ -1424,9 +1474,9 @@
                   <div class="goal-item user-goal">
                     <img src="${g.sprite}" alt="" />
                     <div>
-                      <div style="font-weight:800; color:#fff;">⚽ ${g.minute}' ${g.name}</div>
-                      <div style="font-size:0.68rem; color:${g.isHissatsu ? "#86efac" : "#cbd5e1"};">
-                        ${g.isHissatsu ? `⚡ Hissatsu: ${g.shotLabel}` : `👟 ${g.shotLabel}`}
+                      <div style="font-weight:800; color:#fff;">${g.minute}' ${g.name}</div>
+                      <div style="font-size:0.68rem; color:${g.isHissatsu ? "#86efac" : "#cbd5e1"}; display:flex; align-items:center; gap:4px;">
+                        ${g.isHissatsu ? `${moveIconHTML("SH")} <span>${g.shotLabel}</span>` : `<span>${g.shotLabel}</span>`}
                       </div>
                     </div>
                   </div>
@@ -1437,8 +1487,8 @@
           </div>
 
           <div class="goals-list" id="live-goals-opp">
-            <div style="font-size:0.7rem; font-weight:800; color:#f87171; text-transform:uppercase;">
-              ⚽ Gols de ${st.oppTeam.name}
+            <div style="font-size:0.7rem; font-weight:800; color:#f87171; text-transform:uppercase; display:flex; align-items:center; gap:5px;">
+              ${moveIconHTML("SH")} <span>Gols de ${st.oppTeam.name}</span>
             </div>
             ${
               st.goalsOpp.length === 0
@@ -1449,9 +1499,9 @@
                   <div class="goal-item opp-goal">
                     <img src="${g.sprite}" alt="" />
                     <div>
-                      <div style="font-weight:800; color:#fff;">⚽ ${g.minute}' ${g.name}</div>
-                      <div style="font-size:0.68rem; color:${g.isHissatsu ? "#fca5a5" : "#cbd5e1"};">
-                        ${g.isHissatsu ? `⚡ Hissatsu: ${g.shotLabel}` : `👟 ${g.shotLabel}`}
+                      <div style="font-weight:800; color:#fff;">${g.minute}' ${g.name}</div>
+                      <div style="font-size:0.68rem; color:${g.isHissatsu ? "#fca5a5" : "#cbd5e1"}; display:flex; align-items:center; gap:4px;">
+                        ${g.isHissatsu ? `${moveIconHTML("SH")} <span>${g.shotLabel}</span>` : `<span>${g.shotLabel}</span>`}
                       </div>
                     </div>
                   </div>
@@ -1463,12 +1513,15 @@
         </div>
 
         <div class="narration-history-box">
-          <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px;">
             <span style="font-size:0.74rem; font-weight:900; color:#facc15; text-transform:uppercase;">
-              🎙️ Narração ao Vivo & Histórico (<span id="live-narration-count">${st.narration.length}</span>)
+              Narração ao Vivo (<span id="live-narration-count">${st.narration.length}</span>)
             </span>
-            <span style="font-size:0.66rem; color:#94a3b8;">
-              ⚽ Chutes • 💨 Dribles • 🛡️ Roubos • 🧤 Defesas
+            <span style="font-size:0.68rem; color:#93c5fd; display:inline-flex; align-items:center; gap:6px;">
+              <span style="display:inline-flex; align-items:center; gap:2px;">${moveIconHTML("SH")} Chute</span>
+              <span style="display:inline-flex; align-items:center; gap:2px;">${moveIconHTML("OF")} Drible</span>
+              <span style="display:inline-flex; align-items:center; gap:2px;">${moveIconHTML("DF")} Roubo</span>
+              <span style="display:inline-flex; align-items:center; gap:2px;">${moveIconHTML("GK")} Defesa</span>
             </span>
           </div>
           <div class="narration-feed" id="live-narration-feed">
@@ -1486,7 +1539,7 @@
     if (speedBtn) {
       speedBtn.addEventListener("click", () => {
         state.simSpeed = state.simSpeed === 1 ? 2 : state.simSpeed === 2 ? 4 : 1;
-        speedBtn.textContent = `⏩ Velocidade: ${state.simSpeed}x`;
+        speedBtn.innerHTML = `<span>Vel: ${state.simSpeed}x</span>`;
         if (st.running && !st.finished) {
           startMatchInterval();
         }
@@ -1554,6 +1607,11 @@
   }
 
   function init() {
+    const topEmblem = document.getElementById("topbar-emblem");
+    if (topEmblem && UI.raimonEmblem) {
+      topEmblem.src = UI.raimonEmblem;
+    }
+
     const resetBtn = document.getElementById("btn-reset");
     if (resetBtn) {
       resetBtn.addEventListener("click", () => goToMenu());
