@@ -2090,7 +2090,115 @@
     }
   }
 
+  function buildMatchRecapBoxHTML(st, oppTeam) {
+    const pitch = st.pitch;
+    const s = pitch?.stats || {};
+    const totTicks = Math.max(1, (s.userTicks || 0) + (s.oppTicks || 0));
+    const userPoss = Math.round(((s.userTicks || 0) / totTicks) * 100);
+    const oppPoss = 100 - userPoss;
+    const passTry = s.userPassesTry || 0;
+    const passOk = s.userPassesOk || 0;
+    const passAcc = passTry > 0 ? Math.round((passOk / passTry) * 100) : 0;
+    const dribTry = s.userDribblesTry || 0;
+    const dribOk = s.userDribblesOk || 0;
+    const dribAcc = dribTry > 0 ? Math.round((dribOk / dribTry) * 100) : 0;
+
+    const matchPlayers = Object.values(s.playerStats || {});
+    const bestMatchPlayer = matchPlayers
+      .slice()
+      .sort(
+        (a, b) =>
+          (b.goals * 6 + b.assists * 4.5 + b.steals * 1.7 + b.dribblesOk * 1.3 + b.saves * 1.2) -
+          (a.goals * 6 + a.assists * 4.5 + a.steals * 1.7 + a.dribblesOk * 1.3 + a.saves * 1.2)
+      )[0];
+
+    const verdictText = st.penaltiesText
+      ? st.won
+        ? "Vitória nos Pênaltis"
+        : "Derrota nos Pênaltis"
+      : st.won
+      ? "Vitória do Dream Team"
+      : `Vitória de ${oppTeam.name}`;
+
+    return `
+      <div id="live-match-recap-box" class="live-pitch-card match-recap-card ${st.won ? "recap-win" : "recap-loss"}">
+        <div class="recap-top-bar">
+          <span class="recap-phase-tag">Placar &amp; Estatísticas · ${st.stageName}</span>
+          <span class="recap-verdict-pill ${st.won ? "is-win" : "is-loss"}">${verdictText}</span>
+        </div>
+
+        <div class="recap-score-row">
+          <div class="recap-team-side">
+            ${UI.raimonEmblem ? `<img src="${UI.raimonEmblem}" alt="Dream Team" />` : ""}
+            <span>Dream Team</span>
+          </div>
+          <div class="recap-score-num">
+            <strong>${st.userScore}</strong>
+            <small>X</small>
+            <strong>${st.oppScore}</strong>
+          </div>
+          <div class="recap-team-side">
+            <img src="${oppTeam.emblem || ""}" alt="${oppTeam.name}" />
+            <span>${oppTeam.name}</span>
+          </div>
+        </div>
+
+        <div class="recap-poss-block">
+          <div class="recap-poss-labels">
+            <strong style="color:#4ade80;">Posse: ${userPoss}%</strong>
+            <span>Posse de Bola</span>
+            <strong style="color:#f87171;">${oppPoss}%</strong>
+          </div>
+          <div class="recap-poss-bar">
+            <div class="recap-poss-user" style="width:${userPoss}%;"></div>
+            <div class="recap-poss-opp" style="width:${oppPoss}%;"></div>
+          </div>
+        </div>
+
+        <div class="recap-stats-grid">
+          <div class="recap-stat-item">
+            <small>Chutes</small>
+            <strong>${s.userShots || 0} x ${s.oppShots || 0}</strong>
+            <span>Dream vs ${oppTeam.name}</span>
+          </div>
+          <div class="recap-stat-item">
+            <small>Passes Certos</small>
+            <strong style="color:#86efac;">${passOk}/${passTry}</strong>
+            <span>${passAcc}% de acerto</span>
+          </div>
+          <div class="recap-stat-item">
+            <small>Dribles Certos</small>
+            <strong style="color:#c084fc;">${dribOk}/${dribTry}</strong>
+            <span>${dribAcc}% de sucesso</span>
+          </div>
+          <div class="recap-stat-item">
+            <small>Roubos</small>
+            <strong style="color:#38bdf8;">${s.userSteals || 0}</strong>
+            <span>${pluralPt(s.userBlocks || 0, "bloqueio", "bloqueios")} na área</span>
+          </div>
+          <div class="recap-stat-item">
+            <small>Defesas (GOL)</small>
+            <strong style="color:#facc15;">${s.userSaves || 0}</strong>
+            <span>${pluralPt(s.userGkReleases || 0, "reposição", "reposições")}</span>
+          </div>
+          <div class="recap-stat-item">
+            <small>Destaque</small>
+            <strong style="font-size:0.84rem; color:#fde047;">${bestMatchPlayer ? bestMatchPlayer.name : "—"}</strong>
+            <span>${
+              bestMatchPlayer
+                ? `${bestMatchPlayer.goals}G · ${bestMatchPlayer.assists}A · ${bestMatchPlayer.steals}R`
+                : "—"
+            }</span>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
   function buildLivePitchBoxHTML(st, oppTeam) {
+    if (st.finished) {
+      return buildMatchRecapBoxHTML(st, oppTeam);
+    }
     const pitch = st.pitch;
     if (!pitch) return "";
     const allNodes = [...pitch.userNodes, ...pitch.oppNodes];
