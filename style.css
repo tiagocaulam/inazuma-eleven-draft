@@ -4251,6 +4251,122 @@ body {
   color: #facc15;
 }
 
+/* ============================================================================
+   INTERVALO (45'): ÁRBITRO APITANDO + QUICK-TIME CIRCULAR DE ENERGIA
+   ============================================================================ */
+.halftime-qte-stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  max-width: 440px;
+  padding: 12px 16px;
+  border-radius: 14px;
+  background: linear-gradient(165deg, rgba(9, 22, 54, 0.98), rgba(4, 11, 28, 0.99));
+  border: 1.5px solid rgba(250, 204, 21, 0.65);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.78);
+  animation: clashPop 0.2s ease-out;
+}
+
+.halftime-ref-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(59, 130, 246, 0.28);
+}
+
+.halftime-ref-img {
+  width: 58px;
+  height: 44px;
+  border-radius: 8px;
+  object-fit: cover;
+  border: 1.5px solid #facc15;
+  flex-shrink: 0;
+}
+
+.halftime-qte-body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  width: 100%;
+  flex-wrap: wrap;
+}
+
+.qte-circle-wrap {
+  position: relative;
+  width: 132px;
+  height: 132px;
+  cursor: pointer;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.qte-circle-svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.qte-center-icon {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: rgba(7, 17, 42, 0.94);
+  border: 1px solid rgba(96, 165, 250, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.qte-center-icon img {
+  width: 30px;
+  height: 30px;
+  object-fit: contain;
+}
+
+.qte-controls-col {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+  min-width: 170px;
+}
+
+.qte-result-pill {
+  padding: 5px 10px;
+  border-radius: 8px;
+  font-size: 0.78rem;
+  font-weight: 900;
+  text-align: center;
+}
+
+.qte-result-pill.is-green {
+  background: rgba(22, 163, 74, 0.25);
+  border: 1px solid #4ade80;
+  color: #86efac;
+}
+
+.qte-result-pill.is-yellow {
+  background: rgba(202, 138, 4, 0.25);
+  border: 1px solid #facc15;
+  color: #fde047;
+}
+
+.qte-result-pill.is-miss {
+  background: rgba(148, 163, 184, 0.16);
+  border: 1px solid #94a3b8;
+  color: #cbd5e1;
+}
+
 .prep-4v4-mini {
   display: flex;
   align-items: center;

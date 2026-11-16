@@ -303,12 +303,120 @@
     return Math.min(99, Math.max(45, player.ovr + bonus - (adj ? 6 : 14)));
   }
 
+  const HEAVY_MOVE_RX =
+    /(ômega|omega|terra|earth|god catch|maou|rei demônio|captura|dimensional|martelo da ira|grand fire|grande fogo|fogo máximo|maximum|explosion|tenkuu|chaos|big bang|god break|x blast|last resort|zero magnum|infinity|asura|saikyou|tamashii|alma suprema|god hand x|god hand v|god hand w|prime legend|death break|supernova|g2|g3|v2|v3|shin|★)/i;
+
   function pickPlayerMove(player, category) {
     if (!player || !player.moves || !Array.isArray(player.moves[category])) return null;
     const list = player.moves[category];
     if (list.length === 0) return null;
     const pool = list.slice(0, Math.min(4, list.length));
     return pool[Math.floor(Math.random() * pool.length)];
+  }
+
+  // Sistema de Energia em 3 faixas: Verde (>=70 todas), Amarela (45..69 sem fortes), Vermelha (<45 sem técnica!)
+  function pickStaminaGatedMove(node, category) {
+    const stamina = node ? node.stamina : 100;
+    const list = node?.player?.moves?.[category] || [];
+    const heavyCost = category === "GK" || category === "SH" ? 28 : 22;
+    const stdCost = category === "GK" || category === "SH" ? 19 : 15;
+
+    if (stamina < 45) {
+      return {
+        move: null,
+        isHeavy: false,
+        exhausted: true,
+        gatedReason: "RED",
+        cost: 6,
+        duelBonus: -2.2
+      };
+    }
+
+    if (list.length === 0) {
+      return {
+        move: null,
+        isHeavy: false,
+        exhausted: false,
+        gatedReason: null,
+        cost: 7,
+        duelBonus: -0.6
+      };
+    }
+
+    const heavyMoves = [];
+    const standardMoves = [];
+    list.forEach((m, idx) => {
+      const isSup = HEAVY_MOVE_RX.test(m) || (list.length >= 3 && idx >= 2);
+      if (isSup) heavyMoves.push(m);
+      else standardMoves.push(m);
+    });
+
+    if (stamina >= 70) {
+      const useHeavy = heavyMoves.length > 0 && (standardMoves.length === 0 || Math.random() < 0.65);
+      const pool = useHeavy ? heavyMoves : standardMoves.length > 0 ? standardMoves : heavyMoves;
+      const move = pool[Math.floor(Math.random() * pool.length)];
+      const isHeavy = heavyMoves.includes(move);
+      return {
+        move,
+        isHeavy,
+        exhausted: false,
+        gatedReason: null,
+        cost: isHeavy ? heavyCost : stdCost,
+        duelBonus: isHeavy ? 1.15 : 0
+      };
+    }
+
+    // Faixa Amarela (45..69): técnicas mais fortes bloqueadas!
+    if (standardMoves.length > 0) {
+      const move = standardMoves[Math.floor(Math.random() * standardMoves.length)];
+      return {
+        move,
+        isHeavy: false,
+        exhausted: false,
+        gatedReason: heavyMoves.length > 0 ? "YELLOW" : null,
+        cost: stdCost,
+        duelBonus: -0.35
+      };
+    }
+
+    // Se todas as técnicas da categoria forem pesadas e ele está na amarela: fica sem técnica pesada
+    return {
+      move: null,
+      isHeavy: false,
+      exhausted: false,
+      gatedReason: "YELLOW_ONLY_HEAVY",
+      cost: 7,
+      duelBonus: -1.4
+    };
+  }
+
+  function buildShotInfoForNode(shooterNode) {
+    const pick = pickStaminaGatedMove(shooterNode, "SH");
+    if (pick.move && Math.random() < 0.8) {
+      return {
+        isHissatsu: true,
+        label: pick.move,
+        isHeavy: pick.isHeavy,
+        exhausted: false,
+        gatedReason: pick.gatedReason,
+        cost: pick.cost,
+        duelBonus: pick.duelBonus
+      };
+    }
+    const normalDesc = pick.exhausted
+      ? "Chute sem técnica (sem energia)"
+      : pick.gatedReason === "YELLOW_ONLY_HEAVY"
+      ? "Chute sem técnica (pouca energia)"
+      : NORMAL_SHOT_DESCRIPTIONS[Math.floor(Math.random() * NORMAL_SHOT_DESCRIPTIONS.length)];
+    return {
+      isHissatsu: false,
+      label: normalDesc,
+      isHeavy: false,
+      exhausted: pick.exhausted,
+      gatedReason: pick.gatedReason,
+      cost: Math.min(9, pick.cost),
+      duelBonus: pick.exhausted ? -2.0 : pick.gatedReason === "YELLOW_ONLY_HEAVY" ? -1.1 : -0.4
+    };
   }
 
   function formatPlayerMovesSummary(p) {
@@ -1248,6 +1356,14 @@
       clearTimeout(state.tournament.prepMatchTimerId);
       state.tournament.prepMatchTimerId = null;
     }
+    if (state.tournament.qteRafId) {
+      cancelAnimationFrame(state.tournament.qteRafId);
+      state.tournament.qteRafId = null;
+    }
+    if (typeof state.tournament.qteKeyHandler === "function") {
+      document.removeEventListener("keydown", state.tournament.qteKeyHandler);
+      state.tournament.qteKeyHandler = null;
+    }
 
     const calloutEl = document.getElementById("pitch-center-callout");
     if (calloutEl) {
@@ -1441,6 +1557,209 @@
     }
   }
 
+  function describeSvgArc(cx, cy, r, startDeg, endDeg) {
+    const toRad = (deg) => ((deg - 90) * Math.PI) / 180;
+    const x1 = cx + r * Math.cos(toRad(startDeg));
+    const y1 = cy + r * Math.sin(toRad(startDeg));
+    const x2 = cx + r * Math.cos(toRad(endDeg));
+    const y2 = cy + r * Math.sin(toRad(endDeg));
+    const largeArc = Math.abs(endDeg - startDeg) <= 180 ? "0" : "1";
+    return `M ${x1.toFixed(1)} ${y1.toFixed(1)} A ${r} ${r} 0 ${largeArc} 1 ${x2.toFixed(1)} ${y2.toFixed(1)}`;
+  }
+
+  function playHalftimeRefereeQTE(st, ovrDiff) {
+    clearTournamentTimers(false);
+    const slotEl = document.getElementById("shot-clash-slot");
+    if (!slotEl || !st || !st.pitch) {
+      if (st?.pitch) {
+        [...st.pitch.userNodes, ...st.pitch.oppNodes].forEach((n) => {
+          n.stamina = Math.min(100, n.stamina + 20);
+        });
+        const nextSide = st.pitch.initialSide === "user" ? "opp" : "user";
+        resetPitchForKickoff(st.pitch, nextSide, true);
+        syncLivePitchDOM(st);
+      }
+      startMatchInterval();
+      return;
+    }
+
+    const yellowArc = describeSvgArc(80, 80, 56, -58, 58);
+    const greenArc = describeSvgArc(80, 80, 56, -26, 26);
+    const drinkIcon = UI.sportsDrink || UI.onigiriIcon || UI.tpPendant || "";
+    const refImg = UI.refereeWhistle || UI.whistleIcon || "";
+    const whistleBadge = UI.whistleIcon
+      ? `<img src="${UI.whistleIcon}" alt="" style="width:18px; height:18px; object-fit:contain;" />`
+      : "";
+
+    slotEl.style.display = "flex";
+    slotEl.innerHTML = `
+      <div class="halftime-qte-stage">
+        <div class="halftime-ref-row">
+          ${refImg ? `<img class="halftime-ref-img" src="${refImg}" alt="Árbitro" />` : ""}
+          <div style="flex:1; min-width:0;">
+            <div style="display:flex; align-items:center; gap:5px; font-size:0.72rem; font-weight:900; color:#facc15; text-transform:uppercase;">
+              ${whistleBadge}<span>45' • APITO DO JUIZ — FIM DO 1º TEMPO!</span>
+            </div>
+            <div style="font-size:0.84rem; font-weight:900; color:#fff; margin-top:2px;">
+              Dream Team ${st.userScore} x ${st.oppScore} ${st.oppTeam.name}
+            </div>
+          </div>
+        </div>
+
+        <div class="halftime-qte-body">
+          <div class="qte-circle-wrap" id="qte-circle-wrap" title="Clique ou aperte Espaço para acertar o verde!">
+            <svg class="qte-circle-svg" viewBox="0 0 160 160">
+              <circle cx="80" cy="80" r="56" fill="none" stroke="rgba(148, 163, 184, 0.25)" stroke-width="14" />
+              <path d="${yellowArc}" fill="none" stroke="#eab308" stroke-width="14" stroke-linecap="round" />
+              <path d="${greenArc}" fill="none" stroke="#22c55e" stroke-width="15" stroke-linecap="round" />
+              <g id="qte-needle-group" transform="rotate(180 80 80)">
+                <line x1="80" y1="80" x2="80" y2="16" stroke="#ffffff" stroke-width="3.2" stroke-linecap="round" />
+                <circle cx="80" cy="24" r="5.5" fill="#fde047" stroke="#0f172a" stroke-width="2" />
+              </g>
+            </svg>
+            <div class="qte-center-icon">
+              ${drinkIcon ? `<img src="${drinkIcon}" alt="Energia" />` : ""}
+            </div>
+          </div>
+
+          <div class="qte-controls-col">
+            <div style="font-size:0.74rem; font-weight:800; color:#cbd5e1; line-height:1.35;">
+              Acerte a zona <strong style="color:#4ade80;">VERDE</strong> do círculo no intervalo para recuperar a energia máxima do elenco!
+            </div>
+            <div id="qte-result-area"></div>
+            <button class="ie-cmd-btn ie-cmd-green" id="btn-qte-stop" style="width:100%; justify-content:center;">
+              <span>PARAR NO VERDE!</span>
+            </button>
+            <button class="ie-cmd-btn" id="btn-qte-skip" style="width:100%; justify-content:center; font-size:0.7rem; padding:4px 8px;">
+              <span>Descanso Rápido (+12% Energia)</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+
+    let qteResolved = false;
+    const startT = performance.now();
+    let curAngleDeg = 180; // começa oposto ao verde para dar tempo de reagir
+
+    const tickNeedle = (now) => {
+      if (qteResolved || state.phase !== "tournament") return;
+      const elapsedSec = (now - startT) / 1000;
+      const raw = (180 + elapsedSec * 255) % 360;
+      curAngleDeg = raw > 180 ? raw - 360 : raw; // -180..+180 (0° é o centro exato do verde)
+      const needle = document.getElementById("qte-needle-group");
+      if (needle) needle.setAttribute("transform", `rotate(${curAngleDeg.toFixed(1)} 80 80)`);
+      state.tournament.qteRafId = requestAnimationFrame(tickNeedle);
+    };
+    state.tournament.qteRafId = requestAnimationFrame(tickNeedle);
+
+    const finalizeSecondHalf = () => {
+      state.tournament.pendingClashFinish = null;
+      if (state.tournament.qteRafId) {
+        cancelAnimationFrame(state.tournament.qteRafId);
+        state.tournament.qteRafId = null;
+      }
+      if (typeof state.tournament.qteKeyHandler === "function") {
+        document.removeEventListener("keydown", state.tournament.qteKeyHandler);
+        state.tournament.qteKeyHandler = null;
+      }
+      const mSlot = document.getElementById("shot-clash-slot");
+      if (mSlot) {
+        mSlot.innerHTML = "";
+        mSlot.style.display = "none";
+      }
+      if (st.pitch && !st.finished) {
+        const nextSide = st.pitch.initialSide === "user" ? "opp" : "user";
+        resetPitchForKickoff(st.pitch, nextSide, true);
+        st.pitch.ticker = `46' Início do 2º Tempo — posse de ${nextSide === "user" ? "Dream Team" : st.oppTeam.name}!`;
+        syncLivePitchDOM(st);
+        if (!handleMinuteEndBoundaries(st, ovrDiff)) startMatchInterval();
+      }
+    };
+
+    const resolveQte = (isSkip = false) => {
+      if (qteResolved) return;
+      qteResolved = true;
+
+      if (state.tournament.qteRafId) {
+        cancelAnimationFrame(state.tournament.qteRafId);
+        state.tournament.qteRafId = null;
+      }
+      if (typeof state.tournament.qteKeyHandler === "function") {
+        document.removeEventListener("keydown", state.tournament.qteKeyHandler);
+        state.tournament.qteKeyHandler = null;
+      }
+
+      const absDeg = Math.abs(curAngleDeg);
+      const hasTireBonus = (state.tournament?.prepBonuses?.staminaMul || 1) < 1;
+      const extra = hasTireBonus ? 5 : 0;
+
+      let userGain = 12 + extra;
+      let zoneCls = "is-miss";
+      let zoneLabel = `Descanso curto (+${userGain}% Energia)`;
+
+      if (!isSkip && absDeg <= 26) {
+        userGain = 40 + extra;
+        zoneCls = "is-green";
+        zoneLabel = `VERDE PERFEITO! +${userGain}% Energia!`;
+      } else if (!isSkip && absDeg <= 58) {
+        userGain = 25 + extra;
+        zoneCls = "is-yellow";
+        zoneLabel = `BOM TIMING (AMARELO)! +${userGain}% Energia!`;
+      }
+
+      if (st.pitch) {
+        st.pitch.userNodes.forEach((n) => {
+          n.stamina = Math.min(100, n.stamina + userGain);
+        });
+        st.pitch.oppNodes.forEach((n) => {
+          n.stamina = Math.min(100, n.stamina + 20);
+        });
+        syncLivePitchDOM(st);
+      }
+
+      prependNarrationLine(
+        st,
+        zoneCls === "is-green" ? "nar-dribble" : "",
+        `45' [Intervalo] Árbitro apitou o fim do 1º tempo (${st.userScore} x ${st.oppScore}) • ${zoneLabel}`,
+        null,
+        null,
+        "BALL"
+      );
+
+      if (isSkip) {
+        finalizeSecondHalf();
+        return;
+      }
+
+      const resArea = document.getElementById("qte-result-area");
+      const stopBtn = document.getElementById("btn-qte-stop");
+      const skipBtn = document.getElementById("btn-qte-skip");
+      if (resArea) resArea.innerHTML = `<div class="qte-result-pill ${zoneCls}">${zoneLabel}</div>`;
+      if (stopBtn) stopBtn.disabled = true;
+      if (skipBtn) skipBtn.style.display = "none";
+
+      state.tournament.clashTimer1 = setTimeout(finalizeSecondHalf, 950);
+    };
+
+    state.tournament.pendingClashFinish = () => resolveQte(true);
+
+    const stopBtn = document.getElementById("btn-qte-stop");
+    const skipBtn = document.getElementById("btn-qte-skip");
+    const circleWrap = document.getElementById("qte-circle-wrap");
+    if (stopBtn) stopBtn.addEventListener("click", () => resolveQte(false));
+    if (circleWrap) circleWrap.addEventListener("click", () => resolveQte(false));
+    if (skipBtn) skipBtn.addEventListener("click", () => resolveQte(true));
+
+    state.tournament.qteKeyHandler = (ev) => {
+      if (ev.code === "Space" || ev.key === " ") {
+        ev.preventDefault();
+        resolveQte(false);
+      }
+    };
+    document.addEventListener("keydown", state.tournament.qteKeyHandler);
+  }
+
   function handleMinuteEndBoundaries(st, ovrDiff) {
     if (st.isGoldenGoal5v5) {
       if (st.userScore > 0 || st.oppScore > 0) {
@@ -1458,24 +1777,10 @@
       return false;
     }
 
-    if (st.minute === 45) {
-      if (st.pitch) {
-        [...st.pitch.userNodes, ...st.pitch.oppNodes].forEach((n) => {
-          n.stamina = Math.min(100, n.stamina + 16);
-        });
-        const nextSide = st.pitch.initialSide === "user" ? "opp" : "user";
-        resetPitchForKickoff(st.pitch, nextSide, true);
-        st.pitch.ticker = `45' Fim do 1º Tempo! Recomeço com ${nextSide === "user" ? "Dream Team" : st.oppTeam.name}.`;
-        syncLivePitchDOM(st);
-      }
-      prependNarrationLine(
-        st,
-        "",
-        `45' Fim do 1º Tempo! Placar parcial: Dream Team ${st.userScore} x ${st.oppScore} ${st.oppTeam.name}.`,
-        null,
-        null,
-        "BALL"
-      );
+    if (st.minute === 45 && !st.halftimeHandled) {
+      st.halftimeHandled = true;
+      playHalftimeRefereeQTE(st, ovrDiff);
+      return true;
     }
 
     if (st.minute === 90 && st.userScore === st.oppScore && st.maxMinute === 90) {
@@ -3675,12 +3980,14 @@
 
   function resolvePhysicalDribbleClash(st, pitch, carrier, marker, attSupport, defSupport, ovrDiff) {
     const attIsUser = carrier.side === "user";
-    const dribScore = calcNodeDuelScore(carrier, attSupport, marker?.player?.element);
-    const defScore = calcNodeDuelScore(marker, defSupport, carrier?.player?.element);
+    const ofPick = pickStaminaGatedMove(carrier, "OF");
+    const dfPick = pickStaminaGatedMove(marker, "DF");
+    const dribScore = calcNodeDuelScore(carrier, attSupport, marker?.player?.element) + ofPick.duelBonus;
+    const defScore = calcNodeDuelScore(marker, defSupport, carrier?.player?.element) + dfPick.duelBonus;
     const wonDribble = Math.random() < logisticWinProb(dribScore, defScore, 4.4, 0.38, 0.86);
 
-    spendStamina(carrier, 14);
-    spendStamina(marker, 10);
+    spendStamina(carrier, ofPick.cost);
+    spendStamina(marker, dfPick.cost);
     carrier.duelCooldown = 2.4;
     marker.duelCooldown = 2.4;
 
@@ -3689,8 +3996,8 @@
       recordUserPlayerStat(pitch, carrier, "dribblesTry", 1);
     }
 
-    const ofMove = pickPlayerMove(carrier.player, "OF") || "Finta Veloz";
-    const dfMove = pickPlayerMove(marker.player, "DF") || "Marcação Cerrada";
+    const ofMove = ofPick.move || (ofPick.exhausted ? "Drible sem técnica (sem energia)" : "Avanço Direto");
+    const dfMove = dfPick.move || (dfPick.exhausted ? "Corte sem técnica (sem energia)" : "Marcação Cerrada");
     const dir = attIsUser ? 1 : -1;
 
     if (wonDribble) {
@@ -3745,12 +4052,15 @@
       marker.vx *= 0.15;
       marker.vy *= 0.15;
 
-      showNodeBadge(pitch, carrier.uid, `Avançou • ${ofMove}`, "badge-dribble", 1500, "OF");
+      const ofBadgeText = ofPick.move ? `Avançou • ${ofMove}` : ofPick.exhausted ? "Avançou (Sem técnica)" : "Avançou";
+      showNodeBadge(pitch, carrier.uid, ofBadgeText, "badge-dribble", 1500, ofPick.move ? "OF" : null);
       pitch.ticker = `${st.minute}' ${carrier.player.name} avançou com ${ofMove} sobre ${marker.player.name}!`;
       prependNarrationLine(
         st,
         "nar-dribble",
-        `${st.minute}' [Drible] ${carrier.player.name} ativou 【${ofMove}】 e avançou por ${marker.player.name}!`,
+        ofPick.move
+          ? `${st.minute}' [Drible] ${carrier.player.name} ativou 【${ofMove}】 e avançou por ${marker.player.name}!`
+          : `${st.minute}' [Drible] ${carrier.player.name} avançou sem técnica${ofPick.exhausted ? " (energia vermelha)" : ""} por ${marker.player.name}!`,
         { name: carrier.player.name, sprite: carrier.player.sprite, side: carrier.side },
         { name: marker.player.name, sprite: marker.player.sprite, side: marker.side },
         "OF"
@@ -3778,7 +4088,7 @@
 
       triggerStealShockwave(pitch, marker.x, marker.y, marker.uid, carrier.uid);
       showNodeBadge(pitch, carrier.uid, "Perdeu a bola", "badge-lost", 1500);
-      showNodeBadge(pitch, marker.uid, `Roubou • ${dfMove}`, "badge-steal", 1500, "DF");
+      showNodeBadge(pitch, marker.uid, dfPick.move ? `Roubou • ${dfMove}` : "Roubou (Sem técnica)", "badge-steal", 1500, dfPick.move ? "DF" : null);
       if (!attIsUser) {
         pitch.stats.userSteals++;
         recordUserPlayerStat(pitch, marker, "steals", 1);
@@ -3787,7 +4097,9 @@
       prependNarrationLine(
         st,
         "nar-steal",
-        `${st.minute}' [Desarme] ${marker.player.name} usou 【${dfMove}】 e roubou a bola de ${carrier.player.name}!`,
+        dfPick.move
+          ? `${st.minute}' [Desarme] ${marker.player.name} usou 【${dfMove}】 e roubou a bola de ${carrier.player.name}!`
+          : `${st.minute}' [Desarme] ${marker.player.name} roubou a bola sem técnica${dfPick.exhausted ? " (energia vermelha)" : ""} de ${carrier.player.name}!`,
         { name: marker.player.name, sprite: marker.player.sprite, side: marker.side },
         { name: carrier.player.name, sprite: carrier.player.sprite, side: carrier.side },
         "DF"
@@ -3896,11 +4208,13 @@
     const blockerNode = hasBlockerInLane ? laneBlockers[0].node : null;
 
     const isLongShot = effRole === "MF" || Math.hypot(shooterNode.x - goalX, shooterNode.y - 50) > 25;
+    const shotInfo = buildShotInfoForNode(shooterNode);
     const baseShotScore =
-      calcNodeDuelScore(shooterNode, attSupport, (blockerNode || gkNode)?.player?.element) - (isLongShot ? 3.5 : 0);
+      calcNodeDuelScore(shooterNode, attSupport, (blockerNode || gkNode)?.player?.element) -
+      (isLongShot ? 3.5 : 0) +
+      (shotInfo.duelBonus || 0);
 
-    const shotInfo = buildGoalShotLabel(shooterNode.player);
-    spendStamina(shooterNode, shotInfo.isHissatsu ? 19 : 9);
+    spendStamina(shooterNode, shotInfo.cost);
 
     const shotAssistCandidate =
       pitch.lastAssistCandidate &&
@@ -3922,11 +4236,12 @@
     }
 
     const resolveAgainstGk = (effectiveShotScore, fromX, fromY, weakenedByBlocker, forceInstant = false) => {
-      const pickedGkMove = pickPlayerMove(gkNode.player, "GK");
-      const gkMoveName = pickedGkMove || "Defesa Direta";
-      spendStamina(gkNode, pickedGkMove ? 15 : 8);
+      const gkPick = pickStaminaGatedMove(gkNode, "GK");
+      const gkMoveName =
+        gkPick.move || (gkPick.exhausted ? "Defesa sem técnica (sem energia)" : "Defesa Direta");
+      spendStamina(gkNode, gkPick.cost);
 
-      const gkStopScore = calcNodeDuelScore(gkNode, defSupport, shooterNode?.player?.element);
+      const gkStopScore = calcNodeDuelScore(gkNode, defSupport, shooterNode?.player?.element) + gkPick.duelBonus;
       const goldenBias = st.isGoldenGoal5v5
         ? st.minute >= 8
           ? Math.min(7.5, 1.5 + (st.minute - 7) * 0.7)
@@ -4049,7 +4364,9 @@
           prependNarrationLine(
             st,
             "nar-save",
-            `${st.minute}' [Defesa de Goleiro] ${gkNode.player.name} acionou 【${gkMoveName}】 e espalmou ${weakenedByBlocker ? "o chute enfraquecido " : ""}【${shotInfo.label}】 de ${shooterNode.player.name}!`,
+            gkPick.move
+              ? `${st.minute}' [Defesa de Goleiro] ${gkNode.player.name} acionou 【${gkMoveName}】 e espalmou ${weakenedByBlocker ? "o chute enfraquecido " : ""}【${shotInfo.label}】 de ${shooterNode.player.name}!`
+              : `${st.minute}' [Defesa de Goleiro] ${gkNode.player.name} defendeu sem técnica${gkPick.exhausted ? " (energia vermelha)" : ""} e segurou ${weakenedByBlocker ? "o chute enfraquecido " : ""}${shotInfo.label} de ${shooterNode.player.name}!`,
             { name: gkNode.player.name, sprite: gkNode.player.sprite, side: gkNode.side },
             { name: shooterNode.player.name, sprite: shooterNode.player.sprite, side: shooterNode.side },
             "GK"
@@ -4147,11 +4464,13 @@
     }
 
     // Etapa 1: Defensor na linha tenta bloquear o chute!
-    const pickedBlockMove = pickPlayerMove(blockerNode.player, "DF");
-    const blockMoveName = pickedBlockMove || "Bloqueio de Corpo";
-    spendStamina(blockerNode, pickedBlockMove ? 15 : 8);
+    const blockPick = pickStaminaGatedMove(blockerNode, "DF");
+    const blockMoveName =
+      blockPick.move || (blockPick.exhausted ? "Bloqueio sem técnica (sem energia)" : "Bloqueio de Corpo");
+    spendStamina(blockerNode, blockPick.cost);
 
-    const blockerStopScore = calcNodeDuelScore(blockerNode, defSupport, shooterNode?.player?.element);
+    const blockerStopScore =
+      calcNodeDuelScore(blockerNode, defSupport, shooterNode?.player?.element) + blockPick.duelBonus;
     const passBlockerProb = logisticWinProb(baseShotScore, blockerStopScore, -1.6, 0.38, 0.80);
     const passedBlocker = Math.random() < passBlockerProb;
 
@@ -4283,7 +4602,10 @@
           barEl.style.width = `${pct}%`;
         }
         allNodes.forEach((n) => {
-          if (n.uid !== pitch.carrierUid) n.stamina = Math.min(100, n.stamina + 1.5);
+          if (n.uid !== pitch.carrierUid) {
+            const regen = n.role === "GK" ? 2.4 : 1.9;
+            n.stamina = Math.min(100, n.stamina + regen);
+          }
         });
         if (pitch.ballSide === "user") pitch.stats.userTicks++;
         else pitch.stats.oppTicks++;
@@ -4566,6 +4888,7 @@
     ];
     st.running = true;
     st.finished = false;
+    st.halftimeHandled = false;
     st.won = null;
     st.penalties = null;
     st.penaltiesText = null;
