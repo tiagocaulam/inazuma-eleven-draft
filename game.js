@@ -1770,10 +1770,14 @@
       const effRole = getEffectiveCarrierRole(carrier);
 
       // Decide ação tática coerente com a posição atual do portador no campo
+      const inDeepBox = attIsUser ? carrier.x >= 76 : carrier.x <= 24;
       let action = "PASS";
       const roll = Math.random();
       if (effRole === "GK") {
         action = "PASS";
+      } else if (inDeepBox) {
+        // Já dentro da área adversária: finaliza ou cruza/rola para o colega
+        action = roll < 0.68 ? "SHOT" : "PASS";
       } else if (effRole === "DF") {
         action = roll < 0.72 ? "PASS" : "DRIBBLE";
       } else if (effRole === "MF") {
