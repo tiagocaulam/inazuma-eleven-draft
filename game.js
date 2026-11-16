@@ -1074,6 +1074,7 @@
       const p = state.squad[slotId];
       if (!p) return;
       delete p.boostOvr;
+      delete p.xp;
       delete p.equippedItems;
       delete p.keshin;
       delete p.moveEvoCount;
@@ -1441,6 +1442,22 @@
   }
 
   function handleMinuteEndBoundaries(st, ovrDiff) {
+    if (st.isGoldenGoal5v5) {
+      if (st.userScore > 0 || st.oppScore > 0) {
+        clearTournamentTimers(false);
+        st.running = false;
+        st.finished = true;
+        st.won = st.userScore > st.oppScore;
+        if (typeof st.onGoldenGoalDone === "function" && !st._goldenHandled) {
+          st._goldenHandled = true;
+          const scorerName = st.userScore > 0 ? st.goalsUser[0]?.name : st.goalsOpp[0]?.name;
+          setTimeout(() => st.onGoldenGoalDone(st, scorerName), state.simSpeed === 1 ? 900 : 280);
+        }
+        return true;
+      }
+      return false;
+    }
+
     if (st.minute === 45) {
       if (st.pitch) {
         [...st.pitch.userNodes, ...st.pitch.oppNodes].forEach((n) => {
@@ -2383,7 +2400,7 @@
 
       renderPitchDOMFrame(pitch, st, now);
 
-      if (!st.finished || pitch.ballFlight) {
+      if (!st.finished || pitch.ballFlight || pitch.goalBurstFx) {
         state.tournament.pitchRafId = requestAnimationFrame(step);
       } else {
         state.tournament.pitchRafId = null;
@@ -3576,6 +3593,17 @@
 
   function ensureMatchSupport(st, pitch) {
     if (!pitch || pitch.matchSupportInitialized) return;
+    if (st.isGoldenGoal5v5) {
+      const uAvg = pitch.userNodes.reduce((s, n) => s + n.effOvr, 0) / Math.max(1, pitch.userNodes.length);
+      const oAvg = pitch.oppNodes.reduce((s, n) => s + n.effOvr, 0) / Math.max(1, pitch.oppNodes.length);
+      pitch.matchSupport = {
+        userTeamSupport: 2.2,
+        oppTeamSupport: 2.0,
+        ovrDiff: Math.round(uAvg - oAvg)
+      };
+      pitch.matchSupportInitialized = true;
+      return;
+    }
     const stageIdx = state.tournament.stageIndex || 0;
     const userStats = calcSquadStats();
     const oppStats = calcOpponentStats(st.oppTeam, stageIdx);
@@ -3899,7 +3927,14 @@
       spendStamina(gkNode, pickedGkMove ? 15 : 8);
 
       const gkStopScore = calcNodeDuelScore(gkNode, defSupport, shooterNode?.player?.element);
-      const goalProb = logisticWinProb(effectiveShotScore, gkStopScore, -7.4, 0.08, 0.50);
+      const goldenBias = st.isGoldenGoal5v5
+        ? st.minute >= 8
+          ? Math.min(7.5, 1.5 + (st.minute - 7) * 0.7)
+          : 1.5
+        : 0;
+      const goalProb = st.isGoldenGoal5v5
+        ? logisticWinProb(effectiveShotScore + goldenBias, gkStopScore, -6.2, 0.14, 0.58)
+        : logisticWinProb(effectiveShotScore, gkStopScore, -7.4, 0.08, 0.50);
       const isGoal = Math.random() < goalProb;
 
       const duelX = attIsUser ? 91.5 : 8.5;
@@ -4026,6 +4061,23 @@
         if (isGoal) {
           const gSide = attIsUser ? "right" : "left";
           const concedingSide = attIsUser ? "opp" : "user";
+          if (st.isGoldenGoal5v5) {
+            if (!instantMode) {
+              pitch.goalFlashSide = gSide;
+              pitch.goalFlashUntil = performance.now() + 1800;
+              triggerGoalLightningBurst(pitch, gSide);
+              pauseForPitchBeat(
+                st,
+                `<span class="callout-tag">GOL DE OURO!</span><strong>${shooterNode.player.name}</strong><span>5x5 Encerrado · ${shotInfo.label}</span>`,
+                "callout-goal",
+                1100,
+                ovrDiff,
+                () => handleMinuteEndBoundaries(st, ovrDiff)
+              );
+              return true;
+            }
+            return false;
+          }
           const doKickoffReset = () => {
             resetPitchForKickoff(pitch, concedingSide, true);
             pitch.ticker = `${st.minute}' Saída no centro com ${concedingSide === "user" ? "Dream Team" : st.oppTeam.name}!`;
@@ -4478,6 +4530,12 @@
     if (state.tournament.timerId) {
       clearInterval(state.tournament.timerId);
       state.tournament.timerId = null;
+    }
+    const active5v5 = state.tournament.prep?.clash5v5?.miniSt;
+    if (active5v5 && active5v5.running && !active5v5.finished) {
+      ensureMatchSupport(active5v5, active5v5.pitch);
+      if (!state.tournament.pitchRafId) startPitchRafLoop(active5v5);
+      return;
     }
     const stageIdx = state.tournament.stageIndex;
     const st = state.tournament.stages[stageIdx];
@@ -5834,21 +5892,21 @@
       {
         id: "riverbank",
         title: "Margem do Rio",
-        sub: "Campinho Clássico • Confrontos 4x4 & XP",
+        sub: "Campinho Clássico • Confrontos 5x5 & XP",
         cta: "Ir para o Campo",
         spinMsg: "Chegando ao campinho da Margem do Rio...",
         resultEyebrow: "Acontecendo na Margem do Rio",
         banner: UI.locRiverbank || UI.stadiumBg,
         badgeIcon: UI.ffLogo || UI.moveOF,
-        desc: "Visite o campinho clássico da Raimon para encarar confrontos 4x4, ganhar XP e elevar o nível coletivo do time.",
+        desc: "Visite o campinho clássico da Raimon para encarar confrontos 5x5 (Gol de Ouro), ganhar XP e elevar o nível dos atletas.",
         events: [
           {
-            id: "clash_4v4",
-            title: "Confronto 4x4 de Rua!",
+            id: "clash_5v5",
+            title: "Confronto 5x5 de Rua!",
             icon: UI.ffLogo || UI.moveSH,
-            kind: "STREET_4V4",
+            kind: "STREET_5V5",
             weight: 3.4,
-            summary: "Duelo 4x4 contra rivais! Vitória dá +140 XP e +1 OVR em TODO o elenco (+80 XP se empatar)."
+            summary: "1 Goleiro + 4 na linha — quem fizer o 1º gol ganha! Os 5 participantes ganham XP (+120 XP na vitória, +65 XP na luta)."
           },
           {
             id: "river_xp",
@@ -6006,18 +6064,31 @@
     return null;
   }
 
-  function buildStreet4v4Matchup() {
+  function gainPlayerXp(player, amount) {
+    if (!player || !amount) return { xpGained: 0, ovrGained: 0, currentXp: 0 };
+    player.xp = (player.xp || 0) + amount;
+    let ovrGained = 0;
+    while (player.xp >= 100) {
+      player.xp -= 100;
+      player.boostOvr = (player.boostOvr || 0) + 1;
+      ovrGained++;
+    }
+    return { xpGained: amount, ovrGained, currentXp: player.xp };
+  }
+
+  function buildStreet5v5Matchup() {
     const slots = getSlots();
     const pickUserByRole = (role, usedSet) => {
       const exact = slots.filter((s) => s.role === role && state.squad[s.id] && !usedSet.has(s.id));
-      const pool = exact.length > 0 ? exact : slots.filter((s) => state.squad[s.id] && !usedSet.has(s.id));
-      const chosenSlot = pool[Math.floor(Math.random() * pool.length)];
+      const pool = exact.length > 0 ? exact : slots.filter((s) => s.role !== "GK" && state.squad[s.id] && !usedSet.has(s.id));
+      const fallbackPool = pool.length > 0 ? pool : slots.filter((s) => state.squad[s.id] && !usedSet.has(s.id));
+      const chosenSlot = fallbackPool[Math.floor(Math.random() * fallbackPool.length)];
       if (!chosenSlot) return null;
       usedSet.add(chosenSlot.id);
-      return { slot: chosenSlot, player: state.squad[chosenSlot.id] };
+      return { slot: chosenSlot, player: state.squad[chosenSlot.id], role: chosenSlot.role };
     };
     const usedUser = new Set();
-    const userQuartet = ["GK", "DF", "MF", "FW"]
+    const userQuintet = ["GK", "DF", "MF", "MF", "FW"]
       .map((r) => pickUserByRole(r, usedUser))
       .filter(Boolean);
 
@@ -6035,9 +6106,122 @@
       usedOppIds.add(picked.player.id);
       return picked;
     };
-    const oppQuartet = ["GK", "DF", "MF", "FW"].map(pickOppByRole);
+    const oppQuintet = ["GK", "DF", "MF", "MF", "FW"].map(pickOppByRole);
 
-    return { userQuartet, oppQuartet, status: "READY", userGoals: 0, oppGoals: 0, log: [] };
+    return { userQuintet, oppQuintet, status: "READY", miniSt: null, xpSummary: [] };
+  }
+
+  function initStreet5v5PitchState(miniSt, c5) {
+    const userCoords = [
+      { key: "GK", role: "GK", tacticalRole: "GK", label: "GOL", x: 9, y: 50 },
+      { key: "DF", role: "DF", tacticalRole: "CB", label: "ZAG", x: 24, y: 50 },
+      { key: "MF1", role: "MF", tacticalRole: "MID", label: "MEI", x: 37, y: 27 },
+      { key: "MF2", role: "MF", tacticalRole: "MID", label: "MEI", x: 37, y: 73 },
+      { key: "FW", role: "FW", tacticalRole: "ST", label: "ATA", x: 47, y: 50 }
+    ];
+    const oppCoords = [
+      { key: "GK", role: "GK", tacticalRole: "GK", label: "GOL", x: 91, y: 50 },
+      { key: "DF", role: "DF", tacticalRole: "CB", label: "ZAG", x: 76, y: 50 },
+      { key: "MF1", role: "MF", tacticalRole: "MID", label: "MEI", x: 63, y: 27 },
+      { key: "MF2", role: "MF", tacticalRole: "MID", label: "MEI", x: 63, y: 73 },
+      { key: "FW", role: "FW", tacticalRole: "ST", label: "ATA", x: 53, y: 50 }
+    ];
+
+    const makeNode = (entry, coords, side, idx) => {
+      const p = entry.player;
+      const effOvr = side === "user" && entry.slot ? getEffectiveOvr(p, entry.slot.role) : p.ovr;
+      return {
+        uid: `${side === "user" ? "u5" : "o5"}_${coords.key}`,
+        side,
+        slotId: entry.slot?.id || coords.key,
+        role: coords.role,
+        tacticalRole: coords.tacticalRole,
+        label: coords.label,
+        player: p,
+        effOvr,
+        stamina: 100,
+        baseX: coords.x,
+        baseY: coords.y,
+        x: coords.x,
+        y: coords.y,
+        vx: 0,
+        vy: 0,
+        maxSpeed: calcNodeBaseSpeed(coords.tacticalRole, effOvr) * 1.12,
+        targetX: coords.x,
+        targetY: coords.y,
+        targetSprint: 0.95,
+        duelCooldown: 0,
+        staggerTimer: 0,
+        carryTime: 0,
+        decisionTimer: 0.2 + (idx % 3) * 0.08,
+        wanderPhase: idx * 1.27
+      };
+    };
+
+    const userNodes = c5.userQuintet.map((entry, idx) => makeNode(entry, userCoords[idx] || userCoords[2], "user", idx));
+    const oppNodes = c5.oppQuintet.map((entry, idx) => makeNode(entry, oppCoords[idx] || oppCoords[2], "opp", idx));
+
+    const startSide = Math.random() < 0.55 ? "user" : "opp";
+    const startPool = startSide === "user" ? userNodes : oppNodes;
+    const startNode = startPool[4] || startPool[2] || startPool[0];
+    if (startNode) {
+      startNode.x = 50;
+      startNode.y = 50;
+      startNode.targetX = 50;
+      startNode.targetY = 50;
+    }
+
+    const pitch = {
+      userNodes,
+      oppNodes,
+      oppTeamName: miniSt.oppTeam.name,
+      initialSide: startSide,
+      ballSide: startSide,
+      ballMode: "CARRIED",
+      carrierUid: startNode ? startNode.uid : "u5_FW",
+      challengerUid: null,
+      chaserUid: null,
+      ballX: 50,
+      ballY: 50,
+      ballVx: 0,
+      ballVy: 0,
+      ballFlight: null,
+      passState: null,
+      holdBallPos: null,
+      lastAssistCandidate: null,
+      lastPasserUid: null,
+      lastAction: null,
+      sameActionStreak: 0,
+      teamConsecutivePasses: 0,
+      justKickedOff: true,
+      passTrail: null,
+      floatBadge: null,
+      nodeBadges: {},
+      goalFlashSide: null,
+      goalFlashUntil: 0,
+      simTime: 0,
+      minuteFloat: 0,
+      matchSupport: { userTeamSupport: 2.2, oppTeamSupport: 2.0, ovrDiff: 0 },
+      ticker: `0' Bola rolando no 5x5! Quem fizer o 1º gol vence!`,
+      lastClashMinute: -10,
+      stats: {
+        userTicks: 1,
+        oppTicks: 1,
+        userPassesOk: 0,
+        userPassesTry: 0,
+        userGkReleases: 0,
+        userDribblesOk: 0,
+        userDribblesTry: 0,
+        userSteals: 0,
+        userBlocks: 0,
+        userSaves: 0,
+        userShots: 0,
+        oppShots: 0,
+        playerStats: {}
+      }
+    };
+    recomputePitchTargets(pitch);
+    return pitch;
   }
 
   function openBetweenMatchPrep(nextStageIdx) {
@@ -6054,7 +6238,7 @@
       rouletteStrip: [],
       rouletteWinnerIdx: 21,
       appliedMsg: null,
-      clash4v4: null
+      clash5v5: null
     };
     renderAll();
   }
@@ -6084,7 +6268,7 @@
     t.prep.rouletteStrip = strip;
     t.prep.rouletteWinnerIdx = winnerIdx;
     t.prep.appliedMsg = null;
-    t.prep.clash4v4 = winnerEvent.kind === "STREET_4V4" ? buildStreet4v4Matchup() : null;
+    t.prep.clash5v5 = winnerEvent.kind === "STREET_5V5" ? buildStreet5v5Matchup() : null;
 
     renderTournamentScreen();
 
@@ -6176,90 +6360,86 @@
     renderAll();
   }
 
-  function runStreet4v4Challenge() {
+  function runStreet5v5Challenge() {
     const t = state.tournament;
     const prep = t.prep;
-    const c4 = prep?.clash4v4;
-    if (!prep || !c4 || c4.status !== "READY") return;
+    const c5 = prep?.clash5v5;
+    if (!prep || !c5 || c5.status !== "READY") return;
 
-    c4.status = "RUNNING";
-    c4.log = [];
-    c4.userGoals = 0;
-    c4.oppGoals = 0;
+    clearTournamentTimers(false);
+    c5.status = "RUNNING";
+    c5.xpSummary = [];
 
-    const uFw = c4.userQuartet[3]?.player;
-    const uMf = c4.userQuartet[2]?.player;
-    const uGk = c4.userQuartet[0]?.player;
-    const oFw = c4.oppQuartet[3]?.player;
-    const oMf = c4.oppQuartet[2]?.player;
-    const oGk = c4.oppQuartet[0]?.player;
-
-    const userAvg = c4.userQuartet.reduce((s, x) => s + getEffectiveOvr(x.player, x.slot.role), 0) / Math.max(1, c4.userQuartet.length);
-    const oppAvg = c4.oppQuartet.reduce((s, x) => s + x.player.ovr, 0) / Math.max(1, c4.oppQuartet.length);
-
-    const step1Win = Math.random() < logisticWinProb(userAvg, oppAvg, 1.5, 0.35, 0.85);
-    const uMfMove = pickPlayerMove(uMf, "OF") || "Passe Relâmpago";
-    const oMfMove = pickPlayerMove(oMf, "OF") || "Avanço Rápido";
-    const step1Text = step1Win
-      ? `1' ${uMf.name} cortou a marcação com 【${uMfMove}】 e serviu o ataque!`
-      : `1' ${oMf.name} escapou com 【${oMfMove}】 pelo meio do campinho!`;
-
-    const uShMove = pickPlayerMove(uFw, "SH") || "Chute Forte";
-    const oGkMove = pickPlayerMove(oGk, "GK") || "Defesa Firme";
-    const uScored = Math.random() < logisticWinProb(userAvg + 3, oppAvg, 2.2, 0.42, 0.86);
-    const step2Text = uScored
-      ? `2' GOOOL! ${uFw.name} mandou 【${uShMove}】 e venceu 【${oGkMove}】 de ${oGk.name}!`
-      : `2' ${oGk.name} saltou com 【${oGkMove}】 e segurou 【${uShMove}】 de ${uFw.name}!`;
-
-    const oShMove = pickPlayerMove(oFw, "SH") || "Bomba Direta";
-    const uGkMove = pickPlayerMove(uGk, "GK") || "Mão Firme";
-    const oScored = Math.random() < logisticWinProb(oppAvg, userAvg + 2.5, -2.5, 0.14, 0.58);
-    const uExtraGoal = !uScored && Math.random() < 0.55;
-    const step3Text = oScored
-      ? `3' ${oFw.name} descontou com 【${oShMove}】 passando por ${uGk.name}!`
-      : uExtraGoal
-      ? `3' ${uGk.name} defendeu com 【${uGkMove}】 e no contra-ataque ${uFw.name} fechou o placar!`
-      : `3' ${uGk.name} brilhou com 【${uGkMove}】 e garantiu a meta no campinho!`;
-
-    c4.userGoals = (uScored ? 1 : 0) + (uExtraGoal ? 1 : 0);
-    c4.oppGoals = oScored ? 1 : 0;
-    const plannedLines = [step1Text, step2Text, step3Text];
-
-    renderTournamentScreen();
-
-    let idx = 0;
-    const advance = () => {
-      if (!state.tournament.prep || state.tournament.prep.clash4v4 !== c4) return;
-      if (idx < plannedLines.length) {
-        c4.log.push(plannedLines[idx]);
-        idx++;
-        renderTournamentScreen();
-        t.prepMatchTimerId = setTimeout(advance, 520);
-      } else {
-        c4.status = "DONE";
-        const won = c4.userGoals > c4.oppGoals;
-        const xp = won ? 140 : 80;
-        const pwr = won ? 30 : 25;
-        if (won) {
-          Object.values(state.squad).forEach((p) => {
-            if (p) p.boostOvr = (p.boostOvr || 0) + 1;
-          });
-        } else {
-          c4.userQuartet.forEach((item) => {
-            if (item.player) item.player.boostOvr = (item.player.boostOvr || 0) + 1;
-          });
+    const miniSt = {
+      stageName: "Margem do Rio (5x5)",
+      oppTeam: {
+        id: "street_5v5",
+        name: "Desafiantes 5x5",
+        emblem: UI.ffLogo || UI.raimonEmblem
+      },
+      minute: 0,
+      maxMinute: 99,
+      userScore: 0,
+      oppScore: 0,
+      goalsUser: [],
+      goalsOpp: [],
+      narration: [
+        {
+          cls: "",
+          iconCat: "FF",
+          text: "0' Começa o 5x5 na Margem do Rio (1 GK + 4 linha) — quem fizer o 1º gol vence!"
         }
-        t.prepBonuses.xp += xp;
+      ],
+      running: true,
+      finished: false,
+      won: null,
+      penalties: null,
+      penaltiesText: null,
+      isGoldenGoal5v5: true,
+      _goldenHandled: false,
+      pitch: null,
+      onGoldenGoalDone: (finishedSt, scorerName) => {
+        if (!state.tournament.prep || state.tournament.prep.clash5v5 !== c5) return;
+        c5.status = "DONE";
+        const won = finishedSt.userScore > finishedSt.oppScore;
+        const pwr = won ? 35 : 15;
+        let totalXpGiven = 0;
+
+        c5.xpSummary = c5.userQuintet.map((entry) => {
+          const p = entry.player;
+          const isScorer = won && scorerName && p.name === scorerName;
+          const xpAmt = won ? (isScorer ? 160 : 120) : 65;
+          totalXpGiven += xpAmt;
+          const res = gainPlayerXp(p, xpAmt);
+          return {
+            name: p.name,
+            role: entry.slot?.role || entry.role,
+            sprite: getPlayerFormSprite(p, entry.slot?.role || entry.role),
+            xpGained: res.xpGained,
+            ovrGained: res.ovrGained,
+            newOvr: entry.slot ? getEffectiveOvr(p, entry.slot.role) : p.ovr,
+            curXp: res.currentXp,
+            isScorer
+          };
+        });
+
+        t.prepBonuses.xp += totalXpGiven;
         t.prepBonuses.power += pwr;
-        t.prepBonuses.log.push(`4x4 Margem do Rio (${c4.userGoals}x${c4.oppGoals})`);
+        t.prepBonuses.log.push(`5x5 Margem do Rio (${finishedSt.userScore}x${finishedSt.oppScore})`);
         prep.phase = "DONE";
         prep.appliedMsg = won
-          ? `Vitória no 4x4 (${c4.userGoals} x ${c4.oppGoals})! Você ganhou +${xp} XP, +1 OVR em TODOS os 11 titulares e +${pwr} Poder!`
-          : `Duelo intenso no 4x4 (${c4.userGoals} x ${c4.oppGoals})! Os 4 participantes ganharam +${xp} XP, +1 OVR cada e +${pwr} Poder!`;
+          ? `Vitória por Gol de Ouro (1 x 0${scorerName ? ` · ${scorerName}` : ""})! Todos os 5 participantes ganharam XP (+${totalXpGiven} XP totais) e +${pwr} Poder!`
+          : `Os Desafiantes marcaram o 1º gol (0 x 1), mas os 5 participantes ganharam experiência (+${totalXpGiven} XP totais) e +${pwr} Poder!`;
         renderAll();
       }
     };
-    t.prepMatchTimerId = setTimeout(advance, 320);
+
+    miniSt.pitch = initStreet5v5PitchState(miniSt, c5);
+    c5.miniSt = miniSt;
+
+    renderTournamentScreen();
+    ensureMatchSupport(miniSt, miniSt.pitch);
+    startPitchRafLoop(miniSt);
   }
 
   function buildBetweenMatchPrepHTML(t, stats) {
@@ -6344,6 +6524,8 @@
         })
         .join("");
 
+      const is5v5Live = prep.phase === "RESULT" && prep.clash5v5?.status === "RUNNING" && prep.clash5v5?.miniSt;
+
       let outcomeHTML = "";
       if (prep.phase === "SPINNING") {
         outcomeHTML = `
@@ -6353,52 +6535,83 @@
         `;
       } else if (prep.phase === "RESULT" && prep.event) {
         const ev = prep.event;
-        if (ev.kind === "STREET_4V4" && prep.clash4v4) {
-          const c4 = prep.clash4v4;
-          const renderMini = (list, sideCls) =>
-            list
-              .map(
-                (x) => `
-              <div class="prep-4v4-mini ${sideCls}">
-                <img src="${x.player.sprite}" alt="${x.player.name}" />
-                <div style="min-width:0;">
-                  <div style="font-size:0.7rem; font-weight:800; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${x.player.name}</div>
-                  <div style="font-size:0.62rem; color:#93c5fd; font-weight:700;">${x.slot?.role || x.role} · OVR ${x.slot ? getEffectiveOvr(x.player, x.slot.role) : x.player.ovr}</div>
+        if (ev.kind === "STREET_5V5" && prep.clash5v5) {
+          const c5 = prep.clash5v5;
+          if (c5.status === "RUNNING" && c5.miniSt) {
+            const mSt = c5.miniSt;
+            const livePitchHTML = buildLivePitchBoxHTML(mSt, mSt.oppTeam, stats, {
+              ovr: 86,
+              power: 900,
+              chem: 60
+            });
+            outcomeHTML = `
+              <div class="prep-reward-box">
+                <div class="prep-5v5-live-head">
+                  <div>
+                    <div style="font-size:0.68rem; font-weight:900; color:#facc15; text-transform:uppercase;">MARGEM DO RIO • 5x5 AO VIVO (GOL DE OURO)</div>
+                    <div style="font-size:0.82rem; font-weight:800; color:#cbd5e1;">Quem fizer o 1º gol vence!</div>
+                  </div>
+                  <div class="prep-5v5-score-pill">
+                    <span>Dream Team</span>
+                    <span id="live-score-user">${mSt.userScore}</span>
+                    <span style="color:#93c5fd;">×</span>
+                    <span id="live-score-opp">${mSt.oppScore}</span>
+                    <span>Desafiantes</span>
+                  </div>
+                  <div style="display:flex; align-items:center; gap:8px;">
+                    <button class="ie-cmd-btn" id="btn-prep5-speed" style="padding:5px 10px; font-size:0.72rem;">
+                      <span>Vel: ${state.simSpeed}x</span>
+                    </button>
+                    <div class="minute-clock" id="live-clock-text">${mSt.minute}'</div>
+                  </div>
+                </div>
+                ${livePitchHTML}
+                <div class="narration-history-box" style="max-height:130px;">
+                  <div class="narration-feed" id="live-narration-feed">
+                    ${mSt.narration.map((item) => buildNarrationItemHTML(item)).join("")}
+                  </div>
                 </div>
               </div>
-            `
-              )
-              .join("");
+            `;
+          } else {
+            const renderMini = (list, sideCls) =>
+              list
+                .map(
+                  (x) => `
+                <div class="prep-4v4-mini ${sideCls}">
+                  <img src="${x.slot ? getPlayerFormSprite(x.player, x.slot.role) : x.player.sprite}" alt="${x.player.name}" />
+                  <div style="min-width:0;">
+                    <div style="font-size:0.7rem; font-weight:800; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${x.player.name}</div>
+                    <div style="font-size:0.62rem; color:#93c5fd; font-weight:700;">${x.slot?.role || x.role} · OVR ${x.slot ? getEffectiveOvr(x.player, x.slot.role) : x.player.ovr}</div>
+                  </div>
+                </div>
+              `
+                )
+                .join("");
 
-          outcomeHTML = `
-            <div class="prep-reward-box">
-              <div class="prep-reward-hero">
-                <div class="prep-reward-icon-frame">
-                  ${ev.icon ? `<img src="${ev.icon}" alt="" />` : ""}
+            outcomeHTML = `
+              <div class="prep-reward-box">
+                <div class="prep-reward-hero">
+                  <div class="prep-reward-icon-frame">
+                    ${ev.icon ? `<img src="${ev.icon}" alt="" />` : ""}
+                  </div>
+                  <div style="flex:1; min-width:200px;">
+                    <div style="font-size:0.7rem; font-weight:900; color:#facc15; text-transform:uppercase;">${activeLoc?.resultEyebrow || "Margem do Rio"}</div>
+                    <div style="font-size:1.05rem; font-weight:900; color:#fff;">${ev.title}</div>
+                    <div style="font-size:0.76rem; color:#cbd5e1;">${ev.summary}</div>
+                  </div>
+                  <button class="ie-cmd-btn ie-cmd-gold" id="btn-run-5v5">
+                    <span>Assistir 5x5 (Gol de Ouro)!</span>
+                  </button>
                 </div>
-                <div style="flex:1; min-width:200px;">
-                  <div style="font-size:0.7rem; font-weight:900; color:#facc15; text-transform:uppercase;">${activeLoc?.resultEyebrow || "Margem do Rio"}</div>
-                  <div style="font-size:1.05rem; font-weight:900; color:#fff;">${ev.title}</div>
-                  <div style="font-size:0.76rem; color:#cbd5e1;">${ev.summary}</div>
+                <div class="prep-4v4-matchup">
+                  <div class="prep-4v4-side">${renderMini(c5.userQuintet, "is-user")}</div>
+                  <div style="font-weight:900; font-size:0.95rem; color:#facc15;">VS</div>
+                  <div class="prep-4v4-side">${renderMini(c5.oppQuintet, "is-opp")}</div>
                 </div>
-                ${
-                  c4.status === "READY"
-                    ? `<button class="ie-cmd-btn ie-cmd-gold" id="btn-run-4v4"><span>Disputar 4x4!</span></button>`
-                    : `<span class="prep-xp-pill">4x4 ${c4.userGoals} x ${c4.oppGoals}</span>`
-                }
               </div>
-              <div class="prep-4v4-matchup">
-                <div class="prep-4v4-side">${renderMini(c4.userQuartet, "is-user")}</div>
-                <div style="font-weight:900; font-size:0.95rem; color:#facc15;">VS</div>
-                <div class="prep-4v4-side">${renderMini(c4.oppQuartet, "is-opp")}</div>
-              </div>
-              ${
-                c4.log.length > 0
-                  ? `<div class="prep-4v4-log">${c4.log.map((l) => `<div>• ${l}</div>`).join("")}</div>`
-                  : ""
-              }
-            </div>
-          `;
+            `;
+          }
         } else {
           // Escolha de jogador para Item / Keshin / Evolução / Manual
           const eligibleSlots = getSlots().filter((slot) => {
@@ -6470,6 +6683,35 @@
           `;
         }
       } else if (prep.phase === "DONE") {
+        const xpSummary = prep.clash5v5?.xpSummary || [];
+        const xpCardsHTML =
+          xpSummary.length > 0
+            ? `
+              <div style="font-size:0.74rem; font-weight:800; color:#93c5fd;">
+                XP ganho pelos 5 participantes (cada 100 XP = +1 OVR):
+              </div>
+              <div class="prep-5v5-xp-grid">
+                ${xpSummary
+                  .map(
+                    (px) => `
+                  <div class="prep-xp-player-card">
+                    <img src="${px.sprite}" alt="${px.name}" />
+                    <div style="min-width:0; flex:1;">
+                      <div style="font-size:0.74rem; font-weight:900; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                        ${posIconHTML(px.role, true)} ${px.name} ${px.isScorer ? "⚡" : ""}
+                      </div>
+                      <div style="font-size:0.68rem; font-weight:800; color:#fde047;">
+                        +${px.xpGained} XP ${px.ovrGained > 0 ? `<span style="color:#4ade80;">• +${px.ovrGained} OVR (${px.newOvr})</span>` : `<span style="color:#94a3b8;">(${px.curXp}/100)</span>`}
+                      </div>
+                    </div>
+                  </div>
+                `
+                  )
+                  .join("")}
+              </div>
+            `
+            : "";
+
         outcomeHTML = `
           <div class="prep-reward-box">
             <div class="prep-reward-hero">
@@ -6487,11 +6729,14 @@
                 <span>Ir para ${nextStage.stageName} →</span>
               </button>
             </div>
+            ${xpCardsHTML}
           </div>
         `;
       }
 
-      bodyHTML = `
+      bodyHTML = is5v5Live
+        ? outcomeHTML
+        : `
         <div class="prep-roulette-box">
           <div class="prep-roulette-header">
             ${activeLoc?.banner ? `<img class="prep-roulette-thumb" src="${activeLoc.banner}" alt="" />` : ""}
@@ -6590,9 +6835,21 @@
         });
       });
 
-      const run4v4Btn = document.getElementById("btn-run-4v4");
-      if (run4v4Btn) {
-        run4v4Btn.addEventListener("click", () => runStreet4v4Challenge());
+      const run5v5Btn = document.getElementById("btn-run-5v5");
+      if (run5v5Btn) {
+        run5v5Btn.addEventListener("click", () => runStreet5v5Challenge());
+      }
+
+      const prep5SpeedBtn = document.getElementById("btn-prep5-speed");
+      if (prep5SpeedBtn) {
+        prep5SpeedBtn.addEventListener("click", () => {
+          state.simSpeed = state.simSpeed === 1 ? 2 : state.simSpeed === 2 ? 4 : 1;
+          prep5SpeedBtn.innerHTML = `<span>Vel: ${state.simSpeed}x</span>`;
+          if (state.simSpeed !== 1 && (state.tournament.pendingClashFinish || state.tournament.pendingBeatFinish)) {
+            clearTournamentTimers(true);
+          }
+          startMatchInterval();
+        });
       }
 
       container.querySelectorAll("[data-prep-pick]").forEach((pCard) => {
