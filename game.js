@@ -5750,9 +5750,12 @@
         id: "town",
         title: "Cidade de Inazuma",
         sub: "Lojas & Rua Comercial • Equipamentos",
+        cta: "Visitar a Cidade",
+        spinMsg: "Percorrendo as lojas esportivas da Cidade de Inazuma...",
+        resultEyebrow: "Encontrado na Cidade",
         banner: UI.locTown || UI.stadiumBg,
         badgeIcon: UI.itemShoesLegend || UI.itemGloveLegend,
-        desc: "Gire a roleta nas lojas da cidade para conquistar chuteiras, luvas, pingentes ou pulseiras para um jogador do seu elenco.",
+        desc: "Explore a rua comercial de Inazuma em busca de chuteiras, luvas, pingentes ou pulseiras para equipar um jogador do elenco.",
         events: [
           {
             id: "shoes_legend",
@@ -5832,9 +5835,12 @@
         id: "riverbank",
         title: "Margem do Rio",
         sub: "Campinho Clássico • Confrontos 4x4 & XP",
+        cta: "Ir para o Campo",
+        spinMsg: "Chegando ao campinho da Margem do Rio...",
+        resultEyebrow: "Acontecendo na Margem do Rio",
         banner: UI.locRiverbank || UI.stadiumBg,
         badgeIcon: UI.ffLogo || UI.moveOF,
-        desc: "Encare um Confronto 4x4 contra rivais aleatórios ou treine no campo clássico para ganhar XP e elevar o OVR coletivo do time.",
+        desc: "Visite o campinho clássico da Raimon para encarar confrontos 4x4, ganhar XP e elevar o nível coletivo do time.",
         events: [
           {
             id: "clash_4v4",
@@ -5889,6 +5895,9 @@
         id: "training",
         title: "Centro Inabikari",
         sub: "Treino Secreto • Incorporação & Técnicas",
+        cta: "Treinar no Inabikari",
+        spinMsg: "Iniciando sessão secreta no Centro Inabikari...",
+        resultEyebrow: "Resultado do Treinamento",
         banner: UI.locTraining || UI.stadiumBg,
         badgeIcon: UI.keshinPegasus || UI.keshinIcon,
         desc: "Desbloqueie o poder oculto da equipe despertando uma Incorporação (Keshin) ou evoluindo técnicas Hissatsu para o próximo duelo.",
@@ -6313,7 +6322,7 @@
                     .join("")}
                 </div>
                 <button class="ie-cmd-btn ie-cmd-gold" style="width:100%; justify-content:center;">
-                  <span>Ir e Girar Roleta</span>
+                  <span>${loc.cta || loc.title}</span>
                 </button>
               </div>
             </div>
@@ -6339,7 +6348,7 @@
       if (prep.phase === "SPINNING") {
         outcomeHTML = `
           <div style="text-align:center; font-size:0.82rem; font-weight:800; color:#fde047; padding:6px 0;">
-            Girando a roleta de ${activeLoc?.title || "Inazuma"}... sorteando recompensa!
+            ${activeLoc?.spinMsg || `Explorando ${activeLoc?.title || "Inazuma"}...`}
           </div>
         `;
       } else if (prep.phase === "RESULT" && prep.event) {
@@ -6368,7 +6377,7 @@
                   ${ev.icon ? `<img src="${ev.icon}" alt="" />` : ""}
                 </div>
                 <div style="flex:1; min-width:200px;">
-                  <div style="font-size:0.7rem; font-weight:900; color:#facc15; text-transform:uppercase;">Evento Sorteado • Margem do Rio</div>
+                  <div style="font-size:0.7rem; font-weight:900; color:#facc15; text-transform:uppercase;">${activeLoc?.resultEyebrow || "Margem do Rio"}</div>
                   <div style="font-size:1.05rem; font-weight:900; color:#fff;">${ev.title}</div>
                   <div style="font-size:0.76rem; color:#cbd5e1;">${ev.summary}</div>
                 </div>
@@ -6409,7 +6418,7 @@
                   ${ev.icon ? `<img src="${ev.icon}" alt="" />` : ""}
                 </div>
                 <div style="flex:1; min-width:200px;">
-                  <div style="font-size:0.7rem; font-weight:900; color:#facc15; text-transform:uppercase;">Prêmio da Roleta • ${activeLoc?.title || ""}</div>
+                  <div style="font-size:0.7rem; font-weight:900; color:#facc15; text-transform:uppercase;">${activeLoc?.resultEyebrow || activeLoc?.title || ""}</div>
                   <div style="font-size:1.05rem; font-weight:900; color:#fff;">${ev.title}</div>
                   <div style="font-size:0.76rem; color:#cbd5e1;">${ev.summary}</div>
                 </div>
@@ -6668,7 +6677,7 @@
           <div class="match-finish-bar is-win">
             <div>
               <strong>Classificado para a ${nextStage.stageName}!</strong>
-              <span>Visite um local de Inazuma e gire a roleta para fortalecer seu time antes do próximo jogo.</span>
+              <span>Visite a cidade, vá ao campo ou treine no Inabikari antes do próximo jogo.</span>
             </div>
             <button class="ie-cmd-btn ie-cmd-green" id="btn-next-round">
               <span>Preparar para ${nextStage.stageName} →</span>
