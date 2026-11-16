@@ -2476,7 +2476,6 @@
 
     const cardEl = document.getElementById("live-pitch-box");
     const possBar = document.getElementById("pitch-possession-bar");
-    const carrier = findPitchNode(pitch, pitch.carrierUid);
     const isUserPoss = pitch.ballSide === "user";
 
     if (cardEl) {
@@ -2487,14 +2486,13 @@
       possBar.classList.toggle("poss-user", isUserPoss);
       possBar.classList.toggle("poss-opp", !isUserPoss);
       const teamLabel = isUserPoss ? "DREAM TEAM" : (pitch.oppTeamName || "ADVERSÁRIO").toUpperCase();
-      const playerLabel = carrier ? `${carrier.player.name} (${carrier.label})` : "";
       const dirArrow = isUserPoss ? "Atacando ➔" : "⬅ Atacando";
       possBar.innerHTML = `
         <span class="poss-team-chip">
           <span class="poss-pulse-dot"></span>
-          <span>POSSE: ${teamLabel}${playerLabel ? ` • ${playerLabel}` : ""}</span>
+          <span>POSSE: ${teamLabel}</span>
         </span>
-        <span style="font-size:0.64rem; opacity:0.9;">${dirArrow}</span>
+        <span class="poss-dir-label">${dirArrow}</span>
       `;
     }
 
@@ -3169,18 +3167,16 @@
     const userPoss = Math.round((s.userTicks / totTicks) * 100);
     const isUserPoss = pitch.ballSide === "user";
     const possCls = isUserPoss ? "poss-user" : "poss-opp";
-    const carrier = findPitchNode(pitch, pitch.carrierUid);
     const possTeamLabel = isUserPoss ? "DREAM TEAM" : oppTeam.name.toUpperCase();
-    const possPlayerLabel = carrier ? `${carrier.player.name} (${carrier.label})` : "";
 
     return `
       <div id="live-pitch-box" class="live-pitch-card ${possCls}">
         <div class="pitch-possession-bar ${possCls}" id="pitch-possession-bar">
           <span class="poss-team-chip">
             <span class="poss-pulse-dot"></span>
-            <span>POSSE: ${possTeamLabel}${possPlayerLabel ? ` • ${possPlayerLabel}` : ""}</span>
+            <span>POSSE: ${possTeamLabel}</span>
           </span>
-          <span style="font-size:0.64rem; opacity:0.9;">${isUserPoss ? "Atacando ➔" : "⬅ Atacando"}</span>
+          <span class="poss-dir-label">${isUserPoss ? "Atacando ➔" : "⬅ Atacando"}</span>
         </div>
 
         <div class="pitch-header-strip">

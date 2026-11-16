@@ -1989,11 +1989,15 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 4px 10px;
+  height: 26px;
+  min-height: 26px;
+  padding: 0 10px;
   border-radius: 8px;
   font-size: 0.7rem;
   font-weight: 900;
   letter-spacing: 0.3px;
+  white-space: nowrap;
+  overflow: hidden;
 }
 
 .pitch-possession-bar.poss-user {
@@ -2012,12 +2016,29 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+}
+
+.poss-team-chip > span:last-child {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.poss-dir-label {
+  font-size: 0.64rem;
+  opacity: 0.9;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .poss-pulse-dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
+  flex-shrink: 0;
   animation: possPulse 0.9s infinite alternate;
 }
 
