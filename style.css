@@ -1261,6 +1261,226 @@ body {
 }
 
 /* =========================================================
+   PALCO DE CONFRONTO HISSATSU (CHUTE VS DEFESA/BLOQUEIO - MODO 1X)
+   ========================================================= */
+.shot-clash-stage {
+  background: radial-gradient(circle at 50% 50%, #1e3a8a 0%, #071128 75%, #030712 100%);
+  border: 2.5px solid var(--ie-gold);
+  border-radius: 12px;
+  padding: 12px 14px;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 0 28px rgba(250, 204, 21, 0.25), inset 0 0 30px rgba(0, 0, 0, 0.65);
+  animation: slideInItem 0.2s ease-out;
+}
+
+.clash-arena-grid {
+  display: grid;
+  grid-template-columns: 94px 1fr 94px;
+  align-items: center;
+  gap: 10px;
+}
+
+.clash-fighter {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 4px;
+  z-index: 3;
+}
+
+.clash-avatar {
+  width: 64px;
+  height: 64px;
+  border-radius: 12px;
+  object-fit: contain;
+  background: radial-gradient(circle, #172e62 0%, #050d21 100%);
+  padding: 2px;
+}
+
+.clash-avatar.side-user {
+  border: 3px solid #22c55e;
+  box-shadow: 0 0 14px rgba(34, 197, 94, 0.65);
+}
+
+.clash-avatar.side-opp {
+  border: 3px solid #ef4444;
+  box-shadow: 0 0 14px rgba(239, 68, 68, 0.65);
+}
+
+.clash-fighter-name {
+  font-size: 0.72rem;
+  font-weight: 900;
+  color: #fff;
+  max-width: 92px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.clash-role-badge {
+  font-size: 0.58rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(15, 23, 42, 0.9);
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  color: #bae6fd;
+}
+
+.clash-center-lane {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+  z-index: 2;
+}
+
+.clash-move-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  font-weight: 900;
+  font-style: italic;
+  max-width: 100%;
+  text-align: center;
+  transform: skewX(-6deg);
+}
+
+.clash-move-pill > * {
+  transform: skewX(6deg);
+}
+
+.clash-move-shoot {
+  background: linear-gradient(90deg, rgba(239, 68, 68, 0.35), rgba(249, 115, 22, 0.35));
+  border: 1.5px solid #fb923c;
+  color: #ffedd5;
+}
+
+.clash-move-def {
+  background: linear-gradient(90deg, rgba(37, 99, 235, 0.35), rgba(56, 189, 248, 0.35));
+  border: 1.5px solid #38bdf8;
+  color: #e0f2fe;
+}
+
+.clash-track {
+  position: relative;
+  width: 100%;
+  height: 52px;
+  background: rgba(4, 11, 26, 0.72);
+  border-top: 1px solid rgba(250, 204, 21, 0.25);
+  border-bottom: 1px solid rgba(250, 204, 21, 0.25);
+  border-radius: 999px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+}
+
+.fireball-runner {
+  position: absolute;
+  left: 6%;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  animation: fireballFly 1.35s cubic-bezier(0.28, 0.84, 0.42, 1) forwards;
+}
+
+.fireball-trail {
+  width: 58px;
+  height: 22px;
+  margin-right: -14px;
+  border-radius: 999px 0 0 999px;
+  background: linear-gradient(90deg, rgba(239, 68, 68, 0) 0%, rgba(249, 115, 22, 0.75) 55%, #fde047 100%);
+  filter: blur(2px);
+  animation: flameFlicker 0.16s infinite alternate;
+}
+
+.fireball-orb {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(circle at 35% 35%, #fef08a 0%, #f97316 55%, #dc2626 100%);
+  box-shadow: 0 0 18px #f97316, 0 0 30px #ef4444;
+  animation: spinBall 0.4s linear infinite;
+}
+
+@keyframes fireballFly {
+  0% { left: 2%; opacity: 0.9; }
+  88% { left: calc(100% - 92px); opacity: 1; }
+  100% { left: calc(100% - 96px); opacity: 1; }
+}
+
+@keyframes flameFlicker {
+  from { transform: scaleY(0.88) scaleX(0.95); }
+  to { transform: scaleY(1.15) scaleX(1.06); }
+}
+
+@keyframes spinBall {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.clash-result-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  animation: clashPop 0.25s ease-out;
+  backdrop-filter: blur(2px);
+}
+
+.clash-result-overlay.res-goal {
+  background: rgba(20, 83, 45, 0.72);
+}
+
+.clash-result-overlay.res-saved {
+  background: rgba(15, 23, 42, 0.76);
+}
+
+.clash-result-banner {
+  padding: 10px 24px;
+  border-radius: 10px;
+  transform: skewX(-8deg);
+  font-size: 1.35rem;
+  font-weight: 900;
+  font-style: italic;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  border: 2.5px solid #fff;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.7);
+}
+
+.res-goal .clash-result-banner {
+  background: linear-gradient(180deg, #86efac 0%, #22c55e 50%, #15803d 100%);
+  color: #031e0d;
+}
+
+.res-saved .clash-result-banner {
+  background: linear-gradient(180deg, #fef08a 0%, #facc15 50%, #ea580c 100%);
+  color: #170d02;
+}
+
+@keyframes clashPop {
+  from { opacity: 0; transform: scale(0.85); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* =========================================================
    RESPONSIVIDADE MOBILE COMPLETA (CELULAR <= 640px)
    ========================================================= */
 @media (max-width: 640px) {
@@ -1445,5 +1665,30 @@ body {
 
   .goals-columns {
     grid-template-columns: 1fr;
+  }
+
+  .clash-arena-grid {
+    grid-template-columns: 68px 1fr 68px;
+    gap: 6px;
+  }
+
+  .clash-avatar {
+    width: 48px;
+    height: 48px;
+  }
+
+  .clash-fighter-name {
+    font-size: 0.64rem;
+    max-width: 66px;
+  }
+
+  .clash-move-pill {
+    font-size: 0.68rem;
+    padding: 3px 8px;
+  }
+
+  .clash-result-banner {
+    font-size: 1.05rem;
+    padding: 8px 16px;
   }
 }

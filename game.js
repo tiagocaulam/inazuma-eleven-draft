@@ -207,7 +207,10 @@
     tournament: {
       stageIndex: 0,
       stages: [],
-      timerId: null
+      timerId: null,
+      clashTimer1: null,
+      clashTimer2: null,
+      pendingClashFinish: null
     }
   };
 
@@ -879,6 +882,189 @@
     }
   }
 
+  function clearTournamentTimers(resolvePending = false) {
+    if (state.tournament.timerId) {
+      clearInterval(state.tournament.timerId);
+      state.tournament.timerId = null;
+    }
+    if (state.tournament.clashTimer1) {
+      clearTimeout(state.tournament.clashTimer1);
+      state.tournament.clashTimer1 = null;
+    }
+    if (state.tournament.clashTimer2) {
+      clearTimeout(state.tournament.clashTimer2);
+      state.tournament.clashTimer2 = null;
+    }
+    if (resolvePending && typeof state.tournament.pendingClashFinish === "function") {
+      const fn = state.tournament.pendingClashFinish;
+      state.tournament.pendingClashFinish = null;
+      const slot = document.getElementById("shot-clash-slot");
+      if (slot) slot.innerHTML = "";
+      fn(true);
+    } else {
+      state.tournament.pendingClashFinish = null;
+    }
+  }
+
+  function buildFireballSVG() {
+    return `
+      <svg viewBox="0 0 36 36" width="32" height="32" aria-hidden="true">
+        <circle cx="18" cy="18" r="14" fill="#ffffff" stroke="#1e293b" stroke-width="2" />
+        <polygon points="18,10 23,14 21,21 15,21 13,14" fill="#0f172a" />
+        <line x1="18" y1="10" x2="18" y2="4" stroke="#0f172a" stroke-width="1.8" />
+        <line x1="23" y1="14" x2="30" y2="11" stroke="#0f172a" stroke-width="1.8" />
+        <line x1="13" y1="14" x2="6" y2="11" stroke="#0f172a" stroke-width="1.8" />
+        <line x1="21" y1="21" x2="27" y2="27" stroke="#0f172a" stroke-width="1.8" />
+        <line x1="15" y1="21" x2="9" y2="27" stroke="#0f172a" stroke-width="1.8" />
+      </svg>
+    `;
+  }
+
+  function handleMinuteEndBoundaries(st, ovrDiff) {
+    if (st.minute === 45) {
+      prependNarrationLine(
+        st,
+        "",
+        `⏱️ 45' Fim do 1º Tempo! Placar parcial: Dream Team ${st.userScore} x ${st.oppScore} ${st.oppTeam.name}.`
+      );
+    }
+
+    if (st.minute === 90 && st.userScore === st.oppScore && st.maxMinute === 90) {
+      st.maxMinute = 120;
+      prependNarrationLine(
+        st,
+        "nar-save",
+        `⚡ 90' Empate no tempo normal! Vamos para a Prorrogação (até os 120')!`
+      );
+    }
+
+    if (st.minute >= st.maxMinute) {
+      clearTournamentTimers(false);
+      st.running = false;
+      st.finished = true;
+
+      if (st.userScore === st.oppScore) {
+        const userWinPen = Math.random() < (0.52 + ovrDiff * 0.015);
+        const uPen = userWinPen ? 5 : 4;
+        const oPen = userWinPen ? 4 : 5;
+        st.won = userWinPen;
+        st.penaltiesText = `Decisão por Pênaltis: Dream Team ${uPen} x ${oPen} ${st.oppTeam.name}`;
+        prependNarrationLine(
+          st,
+          userWinPen ? "nar-goal-user" : "nar-goal-opp",
+          `🎯 120' FIM DA PRORROGAÇÃO! ${st.penaltiesText}!`
+        );
+      } else {
+        st.won = st.userScore > st.oppScore;
+        prependNarrationLine(
+          st,
+          st.won ? "nar-goal-user" : "nar-goal-opp",
+          `🏁 ${st.minute}' APITO FINAL! Dream Team ${st.userScore} x ${st.oppScore} ${st.oppTeam.name}!`
+        );
+      }
+
+      renderTournamentScreen();
+      return true;
+    }
+    return false;
+  }
+
+  function playShotClashAndContinue(st, clash, applyOutcome, ovrDiff) {
+    // Somente no modo 1x ocorre a animação da bola pegando fogo!
+    if (state.simSpeed !== 1) {
+      applyOutcome();
+      handleMinuteEndBoundaries(st, ovrDiff);
+      return;
+    }
+
+    // Pausa o relógio para a cena de duelo
+    if (state.tournament.timerId) {
+      clearInterval(state.tournament.timerId);
+      state.tournament.timerId = null;
+    }
+
+    const slotEl = document.getElementById("shot-clash-slot");
+    if (!slotEl) {
+      applyOutcome();
+      if (!handleMinuteEndBoundaries(st, ovrDiff)) startMatchInterval();
+      return;
+    }
+
+    const shooterCls = clash.shooter.side === "user" ? "side-user" : "side-opp";
+    const defCls = clash.defender.side === "user" ? "side-user" : "side-opp";
+    const defRoleText = clash.defCategory === "DF" ? "ZAGA • BLOQUEIO" : "GOLEIRO";
+
+    slotEl.innerHTML = `
+      <div class="shot-clash-stage">
+        <div class="clash-arena-grid">
+          <div class="clash-fighter">
+            <img class="clash-avatar ${shooterCls}" src="${clash.shooter.sprite}" alt="${clash.shooter.name}" />
+            <div class="clash-fighter-name">${clash.shooter.name}</div>
+            <span class="clash-role-badge">CHUTE</span>
+          </div>
+
+          <div class="clash-center-lane">
+            <div class="clash-move-pill clash-move-shoot">
+              ${moveIconHTML("SH")} <span>${clash.shootLabel}</span>
+            </div>
+
+            <div class="clash-track">
+              <div class="fireball-runner">
+                <div class="fireball-trail"></div>
+                <div class="fireball-orb">${buildFireballSVG()}</div>
+              </div>
+            </div>
+
+            <div class="clash-move-pill clash-move-def">
+              ${moveIconHTML(clash.defCategory)} <span>${clash.defMoveName}</span>
+            </div>
+          </div>
+
+          <div class="clash-fighter">
+            <img class="clash-avatar ${defCls}" src="${clash.defender.sprite}" alt="${clash.defender.name}" />
+            <div class="clash-fighter-name">${clash.defender.name}</div>
+            <span class="clash-role-badge">${defRoleText}</span>
+          </div>
+        </div>
+        <div id="clash-result-mount"></div>
+      </div>
+    `;
+
+    const finishClash = (skipRestart = false) => {
+      state.tournament.pendingClashFinish = null;
+      const mountSlot = document.getElementById("shot-clash-slot");
+      if (mountSlot) mountSlot.innerHTML = "";
+      applyOutcome();
+      const matchEnded = handleMinuteEndBoundaries(st, ovrDiff);
+      if (!matchEnded && !skipRestart && st.running && !st.finished) {
+        startMatchInterval();
+      }
+    };
+
+    state.tournament.pendingClashFinish = finishClash;
+
+    state.tournament.clashTimer1 = setTimeout(() => {
+      const resMount = document.getElementById("clash-result-mount");
+      if (resMount) {
+        const resCls = clash.isGoal ? "res-goal" : "res-saved";
+        const resText = clash.isGoal
+          ? "⚽ GOOOL!!"
+          : clash.defCategory === "DF"
+          ? "🛡️ BLOQUEADO PELA ZAGA!"
+          : "🧤 DEFENDEU!";
+        resMount.innerHTML = `
+          <div class="clash-result-overlay ${resCls}">
+            <div class="clash-result-banner">${resText}</div>
+          </div>
+        `;
+      }
+
+      state.tournament.clashTimer2 = setTimeout(() => {
+        finishClash(false);
+      }, 950);
+    }, 1350);
+  }
+
   function startMatchInterval() {
     if (state.tournament.timerId) clearInterval(state.tournament.timerId);
 
@@ -904,11 +1090,16 @@
       .filter((s) => s.role === "DF" || s.role === "MF")
       .map((s) => state.squad[s.id])
       .filter(Boolean);
+    const userPureDefs = slots
+      .filter((s) => s.role === "DF")
+      .map((s) => state.squad[s.id])
+      .filter(Boolean);
     const userGk = state.squad["GK"] || userAll[0];
 
     const oppAll = st.oppTeam.players;
     const oppAttackers = oppAll.filter((p) => p.pos === "FW" || p.pos === "MF");
     const oppDefenders = oppAll.filter((p) => p.pos === "DF" || p.pos === "MF");
+    const oppPureDefs = oppAll.filter((p) => p.pos === "DF");
     const oppGk = oppAll.find((p) => p.pos === "GK") || oppAll[0];
 
     // Diferença combinada de OVR e Poder Final (duplas, trios e química pesam na partida!)
@@ -924,7 +1115,7 @@
       // Atualiza apenas o texto do relógio e a largura da barra (ZERO piscar!)
       const clockEl = document.getElementById("live-clock-text");
       const barEl = document.getElementById("live-bar-fill");
-      if (clockEl) clockEl.textContent = `⏱️ ${st.minute}'`;
+      if (clockEl) clockEl.textContent = `${st.minute}'`;
       if (barEl) {
         const pct = Math.min(100, Math.round((st.minute / st.maxMinute) * 100));
         barEl.style.width = `${pct}%`;
@@ -935,66 +1126,123 @@
         const scorer =
           userAttackers[Math.floor(Math.random() * userAttackers.length)] || userAll[0];
         const shotInfo = buildGoalShotLabel(scorer);
-        st.userScore++;
 
-        const goalObj = {
+        // 25% das vezes um zagueiro tenta bloquear o chute antes, 75% vai direto no goleiro
+        const vsDefender = oppPureDefs.length > 0 && Math.random() < 0.25;
+        const defenderObj = vsDefender
+          ? oppPureDefs[Math.floor(Math.random() * oppPureDefs.length)]
+          : oppGk;
+        const defCategory = vsDefender ? "DF" : "GK";
+        const defMoveName =
+          pickPlayerMove(defenderObj, defCategory) ||
+          (defCategory === "DF" ? "Bloqueio de Corpo" : "Defesa Direta");
+
+        const clash = {
           minute: st.minute,
-          name: scorer.name,
-          sprite: scorer.sprite,
-          shotLabel: shotInfo.label,
-          isHissatsu: shotInfo.isHissatsu
+          shooter: { name: scorer.name, sprite: scorer.sprite, side: "user" },
+          defender: { name: defenderObj.name, sprite: defenderObj.sprite, side: "opp" },
+          defCategory,
+          shootLabel: shotInfo.label,
+          isShootHissatsu: shotInfo.isHissatsu,
+          defMoveName,
+          isGoal: true
         };
-        st.goalsUser.push(goalObj);
 
-        const scoreUserEl = document.getElementById("live-score-user");
-        if (scoreUserEl) scoreUserEl.textContent = st.userScore;
-        appendGoalItemDOM("user", goalObj);
-
-        prependNarrationLine(
+        playShotClashAndContinue(
           st,
-          "nar-goal-user",
-          shotInfo.isHissatsu
-            ? `⚽ ${st.minute}' GOOOL DA SUA SELEÇÃO! ${scorer.name} disparou a técnica de chute 【${shotInfo.label}】 sem chances para ${oppGk.name}! (${st.userScore} x ${st.oppScore})`
-            : `⚽ ${st.minute}' GOOOL DA SUA SELEÇÃO! ${scorer.name} recebeu na área e marcou com um ${shotInfo.label.toLowerCase()}! (${st.userScore} x ${st.oppScore})`,
-          { name: scorer.name, sprite: scorer.sprite, side: "user" },
-          { name: oppGk.name, sprite: oppGk.sprite, side: "opp" }
+          clash,
+          () => {
+            st.userScore++;
+            const goalObj = {
+              minute: clash.minute,
+              name: scorer.name,
+              sprite: scorer.sprite,
+              shotLabel: shotInfo.label,
+              isHissatsu: shotInfo.isHissatsu
+            };
+            st.goalsUser.push(goalObj);
+
+            const scoreUserEl = document.getElementById("live-score-user");
+            if (scoreUserEl) scoreUserEl.textContent = st.userScore;
+            appendGoalItemDOM("user", goalObj);
+
+            prependNarrationLine(
+              st,
+              "nar-goal-user",
+              shotInfo.isHissatsu
+                ? `⚽ ${clash.minute}' GOOOL DO DREAM TEAM! ${scorer.name} disparou 【${shotInfo.label}】 e furou 【${defMoveName}】 de ${defenderObj.name}! (${st.userScore} x ${st.oppScore})`
+                : `⚽ ${clash.minute}' GOOOL DO DREAM TEAM! ${scorer.name} superou ${defenderObj.name} com um ${shotInfo.label.toLowerCase()}! (${st.userScore} x ${st.oppScore})`,
+              { name: scorer.name, sprite: scorer.sprite, side: "user" },
+              { name: defenderObj.name, sprite: defenderObj.sprite, side: "opp" }
+            );
+          },
+          ovrDiff
         );
+        return;
       }
       // 2) Chance de Gol do Adversário
       else if (Math.random() < oppGoalProbPerMin) {
         const oppScorer =
           oppAttackers[Math.floor(Math.random() * oppAttackers.length)] || oppAll[0];
         const shotInfo = buildGoalShotLabel(oppScorer);
-        st.oppScore++;
 
-        const goalObj = {
+        const vsDefender = userPureDefs.length > 0 && Math.random() < 0.25;
+        const defenderObj = vsDefender
+          ? userPureDefs[Math.floor(Math.random() * userPureDefs.length)]
+          : userGk;
+        const defCategory = vsDefender ? "DF" : "GK";
+        const defMoveName =
+          pickPlayerMove(defenderObj, defCategory) ||
+          (defCategory === "DF" ? "Bloqueio de Corpo" : "Defesa Direta");
+
+        const clash = {
           minute: st.minute,
-          name: oppScorer.name,
-          sprite: oppScorer.sprite,
-          shotLabel: shotInfo.label,
-          isHissatsu: shotInfo.isHissatsu
+          shooter: { name: oppScorer.name, sprite: oppScorer.sprite, side: "opp" },
+          defender: { name: defenderObj.name, sprite: defenderObj.sprite, side: "user" },
+          defCategory,
+          shootLabel: shotInfo.label,
+          isShootHissatsu: shotInfo.isHissatsu,
+          defMoveName,
+          isGoal: true
         };
-        st.goalsOpp.push(goalObj);
 
-        const scoreOppEl = document.getElementById("live-score-opp");
-        if (scoreOppEl) scoreOppEl.textContent = st.oppScore;
-        appendGoalItemDOM("opp", goalObj);
-
-        prependNarrationLine(
+        playShotClashAndContinue(
           st,
-          "nar-goal-opp",
-          shotInfo.isHissatsu
-            ? `💥 ${st.minute}' GOL DE ${st.oppTeam.name.toUpperCase()}! ${oppScorer.name} finalizou usando 【${shotInfo.label}】! (${st.userScore} x ${st.oppScore})`
-            : `💥 ${st.minute}' GOL DE ${st.oppTeam.name.toUpperCase()}! ${oppScorer.name} marcou com um ${shotInfo.label.toLowerCase()}! (${st.userScore} x ${st.oppScore})`,
-          { name: oppScorer.name, sprite: oppScorer.sprite, side: "opp" },
-          userGk ? { name: userGk.name, sprite: userGk.sprite, side: "user" } : null
+          clash,
+          () => {
+            st.oppScore++;
+            const goalObj = {
+              minute: clash.minute,
+              name: oppScorer.name,
+              sprite: oppScorer.sprite,
+              shotLabel: shotInfo.label,
+              isHissatsu: shotInfo.isHissatsu
+            };
+            st.goalsOpp.push(goalObj);
+
+            const scoreOppEl = document.getElementById("live-score-opp");
+            if (scoreOppEl) scoreOppEl.textContent = st.oppScore;
+            appendGoalItemDOM("opp", goalObj);
+
+            prependNarrationLine(
+              st,
+              "nar-goal-opp",
+              shotInfo.isHissatsu
+                ? `💥 ${clash.minute}' GOL DE ${st.oppTeam.name.toUpperCase()}! ${oppScorer.name} usou 【${shotInfo.label}】 e venceu 【${defMoveName}】 de ${defenderObj.name}! (${st.userScore} x ${st.oppScore})`
+                : `💥 ${clash.minute}' GOL DE ${st.oppTeam.name.toUpperCase()}! ${oppScorer.name} venceu ${defenderObj.name} com um ${shotInfo.label.toLowerCase()}! (${st.userScore} x ${st.oppScore})`,
+              { name: oppScorer.name, sprite: oppScorer.sprite, side: "opp" },
+              { name: defenderObj.name, sprite: defenderObj.sprite, side: "user" }
+            );
+          },
+          ovrDiff
         );
+        return;
       }
-      // 3) Lances de Narração a cada 10 minutos (Dribles OF, Roubos DF e Defesas GK)
+      // 3) Lances de Narração a cada 10 minutos (Dribles OF, Roubos DF, Defesas GK e Bloqueios de Chute DF!)
       else if (st.minute % 10 === 0 && st.minute !== 90) {
         const rollType = Math.random();
 
-        if (rollType < 0.34) {
+        if (rollType < 0.28) {
           const isUserPlay = Math.random() < 0.55;
           const dribbler = isUserPlay
             ? userMidfielders[Math.floor(Math.random() * userMidfielders.length)]
@@ -1015,7 +1263,7 @@
               { name: marker.name, sprite: marker.sprite, side: isUserPlay ? "opp" : "user" }
             );
           }
-        } else if (rollType < 0.68) {
+        } else if (rollType < 0.54) {
           const isUserDef = Math.random() < 0.55;
           const defender = isUserDef
             ? userDefenders[Math.floor(Math.random() * userDefenders.length)]
@@ -1037,80 +1285,78 @@
             );
           }
         } else {
+          // Chute defendido pelo Goleiro (GK) OU Bloqueado pela Zaga (DF)!
           const isUserSave = Math.random() < 0.55;
-          const gk = isUserSave ? userGk : oppGk;
+          const isDefenseBlock =
+            Math.random() < 0.45 &&
+            (isUserSave ? userPureDefs.length > 0 : oppPureDefs.length > 0);
+
+          const defenderObj = isDefenseBlock
+            ? isUserSave
+              ? userPureDefs[Math.floor(Math.random() * userPureDefs.length)]
+              : oppPureDefs[Math.floor(Math.random() * oppPureDefs.length)]
+            : isUserSave
+            ? userGk
+            : oppGk;
           const shooter = isUserSave
             ? oppAttackers[Math.floor(Math.random() * oppAttackers.length)]
             : userAttackers[Math.floor(Math.random() * userAttackers.length)];
 
-          if (gk && shooter) {
-            const gkMove = pickPlayerMove(gk, "GK");
+          if (defenderObj && shooter) {
+            const defCategory = isDefenseBlock ? "DF" : "GK";
+            const defMoveName =
+              pickPlayerMove(defenderObj, defCategory) ||
+              (isDefenseBlock ? "Bloqueio de Corpo" : "Defesa Espetacular");
             const shMove = pickPlayerMove(shooter, "SH");
-            const shotPart = shMove ? `o chute 【${shMove}】 de ${shooter.name}` : `o chute forte de ${shooter.name}`;
-            prependNarrationLine(
+            const shootLabel = shMove || "Chute Forte";
+
+            const clash = {
+              minute: st.minute,
+              shooter: { name: shooter.name, sprite: shooter.sprite, side: isUserSave ? "opp" : "user" },
+              defender: { name: defenderObj.name, sprite: defenderObj.sprite, side: isUserSave ? "user" : "opp" },
+              defCategory,
+              shootLabel,
+              isShootHissatsu: Boolean(shMove),
+              defMoveName,
+              isGoal: false
+            };
+
+            playShotClashAndContinue(
               st,
-              "nar-save",
-              gkMove
-                ? `🧤 ${st.minute}' [Defesa de Goleiro] ${gk.name} acionou 【${gkMove}】 e espalmou ${shotPart}!`
-                : `🧤 ${st.minute}' [Defesa de Goleiro] ${gk.name} saltou no ângulo e salvou ${shotPart}!`,
-              { name: gk.name, sprite: gk.sprite, side: isUserSave ? "user" : "opp" },
-              { name: shooter.name, sprite: shooter.sprite, side: isUserSave ? "opp" : "user" }
+              clash,
+              () => {
+                const shotPart = shMove ? `o chute 【${shMove}】 de ${shooter.name}` : `o chute forte de ${shooter.name}`;
+                if (isDefenseBlock) {
+                  prependNarrationLine(
+                    st,
+                    "nar-steal",
+                    `🛡️ ${clash.minute}' [Bloqueio da Zaga] ${defenderObj.name} entrou na frente com 【${defMoveName}】 e bloqueou ${shotPart}!`,
+                    { name: defenderObj.name, sprite: defenderObj.sprite, side: isUserSave ? "user" : "opp" },
+                    { name: shooter.name, sprite: shooter.sprite, side: isUserSave ? "opp" : "user" }
+                  );
+                } else {
+                  prependNarrationLine(
+                    st,
+                    "nar-save",
+                    `🧤 ${clash.minute}' [Defesa de Goleiro] ${defenderObj.name} acionou 【${defMoveName}】 e espalmou ${shotPart}!`,
+                    { name: defenderObj.name, sprite: defenderObj.sprite, side: isUserSave ? "user" : "opp" },
+                    { name: shooter.name, sprite: shooter.sprite, side: isUserSave ? "opp" : "user" }
+                  );
+                }
+              },
+              ovrDiff
             );
+            return;
           }
         }
       }
 
-      if (st.minute === 45) {
-        prependNarrationLine(
-          st,
-          "",
-          `⏱️ 45' Fim do 1º Tempo! Placar parcial: Sua Seleção ${st.userScore} x ${st.oppScore} ${st.oppTeam.name}.`
-        );
-      }
-
-      if (st.minute === 90 && st.userScore === st.oppScore && st.maxMinute === 90) {
-        st.maxMinute = 120;
-        prependNarrationLine(
-          st,
-          "nar-save",
-          `⚡ 90' Empate no tempo normal! Vamos para a Prorrogação (até os 120')!`
-        );
-      }
-
-      if (st.minute >= st.maxMinute) {
-        clearInterval(state.tournament.timerId);
-        state.tournament.timerId = null;
-        st.running = false;
-        st.finished = true;
-
-        if (st.userScore === st.oppScore) {
-          const userWinPen = Math.random() < (0.52 + ovrDiff * 0.015);
-          const uPen = userWinPen ? 5 : 4;
-          const oPen = userWinPen ? 4 : 5;
-          st.won = userWinPen;
-          st.penaltiesText = `Decisão por Pênaltis: Sua Seleção ${uPen} x ${oPen} ${st.oppTeam.name}`;
-          prependNarrationLine(
-            st,
-            userWinPen ? "nar-goal-user" : "nar-goal-opp",
-            `🎯 120' FIM DA PRORROGAÇÃO! ${st.penaltiesText}!`
-          );
-        } else {
-          st.won = st.userScore > st.oppScore;
-          prependNarrationLine(
-            st,
-            st.won ? "nar-goal-user" : "nar-goal-opp",
-            `🏁 ${st.minute}' APITO FINAL! Sua Seleção ${st.userScore} x ${st.oppScore} ${st.oppTeam.name}!`
-          );
-        }
-
-        // Renderiza o estado final da partida (botões de avançar/revanche e chaveamento atualizado)
-        renderTournamentScreen();
-      }
+      handleMinuteEndBoundaries(st, ovrDiff);
     }, getTickMs());
   }
 
   function runLiveMatchSimulation(stageIdx) {
-    if (state.tournament.timerId) clearInterval(state.tournament.timerId);
+    clearTournamentTimers(false);
     state.tournament.stageIndex = stageIdx;
 
     const st = state.tournament.stages[stageIdx];
@@ -1519,6 +1765,8 @@
           </div>
         </div>
 
+        <div id="shot-clash-slot"></div>
+
         ${
           st.penaltiesText
             ? `<div style="text-align:center; background:rgba(250,204,21,0.15); border:1px solid #facc15; padding:6px; border-radius:8px; font-weight:800; color:#fde047; font-size:0.82rem;">
@@ -1607,6 +1855,9 @@
       speedBtn.addEventListener("click", () => {
         state.simSpeed = state.simSpeed === 1 ? 2 : state.simSpeed === 2 ? 4 : 1;
         speedBtn.innerHTML = `<span>Vel: ${state.simSpeed}x</span>`;
+        if (state.simSpeed !== 1 && state.tournament.pendingClashFinish) {
+          clearTournamentTimers(true);
+        }
         if (st.running && !st.finished) {
           startMatchInterval();
         }
@@ -1659,7 +1910,7 @@
   }
 
   function goToMenu() {
-    if (state.tournament.timerId) clearInterval(state.tournament.timerId);
+    clearTournamentTimers(false);
     if (state.spinTimerId) {
       clearTimeout(state.spinTimerId);
       state.spinTimerId = null;
