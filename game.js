@@ -234,7 +234,7 @@
       (player.pos === "DF" && slotRole === "MF") ||
       (player.pos === "MF" && (slotRole === "DF" || slotRole === "FW")) ||
       (player.pos === "FW" && slotRole === "MF");
-    return Math.max(50, player.ovr - (adj ? 4 : 9));
+    return Math.max(45, player.ovr - (adj ? 6 : 14));
   }
 
   function pickPlayerMove(player, category) {
@@ -290,11 +290,13 @@
     const teamNames = {};
     const elemsCount = {};
     const fullNamesInSquad = new Set();
+    let correctPosCount = 0;
 
     slots.forEach((s) => {
       const p = state.squad[s.id];
       if (!p) return;
       count++;
+      if (p.pos === s.role) correctPosCount++;
       const eff = getEffectiveOvr(p, s.role);
       sumOvr += eff;
 
@@ -311,6 +313,32 @@
     let chem = 0;
     let bondsPower = 0;
     const activeBonds = [];
+
+    // 0. Química & Poder por Posições Corretas (Regra Tática!)
+    // +2% de Química por jogador na posição exata; ao completar 11/11 posições corretas -> Bônus Formação Perfeita (+25% Química e +220 Poder!)
+    if (count > 0) {
+      if (correctPosCount === 11) {
+        chem += 25;
+        bondsPower += 220;
+        activeBonds.push({
+          type: "perfect-formation",
+          label: `📐 Formação Perfeita 11/11 (+25% Quím • +220 Poder)`
+        });
+      } else {
+        const posChem = correctPosCount * 2;
+        const posPwr = correctPosCount * 10;
+        const improvised = count - correctPosCount;
+        chem += posChem;
+        bondsPower += posPwr;
+        activeBonds.push({
+          type: improvised > 0 ? "warn-pos" : "team",
+          label:
+            improvised > 0
+              ? `⚠️ Posições: ${correctPosCount}/${count} (${improvised} improvisado = -OVR e sem bônus 11/11!)`
+              : `📐 Posições Corretas: ${correctPosCount}/11 (+${posChem}% Quím • Faça 11/11 p/ +25% e +220 Poder!)`
+        });
+      }
+    }
 
     // 1. Química & Poder por Mesmo Time (Colegas de Clube/Escola)
     Object.keys(teamsCount).forEach((tId) => {
@@ -360,17 +388,19 @@
 
     chem = Math.min(100, Math.max(0, chem));
 
-    // A Química dá bônus direto no Overall Geral do time (+0 a +3 OVR)!
+    // A Química dá bônus direto no Overall Geral do time (+0 a +3 OVR), mais +2 OVR se fechar 11/11 na posição certa!
     const chemOvrBonus = chem >= 80 ? 3 : chem >= 55 ? 2 : chem >= 30 ? 1 : 0;
-    const ovr = count > 0 ? Math.min(99, Math.round(sumOvr / count) + chemOvrBonus) : 0;
+    const perfectPosOvrBonus = correctPosCount === 11 ? 2 : 0;
+    const ovr = count > 0 ? Math.min(99, Math.round(sumOvr / count) + chemOvrBonus + perfectPosOvrBonus) : 0;
 
-    // Poder Final Total = Soma dos OVRs individuais + Bônus de Química + Bônus de Duplas/Trios/Clubes/Elementos
+    // Poder Final Total = Soma dos OVRs individuais + Bônus de Química + Bônus de Formação Perfeita/Duplas/Trios/Clubes/Elementos
     const chemPower = chem * 3;
     const basePower = Math.round(sumOvr);
     const power = count > 0 ? basePower + chemPower + bondsPower : 0;
 
     return {
       count,
+      correctPosCount,
       ovr,
       power,
       basePower,
@@ -1130,14 +1160,14 @@
     const bondsBar = document.getElementById("bonds-bar");
     if (bondsBar) {
       if (stats.activeBonds.length === 0) {
-        bondsBar.innerHTML = `<span style="color:#94a3b8;">🤝 <strong>Química por Afinidade:</strong> Escale jogadores do mesmo time, amigos do anime (ex: Endo + Goenji + Kido, Goenji + Fubuki) ou mesmo elemento para ganhar Química!</span>`;
+        bondsBar.innerHTML = `<span style="color:#93c5fd;">📐 <strong>Dica Tática:</strong> Escale todos os <strong>11 na posição correta</strong> para ganhar <strong>+25% Química e +220 Poder</strong>! Duplas, trios do anime e colegas do mesmo time também somam Química e Poder!</span>`;
       } else {
         bondsBar.innerHTML =
-          `<strong style="color:#38bdf8; margin-right:4px;">🤝 Laços Ativos:</strong>` +
+          `<strong style="color:#38bdf8; margin-right:4px;">🤝 Bônus & Laços:</strong>` +
           stats.activeBonds
             .map(
               (b) =>
-                `<span class="bond-tag ${b.type === "friendship" ? "friendship" : ""}">${b.label}</span>`
+                `<span class="bond-tag ${b.type === "friendship" ? "friendship" : b.type === "perfect-formation" ? "perfect-formation" : b.type === "warn-pos" ? "warn-pos" : ""}">${b.label}</span>`
             )
             .join("");
       }
@@ -1165,6 +1195,11 @@
           <p>
             Gire a roleta entre <strong>57 times</strong> de todas as sagas, escale 1 jogador por clube sorteado e conquiste o <strong>Futebol Fronteira</strong>!
           </p>
+          <div style="background:rgba(37,99,235,0.16); border:1px solid rgba(96,165,250,0.4); border-radius:8px; padding:9px 12px; margin-top:10px; font-size:0.74rem; color:#dbeafe; line-height:1.4; text-align:left;">
+            ⚡ <strong style="color:#facc15;">Como somar Poder Final & Química:</strong><br/>
+            • <strong>Posição Certa:</strong> +2% Quím por jogador e <strong style="color:#86efac;">+25% Quím / +220 Poder / +2 OVR</strong> se todos os 11 estiverem na posição correta! (Improvisar tira até -14 OVR)<br/>
+            • <strong>Duplas/Trios & Mesmo Time:</strong> Amigos do anime e colegas de escola somam ainda mais Química e Poder Final!
+          </div>
 
           <div class="option-group">
             <label>${captainIconHTML()} 1. Escolha a Dificuldade:</label>
@@ -1291,8 +1326,8 @@
                     <div style="font-size:0.74rem; color:#dbeafe; margin-top:2px;">
                       ${
                         hasNaturalOpen
-                          ? `Toque em uma vaga de <strong>${sel.pos}</strong> destacada em verde no campo abaixo!`
-                          : `Vagas de ${sel.pos} ocupadas! Toque em outra vaga vazia para improvisar ou volte para escolher outro jogador.`
+                          ? `Toque em uma vaga de <strong>${sel.pos}</strong> em verde! (Posição certa dá +Química e bônus de <strong>+25% Quím / +220 Poder</strong> ao fechar 11/11)`
+                          : `⚠️ Vagas de ${sel.pos} ocupadas! Improvisar tira <strong>-6 a -14 OVR</strong> do jogador e perde o bônus de <strong>11/11 na Posição (+25% Quím / +220 Poder)</strong>.`
                       }
                     </div>
                   </div>
