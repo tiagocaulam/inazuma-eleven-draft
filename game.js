@@ -2090,7 +2090,33 @@
     }
   }
 
-  function buildMatchRecapBoxHTML(st, oppTeam) {
+  function buildLiveScoreboardHTML(st, stats, oppStats) {
+    const stadiumStyle = UI.stadiumBg ? `background-image: url('${UI.stadiumBg}');` : "";
+    return `
+      <div class="live-scoreboard" style="${stadiumStyle}">
+        <div class="scoreboard-overlay"></div>
+        <div class="score-team">
+          ${UI.raimonEmblem ? `<img class="score-emblem" src="${UI.raimonEmblem}" alt="Dream Team" />` : `<div style="font-size:1.9rem;">⚡</div>`}
+          <div style="font-weight:900; font-size:0.95rem;">Dream Team</div>
+          <div style="font-size:0.7rem; color:#fed7aa; font-weight:800;">Poder ${stats.power.toLocaleString("pt-BR")} • OVR ${stats.ovr} • Quím ${stats.chem}%</div>
+        </div>
+
+        <div class="score-digits">
+          <span id="live-score-user">${st.userScore}</span>
+          <span style="font-size:1.2rem; color:#93c5fd;">X</span>
+          <span id="live-score-opp">${st.oppScore}</span>
+        </div>
+
+        <div class="score-team">
+          <img class="score-emblem" src="${st.oppTeam.emblem}" alt="${st.oppTeam.name}" />
+          <div style="font-weight:900; font-size:0.95rem;">${st.oppTeam.name}</div>
+          <div style="font-size:0.7rem; color:#facc15; font-weight:800;">Poder ${oppStats.power.toLocaleString("pt-BR")} • OVR ${oppStats.ovr} • Quím ${oppStats.chem}%</div>
+        </div>
+      </div>
+    `;
+  }
+
+  function buildMatchRecapBoxHTML(st, oppTeam, stats = calcSquadStats(), oppStats = calcOpponentStats(oppTeam, state.tournament.stageIndex)) {
     const pitch = st.pitch;
     const s = pitch?.stats || {};
     const totTicks = Math.max(1, (s.userTicks || 0) + (s.oppTicks || 0));
@@ -2127,21 +2153,7 @@
           <span class="recap-verdict-pill ${st.won ? "is-win" : "is-loss"}">${verdictText}</span>
         </div>
 
-        <div class="recap-score-row">
-          <div class="recap-team-side">
-            ${UI.raimonEmblem ? `<img src="${UI.raimonEmblem}" alt="Dream Team" />` : ""}
-            <span>Dream Team</span>
-          </div>
-          <div class="recap-score-num">
-            <strong>${st.userScore}</strong>
-            <small>X</small>
-            <strong>${st.oppScore}</strong>
-          </div>
-          <div class="recap-team-side">
-            <img src="${oppTeam.emblem || ""}" alt="${oppTeam.name}" />
-            <span>${oppTeam.name}</span>
-          </div>
-        </div>
+        ${buildLiveScoreboardHTML(st, stats, oppStats)}
 
         <div class="recap-poss-block">
           <div class="recap-poss-labels">
@@ -2195,9 +2207,9 @@
     `;
   }
 
-  function buildLivePitchBoxHTML(st, oppTeam) {
+  function buildLivePitchBoxHTML(st, oppTeam, stats = calcSquadStats(), oppStats = calcOpponentStats(oppTeam, state.tournament.stageIndex)) {
     if (st.finished) {
-      return buildMatchRecapBoxHTML(st, oppTeam);
+      return buildMatchRecapBoxHTML(st, oppTeam, stats, oppStats);
     }
     const pitch = st.pitch;
     if (!pitch) return "";
@@ -4394,7 +4406,6 @@
     }
 
     if (!st.pitch) st.pitch = initMatchPitchState(st, t.stageIndex);
-    const stadiumStyle = UI.stadiumBg ? `background-image: url('${UI.stadiumBg}');` : "";
     const oppStats = calcOpponentStats(st.oppTeam, t.stageIndex);
 
     container.innerHTML = `
@@ -4425,26 +4436,7 @@
           <div class="time-bar-fill" id="live-bar-fill" style="width:${pct}%;"></div>
         </div>
 
-        <div class="live-scoreboard" style="${stadiumStyle}">
-          <div class="scoreboard-overlay"></div>
-          <div class="score-team">
-            ${UI.raimonEmblem ? `<img class="score-emblem" src="${UI.raimonEmblem}" alt="Dream Team" />` : `<div style="font-size:1.9rem;">⚡</div>`}
-            <div style="font-weight:900; font-size:0.95rem;">Dream Team</div>
-            <div style="font-size:0.7rem; color:#fed7aa; font-weight:800;">Poder ${stats.power.toLocaleString("pt-BR")} • OVR ${stats.ovr} • Quím ${stats.chem}%</div>
-          </div>
-
-          <div class="score-digits">
-            <span id="live-score-user">${st.userScore}</span>
-            <span style="font-size:1.2rem; color:#93c5fd;">X</span>
-            <span id="live-score-opp">${st.oppScore}</span>
-          </div>
-
-          <div class="score-team">
-            <img class="score-emblem" src="${st.oppTeam.emblem}" alt="${st.oppTeam.name}" />
-            <div style="font-weight:900; font-size:0.95rem;">${st.oppTeam.name}</div>
-            <div style="font-size:0.7rem; color:#facc15; font-weight:800;">Poder ${oppStats.power.toLocaleString("pt-BR")} • OVR ${oppStats.ovr} • Quím ${oppStats.chem}%</div>
-          </div>
-        </div>
+        ${st.finished ? "" : buildLiveScoreboardHTML(st, stats, oppStats)}
 
         ${postMatchBarHTML}
 
@@ -4457,7 +4449,7 @@
         }
 
         <div class="match-arena-grid">
-          ${buildLivePitchBoxHTML(st, st.oppTeam)}
+          ${buildLivePitchBoxHTML(st, st.oppTeam, stats, oppStats)}
 
           <div class="match-right-panel">
             <div id="goals-columns-box" class="goals-columns">
