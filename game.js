@@ -281,9 +281,22 @@
     return false;
   }
 
-  // Cálculo de Química baseado em: Mesmo Time, Laços de Amizade do Anime e Afinidade Elemental!
-  function calcSquadStats() {
-    const slots = getSlots();
+  function getAdjacentSlotPairs(slots) {
+    const pairs = [];
+    for (let i = 0; i < slots.length; i++) {
+      for (let j = i + 1; j < slots.length; j++) {
+        const d = Math.hypot(slots[i].x - slots[j].x, slots[i].y - slots[j].y);
+        if (d <= 34) {
+          pairs.push([slots[i], slots[j]]);
+        }
+      }
+    }
+    return pairs;
+  }
+
+  // Cálculo unificado de Química, Poder e Sinergia de Proximidade (usado tanto no Dream Team quanto no Adversário!)
+  function evaluateTeamStats(slots, getPlayerForSlot, options = {}) {
+    const { isOpponent = false, ovrAdjust = 0, clubIdHint = null, oppStageIdx = 0 } = options;
     let sumOvr = 0;
     let count = 0;
     let atkSum = 0, atkCnt = 0;
@@ -292,21 +305,29 @@
 
     const teamsCount = {};
     const teamNames = {};
-    const elemsCount = {};
     const fullNamesInSquad = new Set();
+    const elemCountsByLink = {};
+    const activeElemPairs = [];
+    const slotPlayerMap = {};
     let correctPosCount = 0;
 
     slots.forEach((s) => {
-      const p = state.squad[s.id];
+      const p = getPlayerForSlot(s);
       if (!p) return;
       count++;
-      if (p.pos === s.role) correctPosCount++;
-      const eff = getEffectiveOvr(p, s.role);
+      slotPlayerMap[s.id] = p;
+      const adjP = isOpponent
+        ? { ...p, ovr: Math.min(99, Math.max(58, Math.round(p.ovr + ovrAdjust))) }
+        : p;
+      if (adjP.pos === s.role) correctPosCount++;
+      const eff = isOpponent
+        ? Math.max(55, adjP.ovr - (adjP.pos === s.role ? 0 : 4))
+        : getEffectiveOvr(adjP, s.role);
       sumOvr += eff;
 
-      teamsCount[p.teamId] = (teamsCount[p.teamId] || 0) + 1;
-      teamNames[p.teamId] = p.teamName;
-      elemsCount[p.element] = (elemsCount[p.element] || 0) + 1;
+      const tId = p.teamId || clubIdHint || "club";
+      teamsCount[tId] = (teamsCount[tId] || 0) + 1;
+      teamNames[tId] = p.teamName || clubIdHint || "Clube";
       if (p.fullName) fullNamesInSquad.add(p.fullName);
 
       if (s.role === "FW") { atkSum += eff; atkCnt++; }
@@ -314,23 +335,27 @@
       else { defSum += eff; defCnt++; }
     });
 
+    const avgRawOvr = count > 0 ? sumOvr / count : 80;
+    // Escala pelo nível do elenco (time base 80 não ganha o mesmo bônus bruto que seleção final 95)
+    const tierScale = Math.max(0.55, Math.min(1.12, Math.pow(avgRawOvr / 90, 1.35)));
+
     let chem = 0;
     let bondsPower = 0;
     const activeBonds = [];
 
     // 0. Química & Poder por Posições Corretas (Regra Tática!)
-    // +2% de Química por jogador na posição exata; ao completar 11/11 posições corretas -> Bônus Formação Perfeita (+25% Química e +220 Poder!)
     if (count > 0) {
       if (correctPosCount === 11) {
-        chem += 25;
-        bondsPower += 220;
+        const pwr = Math.round(115 * tierScale);
+        chem += 20;
+        bondsPower += pwr;
         activeBonds.push({
           type: "perfect-formation",
-          label: `📐 Formação Perfeita 11/11 (+25% Quím • +220 Poder)`
+          label: `📐 Formação Perfeita 11/11 (+20% Quím • +${pwr} Poder)`
         });
       } else {
-        const posChem = correctPosCount * 2;
-        const posPwr = correctPosCount * 10;
+        const posChem = Math.round(correctPosCount * 1.5);
+        const posPwr = Math.round(correctPosCount * 7 * tierScale);
         const improvised = count - correctPosCount;
         chem += posChem;
         bondsPower += posPwr;
@@ -339,17 +364,46 @@
           label:
             improvised > 0
               ? `⚠️ Posições: ${correctPosCount}/${count} (${improvised} improvisado = -OVR e sem bônus 11/11!)`
-              : `📐 Posições Corretas: ${correctPosCount}/11 (+${posChem}% Quím • Faça 11/11 p/ +25% e +220 Poder!)`
+              : `📐 Posições Corretas: ${correctPosCount}/11 (+${posChem}% Quím • Faça 11/11 p/ +20% e +2 OVR!)`
         });
       }
     }
 
-    // 1. Química & Poder por Mesmo Time (Colegas de Clube/Escola)
+    // 1. Química & Poder por Sinergia Elemental em PROXIMIDADE (jogadores colados ao lado, acima ou abaixo!)
+    const adjPairs = getAdjacentSlotPairs(slots);
+    adjPairs.forEach(([sA, sB]) => {
+      const pA = slotPlayerMap[sA.id];
+      const pB = slotPlayerMap[sB.id];
+      if (pA && pB && pA.element && pA.element === pB.element) {
+        activeElemPairs.push({ a: sA, b: sB, element: pA.element });
+        elemCountsByLink[pA.element] = (elemCountsByLink[pA.element] || 0) + 1;
+      }
+    });
+
+    if (activeElemPairs.length > 0) {
+      const linkChem = Math.min(35, activeElemPairs.length * 5);
+      const linkPwr = Math.min(
+        Math.round(175 * tierScale),
+        Math.round(activeElemPairs.length * 24 * tierScale)
+      );
+      chem += linkChem;
+      bondsPower += linkPwr;
+      const summaryParts = Object.keys(elemCountsByLink)
+        .map((el) => `${DB.elements[el]?.icon || "⚡"}×${elemCountsByLink[el]}`)
+        .join(" ");
+      activeBonds.push({
+        type: "element",
+        label: `🔗 ${activeElemPairs.length}x Links Elementais Próximos (${summaryParts}) (+${linkChem}% • +${linkPwr} Poder)`
+      });
+    }
+
+    // 2. Química & Poder por Mesmo Clube/Escola (teto justo para elencos completos de escola)
     Object.keys(teamsCount).forEach((tId) => {
       const c = teamsCount[tId];
       if (c >= 2) {
-        const chemBonus = (c - 1) * 14;
-        const pwrBonus = (c - 1) * 85;
+        const chemBonus = c <= 4 ? (c - 1) * 10 : Math.min(42, 30 + Math.round((c - 4) * 2));
+        const rawPwr = c <= 4 ? (c - 1) * 34 : Math.min(130, 102 + (c - 4) * 4);
+        const pwrBonus = Math.round(rawPwr * tierScale);
         chem += chemBonus;
         bondsPower += pwrBonus;
         activeBonds.push({
@@ -359,46 +413,61 @@
       }
     });
 
-    // 2. Química & Poder por Laços de Amizade / Duplas e Trios do Anime
+    // 3. Química & Poder por Laços de Amizade (com curva decrescente para laços sobrepostos)
+    const matchedBonds = [];
     FRIENDSHIP_BONDS.forEach((bond) => {
       const matched = bond.members.filter((m) => fullNamesInSquad.has(m));
       if (matched.length >= bond.minCount) {
-        const chemBonus = (matched.length - 1) * bond.chemPerMatch;
-        const pwrBonus = (matched.length - 1) * 120;
-        chem += chemBonus;
-        bondsPower += pwrBonus;
-        activeBonds.push({
-          type: "friendship",
-          label: `${bond.name} (+${chemBonus}% • +${pwrBonus} Poder)`
+        matchedBonds.push({
+          bond,
+          extraCount: matched.length - 1,
+          rawChem: (matched.length - 1) * bond.chemPerMatch,
+          rawPwr: (matched.length - 1) * 58
         });
       }
     });
+    matchedBonds.sort((a, b) => b.rawPwr - a.rawPwr);
 
-    // 3. Química & Poder por Ressonância Elemental (3+ jogadores do mesmo elemento)
-    Object.keys(elemsCount).forEach((el) => {
-      const c = elemsCount[el];
-      if (c >= 3) {
-        const chemBonus = (c - 2) * 7;
-        const pwrBonus = (c - 2) * 55;
-        chem += chemBonus;
-        bondsPower += pwrBonus;
-        const icon = DB.elements[el]?.icon || "⚡";
+    const decayWeights = [1.0, 0.55, 0.30, 0.15];
+    let friendChemTotal = 0;
+    let friendPwrTotal = 0;
+    const maxFriendPwr = Math.round(185 * tierScale);
+
+    matchedBonds.forEach((entry, idx) => {
+      const w = decayWeights[Math.min(idx, decayWeights.length - 1)];
+      const chemBonus = Math.max(2, Math.round(entry.rawChem * w));
+      let pwrBonus = Math.round(entry.rawPwr * w * tierScale);
+      if (friendPwrTotal + pwrBonus > maxFriendPwr) {
+        pwrBonus = Math.max(0, maxFriendPwr - friendPwrTotal);
+      }
+      friendChemTotal += chemBonus;
+      friendPwrTotal += pwrBonus;
+      chem += chemBonus;
+      bondsPower += pwrBonus;
+      if (pwrBonus > 0 || idx < 3) {
         activeBonds.push({
-          type: "element",
-          label: `${icon} ${c}x Afinidade ${el} (+${chemBonus}% • +${pwrBonus} Poder)`
+          type: "friendship",
+          label: `${entry.bond.name} (+${chemBonus}% • +${pwrBonus} Poder)`
         });
       }
     });
 
     chem = Math.min(100, Math.max(0, chem));
 
-    // A Química dá bônus direto no Overall Geral do time (+0 a +3 OVR), mais +2 OVR se fechar 11/11 na posição certa!
-    const chemOvrBonus = chem >= 80 ? 3 : chem >= 55 ? 2 : chem >= 30 ? 1 : 0;
-    const perfectPosOvrBonus = correctPosCount === 11 ? 2 : 0;
-    const ovr = count > 0 ? Math.min(99, Math.round(sumOvr / count) + chemOvrBonus + perfectPosOvrBonus) : 0;
+    let ovr = 0;
+    if (count > 0) {
+      if (isOpponent) {
+        const oppChemOvr = oppStageIdx >= 3 ? 2 : oppStageIdx >= 1 ? 1 : 0;
+        ovr = Math.min(99, Math.round(avgRawOvr) + oppChemOvr);
+      } else {
+        const chemOvrBonus = chem >= 80 ? 3 : chem >= 55 ? 2 : chem >= 30 ? 1 : 0;
+        const perfectPosOvrBonus = correctPosCount === 11 ? 2 : 0;
+        ovr = Math.min(99, Math.round(avgRawOvr) + chemOvrBonus + perfectPosOvrBonus);
+      }
+    }
 
-    // Poder Final Total = Soma dos OVRs individuais + Bônus de Química + Bônus de Formação Perfeita/Duplas/Trios/Clubes/Elementos
-    const chemPower = chem * 3;
+    // Poder Final Total = Soma dos OVRs + Química (até 200) + Bônus de Sinergia
+    const chemPower = Math.round(chem * 2.0 * tierScale);
     const basePower = Math.round(sumOvr);
     const power = count > 0 ? basePower + chemPower + bondsPower : 0;
 
@@ -410,12 +479,52 @@
       basePower,
       chemPower,
       bondsPower,
+      elemLinksCount: activeElemPairs.length,
+      activeElemPairs,
       atk: atkCnt > 0 ? Math.round(atkSum / atkCnt) : 0,
       mid: midCnt > 0 ? Math.round(midSum / midCnt) : 0,
       def: defCnt > 0 ? Math.round(defSum / defCnt) : 0,
       chem,
       activeBonds
     };
+  }
+
+  function calcSquadStats() {
+    return evaluateTeamStats(getSlots(), (s) => state.squad[s.id], { isOpponent: false });
+  }
+
+  function getOpponentSlotAssignments(oppTeam) {
+    const raw = (oppTeam.players || []).slice();
+    const usedIds = new Set();
+    const pickByRole = (role) => {
+      const idx = raw.findIndex((p) => !usedIds.has(p.id) && p.pos === role);
+      if (idx >= 0) {
+        usedIds.add(raw[idx].id);
+        return raw[idx];
+      }
+      const fallback = raw.find((p) => !usedIds.has(p.id));
+      if (fallback) {
+        usedIds.add(fallback.id);
+        return fallback;
+      }
+      return oppTeam.players[0];
+    };
+    const formSlots = DB.formations["4-4-2"].slots;
+    const assignments = {};
+    formSlots.forEach((slot) => {
+      assignments[slot.id] = pickByRole(slot.role);
+    });
+    return { formSlots, assignments };
+  }
+
+  function calcOpponentStats(oppTeam, stageIdx) {
+    const { formSlots, assignments } = getOpponentSlotAssignments(oppTeam);
+    return evaluateTeamStats(formSlots, (s) => assignments[s.id], {
+      isOpponent: true,
+      ovrAdjust: stageIdx * 1.5,
+      clubIdHint: oppTeam.name || oppTeam.id,
+      oppStageIdx: stageIdx
+    });
   }
 
   // Sorteia o próximo time e anima o carrossel da roleta sem piscar!
@@ -697,6 +806,25 @@
   function buildPitchHTML() {
     const slots = getSlots();
     const sel = state.selectedPlayer;
+    const adjPairs = getAdjacentSlotPairs(slots);
+    const elemColors = {
+      Fogo: "#ef4444",
+      Floresta: "#22c55e",
+      Vento: "#38bdf8",
+      Montanha: "#f59e0b"
+    };
+
+    const linksSVG = adjPairs
+      .map(([a, b]) => {
+        const pA = state.squad[a.id];
+        const pB = state.squad[b.id];
+        if (pA && pB && pA.element && pA.element === pB.element) {
+          const col = elemColors[pA.element] || "#facc15";
+          return `<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="${col}" stroke-width="1.4" stroke-opacity="0.88" stroke-linecap="round" />`;
+        }
+        return `<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="rgba(255,255,255,0.2)" stroke-width="0.6" stroke-dasharray="1.8 1.8" />`;
+      })
+      .join("");
 
     const nodesHTML = slots
       .map((slot) => {
@@ -756,6 +884,7 @@
           ${UI.raimonEmblem ? `<img class="pitch-center-emblem" src="${UI.raimonEmblem}" alt="" />` : "⚡"}
         </div>
         <div class="pitch-penalty-bottom"></div>
+        <svg class="draft-links-svg" viewBox="0 0 100 100" preserveAspectRatio="none">${linksSVG}</svg>
         <div id="pitch-nodes-container">${nodesHTML}</div>
       </div>
     `;
@@ -940,51 +1069,63 @@
   }
 
   function buildDribbleBootSVG() {
-    // Pé/chuteira correndo conduzindo a bola para a direita
+    // Pernas e chuteiras correndo em passadas alternadas conduzindo a bola
     return `
-      <svg viewBox="0 0 58 38" width="54" height="36" aria-hidden="true">
-        <!-- Linhas de velocidade -->
-        <line x1="2" y1="11" x2="12" y2="11" stroke="#e9d5ff" stroke-width="2" stroke-linecap="round" opacity="0.85" />
-        <line x1="0" y1="18" x2="10" y2="18" stroke="#c084fc" stroke-width="2" stroke-linecap="round" opacity="0.7" />
-        <!-- Perna / Meião -->
-        <path d="M16 3 L23 3 L26 17 L18 18 Z" fill="#facc15" stroke="#1e1b4b" stroke-width="1.5" />
-        <path d="M17 7 L24 7" stroke="#2563eb" stroke-width="2.5" />
-        <!-- Chuteira -->
-        <path d="M17 17 L28 16 L36 22 C37 25, 35 27, 32 27 L16 26 C14 25, 14 20, 17 17 Z" fill="#a855f7" stroke="#f8fafc" stroke-width="1.6" />
-        <!-- Travas -->
-        <rect x="18" y="26" width="3" height="3" rx="0.8" fill="#fef08a" />
-        <rect x="24" y="26" width="3" height="3" rx="0.8" fill="#fef08a" />
-        <rect x="30" y="26" width="3" height="3" rx="0.8" fill="#fef08a" />
-        <!-- Bola conduzida na ponta do pé -->
-        <circle cx="46" cy="24" r="9.5" fill="#ffffff" stroke="#1e293b" stroke-width="1.8" />
-        <polygon points="46,19 49.5,21.8 48,26.2 44,26.2 42.5,21.8" fill="#1e1b4b" />
-        <line x1="46" y1="19" x2="46" y2="14.5" stroke="#1e1b4b" stroke-width="1.3" />
-        <line x1="49.5" y1="21.8" x2="54" y2="20" stroke="#1e1b4b" stroke-width="1.3" />
-        <line x1="42.5" y1="21.8" x2="38" y2="20" stroke="#1e1b4b" stroke-width="1.3" />
+      <svg viewBox="0 0 64 40" width="60" height="38" aria-hidden="true">
+        <line x1="2" y1="12" x2="11" y2="12" stroke="#e9d5ff" stroke-width="2" stroke-linecap="round" opacity="0.8" />
+        <line x1="0" y1="20" x2="9" y2="20" stroke="#c084fc" stroke-width="2" stroke-linecap="round" opacity="0.65" />
+        <!-- Perna traseira -->
+        <g class="dribble-leg-b">
+          <path d="M22 4 L27 4 L23 19 L17 18 Z" fill="#eab308" stroke="#1e1b4b" stroke-width="1.4" />
+          <path d="M18 17 L25 18 L29 24 L16 23 Z" fill="#7e22ce" stroke="#e9d5ff" stroke-width="1.3" />
+          <rect x="18" y="23" width="2.5" height="2.2" fill="#fde047" />
+          <rect x="24" y="24" width="2.5" height="2.2" fill="#fde047" />
+        </g>
+        <!-- Perna dianteira chutando/conduzindo -->
+        <g class="dribble-leg-a">
+          <path d="M26 4 L32 5 L34 20 L27 20 Z" fill="#facc15" stroke="#1e1b4b" stroke-width="1.4" />
+          <path d="M28 8 L33 9" stroke="#2563eb" stroke-width="2.4" />
+          <path d="M27 19 L36 19 L43 24 C44 26.5, 42 28, 39 28 L26 27 C24.5 26, 25 21, 27 19 Z" fill="#a855f7" stroke="#ffffff" stroke-width="1.5" />
+          <rect x="28" y="27.5" width="2.8" height="2.5" rx="0.6" fill="#fef08a" />
+          <rect x="34" y="27.5" width="2.8" height="2.5" rx="0.6" fill="#fef08a" />
+          <rect x="39" y="27.5" width="2.5" height="2.5" rx="0.6" fill="#fef08a" />
+        </g>
+        <!-- Bola girando na condução -->
+        <g class="dribble-ball-spin">
+          <circle cx="52" cy="25" r="9" fill="#ffffff" stroke="#1e293b" stroke-width="1.8" />
+          <polygon points="52,20.5 55.2,23 54,27 50,27 48.8,23" fill="#1e1b4b" />
+          <line x1="52" y1="20.5" x2="52" y2="16" stroke="#1e1b4b" stroke-width="1.2" />
+          <line x1="55.2" y1="23" x2="59.5" y2="21.5" stroke="#1e1b4b" stroke-width="1.2" />
+          <line x1="48.8" y1="23" x2="44.5" y2="21.5" stroke="#1e1b4b" stroke-width="1.2" />
+        </g>
       </svg>
     `;
   }
 
   function buildSlideTackleSVG() {
-    // Carrinho deslizando da direita para a esquerda interceptando a bola
+    // Carrinho clássico rente ao gramado apontando para a esquerda (flipado via CSS se LTR)
     return `
-      <svg viewBox="0 0 60 38" width="56" height="36" aria-hidden="true">
-        <!-- Rastro de grama / faíscas -->
-        <path d="M56 29 Q47 25 42 30" stroke="#38bdf8" stroke-width="2.2" fill="none" stroke-linecap="round" />
-        <line x1="48" y1="15" x2="57" y2="15" stroke="#bae6fd" stroke-width="2" stroke-linecap="round" opacity="0.8" />
-        <!-- Perna esticada no carrinho -->
-        <path d="M52 19 L54 26 L30 29 L29 22 Z" fill="#0284c7" stroke="#e0f2fe" stroke-width="1.5" />
-        <!-- Meião -->
-        <path d="M36 21 L37 28" stroke="#facc15" stroke-width="2.6" />
-        <!-- Chuteira com travas para frente (esquerda) -->
-        <path d="M29 21 L29 29 L19 28 C16 26, 16 22, 19 20 L29 21 Z" fill="#0ea5e9" stroke="#ffffff" stroke-width="1.6" />
-        <rect x="16.5" y="21" width="2.5" height="2" fill="#fde047" />
-        <rect x="16.5" y="24.5" width="2.5" height="2" fill="#fde047" />
-        <!-- Impacto da bola cortada -->
-        <circle cx="10" cy="22" r="8.5" fill="#ffffff" stroke="#0f172a" stroke-width="1.8" />
-        <polygon points="10,17.5 13,20 11.8,24 8.2,24 7,20" fill="#0f172a" />
-        <!-- Estalo elétrico do corte -->
-        <path d="M19 10 L16 15 L21 15 L17 20" stroke="#fde047" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+      <svg viewBox="0 0 68 40" width="64" height="38" aria-hidden="true">
+        <!-- Rastro de grama e poeira atrás -->
+        <path d="M40 34 L66 34" stroke="#38bdf8" stroke-width="2.2" stroke-linecap="round" opacity="0.85" />
+        <path d="M48 29 Q56 26 64 31" stroke="#bae6fd" stroke-width="1.8" fill="none" stroke-linecap="round" />
+        <!-- Perna de apoio dobrada no chão (atrás) -->
+        <path d="M53 16 L44 26 L56 30 L59 25 L50 22 L57 18 Z" fill="#1e3a8a" stroke="#93c5fd" stroke-width="1.3" />
+        <!-- Perna estendida dando o carrinho para frente -->
+        <path d="M50 18 L31 24 L33 30 L53 24 Z" fill="#0284c7" stroke="#e0f2fe" stroke-width="1.4" />
+        <!-- Listras do meião -->
+        <path d="M36 22 L38 29" stroke="#facc15" stroke-width="2.6" />
+        <!-- Chuteira bem nítida apontada pro corte (bico + cadarço + travas) -->
+        <path d="M32 22 L34 30 L21 31 C17.5 30, 17 25.5, 20.5 23.5 L32 22 Z" fill="#0ea5e9" stroke="#ffffff" stroke-width="1.6" />
+        <line x1="23" y1="24" x2="27" y2="23.5" stroke="#fde047" stroke-width="1.5" stroke-linecap="round" />
+        <!-- Travas na sola da chuteira voltadas para frente/baixo -->
+        <rect x="19" y="30.5" width="3" height="3" rx="0.6" fill="#fde047" />
+        <rect x="24.5" y="30.5" width="3" height="3" rx="0.6" fill="#fde047" />
+        <rect x="30" y="30" width="3" height="3" rx="0.6" fill="#fde047" />
+        <!-- Bola interceptada + faísca -->
+        <circle cx="10.5" cy="24" r="8.5" fill="#ffffff" stroke="#0f172a" stroke-width="1.8" />
+        <polygon points="10.5,19.5 13.5,22 12.2,26 8.8,26 7.5,22" fill="#0f172a" />
+        <path d="M18 11 L15 16.5 L20 16.5 L16 21.5" stroke="#fde047" stroke-width="2.1" fill="none" stroke-linecap="round" stroke-linejoin="round" />
       </svg>
     `;
   }
@@ -998,8 +1139,11 @@
       n.advanceOffset = 0;
       n.laneOffset = 0;
       if (snapNodes) {
-        n.x = n.x * 0.35 + n.baseX * 0.65;
-        n.y = n.y * 0.35 + n.baseY * 0.65;
+        // Mantém cada time no próprio campo de defesa/meio antes da saída de bola
+        const halfClampX =
+          n.side === "user" ? Math.min(46, n.baseX) : Math.max(54, n.baseX);
+        n.x = halfClampX;
+        n.y = n.baseY;
       }
     });
 
@@ -1007,17 +1151,15 @@
     pitch.carrierUid = koMid ? koMid.uid : "u_MF1";
     pitch.challengerUid = null;
     pitch.ballFlight = null;
+    pitch.holdBallPos = null;
     pitch.ballX = 50;
     pitch.ballY = 50;
     pitch.passTrail = null;
-    if (koMid) {
-      koMid.x = 50;
-      koMid.y = 50;
-    }
+    pitch.justKickedOff = true;
+
     recomputePitchTargets(pitch);
     if (koMid) {
-      koMid.targetX = 50;
-      koMid.targetY = 50;
+      pinNodeToCoord(pitch, koMid, 50, 50, true);
     }
   }
 
@@ -1127,28 +1269,11 @@
   }
 
   function buildOpponentLineup(oppTeam, stageIdx) {
-    const raw = (oppTeam.players || []).slice();
-    const usedIds = new Set();
-
-    const pickByRole = (role) => {
-      const idx = raw.findIndex((p) => !usedIds.has(p.id) && p.pos === role);
-      if (idx >= 0) {
-        usedIds.add(raw[idx].id);
-        return raw[idx];
-      }
-      const fallback = raw.find((p) => !usedIds.has(p.id));
-      if (fallback) {
-        usedIds.add(fallback.id);
-        return fallback;
-      }
-      return oppTeam.players[0];
-    };
-
-    const formSlots = DB.formations["4-4-2"].slots;
+    const { formSlots, assignments } = getOpponentSlotAssignments(oppTeam);
     return formSlots.map((slot) => {
-      const player = pickByRole(slot.role);
+      const player = assignments[slot.id];
       const rawPosMatch = player.pos === slot.role ? 0 : -4;
-      const effOvr = Math.min(99, Math.max(58, Math.round(player.ovr + stageIdx * 1.6 + rawPosMatch)));
+      const effOvr = Math.min(99, Math.max(58, Math.round(player.ovr + stageIdx * 1.5 + rawPosMatch)));
       const baseX = Math.max(7, Math.min(93, 100 - ((96 - slot.y) * 0.78 + 4)));
       const baseY = Math.max(12, Math.min(88, 100 - slot.x + (slot.role === "DF" ? 3 : -3)));
       return {
@@ -1221,6 +1346,8 @@
       ballX: 50,
       ballY: 50,
       ballFlight: null,
+      holdBallPos: null,
+      justKickedOff: true,
       passTrail: null,
       floatBadge: null,
       goalFlashSide: null,
@@ -1242,8 +1369,7 @@
     };
     recomputePitchTargets(pitch);
     if (startNode) {
-      startNode.targetX = 50;
-      startNode.targetY = 50;
+      pinNodeToCoord(pitch, startNode, 50, 50, true);
     }
     return pitch;
   }
@@ -1425,8 +1551,17 @@
           pitch.passTrail.curY = pitch.ballY;
         }
         if (t >= 1) {
+          pitch.ballX = f.toX;
+          pitch.ballY = f.toY;
+          if (!pitch.carrierUid) {
+            pitch.holdBallPos = { x: f.toX, y: f.toY };
+          }
           pitch.ballFlight = null;
         }
+      } else if (pitch.holdBallPos && !pitch.carrierUid) {
+        // Enquanto ninguém retomou a bola (ex: chute no ar / bola na rede do gol), ela NÃO volta ao pé do batedor!
+        pitch.ballX = pitch.holdBallPos.x;
+        pitch.ballY = pitch.holdBallPos.y;
       } else if (carrier) {
         // Bola colada no pé do portador com leve balanço de condução!
         const weaveY = Math.sin(now * 0.014) * 0.65;
@@ -1534,29 +1669,47 @@
     return candidates[candidates.length - 1];
   }
 
-  function pickPassReceiver(nodes, defNodes, carrier) {
+  function pickPassReceiver(nodes, defNodes, carrier, strictForward = false) {
     const order = { GK: 0, DF: 1, MF: 2, FW: 3 };
     const effRole = getEffectiveCarrierRole(carrier);
     const curRank = order[effRole] ?? 2;
     const attIsUser = carrier.side === "user";
 
-    let candidates = nodes.filter(
-      (n) => n.uid !== carrier.uid && n.role !== "GK" && (order[n.role] ?? 1) >= curRank && (order[n.role] ?? 1) <= curRank + 1
-    );
-    if (effRole === "FW") {
-      candidates = nodes.filter((n) => n.uid !== carrier.uid && (n.role === "FW" || n.role === "MF"));
+    let candidates = nodes.filter((n) => {
+      if (n.uid === carrier.uid || n.role === "GK") return false;
+      const dxForward = attIsUser ? n.targetX - carrier.x : carrier.x - n.targetX;
+      if (strictForward) {
+        // No terço final ou dentro da área, só toca se o colega estiver na linha da bola ou à frente (NUNCA para trás!)
+        return dxForward >= -2 && (order[n.role] ?? 1) >= Math.min(2, curRank);
+      }
+      return (order[n.role] ?? 1) >= curRank && (order[n.role] ?? 1) <= curRank + 1;
+    });
+
+    if (!strictForward && effRole === "FW") {
+      candidates = nodes.filter((n) => {
+        if (n.uid === carrier.uid || n.role === "GK") return false;
+        const dxForward = attIsUser ? n.targetX - carrier.x : carrier.x - n.targetX;
+        return dxForward >= -6 && (n.role === "FW" || n.role === "MF");
+      });
+    }
+    if (candidates.length === 0) {
+      candidates = nodes.filter((n) => {
+        if (n.uid === carrier.uid || n.role === "GK") return false;
+        const dxForward = attIsUser ? n.targetX - carrier.x : carrier.x - n.targetX;
+        return strictForward ? dxForward >= -6 : true;
+      });
     }
     if (candidates.length === 0) {
       candidates = nodes.filter((n) => n.uid !== carrier.uid && n.role !== "GK");
     }
     if (candidates.length === 0) return nodes[0];
 
-    // Pondera por progressão para frente, distância ideal de passe, desmarcação e vigor
     const weights = candidates.map((n) => {
       const forwardGain = attIsUser ? n.targetX - carrier.x : carrier.x - n.targetX;
       const dist = Math.hypot(n.targetX - carrier.x, n.targetY - carrier.y);
-      const forwardFactor = forwardGain >= 2 ? 1.8 : forwardGain >= -5 ? 1.15 : 0.45;
-      const distFactor = dist >= 9 && dist <= 36 ? 1.4 : dist < 6 ? 0.35 : 0.8;
+      const forwardFactor =
+        forwardGain >= 4 ? 2.4 : forwardGain >= 0 ? 1.5 : forwardGain >= -6 ? 0.55 : 0.14;
+      const distFactor = dist >= 8 && dist <= 38 ? 1.45 : dist < 6 ? 0.4 : 0.75;
 
       let minDefDist = 99;
       if (defNodes && defNodes.length) {
@@ -1565,7 +1718,7 @@
           if (dd < minDefDist) minDefDist = dd;
         });
       }
-      const openFactor = minDefDist >= 10 ? 1.35 : minDefDist >= 6 ? 1.0 : 0.65;
+      const openFactor = minDefDist >= 10 ? 1.45 : minDefDist >= 6 ? 1.0 : 0.6;
       const staminaW = Math.max(0.3, n.stamina / 100);
       const skillW = Math.pow(Math.max(55, n.effOvr) / 80, 0.65);
       return forwardFactor * distFactor * openFactor * staminaW * skillW;
@@ -1578,6 +1731,78 @@
       if (r <= 0) return candidates[i];
     }
     return candidates[candidates.length - 1];
+  }
+
+  function chooseTacticalAction(carrier, attNodes, defNodes, attIsUser, pitch) {
+    if (pitch.justKickedOff) {
+      pitch.justKickedOff = false;
+      return { action: "PASS", strictForward: false };
+    }
+
+    const effRole = getEffectiveCarrierRole(carrier);
+    if (effRole === "GK") return { action: "PASS", strictForward: true };
+
+    const oppGoalX = attIsUser ? 96 : 4;
+    const goalDist = Math.hypot(carrier.x - oppGoalX, carrier.y - 50);
+    const inPenaltyX = attIsUser ? carrier.x >= 72 : carrier.x <= 28;
+    const centralLane = carrier.y >= 24 && carrier.y <= 76;
+    const inFinalThird = attIsUser ? carrier.x >= 58 : carrier.x <= 42;
+
+    // Conta defensores na frente entre o portador e o gol
+    const blockingDefs = defNodes.filter((d) => {
+      if (d.role === "GK") return false;
+      const isAhead = attIsUser ? d.x >= carrier.x - 1 : d.x <= carrier.x + 1;
+      const nearCorridor = Math.abs(d.y - carrier.y) <= 13 && Math.abs(d.x - carrier.x) <= 16;
+      return isAhead && nearCorridor;
+    }).length;
+
+    // Colega de ataque livre dentro da área em melhor ângulo
+    const hasOpenBoxTarget = attNodes.some((n) => {
+      if (n.uid === carrier.uid || n.role === "GK") return false;
+      const insideBox = (attIsUser ? n.x >= 70 : n.x <= 30) && n.y >= 28 && n.y <= 72;
+      const closerToGoal = Math.hypot(n.x - oppGoalX, n.y - 50) + 3 < goalDist;
+      return insideBox && closerToGoal;
+    });
+
+    const roll = Math.random();
+
+    // 1) Cara a cara ou dentro da área central -> CHUTA! (sem passes idiotas para trás!)
+    if ((inPenaltyX && centralLane) || goalDist <= 22) {
+      if (blockingDefs <= 1 || goalDist <= 18) {
+        if (roll < 0.90 || !hasOpenBoxTarget) return { action: "SHOT", strictForward: true };
+        return { action: "PASS", strictForward: true };
+      }
+      if (roll < 0.72) return { action: "SHOT", strictForward: true };
+      if (roll < 0.88) return { action: "DRIBBLE", strictForward: true };
+      return hasOpenBoxTarget ? { action: "PASS", strictForward: true } : { action: "SHOT", strictForward: true };
+    }
+
+    // 2) Ponta / linha de fundo na área -> cruza para quem entra na área ou corta para finalizar
+    if (inPenaltyX && !centralLane) {
+      if (hasOpenBoxTarget && roll < 0.58) return { action: "PASS", strictForward: true };
+      if (roll < 0.84) return { action: "DRIBBLE", strictForward: true };
+      return { action: "SHOT", strictForward: true };
+    }
+
+    // 3) Terço final / entrada da área
+    if (inFinalThird || effRole === "FW") {
+      if (blockingDefs === 0) {
+        if (roll < 0.56) return { action: "SHOT", strictForward: true };
+        if (roll < 0.80) return { action: "DRIBBLE", strictForward: true };
+        return { action: "PASS", strictForward: true };
+      }
+      if (roll < 0.36) return { action: "SHOT", strictForward: true };
+      if (roll < 0.72) return { action: "DRIBBLE", strictForward: true };
+      return { action: "PASS", strictForward: true };
+    }
+
+    // 4) Defesa / Meio-campo construtivo
+    if (effRole === "DF") {
+      return roll < 0.76 ? { action: "PASS", strictForward: true } : { action: "DRIBBLE", strictForward: false };
+    }
+    if (roll < 0.56) return { action: "PASS", strictForward: false };
+    if (roll < 0.93) return { action: "DRIBBLE", strictForward: false };
+    return { action: "SHOT", strictForward: true };
   }
 
   function pickMarkerFor(oppNodes, targetSectorRoles, refX = 50, refY = 50) {
@@ -1782,18 +2007,16 @@
     }
 
     const kind = clash.kind || "SHOT"; // "SHOT" | "DRIBBLE" | "STEAL"
-    const leftCls = clash.left.side === "user" ? "side-user" : "side-opp";
-    const rightCls = clash.right.side === "user" ? "side-user" : "side-opp";
+    const dir = clash.dir === "rtl" ? "rtl" : "ltr";
+    const dirCls = `dir-${dir}`;
 
     let stageModCls = "";
-    let leftRoleText = "CHUTE";
-    let rightRoleText = clash.rightCategory === "DF" ? "ZAGA • BLOQUEIO" : "GOLEIRO";
     let topPillCls = "clash-move-shoot";
     let topIconCat = "SH";
     let botPillCls = "clash-move-def";
-    let botIconCat = clash.rightCategory || "GK";
+    let botIconCat = clash.bottomIcon || "GK";
     let runnerHTML = `
-      <div class="fireball-runner">
+      <div class="fireball-runner ${dirCls}">
         <div class="fireball-trail"></div>
         <div class="fireball-orb">${buildFireballSVG()}</div>
       </div>
@@ -1803,33 +2026,30 @@
 
     if (kind === "DRIBBLE") {
       stageModCls = "stage-dribble";
-      leftRoleText = "DRIBLE";
-      rightRoleText = "MARCAÇÃO";
       topPillCls = "clash-move-dribble";
       topIconCat = "OF";
       botIconCat = "DF";
       runnerHTML = `
-        <div class="dribble-runner">
+        <div class="dribble-runner ${dirCls}">
           <div class="dribble-trail"></div>
           <div class="boot-dash-icon">${buildDribbleBootSVG()}</div>
         </div>
       `;
-      actionMs = 1900;
+      actionMs = 1850;
       bannerMs = 1000;
     } else if (kind === "STEAL") {
       stageModCls = "stage-steal";
-      leftRoleText = "POSSE / PASSE";
-      rightRoleText = "CARRINHO";
-      topPillCls = "clash-move-pass";
-      topIconCat = "OF";
-      botIconCat = "DF";
+      topPillCls = "clash-move-def";
+      topIconCat = "DF";
+      botPillCls = "clash-move-pass";
+      botIconCat = "OF";
       runnerHTML = `
-        <div class="steal-runner">
+        <div class="steal-runner ${dirCls}">
           <div class="steal-trail"></div>
           <div class="tackle-slide-icon">${buildSlideTackleSVG()}</div>
         </div>
       `;
-      actionMs = 1900;
+      actionMs = 1850;
       bannerMs = 1000;
     }
 
@@ -1837,13 +2057,14 @@
     if (goalsBox) goalsBox.style.display = "none";
     slotEl.style.display = "block";
 
+    // Dream Team fica sempre na ESQUERDA e Adversário na DIREITA (alinhado com o mapa 2D!)
     slotEl.innerHTML = `
       <div class="shot-clash-stage ${stageModCls}">
         <div class="clash-arena-grid">
           <div class="clash-fighter">
-            <img class="clash-avatar ${leftCls}" src="${clash.left.sprite}" alt="${clash.left.name}" />
-            <div class="clash-fighter-name">${clash.left.name}</div>
-            <span class="clash-role-badge">${leftRoleText}</span>
+            <img class="clash-avatar side-user" src="${clash.userPlayer.sprite}" alt="${clash.userPlayer.name}" />
+            <div class="clash-fighter-name">${clash.userPlayer.name}</div>
+            <span class="clash-role-badge">${clash.userPlayer.roleText}</span>
           </div>
 
           <div class="clash-center-lane">
@@ -1861,9 +2082,9 @@
           </div>
 
           <div class="clash-fighter">
-            <img class="clash-avatar ${rightCls}" src="${clash.right.sprite}" alt="${clash.right.name}" />
-            <div class="clash-fighter-name">${clash.right.name}</div>
-            <span class="clash-role-badge">${rightRoleText}</span>
+            <img class="clash-avatar side-opp" src="${clash.oppPlayer.sprite}" alt="${clash.oppPlayer.name}" />
+            <div class="clash-fighter-name">${clash.oppPlayer.name}</div>
+            <span class="clash-role-badge">${clash.oppPlayer.roleText}</span>
           </div>
         </div>
         <div id="clash-result-mount"></div>
@@ -1900,7 +2121,6 @@
 
     state.tournament.pendingClashFinish = finishClash;
 
-    // No momento do impacto (fim da corrida da bola/chuteira/carrinho), mostra o resultado E sincroniza o campo 2D!
     state.tournament.clashTimer1 = setTimeout(() => {
       if (!impactApplied && onImpactOutcome) {
         impactApplied = true;
@@ -1934,15 +2154,16 @@
     if (!state.tournament.pitchRafId) startPitchRafLoop(st);
 
     const userStats = calcSquadStats();
-    const oppOvr = st.oppTeam.baseOvr + stageIdx * 1.5;
-    const oppChem = Math.min(92, 54 + stageIdx * 10);
+    const oppStats = calcOpponentStats(st.oppTeam, stageIdx);
 
-    // Suporte tático coletivo (Química + Formação 11/11 certa fortalecem TODOS em campo!)
+    // Ambos os times usam o mesmo sistema de Química + Formação + Links Elementais Próximos!
     const userTeamSupport =
       (userStats.chem / 100) * 4.4 +
       (userStats.correctPosCount === 11 ? 2.4 : userStats.correctPosCount * 0.12);
-    const oppTeamSupport = (oppChem / 100) * 4.4 + (stageIdx >= 2 ? 1.6 : 0.8);
-    const ovrDiff = userStats.ovr - oppOvr;
+    const oppTeamSupport =
+      (oppStats.chem / 100) * 4.4 +
+      (oppStats.correctPosCount === 11 ? 2.4 : oppStats.correctPosCount * 0.12);
+    const ovrDiff = userStats.ovr - oppStats.ovr;
 
     state.tournament.timerId = setInterval(() => {
       st.minute++;
@@ -1956,7 +2177,6 @@
         barEl.style.width = `${pct}%`;
       }
 
-      // Recuperação natural de vigor dos jogadores sem a bola
       pitch.userNodes.forEach((n) => {
         if (n.uid !== pitch.carrierUid) n.stamina = Math.min(100, n.stamina + 3.8);
       });
@@ -1976,35 +2196,19 @@
       const carrier = findPitchNode(pitch, pitch.carrierUid) || attNodes[0];
       const effRole = getEffectiveCarrierRole(carrier);
 
-      // Decide ação tática coerente com a posição atual do portador no campo
-      const inDeepBox = attIsUser ? carrier.x >= 75 : carrier.x <= 25;
-      let action = "PASS";
-      const roll = Math.random();
-      if (effRole === "GK") {
-        action = "PASS";
-      } else if (inDeepBox) {
-        action = roll < 0.68 ? "SHOT" : "PASS";
-      } else if (effRole === "DF") {
-        action = roll < 0.74 ? "PASS" : "DRIBBLE";
-      } else if (effRole === "MF") {
-        if (roll < 0.56) action = "PASS";
-        else if (roll < 0.94) action = "DRIBBLE";
-        else action = "SHOT";
-      } else {
-        // FW / Zona de ataque
-        if (roll < 0.36) action = "SHOT";
-        else if (roll < 0.70) action = "DRIBBLE";
-        else action = "PASS";
-      }
+      // Decisão tática contextual inteligente (chuta quando de cara pro gol; evita passes para trás inúteis!)
+      const decision = chooseTacticalAction(carrier, attNodes, defNodes, attIsUser, pitch);
+      const action = decision.action;
+      const strictForward = decision.strictForward;
 
       const canHissatsuFieldDuel = state.simSpeed === 1 && st.minute - pitch.lastClashMinute >= 2;
       const passFlightMs = state.simSpeed === 4 ? 70 : state.simSpeed === 2 ? 155 : 350;
 
       // ----------------------------------------------------------------------
-      // AÇÃO 1: PASSE INDIVIDUAL (SEMPRE PARA COLEGA ABERTO OU INTERCEPTADO PELO MARCADOR PRÓXIMO)
+      // AÇÃO 1: PASSE INDIVIDUAL (SEMPRE PARA COLEGA ABERTO OU INTERCEPTADO POR CARRINHO)
       // ----------------------------------------------------------------------
       if (action === "PASS") {
-        const receiver = pickPassReceiver(attNodes, defNodes, carrier);
+        const receiver = pickPassReceiver(attNodes, defNodes, carrier, strictForward);
         const midX = (carrier.x + receiver.targetX) * 0.5;
         const midY = (carrier.y + receiver.targetY) * 0.5;
         const pressRoles =
@@ -2019,8 +2223,8 @@
 
         const passScore = calcNodeDuelScore(carrier, attSupport, interceptor?.player?.element);
         const defScore = calcNodeDuelScore(interceptor, defSupport, carrier?.player?.element);
-        const sectorShift = effRole === "GK" ? 13 : effRole === "DF" ? 9.5 : effRole === "MF" ? 6.5 : 4.5;
-        const passSuccess = Math.random() < logisticWinProb(passScore, defScore, sectorShift, 0.55, 0.92);
+        const sectorShift = effRole === "GK" ? 13 : effRole === "DF" ? 9.5 : effRole === "MF" ? 6.5 : 5.0;
+        const passSuccess = Math.random() < logisticWinProb(passScore, defScore, sectorShift, 0.56, 0.93);
 
         spendStamina(carrier, 6);
         spendStamina(interceptor, 4);
@@ -2033,6 +2237,7 @@
           if (attIsUser) pitch.stats.userPassesOk++;
           pitch.carrierUid = receiver.uid;
           pitch.challengerUid = null;
+          pitch.holdBallPos = null;
           recomputePitchTargets(pitch);
 
           startBallFlight(
@@ -2052,13 +2257,17 @@
           handleMinuteEndBoundaries(st, ovrDiff);
           return;
         } else {
-          // Interceptado na linha de passe! O marcador mais próximo fecha exatamente no ponto de corte (ix, iy)
+          // Interceptado na linha de passe! Bola viaja até (ix, iy) onde o interceptor entra no carrinho
           const ix = Math.max(12, Math.min(88, startX * 0.46 + receiver.targetX * 0.54));
           const iy = Math.max(14, Math.min(86, startY * 0.46 + receiver.targetY * 0.54));
           const stealMove = pickPlayerMove(interceptor.player, "DF") || "Corte Rápido";
           const passMove = pickPlayerMove(carrier.player, "OF") || "Passe Tático";
 
           pitch.challengerUid = interceptor.uid;
+          if (canHissatsuFieldDuel) {
+            pitch.carrierUid = null;
+            pitch.holdBallPos = { x: ix, y: iy };
+          }
           pinNodeToCoord(pitch, interceptor, ix, iy, false);
           startBallFlight(
             pitch,
@@ -2076,6 +2285,7 @@
             pitch.ballSide = attIsUser ? "opp" : "user";
             pitch.carrierUid = interceptor.uid;
             pitch.challengerUid = null;
+            pitch.holdBallPos = null;
             pinNodeToCoord(pitch, interceptor, ix, iy, true);
             pitch.ballFlight = null;
             pitch.ballX = ix + (interceptor.side === "user" ? 2.2 : -2.2);
@@ -2096,16 +2306,22 @@
             pitch.lastClashMinute = st.minute;
             pitch.ticker = `${st.minute}' ⚡ ${interceptor.player.name} deu o bote no passe de ${carrier.player.name}!`;
             syncLivePitchDOM(st);
+            const stealFromLeft = interceptor.side === "user";
             playShotClashAndContinue(
               st,
               {
                 kind: "STEAL",
-                left: { name: carrier.player.name, sprite: carrier.player.sprite, side: carrier.side },
-                right: { name: interceptor.player.name, sprite: interceptor.player.sprite, side: interceptor.side },
-                rightCategory: "DF",
-                topMoveName: passMove,
-                bottomMoveName: stealMove,
-                outcomePositive: !attIsUser,
+                dir: stealFromLeft ? "ltr" : "rtl",
+                userPlayer: stealFromLeft
+                  ? { name: interceptor.player.name, sprite: interceptor.player.sprite, roleText: "CARRINHO" }
+                  : { name: carrier.player.name, sprite: carrier.player.sprite, roleText: "POSSE / PASSE" },
+                oppPlayer: stealFromLeft
+                  ? { name: carrier.player.name, sprite: carrier.player.sprite, roleText: "POSSE / PASSE" }
+                  : { name: interceptor.player.name, sprite: interceptor.player.sprite, roleText: "CARRINHO" },
+                topMoveName: stealMove,
+                bottomMoveName: passMove,
+                bottomIcon: "OF",
+                outcomePositive: stealFromLeft,
                 resultBannerText: "🛡️ BOLA ROUBADA!"
               },
               applyStealOutcome,
@@ -2122,7 +2338,7 @@
       }
 
       // ----------------------------------------------------------------------
-      // AÇÃO 2: DRIBLE INDIVIDUAL (MARCADOR PRÓXIMO FECHA; SE VENCER, CONTINUA COM A BOLA!)
+      // AÇÃO 2: DRIBLE INDIVIDUAL (SE VENCER, A BOLA CONTINUA COM ELE E ELE AVANÇA!)
       // ----------------------------------------------------------------------
       if (action === "DRIBBLE") {
         const markerRoles = effRole === "DF" ? ["FW", "MF"] : effRole === "MF" ? ["MF", "DF"] : ["DF"];
@@ -2142,7 +2358,6 @@
         const startX = carrier.x;
         const startY = carrier.y;
 
-        // Marcador encosta na frente do portador para o duelo 1x1
         pitch.challengerUid = marker.uid;
         pinNodeToCoord(
           pitch,
@@ -2157,8 +2372,9 @@
             if (attIsUser) pitch.stats.userDribblesOk++;
             const newX = Math.max(12, Math.min(86, startX + (attIsUser ? 12 : -12)));
             const dodgeY = Math.max(14, Math.min(86, startY + (marker.y >= startY ? -6.5 : 6.5)));
-            pitch.carrierUid = carrier.uid; // A bola continua com quem driblou!
+            pitch.carrierUid = carrier.uid;
             pitch.challengerUid = null;
+            pitch.holdBallPos = null;
             pinNodeToCoord(pitch, carrier, newX, dodgeY, false);
 
             pitch.passTrail = {
@@ -2183,12 +2399,12 @@
               { name: marker.player.name, sprite: marker.player.sprite, side: marker.side }
             );
           } else {
-            // Desarme limpo no local exato do duelo!
             const tackleX = Math.max(12, Math.min(88, startX + (attIsUser ? 1.8 : -1.8)));
             const tackleY = startY;
             pitch.ballSide = attIsUser ? "opp" : "user";
             pitch.carrierUid = marker.uid;
             pitch.challengerUid = null;
+            pitch.holdBallPos = null;
             pinNodeToCoord(pitch, marker, tackleX, tackleY, true);
             pitch.ballFlight = null;
             pitch.ballX = tackleX + (marker.side === "user" ? 2.2 : -2.2);
@@ -2215,11 +2431,16 @@
             st,
             {
               kind: "DRIBBLE",
-              left: { name: carrier.player.name, sprite: carrier.player.sprite, side: carrier.side },
-              right: { name: marker.player.name, sprite: marker.player.sprite, side: marker.side },
-              rightCategory: "DF",
+              dir: attIsUser ? "ltr" : "rtl",
+              userPlayer: attIsUser
+                ? { name: carrier.player.name, sprite: carrier.player.sprite, roleText: "DRIBLE" }
+                : { name: marker.player.name, sprite: marker.player.sprite, roleText: "MARCAÇÃO" },
+              oppPlayer: attIsUser
+                ? { name: marker.player.name, sprite: marker.player.sprite, roleText: "MARCAÇÃO" }
+                : { name: carrier.player.name, sprite: carrier.player.sprite, roleText: "DRIBLE" },
               topMoveName: ofMove,
               bottomMoveName: dfMove,
+              bottomIcon: "DF",
               outcomePositive: wonDribble ? attIsUser : !attIsUser,
               resultBannerText: wonDribble ? "💨 DRIBLE PERFEITO!" : "🛡️ DESARMADO!"
             },
@@ -2249,31 +2470,31 @@
         : null;
       const defTarget = vsDefender ? blocker : gkNode;
       const defCategory = vsDefender ? "DF" : "GK";
+      const shooterNode = carrier;
 
       const isLongShot = effRole === "MF";
       const shotScore =
-        calcNodeDuelScore(carrier, attSupport, defTarget?.player?.element) - (isLongShot ? 3.5 : 0);
-      const stopScore = calcNodeDuelScore(defTarget, defSupport, carrier?.player?.element);
+        calcNodeDuelScore(shooterNode, attSupport, defTarget?.player?.element) - (isLongShot ? 3.5 : 0);
+      const stopScore = calcNodeDuelScore(defTarget, defSupport, shooterNode?.player?.element);
 
       const goalProb = vsDefender
         ? logisticWinProb(shotScore, stopScore, -4.8, 0.08, 0.48)
         : logisticWinProb(shotScore, stopScore, -7.4, 0.08, 0.50);
       const isGoal = Math.random() < goalProb;
 
-      spendStamina(carrier, 14);
+      spendStamina(shooterNode, 14);
       spendStamina(defTarget, 11);
       if (attIsUser) pitch.stats.userShots++;
       else pitch.stats.oppShots++;
 
-      const shotInfo = buildGoalShotLabel(carrier.player);
+      const shotInfo = buildGoalShotLabel(shooterNode.player);
       const defMoveName =
         pickPlayerMove(defTarget.player, defCategory) ||
         (defCategory === "DF" ? "Bloqueio de Corpo" : "Defesa Direta");
 
-      const shotOriginX = carrier.x;
-      const shotOriginY = carrier.y;
+      const shotOriginX = shooterNode.x;
+      const shotOriginY = shooterNode.y;
 
-      // Ponto de interceptação/defesa na linha do chute (sem entregar se foi gol antes do impacto!)
       const duelX = vsDefender
         ? Math.max(14, Math.min(86, shotOriginX * 0.38 + goalX * 0.62))
         : attIsUser
@@ -2283,42 +2504,48 @@
         ? Math.max(20, Math.min(80, shotOriginY * 0.42 + goalY * 0.58))
         : Math.max(41, Math.min(59, 50 + (shotOriginY - 50) * 0.22));
 
-      pitch.lastClashMinute = st.minute;
+      // CRÍTICO: assim que chuta, o batedor SOLTA a bola! Ela NUNCA volta pro pé dele!
+      pitch.carrierUid = null;
       pitch.challengerUid = defTarget.uid;
+      pitch.holdBallPos = { x: duelX, y: duelY };
+      pitch.lastClashMinute = st.minute;
       if (vsDefender) {
         pinNodeToCoord(pitch, defTarget, duelX, duelY, false);
       }
 
-      // Fase 1 do chute: a bola viaja do batedor até o bloqueador/goleiro
+      // Fase 1: bola voa continuamente até o momento do impacto (2150ms no modo 1x)
       startBallFlight(
         pitch,
         shotOriginX,
         shotOriginY,
         duelX,
         duelY,
-        state.simSpeed === 1 ? 1450 : passFlightMs,
+        state.simSpeed === 1 ? 2150 : passFlightMs,
         3.2,
         "SHOT",
         "#f97316"
       );
       showPitchBadge(pitch, shotOriginX, shotOriginY, `🔥 ${shotInfo.label}`, "badge-shot", state.simSpeed === 1 ? 1900 : 650);
-      pitch.ticker = `${st.minute}' 🔥 CHUTE! ${carrier.player.name} (${shotInfo.label}) vs ${defTarget.player.name}!`;
+      pitch.ticker = `${st.minute}' 🔥 CHUTE! ${shooterNode.player.name} (${shotInfo.label}) vs ${defTarget.player.name}!`;
       syncLivePitchDOM(st);
 
-      // Fase 2 (No impacto / banner): se foi gol, a bola fura a defesa e entra na rede; se não, fica com o defensor/GK!
+      // Fase 2 (No impacto): se foi gol, bola entra e FICA na rede; se não, vai para o defensor/goleiro!
       const applyShotImpact = () => {
         if (isGoal) {
-          startBallFlight(pitch, duelX, duelY, goalX, goalY, state.simSpeed === 1 ? 380 : 60, 1.0, "GOAL", "#facc15");
+          pitch.carrierUid = null;
+          pitch.challengerUid = null;
+          pitch.holdBallPos = { x: goalX, y: goalY };
+          startBallFlight(pitch, duelX, duelY, goalX, goalY, state.simSpeed === 1 ? 360 : 50, 0.8, "GOAL", "#facc15");
           pitch.goalFlashSide = attIsUser ? "right" : "left";
-          pitch.goalFlashUntil = performance.now() + 1250;
+          pitch.goalFlashUntil = performance.now() + 1300;
           showPitchBadge(pitch, goalX, goalY, "⚽ GOOOL!!", "badge-goal", 1200);
 
           if (attIsUser) {
             st.userScore++;
             const goalObj = {
               minute: st.minute,
-              name: carrier.player.name,
-              sprite: carrier.player.sprite,
+              name: shooterNode.player.name,
+              sprite: shooterNode.player.sprite,
               shotLabel: shotInfo.label,
               isHissatsu: shotInfo.isHissatsu
             };
@@ -2330,17 +2557,17 @@
               st,
               "nar-goal-user",
               shotInfo.isHissatsu
-                ? `⚽ ${st.minute}' GOOOL DO DREAM TEAM! ${carrier.player.name} disparou 【${shotInfo.label}】 e furou 【${defMoveName}】 de ${defTarget.player.name}! (${st.userScore} x ${st.oppScore})`
-                : `⚽ ${st.minute}' GOOOL DO DREAM TEAM! ${carrier.player.name} superou ${defTarget.player.name} com um ${shotInfo.label.toLowerCase()}! (${st.userScore} x ${st.oppScore})`,
-              { name: carrier.player.name, sprite: carrier.player.sprite, side: "user" },
+                ? `⚽ ${st.minute}' GOOOL DO DREAM TEAM! ${shooterNode.player.name} disparou 【${shotInfo.label}】 e furou 【${defMoveName}】 de ${defTarget.player.name}! (${st.userScore} x ${st.oppScore})`
+                : `⚽ ${st.minute}' GOOOL DO DREAM TEAM! ${shooterNode.player.name} superou ${defTarget.player.name} com um ${shotInfo.label.toLowerCase()}! (${st.userScore} x ${st.oppScore})`,
+              { name: shooterNode.player.name, sprite: shooterNode.player.sprite, side: "user" },
               { name: defTarget.player.name, sprite: defTarget.player.sprite, side: "opp" }
             );
           } else {
             st.oppScore++;
             const goalObj = {
               minute: st.minute,
-              name: carrier.player.name,
-              sprite: carrier.player.sprite,
+              name: shooterNode.player.name,
+              sprite: shooterNode.player.sprite,
               shotLabel: shotInfo.label,
               isHissatsu: shotInfo.isHissatsu
             };
@@ -2352,18 +2579,18 @@
               st,
               "nar-goal-opp",
               shotInfo.isHissatsu
-                ? `💥 ${st.minute}' GOL DE ${st.oppTeam.name.toUpperCase()}! ${carrier.player.name} usou 【${shotInfo.label}】 e venceu 【${defMoveName}】 de ${defTarget.player.name}! (${st.userScore} x ${st.oppScore})`
-                : `💥 ${st.minute}' GOL DE ${st.oppTeam.name.toUpperCase()}! ${carrier.player.name} venceu ${defTarget.player.name} com um ${shotInfo.label.toLowerCase()}! (${st.userScore} x ${st.oppScore})`,
-              { name: carrier.player.name, sprite: carrier.player.sprite, side: "opp" },
+                ? `💥 ${st.minute}' GOL DE ${st.oppTeam.name.toUpperCase()}! ${shooterNode.player.name} usou 【${shotInfo.label}】 e venceu 【${defMoveName}】 de ${defTarget.player.name}! (${st.userScore} x ${st.oppScore})`
+                : `💥 ${st.minute}' GOL DE ${st.oppTeam.name.toUpperCase()}! ${shooterNode.player.name} venceu ${defTarget.player.name} com um ${shotInfo.label.toLowerCase()}! (${st.userScore} x ${st.oppScore})`,
+              { name: shooterNode.player.name, sprite: shooterNode.player.sprite, side: "opp" },
               { name: defTarget.player.name, sprite: defTarget.player.sprite, side: "user" }
             );
           }
-          pitch.ticker = `${st.minute}' ⚽ GOOOL de ${carrier.player.name}! (${st.userScore} x ${st.oppScore})`;
+          pitch.ticker = `${st.minute}' ⚽ GOOOL de ${shooterNode.player.name}! (${st.userScore} x ${st.oppScore})`;
         } else {
-          // Chute bloqueado ou defendido -> posse fica exatamente com o zagueiro/goleiro que parou o chute!
           pitch.ballSide = attIsUser ? "opp" : "user";
           pitch.carrierUid = defTarget.uid;
           pitch.challengerUid = null;
+          pitch.holdBallPos = null;
           if (vsDefender) {
             pinNodeToCoord(pitch, defTarget, duelX, duelY, true);
           }
@@ -2375,34 +2602,34 @@
 
           if (defCategory === "DF") {
             if (!attIsUser) pitch.stats.userSteals++;
-            pitch.ticker = `${st.minute}' 🛡️ ${defTarget.player.name} bloqueou o chute de ${carrier.player.name}!`;
+            pitch.ticker = `${st.minute}' 🛡️ ${defTarget.player.name} bloqueou o chute de ${shooterNode.player.name}!`;
             prependNarrationLine(
               st,
               "nar-steal",
-              `🛡️ ${st.minute}' [Bloqueio da Zaga] ${defTarget.player.name} entrou na frente com 【${defMoveName}】 e bloqueou 【${shotInfo.label}】 de ${carrier.player.name}!`,
+              `🛡️ ${st.minute}' [Bloqueio da Zaga] ${defTarget.player.name} entrou na frente com 【${defMoveName}】 e bloqueou 【${shotInfo.label}】 de ${shooterNode.player.name}!`,
               { name: defTarget.player.name, sprite: defTarget.player.sprite, side: defTarget.side },
-              { name: carrier.player.name, sprite: carrier.player.sprite, side: carrier.side }
+              { name: shooterNode.player.name, sprite: shooterNode.player.sprite, side: shooterNode.side }
             );
           } else {
             if (!attIsUser) pitch.stats.userSaves++;
-            pitch.ticker = `${st.minute}' 🧤 ${defTarget.player.name} defendeu o chute de ${carrier.player.name}!`;
+            pitch.ticker = `${st.minute}' 🧤 ${defTarget.player.name} defendeu o chute de ${shooterNode.player.name}!`;
             prependNarrationLine(
               st,
               "nar-save",
-              `🧤 ${st.minute}' [Defesa de Goleiro] ${defTarget.player.name} acionou 【${defMoveName}】 e espalmou 【${shotInfo.label}】 de ${carrier.player.name}!`,
+              `🧤 ${st.minute}' [Defesa de Goleiro] ${defTarget.player.name} acionou 【${defMoveName}】 e espalmou 【${shotInfo.label}】 de ${shooterNode.player.name}!`,
               { name: defTarget.player.name, sprite: defTarget.player.sprite, side: defTarget.side },
-              { name: carrier.player.name, sprite: carrier.player.sprite, side: carrier.side }
+              { name: shooterNode.player.name, sprite: shooterNode.player.sprite, side: shooterNode.side }
             );
           }
         }
       };
 
-      // Fase 3 (Ao fechar o banner se foi gol): reposiciona os times para a saída no meio-campo
+      // Fase 3: Após gol, quem SOFREU o gol recomeça obrigatoriamente do círculo central (50%, 50%)!
       const applyAfterGoalKickoff = () => {
         if (isGoal) {
-          const kickoffSide = attIsUser ? "opp" : "user";
-          resetPitchForKickoff(pitch, kickoffSide, true);
-          pitch.ticker = `${st.minute}' ⚽ Recomeço no centro com ${kickoffSide === "user" ? "Dream Team" : st.oppTeam.name}.`;
+          const concedingSide = attIsUser ? "opp" : "user";
+          resetPitchForKickoff(pitch, concedingSide, true);
+          pitch.ticker = `${st.minute}' ⚽ Saída no centro com ${concedingSide === "user" ? "Dream Team" : st.oppTeam.name}!`;
         }
       };
 
@@ -2412,15 +2639,22 @@
         ? "🛡️ BLOQUEADO PELA ZAGA!"
         : "🧤 DEFENDEU!";
 
+      const defRoleBadge = defCategory === "DF" ? "ZAGA • BLOQUEIO" : "GOLEIRO";
+
       playShotClashAndContinue(
         st,
         {
           kind: "SHOT",
-          left: { name: carrier.player.name, sprite: carrier.player.sprite, side: carrier.side },
-          right: { name: defTarget.player.name, sprite: defTarget.player.sprite, side: defTarget.side },
-          rightCategory: defCategory,
+          dir: attIsUser ? "ltr" : "rtl",
+          userPlayer: attIsUser
+            ? { name: shooterNode.player.name, sprite: shooterNode.player.sprite, roleText: "CHUTE" }
+            : { name: defTarget.player.name, sprite: defTarget.player.sprite, roleText: defRoleBadge },
+          oppPlayer: attIsUser
+            ? { name: defTarget.player.name, sprite: defTarget.player.sprite, roleText: defRoleBadge }
+            : { name: shooterNode.player.name, sprite: shooterNode.player.sprite, roleText: "CHUTE" },
           topMoveName: shotInfo.label,
           bottomMoveName: defMoveName,
+          bottomIcon: defCategory,
           outcomePositive: isGoal ? attIsUser : !attIsUser,
           resultBannerText: bannerText
         },
@@ -2484,7 +2718,7 @@
     const bondsBar = document.getElementById("bonds-bar");
     if (bondsBar) {
       if (stats.activeBonds.length === 0) {
-        bondsBar.innerHTML = `<span style="color:#93c5fd;">📐 <strong>Dica Tática:</strong> Escale todos os <strong>11 na posição correta</strong> para ganhar <strong>+25% Química e +220 Poder</strong>! Duplas, trios do anime e colegas do mesmo time também somam Química e Poder!</span>`;
+        bondsBar.innerHTML = `<span style="color:#93c5fd;">📐 <strong>Dica Tática:</strong> Escale todos os <strong>11 na posição correta</strong> (+20% Quím / +2 OVR) e conecte jogadores do <strong>mesmo elemento colados</strong> (lado/acima/abaixo) para ativar links elementais!</span>`;
       } else {
         bondsBar.innerHTML =
           `<strong style="color:#38bdf8; margin-right:4px;">🤝 Bônus & Laços:</strong>` +
@@ -2520,9 +2754,10 @@
             Gire a roleta entre <strong>57 times</strong> de todas as sagas, escale 1 jogador por clube sorteado e conquiste o <strong>Futebol Fronteira</strong>!
           </p>
           <div style="background:rgba(37,99,235,0.16); border:1px solid rgba(96,165,250,0.4); border-radius:8px; padding:9px 12px; margin-top:10px; font-size:0.74rem; color:#dbeafe; line-height:1.4; text-align:left;">
-            ⚡ <strong style="color:#facc15;">Como somar Poder Final & Química:</strong><br/>
-            • <strong>Posição Certa:</strong> +2% Quím por jogador e <strong style="color:#86efac;">+25% Quím / +220 Poder / +2 OVR</strong> se todos os 11 estiverem na posição correta! (Improvisar tira até -14 OVR)<br/>
-            • <strong>Duplas/Trios & Mesmo Time:</strong> Amigos do anime e colegas de escola somam ainda mais Química e Poder Final!
+            ⚡ <strong style="color:#facc15;">Como somar Poder Final & Química (para você e os adversários):</strong><br/>
+            • <strong>Posição Certa:</strong> <strong style="color:#86efac;">+20% Quím / +2 OVR</strong> e bônus de Poder ao escalar os 11 na posição natural!<br/>
+            • <strong>Sinergia Elemental Próxima 🔗:</strong> Colocar jogadores do <strong>mesmo elemento colados</strong> (ao lado, acima ou abaixo) acende um link no campo e dá +Química e +Poder!<br/>
+            • <strong>Duplas/Trios & Mesmo Clube:</strong> Laços do anime e colegas de equipe também somam força!
           </div>
 
           <div class="option-group">
@@ -2650,8 +2885,8 @@
                     <div style="font-size:0.74rem; color:#dbeafe; margin-top:2px;">
                       ${
                         hasNaturalOpen
-                          ? `Toque em uma vaga de <strong>${sel.pos}</strong> em verde! (Posição certa dá +Química e bônus de <strong>+25% Quím / +220 Poder</strong> ao fechar 11/11)`
-                          : `⚠️ Vagas de ${sel.pos} ocupadas! Improvisar tira <strong>-6 a -14 OVR</strong> do jogador e perde o bônus de <strong>11/11 na Posição (+25% Quím / +220 Poder)</strong>.`
+                          ? `Toque em uma vaga de <strong>${sel.pos}</strong> em verde! (Feche 11/11 p/ <strong>+20% Quím e +2 OVR</strong> • Colar elementos iguais acende link próximo!)`
+                          : `⚠️ Vagas de ${sel.pos} ocupadas! Improvisar tira <strong>-6 a -14 OVR</strong> do jogador e perde o bônus de <strong>11/11 na Posição (+20% Quím / +2 OVR)</strong>.`
                       }
                     </div>
                   </div>
@@ -2793,7 +3028,7 @@
 
     if (!st.pitch) st.pitch = initMatchPitchState(st, t.stageIndex);
     const stadiumStyle = UI.stadiumBg ? `background-image: url('${UI.stadiumBg}');` : "";
-    const oppPower = Math.round((st.oppTeam.baseOvr + t.stageIndex * 1.5) * 11 + 180 + t.stageIndex * 115);
+    const oppStats = calcOpponentStats(st.oppTeam, t.stageIndex);
 
     container.innerHTML = `
       <div class="bracket-row">${bracketHTML}</div>
@@ -2828,7 +3063,7 @@
           <div class="score-team">
             ${UI.raimonEmblem ? `<img class="score-emblem" src="${UI.raimonEmblem}" alt="Dream Team" />` : `<div style="font-size:1.9rem;">⚡</div>`}
             <div style="font-weight:900; font-size:0.95rem;">Dream Team</div>
-            <div style="font-size:0.7rem; color:#fed7aa; font-weight:800;">Poder ${stats.power.toLocaleString("pt-BR")} • OVR ${stats.ovr}</div>
+            <div style="font-size:0.7rem; color:#fed7aa; font-weight:800;">Poder ${stats.power.toLocaleString("pt-BR")} • OVR ${stats.ovr} • Quím ${stats.chem}%</div>
           </div>
 
           <div class="score-digits">
@@ -2840,7 +3075,7 @@
           <div class="score-team">
             <img class="score-emblem" src="${st.oppTeam.emblem}" alt="${st.oppTeam.name}" />
             <div style="font-weight:900; font-size:0.95rem;">${st.oppTeam.name}</div>
-            <div style="font-size:0.7rem; color:#facc15; font-weight:800;">Poder ${oppPower.toLocaleString("pt-BR")} • OVR ${Math.round(st.oppTeam.baseOvr + t.stageIndex * 1.5)}</div>
+            <div style="font-size:0.7rem; color:#facc15; font-weight:800;">Poder ${oppStats.power.toLocaleString("pt-BR")} • OVR ${oppStats.ovr} • Quím ${oppStats.chem}%</div>
           </div>
         </div>
 

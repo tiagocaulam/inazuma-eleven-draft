@@ -858,6 +858,15 @@ body {
   border-bottom: none;
 }
 
+.draft-links-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 3;
+}
+
 .field-node {
   position: absolute;
   transform: translate(-50%, -50%);
@@ -1386,12 +1395,19 @@ body {
 
 .fireball-runner {
   position: absolute;
-  left: 6%;
+  left: 2%;
   top: 50%;
   transform: translateY(-50%);
   display: flex;
   align-items: center;
-  animation: fireballFly 2.45s cubic-bezier(0.28, 0.84, 0.42, 1) forwards;
+  animation: fireballFly 2.35s cubic-bezier(0.28, 0.84, 0.42, 1) forwards;
+}
+
+.fireball-runner.dir-rtl {
+  left: auto;
+  right: 2%;
+  flex-direction: row-reverse;
+  animation: fireballFlyRtl 2.35s cubic-bezier(0.28, 0.84, 0.42, 1) forwards;
 }
 
 .fireball-trail {
@@ -1402,6 +1418,13 @@ body {
   background: linear-gradient(90deg, rgba(239, 68, 68, 0) 0%, rgba(249, 115, 22, 0.75) 55%, #fde047 100%);
   filter: blur(2px);
   animation: flameFlicker 0.16s infinite alternate;
+}
+
+.fireball-runner.dir-rtl .fireball-trail {
+  margin-right: 0;
+  margin-left: -14px;
+  border-radius: 0 999px 999px 0;
+  background: linear-gradient(270deg, rgba(239, 68, 68, 0) 0%, rgba(249, 115, 22, 0.75) 55%, #fde047 100%);
 }
 
 .fireball-orb {
@@ -1418,9 +1441,13 @@ body {
 }
 
 @keyframes fireballFly {
-  0% { left: 2%; opacity: 0.9; }
-  88% { left: calc(100% - 92px); opacity: 1; }
-  100% { left: calc(100% - 96px); opacity: 1; }
+  0% { left: 2%; opacity: 0.92; }
+  100% { left: calc(100% - 76px); opacity: 1; }
+}
+
+@keyframes fireballFlyRtl {
+  0% { right: 2%; opacity: 0.92; }
+  100% { right: calc(100% - 76px); opacity: 1; }
 }
 
 @keyframes flameFlicker {
@@ -1506,77 +1533,137 @@ body {
   transform: translateY(-50%);
   display: flex;
   align-items: center;
-  gap: 2px;
-  animation: dribbleDash 2.0s cubic-bezier(0.32, 0.72, 0.35, 1) forwards;
+  will-change: left;
+  animation: dribbleDashLtr 1.85s cubic-bezier(0.22, 0.72, 0.35, 1) forwards;
+}
+
+.dribble-runner.dir-rtl {
+  left: auto;
+  right: 2%;
+  flex-direction: row-reverse;
+  will-change: right;
+  animation: dribbleDashRtl 1.85s cubic-bezier(0.22, 0.72, 0.35, 1) forwards;
 }
 
 .dribble-trail {
-  width: 40px;
+  width: 38px;
   height: 16px;
-  margin-right: -10px;
+  margin-right: -8px;
   border-radius: 999px 0 0 999px;
-  background: linear-gradient(90deg, rgba(168, 85, 247, 0) 0%, rgba(192, 132, 252, 0.75) 60%, #e9d5ff 100%);
+  background: linear-gradient(90deg, rgba(168, 85, 247, 0) 0%, rgba(192, 132, 252, 0.78) 60%, #e9d5ff 100%);
   filter: blur(1.5px);
-  animation: flameFlicker 0.16s infinite alternate;
+}
+
+.dribble-runner.dir-rtl .dribble-trail {
+  margin-right: 0;
+  margin-left: -8px;
+  border-radius: 0 999px 999px 0;
+  background: linear-gradient(270deg, rgba(168, 85, 247, 0) 0%, rgba(192, 132, 252, 0.78) 60%, #e9d5ff 100%);
 }
 
 .boot-dash-icon {
   display: flex;
   align-items: center;
-  filter: drop-shadow(0 0 10px rgba(192, 132, 252, 0.9));
-  animation: bootStride 0.24s ease-in-out infinite alternate;
+  filter: drop-shadow(0 0 8px rgba(192, 132, 252, 0.85));
+}
+
+.dribble-runner.dir-rtl .boot-dash-icon svg {
+  transform: scaleX(-1);
+}
+
+.dribble-leg-a {
+  transform-box: fill-box;
+  transform-origin: 50% 0%;
+  animation: legStrideA 0.28s ease-in-out infinite alternate;
+}
+
+.dribble-leg-b {
+  transform-box: fill-box;
+  transform-origin: 50% 0%;
+  animation: legStrideB 0.28s ease-in-out infinite alternate;
+}
+
+.dribble-ball-spin {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: spinBall 0.45s linear infinite;
 }
 
 .steal-runner {
   position: absolute;
-  right: 2%;
+  left: 2%;
   top: 52%;
   transform: translateY(-50%);
   display: flex;
   align-items: center;
+  will-change: left;
+  animation: tackleSlideLtr 1.85s cubic-bezier(0.14, 0.88, 0.32, 1) forwards;
+}
+
+.steal-runner.dir-rtl {
+  left: auto;
+  right: 2%;
   flex-direction: row-reverse;
-  gap: 2px;
-  animation: stealCut 2.0s cubic-bezier(0.22, 0.85, 0.35, 1) forwards;
+  will-change: right;
+  animation: tackleSlideRtl 1.85s cubic-bezier(0.14, 0.88, 0.32, 1) forwards;
 }
 
 .steal-trail {
   width: 44px;
-  height: 14px;
-  margin-left: -12px;
-  border-radius: 0 999px 999px 0;
-  background: linear-gradient(270deg, rgba(56, 189, 248, 0) 0%, rgba(56, 189, 248, 0.85) 55%, #bae6fd 100%);
+  height: 12px;
+  margin-right: -10px;
+  border-radius: 999px 0 0 999px;
+  background: linear-gradient(90deg, rgba(56, 189, 248, 0) 0%, rgba(56, 189, 248, 0.85) 60%, #bae6fd 100%);
   filter: blur(1.5px);
-  animation: flameFlicker 0.14s infinite alternate;
+}
+
+.steal-runner.dir-rtl .steal-trail {
+  margin-right: 0;
+  margin-left: -10px;
+  border-radius: 0 999px 999px 0;
+  background: linear-gradient(270deg, rgba(56, 189, 248, 0) 0%, rgba(56, 189, 248, 0.85) 60%, #bae6fd 100%);
 }
 
 .tackle-slide-icon {
   display: flex;
   align-items: center;
-  filter: drop-shadow(0 0 10px rgba(56, 189, 248, 0.95));
-  animation: slideTackleShake 0.2s ease-in-out infinite alternate;
+  filter: drop-shadow(0 0 10px rgba(56, 189, 248, 0.92));
 }
 
-@keyframes bootStride {
-  0% { transform: translateY(2px) rotate(-8deg); }
-  100% { transform: translateY(-4px) rotate(10deg); }
+.steal-runner.dir-ltr .tackle-slide-icon svg {
+  transform: scaleX(-1);
 }
 
-@keyframes slideTackleShake {
-  0% { transform: translateY(2px) rotate(-3deg); }
-  100% { transform: translateY(0px) rotate(2deg); }
+@keyframes legStrideA {
+  0% { transform: rotate(-22deg); }
+  100% { transform: rotate(24deg); }
 }
 
-@keyframes dribbleDash {
+@keyframes legStrideB {
+  0% { transform: rotate(22deg); }
+  100% { transform: rotate(-24deg); }
+}
+
+@keyframes dribbleDashLtr {
   0% { left: 2%; }
-  35% { left: 32%; }
-  65% { left: 58%; }
-  100% { left: calc(100% - 82px); }
+  100% { left: calc(100% - 86px); }
 }
 
-@keyframes stealCut {
+@keyframes dribbleDashRtl {
   0% { right: 2%; }
-  60% { right: calc(54% - 28px); }
   100% { right: calc(100% - 86px); }
+}
+
+@keyframes tackleSlideLtr {
+  0% { left: 2%; }
+  75% { left: calc(68% - 42px); }
+  100% { left: calc(100% - 90px); }
+}
+
+@keyframes tackleSlideRtl {
+  0% { right: 2%; }
+  75% { right: calc(68% - 42px); }
+  100% { right: calc(100% - 90px); }
 }
 
 @keyframes clashPop {
