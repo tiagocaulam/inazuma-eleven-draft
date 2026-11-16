@@ -211,7 +211,8 @@
       pitchRafId: null,
       clashTimer1: null,
       clashTimer2: null,
-      pendingClashFinish: null
+      pendingClashFinish: null,
+      showRunSummary: false
     }
   };
 
@@ -1031,7 +1032,8 @@
       pitchRafId: null,
       clashTimer1: null,
       clashTimer2: null,
-      pendingClashFinish: null
+      pendingClashFinish: null,
+      showRunSummary: false
     };
 
     runLiveMatchSimulation(0);
@@ -1448,6 +1450,7 @@
         oppTicks: 1,
         userPassesOk: 0,
         userPassesTry: 0,
+        userGkReleases: 0,
         userDribblesOk: 0,
         userDribblesTry: 0,
         userSteals: 0,
@@ -1474,6 +1477,7 @@
               assists: 0,
               passesOk: 0,
               passesTry: 0,
+              gkReleases: 0,
               dribblesOk: 0,
               dribblesTry: 0,
               steals: 0,
@@ -2359,26 +2363,35 @@
           ? true
           : Math.random() < logisticWinProb(passScore, defScore, sectorShift, 0.56, 0.93);
 
+        const isGkOutlet = carrier.role === "GK";
         spendStamina(carrier, isSafeProtectedPass ? 2 : 6);
         if (!isSafeProtectedPass) spendStamina(interceptor, 4);
         if (attIsUser) {
-          pitch.stats.userPassesTry++;
-          recordUserPlayerStat(pitch, carrier, "passesTry", 1);
+          if (isGkOutlet) {
+            pitch.stats.userGkReleases = (pitch.stats.userGkReleases || 0) + 1;
+            recordUserPlayerStat(pitch, carrier, "gkReleases", 1);
+          } else {
+            pitch.stats.userPassesTry++;
+            recordUserPlayerStat(pitch, carrier, "passesTry", 1);
+          }
         }
 
         const startX = carrier.x;
         const startY = carrier.y;
 
         if (passSuccess) {
-          if (attIsUser) {
+          if (attIsUser && !isGkOutlet) {
             pitch.stats.userPassesOk++;
             recordUserPlayerStat(pitch, carrier, "passesOk", 1);
           }
-          pitch.lastAssistCandidate = {
-            passerUid: carrier.uid,
-            receiverUid: receiver.uid,
-            side: carrier.side
-          };
+          // Reposição do goleiro após defesa recomeça o ataque, não conta como passe de campo nem assistência
+          pitch.lastAssistCandidate = isGkOutlet
+            ? null
+            : {
+                passerUid: carrier.uid,
+                receiverUid: receiver.uid,
+                side: carrier.side
+              };
           pitch.carrierUid = receiver.uid;
           pitch.challengerUid = null;
           pitch.holdBallPos = null;
@@ -2796,6 +2809,7 @@
   function runLiveMatchSimulation(stageIdx) {
     clearTournamentTimers(false);
     state.tournament.stageIndex = stageIdx;
+    state.tournament.showRunSummary = false;
 
     const st = state.tournament.stages[stageIdx];
     st.minute = 0;
@@ -3057,6 +3071,10 @@
     renderDraftWheelAndRoster(false);
   }
 
+  function pluralPt(n, singular, pluralWord) {
+    return `${n} ${n === 1 ? singular : pluralWord}`;
+  }
+
   function computeTournamentRunSummary(t = state.tournament) {
     if (!t || !Array.isArray(t.stages)) return null;
     const finishedStages = t.stages.filter((s, idx) => idx <= t.stageIndex && s.finished);
@@ -3085,6 +3103,7 @@
         assists: 0,
         passesOk: 0,
         passesTry: 0,
+        gkReleases: 0,
         dribblesOk: 0,
         dribblesTry: 0,
         steals: 0,
@@ -3098,6 +3117,7 @@
     let goalsAgainst = 0;
     let passesOk = 0;
     let passesTry = 0;
+    let gkReleases = 0;
     let dribblesOk = 0;
     let dribblesTry = 0;
     let steals = 0;
@@ -3109,12 +3129,14 @@
     let totalTicksSum = 0;
     let wins = 0;
     let losses = 0;
+    let cleanSheets = 0;
 
     const matchResults = [];
 
     finishedStages.forEach((s) => {
       goalsFor += s.userScore || 0;
       goalsAgainst += s.oppScore || 0;
+      if ((s.oppScore || 0) === 0) cleanSheets++;
       if (s.won) wins++;
       else losses++;
 
@@ -3122,6 +3144,7 @@
       if (ps) {
         passesOk += ps.userPassesOk || 0;
         passesTry += ps.userPassesTry || 0;
+        gkReleases += ps.userGkReleases || 0;
         dribblesOk += ps.userDribblesOk || 0;
         dribblesTry += ps.userDribblesTry || 0;
         steals += ps.userSteals || 0;
@@ -3143,6 +3166,7 @@
               target.assists += mp.assists || 0;
               target.passesOk += mp.passesOk || 0;
               target.passesTry += mp.passesTry || 0;
+              target.gkReleases += mp.gkReleases || 0;
               target.dribblesOk += mp.dribblesOk || 0;
               target.dribblesTry += mp.dribblesTry || 0;
               target.steals += mp.steals || 0;
@@ -3165,15 +3189,23 @@
       });
     });
 
+    // Formato de MVP equilibrado: foco em impacto decisivo (Gols, Assistências, Roubos/Bloqueios, Dribles e Defesas com Clean Sheet; Passe com peso baixo de desempate)
     const playersList = Object.values(playerTotals).map((p) => {
-      const mvpScore = +(
-        p.goals * 4.0 +
-        p.assists * 3.0 +
-        p.saves * 2.2 +
-        p.steals * 1.8 +
-        p.dribblesOk * 1.4 +
-        p.passesOk * 0.45
-      ).toFixed(1);
+      const cleanTackles = Math.max(0, (p.steals || 0) - (p.blocks || 0));
+      const outfieldPassPts = (p.passesOk || 0) * 0.12;
+      const gkPts =
+        p.role === "GK"
+          ? (p.saves || 0) * 1.4 + cleanSheets * 4.0 - goalsAgainst * 0.35
+          : (p.saves || 0) * 1.4;
+      const rawScore =
+        (p.goals || 0) * 6.0 +
+        (p.assists || 0) * 4.5 +
+        (p.blocks || 0) * 3.0 +
+        cleanTackles * 1.7 +
+        (p.dribblesOk || 0) * 1.3 +
+        outfieldPassPts +
+        gkPts;
+      const mvpScore = +Math.max(0, rawScore).toFixed(1);
       const passAcc = p.passesTry > 0 ? Math.round((p.passesOk / p.passesTry) * 100) : 0;
       const dribbleAcc = p.dribblesTry > 0 ? Math.round((p.dribblesOk / p.dribblesTry) * 100) : 0;
       return { ...p, mvpScore, passAcc, dribbleAcc };
@@ -3184,24 +3216,27 @@
       return list.slice().sort(sortFn)[0];
     };
 
+    const outfieldPool = playersList.filter((p) => p.role !== "GK");
+    const passerPool = outfieldPool.length ? outfieldPool : playersList;
+
     const topScorer = pickLeader(
       playersList,
       (a, b) => b.goals - a.goals || b.assists - a.assists || b.shots - a.shots || b.ovr - a.ovr
     );
     const topAssister = pickLeader(
-      playersList,
+      passerPool,
       (a, b) => b.assists - a.assists || b.passesOk - a.passesOk || b.goals - a.goals || b.ovr - a.ovr
     );
     const topPasser = pickLeader(
-      playersList,
+      passerPool,
       (a, b) => b.passesOk - a.passesOk || b.passAcc - a.passAcc || b.ovr - a.ovr
     );
     const topDribbler = pickLeader(
-      playersList,
+      passerPool,
       (a, b) => b.dribblesOk - a.dribblesOk || b.dribblesTry - a.dribblesTry || b.ovr - a.ovr
     );
     const topStealer = pickLeader(
-      playersList,
+      passerPool,
       (a, b) => b.steals - a.steals || b.blocks - a.blocks || b.ovr - a.ovr
     );
     const keepersPool = playersList.filter((p) => p.role === "GK" || p.saves > 0);
@@ -3216,7 +3251,7 @@
 
     const rosterSorted = playersList
       .slice()
-      .sort((a, b) => b.mvpScore - a.mvpScore || b.goals - a.goals || b.passesOk - a.passesOk);
+      .sort((a, b) => b.mvpScore - a.mvpScore || b.goals - a.goals || b.assists - a.assists || b.passesOk - a.passesOk);
 
     return {
       isChampion,
@@ -3225,11 +3260,13 @@
       matchesPlayed: finishedStages.length,
       wins,
       losses,
+      cleanSheets,
       goalsFor,
       goalsAgainst,
       goalDiff: goalsFor - goalsAgainst,
       passesOk,
       passesTry,
+      gkReleases,
       passAccuracyPct: passesTry > 0 ? Math.round((passesOk / passesTry) * 100) : 0,
       dribblesOk,
       dribblesTry,
@@ -3256,13 +3293,12 @@
   function buildRunSummaryCardHTML(summary, stats, t) {
     if (!summary) return "";
     const rank = stats.power >= 1650 ? "S+" : stats.power >= 1450 ? "S" : stats.power >= 1250 ? "A" : "B";
-    const gamesWord = summary.matchesPlayed === 1 ? "jogo" : "jogos";
     const statusTitle = summary.isChampion
-      ? "🏆 CAMPEÃO DO FUTEBOL FRONTEIRA!!"
-      : `💔 FIM DA RUN — ${summary.stageName.toUpperCase()}`;
+      ? "🏆 CAMPEÃO DO FUTEBOL FRONTEIRA"
+      : `FIM DA CAMPANHA — ${summary.stageName.toUpperCase()}`;
     const statusSub = summary.isChampion
-      ? `${summary.wins} vitória(s) em ${summary.matchesPlayed} ${gamesWord} • Poder ${stats.power.toLocaleString("pt-BR")} PTS (Rank ${rank})`
-      : `${summary.wins}V / ${summary.losses}D em ${summary.matchesPlayed} ${gamesWord} • Parou diante de ${summary.eliminatedBy || "Adversário"} • Poder ${stats.power.toLocaleString("pt-BR")} (Rank ${rank})`;
+      ? `${pluralPt(summary.wins, "vitória", "vitórias")} em ${pluralPt(summary.matchesPlayed, "jogo", "jogos")} · Poder ${stats.power.toLocaleString("pt-BR")} (Rank ${rank}) · OVR ${stats.ovr}`
+      : `Eliminado por ${summary.eliminatedBy || "Adversário"} · ${summary.wins}V/${summary.losses}D em ${pluralPt(summary.matchesPlayed, "jogo", "jogos")} · Poder ${stats.power.toLocaleString("pt-BR")} (Rank ${rank})`;
 
     const renderAwardCard = (cls, tag, player, statMain, statSub) => {
       if (!player) return "";
@@ -3271,7 +3307,7 @@
           <img class="run-award-avatar" src="${player.sprite || ""}" alt="${player.name}" />
           <div class="run-award-info">
             <div class="run-award-tag">${tag}</div>
-            <div class="run-award-player">${player.name} <span style="color:#93c5fd; font-size:0.7rem;">(${player.role})</span></div>
+            <div class="run-award-player">${player.name} <span class="run-award-role">· ${player.role}</span></div>
             <div class="run-award-stat">${statMain}</div>
             <div class="run-award-sub">${statSub}</div>
           </div>
@@ -3283,14 +3319,16 @@
     const goalDiffStr = summary.goalDiff >= 0 ? `+${summary.goalDiff}` : `${summary.goalDiff}`;
     const actionButtons = summary.isChampion
       ? `
-        <button class="ie-cmd-btn export-png-btn" id="btn-export-run-png"><span>📸 Exportar Imagem (PNG)</span></button>
-        <button class="ie-cmd-btn ie-cmd-green" id="btn-play-again-draft"><span>🔄 Novo Jogo</span></button>
-        <button class="ie-cmd-btn ie-cmd-gold" id="btn-rematch-cup"><span>Jogar Outro Torneio</span></button>
+        <button class="ie-cmd-btn export-png-btn" id="btn-export-run-png"><span>Exportar Imagem (PNG)</span></button>
+        <button class="ie-cmd-btn" id="btn-back-to-match-log"><span>Ver Campo / Narração</span></button>
+        <button class="ie-cmd-btn ie-cmd-green" id="btn-play-again-draft"><span>Novo Jogo</span></button>
+        <button class="ie-cmd-btn ie-cmd-gold" id="btn-rematch-cup"><span>Outro Torneio</span></button>
       `
       : `
-        <button class="ie-cmd-btn export-png-btn" id="btn-export-run-png"><span>📸 Exportar Imagem (PNG)</span></button>
-        <button class="ie-cmd-btn ie-cmd-gold" id="btn-retry-stage"><span>🔥 Revanche</span></button>
-        <button class="ie-cmd-btn ie-cmd-green" id="btn-new-draft-after-loss"><span>🔄 Novo Jogo</span></button>
+        <button class="ie-cmd-btn export-png-btn" id="btn-export-run-png"><span>Exportar Imagem (PNG)</span></button>
+        <button class="ie-cmd-btn" id="btn-back-to-match-log"><span>Ver Campo / Narração</span></button>
+        <button class="ie-cmd-btn ie-cmd-gold" id="btn-retry-stage"><span>Revanche</span></button>
+        <button class="ie-cmd-btn ie-cmd-green" id="btn-new-draft-after-loss"><span>Novo Jogo</span></button>
       `;
 
     return `
@@ -3300,8 +3338,8 @@
             <h3 style="font-size:1.15rem; font-weight:900; color:${summary.isChampion ? "#facc15" : "#fca5a5"};">
               ${statusTitle}
             </h3>
-            <div style="font-size:0.78rem; color:#cbd5e1; margin-top:2px;">
-              ${statusSub} • OVR ${stats.ovr} • Química ${stats.chem}%
+            <div style="font-size:0.78rem; color:#cbd5e1; margin-top:3px;">
+              ${statusSub} · Química ${stats.chem}%
             </div>
           </div>
           <div class="run-summary-actions">
@@ -3312,39 +3350,39 @@
 
         <div class="run-team-totals-grid">
           <div class="run-total-box">
-            <small>⚽ Gols Feitos</small>
+            <small>Gols Feitos</small>
             <strong style="color:#4ade80;">${summary.goalsFor}</strong>
-            <span>Saldo ${goalDiffStr} (${summary.shots} chutes)</span>
+            <span>Saldo ${goalDiffStr} · ${pluralPt(summary.shots, "chute", "chutes")}</span>
           </div>
           <div class="run-total-box">
-            <small>🥅 Gols Levados</small>
+            <small>Gols Sofridos</small>
             <strong style="color:#f87171;">${summary.goalsAgainst}</strong>
-            <span>${summary.oppShots} chutes sofridos</span>
+            <span>${pluralPt(summary.oppShots, "chute contra", "chutes contra")}</span>
           </div>
           <div class="run-total-box">
-            <small>👟 Passes Corretos</small>
+            <small>Passes Certos</small>
             <strong style="color:#86efac;">${summary.passesOk}</strong>
-            <span>de ${summary.passesTry} (${summary.passAccuracyPct}%)</span>
+            <span>${summary.passesOk}/${summary.passesTry} · ${summary.passAccuracyPct}%</span>
           </div>
           <div class="run-total-box">
-            <small>🧤 Defesas (GOL)</small>
+            <small>Defesas (GOL)</small>
             <strong style="color:#facc15;">${summary.saves}</strong>
-            <span>${summary.topKeeper ? summary.topKeeper.name : "Goleiro"}</span>
+            <span>${summary.topKeeper ? summary.topKeeper.name : "Goleiro"} · ${pluralPt(summary.gkReleases, "reposição", "reposições")}</span>
           </div>
           <div class="run-total-box">
-            <small>⚡ Dribles Certos</small>
+            <small>Dribles Certos</small>
             <strong style="color:#c084fc;">${summary.dribblesOk}</strong>
-            <span>de ${summary.dribblesTry} (${summary.dribbleAccuracyPct}%)</span>
+            <span>${summary.dribblesOk}/${summary.dribblesTry} · ${summary.dribbleAccuracyPct}%</span>
           </div>
           <div class="run-total-box">
-            <small>🛡️ Roubos de Bola</small>
+            <small>Roubos de Bola</small>
             <strong style="color:#38bdf8;">${summary.steals}</strong>
-            <span>Inclui ${summary.blocks} bloqueio(s)</span>
+            <span>${pluralPt(summary.blocks, "bloqueio", "bloqueios")} na área</span>
           </div>
           <div class="run-total-box">
-            <small>📊 Posse Média</small>
+            <small>Posse Média</small>
             <strong style="color:#fed7aa;">${summary.avgPossessionPct}%</strong>
-            <span>${summary.matchesPlayed} partida(s)</span>
+            <span>${pluralPt(summary.matchesPlayed, "partida", "partidas")}</span>
           </div>
         </div>
 
@@ -3355,22 +3393,22 @@
             <div class="run-mvp-left">
               <img class="run-mvp-avatar" src="${mvp.sprite || ""}" alt="${mvp.name}" />
               <div>
-                <div style="font-size:0.66rem; font-weight:900; color:#facc15; text-transform:uppercase; letter-spacing:0.5px;">
-                  🌟 Craque / MVP da Campanha
+                <div style="font-size:0.65rem; font-weight:900; color:#facc15; text-transform:uppercase; letter-spacing:0.6px;">
+                  Craque da Campanha · MVP
                 </div>
-                <div style="font-size:1rem; font-weight:900; color:#fff;">
-                  ${mvp.name} <span style="font-size:0.75rem; color:#fde047;">(${mvp.role} • OVR ${mvp.ovr})</span>
+                <div style="font-size:1.02rem; font-weight:900; color:#fff;">
+                  ${mvp.name} <span style="font-size:0.76rem; color:#fde047;">· ${mvp.role} · OVR ${mvp.ovr}</span>
                 </div>
-                <div style="font-size:0.7rem; color:#e2e8f0;">${mvp.teamName || "Dream Team"} • Nota ${mvp.mvpScore}</div>
+                <div style="font-size:0.72rem; color:#cbd5e1;">${mvp.teamName || "Dream Team"} · Nota MVP ${mvp.mvpScore}</div>
               </div>
             </div>
             <div class="run-mvp-pills">
-              <span class="run-mvp-pill">⚽ ${mvp.goals}G</span>
-              <span class="run-mvp-pill">🎯 ${mvp.assists}A</span>
-              <span class="run-mvp-pill">👟 ${mvp.passesOk} PAS</span>
-              <span class="run-mvp-pill">⚡ ${mvp.dribblesOk} DRI</span>
-              <span class="run-mvp-pill">🛡️ ${mvp.steals} ROU</span>
-              ${mvp.saves > 0 ? `<span class="run-mvp-pill">🧤 ${mvp.saves} DEF</span>` : ""}
+              <span class="run-mvp-pill">${pluralPt(mvp.goals, "Gol", "Gols")}</span>
+              <span class="run-mvp-pill">${pluralPt(mvp.assists, "Assist.", "Assist.")}</span>
+              <span class="run-mvp-pill">${pluralPt(mvp.dribblesOk, "Drible", "Dribles")}</span>
+              <span class="run-mvp-pill">${pluralPt(mvp.steals, "Roubo", "Roubos")}</span>
+              <span class="run-mvp-pill">${pluralPt(mvp.passesOk, "Passe", "Passes")}</span>
+              ${mvp.saves > 0 ? `<span class="run-mvp-pill">${pluralPt(mvp.saves, "Defesa", "Defesas")}</span>` : ""}
             </div>
           </div>
         `
@@ -3380,46 +3418,65 @@
         <div class="run-awards-grid">
           ${renderAwardCard(
             "award-goals",
-            "⚽ Artilheiro do Time",
+            "ARTILHEIRO",
             summary.topScorer,
-            `${summary.topScorer?.goals || 0} gol(s)`,
-            `${summary.topScorer?.shots || 0} chutes • ${summary.topScorer?.assists || 0} assist.`
+            pluralPt(summary.topScorer?.goals || 0, "gol", "gols"),
+            `${pluralPt(summary.topScorer?.shots || 0, "chute", "chutes")} · ${pluralPt(summary.topScorer?.assists || 0, "assist.", "assist.")}`
           )}
           ${renderAwardCard(
             "award-assists",
-            "🎯 Mais Assistências",
+            "ASSISTÊNCIAS",
             summary.topAssister,
-            `${summary.topAssister?.assists || 0} assistência(s)`,
-            `${summary.topAssister?.passesOk || 0} passes • ${summary.topAssister?.goals || 0} gol(s)`
+            pluralPt(summary.topAssister?.assists || 0, "assistência", "assistências"),
+            `${pluralPt(summary.topAssister?.passesOk || 0, "passe", "passes")} · ${pluralPt(summary.topAssister?.goals || 0, "gol", "gols")}`
           )}
           ${renderAwardCard(
             "award-passes",
-            "👟 Mais Passes Corretos",
+            "PASSADOR",
             summary.topPasser,
-            `${summary.topPasser?.passesOk || 0} passe(s) certo(s)`,
-            `de ${summary.topPasser?.passesTry || 0} tent. (${summary.topPasser?.passAcc || 0}%)`
+            pluralPt(summary.topPasser?.passesOk || 0, "passe certo", "passes certos"),
+            `${summary.topPasser?.passesTry || 0} tentados · ${summary.topPasser?.passAcc || 0}%`
           )}
           ${renderAwardCard(
             "award-dribbles",
-            "⚡ Mais Dribles",
+            "DRIBLADOR",
             summary.topDribbler,
-            `${summary.topDribbler?.dribblesOk || 0} drible(s) certo(s)`,
-            `de ${summary.topDribbler?.dribblesTry || 0} tent. (${summary.topDribbler?.dribbleAcc || 0}%)`
+            pluralPt(summary.topDribbler?.dribblesOk || 0, "drible", "dribles"),
+            `${summary.topDribbler?.dribblesTry || 0} tentados · ${summary.topDribbler?.dribbleAcc || 0}%`
           )}
           ${renderAwardCard(
             "award-steals",
-            "🛡️ Mais Roubos de Bola",
+            "LADRÃO DE BOLAS",
             summary.topStealer,
-            `${summary.topStealer?.steals || 0} roubo(s)`,
-            `Inclui ${summary.topStealer?.blocks || 0} bloqueio(s) defensivo(s)`
+            pluralPt(summary.topStealer?.steals || 0, "roubo", "roubos"),
+            `${pluralPt(summary.topStealer?.blocks || 0, "bloqueio", "bloqueios")} na área`
           )}
           ${renderAwardCard(
             "award-saves",
-            "🧤 Paredão • Goleiro",
+            "GOLEIRO",
             summary.topKeeper,
-            `${summary.topKeeper?.saves || 0} defesa(s)`,
-            `${summary.goalsAgainst} gol(s) sofrido(s) em ${summary.matchesPlayed} jogo(s)`
+            pluralPt(summary.topKeeper?.saves || 0, "defesa", "defesas"),
+            `${pluralPt(summary.goalsAgainst, "gol sofrido", "gols sofridos")} · ${pluralPt(summary.topKeeper?.gkReleases || 0, "reposição", "reposições")}`
           )}
+        </div>
+
+        <div class="run-matches-strip">
+          ${(summary.allStages || [])
+            .map((s, idx) => {
+              const played = idx <= t.stageIndex && s.finished;
+              const cls = played ? (s.won ? "match-win" : "match-loss") : "match-locked";
+              return `
+                <div class="run-match-chip ${cls}">
+                  ${played && s.oppTeam?.emblem ? `<img src="${s.oppTeam.emblem}" alt="" />` : ""}
+                  <div style="min-width:0;">
+                    <div class="run-match-stage">${s.stageName}</div>
+                    <div class="run-match-opp">${idx <= t.stageIndex ? s.oppTeam?.name || "Adversário" : "Não disputado"}</div>
+                    <div class="run-match-score">${played ? `${s.userScore} x ${s.oppScore} · ${s.won ? "Vitória" : "Derrota"}` : "—"}</div>
+                  </div>
+                </div>
+              `;
+            })
+            .join("")}
         </div>
 
         <div class="run-roster-wrap">
@@ -3449,7 +3506,7 @@
                   <td class="num" style="color:#93c5fd; font-weight:800;">${p.role}</td>
                   <td class="num" style="font-weight:900; color:${p.goals > 0 ? "#4ade80" : "#94a3b8"};">${p.goals}</td>
                   <td class="num" style="font-weight:900; color:${p.assists > 0 ? "#38bdf8" : "#94a3b8"};">${p.assists}</td>
-                  <td class="num">${p.passesOk}/${p.passesTry}</td>
+                  <td class="num">${p.role === "GK" ? `${p.gkReleases} rep.` : `${p.passesOk}/${p.passesTry}`}</td>
                   <td class="num">${p.dribblesOk}/${p.dribblesTry}</td>
                   <td class="num" style="color:${p.steals > 0 ? "#22d3ee" : "#94a3b8"}; font-weight:800;">${p.steals}</td>
                   <td class="num" style="color:${p.saves > 0 ? "#facc15" : "#94a3b8"}; font-weight:800;">${p.saves}</td>
@@ -3640,7 +3697,7 @@
     ctx.font = `700 19px ${fontFamily}`;
     drawClippedText(
       ctx,
-      `${summary.wins}V / ${summary.losses}D em ${summary.matchesPlayed} ${gamesWord} • OVR ${stats.ovr} • Química ${stats.chem}% • Laços +${stats.bondsPower}`,
+      `${summary.wins}V / ${summary.losses}D em ${pluralPt(summary.matchesPlayed, "jogo", "jogos")} · OVR ${stats.ovr} · Química ${stats.chem}% · Laços +${stats.bondsPower}`,
       170,
       122,
       748
@@ -3667,12 +3724,12 @@
     // TEAM TOTALS STRIP (y: 184..288)
     const totals = [
       { label: "GOLS FEITOS", val: String(summary.goalsFor), sub: `Saldo ${summary.goalDiff >= 0 ? "+" : ""}${summary.goalDiff}`, color: "#4ade80" },
-      { label: "GOLS LEVADOS", val: String(summary.goalsAgainst), sub: `${summary.oppShots} chutes adv.`, color: "#f87171" },
-      { label: "PASSES CERTOS", val: String(summary.passesOk), sub: `${summary.passesOk}/${summary.passesTry} (${summary.passAccuracyPct}%)`, color: "#86efac" },
-      { label: "DEFESAS GOL", val: String(summary.saves), sub: summary.topKeeper?.name || "Goleiro", color: "#facc15" },
-      { label: "DRIBLES CERTOS", val: String(summary.dribblesOk), sub: `${summary.dribblesOk}/${summary.dribblesTry} (${summary.dribbleAccuracyPct}%)`, color: "#c084fc" },
-      { label: "ROUBOS DE BOLA", val: String(summary.steals), sub: `${summary.blocks} bloqueio(s)`, color: "#38bdf8" },
-      { label: "POSSE / CHUTES", val: `${summary.avgPossessionPct}%`, sub: `${summary.shots} chutes totais`, color: "#fed7aa" }
+      { label: "GOLS SOFRIDOS", val: String(summary.goalsAgainst), sub: pluralPt(summary.oppShots, "chute contra", "chutes contra"), color: "#f87171" },
+      { label: "PASSES CERTOS", val: String(summary.passesOk), sub: `${summary.passesOk}/${summary.passesTry} · ${summary.passAccuracyPct}%`, color: "#86efac" },
+      { label: "DEFESAS GOL", val: String(summary.saves), sub: `${summary.topKeeper?.name || "Goleiro"} · ${summary.gkReleases} rep.`, color: "#facc15" },
+      { label: "DRIBLES CERTOS", val: String(summary.dribblesOk), sub: `${summary.dribblesOk}/${summary.dribblesTry} · ${summary.dribbleAccuracyPct}%`, color: "#c084fc" },
+      { label: "ROUBOS DE BOLA", val: String(summary.steals), sub: pluralPt(summary.blocks, "bloqueio", "bloqueios"), color: "#38bdf8" },
+      { label: "POSSE MÉDIA", val: `${summary.avgPossessionPct}%`, sub: pluralPt(summary.shots, "chute", "chutes"), color: "#fed7aa" }
     ];
     const boxGap = 10;
     const boxW = (W - 64 - boxGap * (totals.length - 1)) / totals.length;
@@ -3709,21 +3766,21 @@
       drawCircularAvatar(ctx, imgCache.get(m.sprite), 96, 356, 38, "#facc15", "#09183b");
       ctx.fillStyle = "#facc15";
       ctx.font = `900 15px ${fontFamily}`;
-      ctx.fillText("CRAQUE / MVP DA CAMPANHA", 150, 318);
+      ctx.fillText("CRAQUE DA CAMPANHA · MVP", 150, 318);
       ctx.fillStyle = "#ffffff";
       ctx.font = `900 28px ${fontFamily}`;
-      drawClippedText(ctx, `${m.name} (${m.role} • OVR ${m.ovr})`, 150, 342, 430);
+      drawClippedText(ctx, `${m.name} (${m.role} · OVR ${m.ovr})`, 150, 342, 430);
       ctx.fillStyle = "#cbd5e1";
       ctx.font = `700 16px ${fontFamily}`;
-      ctx.fillText(`${m.teamName || "Dream Team"} • Nota ${m.mvpScore}`, 150, 378);
+      ctx.fillText(`${m.teamName || "Dream Team"} · Nota MVP ${m.mvpScore}`, 150, 378);
 
       const pills = [
-        `${m.goals} Gols`,
-        `${m.assists} Assist`,
-        `${m.passesOk} Passes`,
-        `${m.dribblesOk} Dribles`,
-        `${m.steals} Roubos`,
-        `${m.saves} Defesas`
+        pluralPt(m.goals, "Gol", "Gols"),
+        pluralPt(m.assists, "Assist.", "Assist."),
+        pluralPt(m.dribblesOk, "Drible", "Dribles"),
+        pluralPt(m.steals, "Roubo", "Roubos"),
+        pluralPt(m.passesOk, "Passe", "Passes"),
+        pluralPt(m.saves, "Defesa", "Defesas")
       ];
       pills.forEach((txt, idx) => {
         const px = 605 + (idx % 3) * 182;
@@ -3744,46 +3801,46 @@
     // 6 INDIVIDUAL AWARD CARDS (y: 428..792) - 3 cols x 2 rows
     const awards = [
       {
-        title: "ARTILHEIRO DO TIME",
+        title: "ARTILHEIRO",
         accent: "#f97316",
         p: summary.topScorer,
-        main: `${summary.topScorer?.goals || 0} GOL(S)`,
-        sub: `${summary.topScorer?.shots || 0} chutes • ${summary.topScorer?.assists || 0} assist.`
+        main: pluralPt(summary.topScorer?.goals || 0, "GOL", "GOLS"),
+        sub: `${pluralPt(summary.topScorer?.shots || 0, "chute", "chutes")} · ${pluralPt(summary.topScorer?.assists || 0, "assist.", "assist.")}`
       },
       {
-        title: "MAIS ASSISTÊNCIAS",
+        title: "ASSISTÊNCIAS",
         accent: "#38bdf8",
         p: summary.topAssister,
-        main: `${summary.topAssister?.assists || 0} ASSISTÊNCIA(S)`,
-        sub: `${summary.topAssister?.passesOk || 0} passes • ${summary.topAssister?.goals || 0} gol(s)`
+        main: pluralPt(summary.topAssister?.assists || 0, "ASSISTÊNCIA", "ASSISTÊNCIAS"),
+        sub: `${pluralPt(summary.topAssister?.passesOk || 0, "passe", "passes")} · ${pluralPt(summary.topAssister?.goals || 0, "gol", "gols")}`
       },
       {
-        title: "MAIS PASSES CORRETOS",
+        title: "PASSADOR",
         accent: "#4ade80",
         p: summary.topPasser,
-        main: `${summary.topPasser?.passesOk || 0} PASSES CERTOS`,
-        sub: `${summary.topPasser?.passesOk || 0}/${summary.topPasser?.passesTry || 0} (${summary.topPasser?.passAcc || 0}% acerto)`
+        main: pluralPt(summary.topPasser?.passesOk || 0, "PASSE CERTO", "PASSES CERTOS"),
+        sub: `${summary.topPasser?.passesTry || 0} tentados · ${summary.topPasser?.passAcc || 0}%`
       },
       {
-        title: "MAIS DRIBLES",
+        title: "DRIBLADOR",
         accent: "#c084fc",
         p: summary.topDribbler,
-        main: `${summary.topDribbler?.dribblesOk || 0} DRIBLE(S)`,
-        sub: `${summary.topDribbler?.dribblesOk || 0}/${summary.topDribbler?.dribblesTry || 0} (${summary.topDribbler?.dribbleAcc || 0}% acerto)`
+        main: pluralPt(summary.topDribbler?.dribblesOk || 0, "DRIBLE", "DRIBLES"),
+        sub: `${summary.topDribbler?.dribblesTry || 0} tentados · ${summary.topDribbler?.dribbleAcc || 0}%`
       },
       {
-        title: "MAIS ROUBOS DE BOLA",
+        title: "LADRÃO DE BOLAS",
         accent: "#22d3ee",
         p: summary.topStealer,
-        main: `${summary.topStealer?.steals || 0} ROUBO(S)`,
-        sub: `Inclui ${summary.topStealer?.blocks || 0} bloqueio(s) defensivo(s)`
+        main: pluralPt(summary.topStealer?.steals || 0, "ROUBO", "ROUBOS"),
+        sub: `${pluralPt(summary.topStealer?.blocks || 0, "bloqueio", "bloqueios")} na área`
       },
       {
-        title: "PAREDÃO • GOLEIRO",
+        title: "GOLEIRO",
         accent: "#facc15",
         p: summary.topKeeper,
-        main: `${summary.topKeeper?.saves || 0} DEFESA(S)`,
-        sub: `${summary.goalsAgainst} gol(s) levado(s) em ${summary.matchesPlayed} jogo(s)`
+        main: pluralPt(summary.topKeeper?.saves || 0, "DEFESA", "DEFESAS"),
+        sub: `${pluralPt(summary.goalsAgainst, "gol sofrido", "gols sofridos")} · ${pluralPt(summary.topKeeper?.gkReleases || 0, "repos.", "repos.")}`
       }
     ];
 
@@ -3931,7 +3988,7 @@
       ctx.fillText(String(p.assists), 630, ry + 9);
       ctx.fillStyle = "#e2e8f0";
       ctx.font = `700 15px ${fontFamily}`;
-      ctx.fillText(`${p.passesOk}/${p.passesTry}`, 745, ry + 9);
+      ctx.fillText(p.role === "GK" ? `${p.gkReleases} rep.` : `${p.passesOk}/${p.passesTry}`, 745, ry + 9);
       ctx.fillText(`${p.dribblesOk}/${p.dribblesTry}`, 865, ry + 9);
       ctx.fillStyle = p.steals > 0 ? "#22d3ee" : "#64748b";
       ctx.font = `900 16px ${fontFamily}`;
@@ -4023,22 +4080,77 @@
 
     const pct = Math.min(100, Math.round((st.minute / st.maxMinute) * 100));
 
-    let footerActions = "";
-    let runSummaryObj = null;
+    const isRunEnded = st.finished && ((st.won && t.stageIndex === 3) || !st.won);
+
+    if (isRunEnded && t.showRunSummary) {
+      const runSummaryObj = computeTournamentRunSummary(t);
+      container.innerHTML = `
+        <div class="bracket-row">${bracketHTML}</div>
+        ${buildRunSummaryCardHTML(runSummaryObj, stats, t)}
+      `;
+
+      const backLogBtn = document.getElementById("btn-back-to-match-log");
+      if (backLogBtn) {
+        backLogBtn.addEventListener("click", () => {
+          state.tournament.showRunSummary = false;
+          renderTournamentScreen();
+        });
+      }
+
+      const retryBtn = document.getElementById("btn-retry-stage");
+      if (retryBtn) {
+        retryBtn.addEventListener("click", () => runLiveMatchSimulation(t.stageIndex));
+      }
+
+      const newDraftLoss = document.getElementById("btn-new-draft-after-loss");
+      if (newDraftLoss) {
+        newDraftLoss.addEventListener("click", () => goToMenu());
+      }
+
+      const playAgainWin = document.getElementById("btn-play-again-draft");
+      if (playAgainWin) {
+        playAgainWin.addEventListener("click", () => goToMenu());
+      }
+
+      const rematchCup = document.getElementById("btn-rematch-cup");
+      if (rematchCup) {
+        rematchCup.addEventListener("click", () => startTournamentGo());
+      }
+
+      const exportPngBtn = document.getElementById("btn-export-run-png");
+      if (exportPngBtn && runSummaryObj) {
+        exportPngBtn.addEventListener("click", () => {
+          exportRunSummaryImage(runSummaryObj, stats, t);
+        });
+      }
+      return;
+    }
+
+    let postMatchBarHTML = "";
     if (st.finished) {
-      if ((st.won && t.stageIndex === 3) || !st.won) {
-        runSummaryObj = computeTournamentRunSummary(t);
-        footerActions = buildRunSummaryCardHTML(runSummaryObj, stats, t);
+      if (isRunEnded) {
+        const isChamp = st.won && t.stageIndex === 3;
+        postMatchBarHTML = `
+          <div class="match-finish-bar ${isChamp ? "is-win" : "is-loss"}">
+            <div>
+              <strong>${isChamp ? "🏆 Campeão do Futebol Fronteira!" : `Fim de jogo · ${st.oppTeam.name} venceu`}</strong>
+              <span>Clique para abrir o resumo completo da campanha, MVP e exportar imagem.</span>
+            </div>
+            <button class="ie-cmd-btn ${isChamp ? "ie-cmd-gold" : "ie-cmd-green"}" id="btn-view-run-results">
+              <span>Ver Resultado &amp; Estatísticas →</span>
+            </button>
+          </div>
+        `;
       } else {
         const nextStage = t.stages[t.stageIndex + 1];
-        footerActions = `
-          <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(34,197,94,0.14); border:1.5px solid #22c55e; padding:12px 16px; border-radius:12px; flex-wrap:wrap; gap:10px;">
+        postMatchBarHTML = `
+          <div class="match-finish-bar is-win">
             <div>
-              <strong style="color:#4ade80; font-size:0.92rem;">✅ Classificado para a ${nextStage.stageName}!</strong>
-              <div style="font-size:0.76rem; color:#cbd5e1;">Toque ao lado para revelar o adversário da ${nextStage.stageName}!</div>
+              <strong>Classificado para a ${nextStage.stageName}!</strong>
+              <span>Avance para enfrentar o próximo adversário do torneio.</span>
             </div>
-            <button class="ie-cmd-btn ie-cmd-green" id="btn-next-round" style="padding:10px 18px;">
-              <span>⏩ Ir para ${nextStage.stageName} →</span>
+            <button class="ie-cmd-btn ie-cmd-green" id="btn-next-round">
+              <span>Ir para ${nextStage.stageName} →</span>
             </button>
           </div>
         `;
@@ -4097,6 +4209,8 @@
             <div style="font-size:0.7rem; color:#facc15; font-weight:800;">Poder ${oppStats.power.toLocaleString("pt-BR")} • OVR ${oppStats.ovr} • Quím ${oppStats.chem}%</div>
           </div>
         </div>
+
+        ${postMatchBarHTML}
 
         ${
           st.penaltiesText
@@ -4182,8 +4296,6 @@
             </div>
           </div>
         </div>
-
-        ${footerActions}
       </div>
     `;
 
@@ -4201,39 +4313,18 @@
       });
     }
 
+    const viewResultsBtn = document.getElementById("btn-view-run-results");
+    if (viewResultsBtn) {
+      viewResultsBtn.addEventListener("click", () => {
+        state.tournament.showRunSummary = true;
+        renderTournamentScreen();
+      });
+    }
+
     const nextRoundBtn = document.getElementById("btn-next-round");
     if (nextRoundBtn) {
       nextRoundBtn.addEventListener("click", () => {
         runLiveMatchSimulation(t.stageIndex + 1);
-      });
-    }
-
-    const retryBtn = document.getElementById("btn-retry-stage");
-    if (retryBtn) {
-      retryBtn.addEventListener("click", () => {
-        runLiveMatchSimulation(t.stageIndex);
-      });
-    }
-
-    const newDraftLoss = document.getElementById("btn-new-draft-after-loss");
-    if (newDraftLoss) {
-      newDraftLoss.addEventListener("click", () => goToMenu());
-    }
-
-    const playAgainWin = document.getElementById("btn-play-again-draft");
-    if (playAgainWin) {
-      playAgainWin.addEventListener("click", () => goToMenu());
-    }
-
-    const rematchCup = document.getElementById("btn-rematch-cup");
-    if (rematchCup) {
-      rematchCup.addEventListener("click", () => startTournamentGo());
-    }
-
-    const exportPngBtn = document.getElementById("btn-export-run-png");
-    if (exportPngBtn && runSummaryObj) {
-      exportPngBtn.addEventListener("click", () => {
-        exportRunSummaryImage(runSummaryObj, stats, t);
       });
     }
   }
