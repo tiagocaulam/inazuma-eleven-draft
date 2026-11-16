@@ -1391,7 +1391,7 @@ body {
   transform: translateY(-50%);
   display: flex;
   align-items: center;
-  animation: fireballFly 1.35s cubic-bezier(0.28, 0.84, 0.42, 1) forwards;
+  animation: fireballFly 2.45s cubic-bezier(0.28, 0.84, 0.42, 1) forwards;
 }
 
 .fireball-trail {

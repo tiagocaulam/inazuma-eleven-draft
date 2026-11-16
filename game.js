@@ -1080,8 +1080,8 @@
 
       state.tournament.clashTimer2 = setTimeout(() => {
         finishClash(false);
-      }, 950);
-    }, 1350);
+      }, 1350);
+    }, 2450);
   }
 
   function startMatchInterval() {
