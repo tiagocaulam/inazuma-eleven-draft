@@ -1736,11 +1736,11 @@
   function chooseTacticalAction(carrier, attNodes, defNodes, attIsUser, pitch) {
     if (pitch.justKickedOff) {
       pitch.justKickedOff = false;
-      return { action: "PASS", strictForward: false };
+      return { action: "PASS", strictForward: false, safeRestart: true };
     }
 
     const effRole = getEffectiveCarrierRole(carrier);
-    if (effRole === "GK") return { action: "PASS", strictForward: true };
+    if (effRole === "GK") return { action: "PASS", strictForward: true, safeRestart: true };
 
     const oppGoalX = attIsUser ? 96 : 4;
     const goalDist = Math.hypot(carrier.x - oppGoalX, carrier.y - 50);
@@ -2201,11 +2201,13 @@
       const action = decision.action;
       const strictForward = decision.strictForward;
 
+      const isSafeProtectedPass = Boolean(decision.safeRestart || carrier.role === "GK");
+
       const canHissatsuFieldDuel = state.simSpeed === 1 && st.minute - pitch.lastClashMinute >= 2;
       const passFlightMs = state.simSpeed === 4 ? 70 : state.simSpeed === 2 ? 155 : 350;
 
       // ----------------------------------------------------------------------
-      // AÇÃO 1: PASSE INDIVIDUAL (SEMPRE PARA COLEGA ABERTO OU INTERCEPTADO POR CARRINHO)
+      // AÇÃO 1: PASSE INDIVIDUAL (GOLEIRO E SAÍDA DE BOLA SÃO 100% PROTEGIDOS CONTRA ROUBO!)
       // ----------------------------------------------------------------------
       if (action === "PASS") {
         const receiver = pickPassReceiver(attNodes, defNodes, carrier, strictForward);
@@ -2224,10 +2226,12 @@
         const passScore = calcNodeDuelScore(carrier, attSupport, interceptor?.player?.element);
         const defScore = calcNodeDuelScore(interceptor, defSupport, carrier?.player?.element);
         const sectorShift = effRole === "GK" ? 13 : effRole === "DF" ? 9.5 : effRole === "MF" ? 6.5 : 5.0;
-        const passSuccess = Math.random() < logisticWinProb(passScore, defScore, sectorShift, 0.56, 0.93);
+        const passSuccess = isSafeProtectedPass
+          ? true
+          : Math.random() < logisticWinProb(passScore, defScore, sectorShift, 0.56, 0.93);
 
-        spendStamina(carrier, 6);
-        spendStamina(interceptor, 4);
+        spendStamina(carrier, isSafeProtectedPass ? 2 : 6);
+        if (!isSafeProtectedPass) spendStamina(interceptor, 4);
         if (attIsUser) pitch.stats.userPassesTry++;
 
         const startX = carrier.x;
@@ -2251,8 +2255,12 @@
             "PASS",
             attIsUser ? "#4ade80" : "#f87171"
           );
-          showPitchBadge(pitch, receiver.targetX, receiver.targetY, "⚽ PASSE", "badge-pass", passFlightMs + 260);
-          pitch.ticker = `${st.minute}' ⚽ Passe: ${carrier.player.name} ➔ ${receiver.player.name}`;
+          const passBadgeText = carrier.role === "GK" ? "🧤 REPOSIÇÃO" : "⚽ PASSE";
+          showPitchBadge(pitch, receiver.targetX, receiver.targetY, passBadgeText, "badge-pass", passFlightMs + 260);
+          pitch.ticker =
+            carrier.role === "GK"
+              ? `${st.minute}' 🧤 Reposição: ${carrier.player.name} ➔ ${receiver.player.name}`
+              : `${st.minute}' ⚽ Passe: ${carrier.player.name} ➔ ${receiver.player.name}`;
           syncLivePitchDOM(st);
           handleMinuteEndBoundaries(st, ovrDiff);
           return;
