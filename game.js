@@ -1048,8 +1048,8 @@
       const player = pickByRole(slot.role);
       const rawPosMatch = player.pos === slot.role ? 0 : -4;
       const effOvr = Math.min(99, Math.max(55, Math.round(player.ovr + stageIdx * 1.5 + rawPosMatch)));
-      const baseX = Math.max(7, Math.min(93, 100 - ((96 - slot.y) * 0.88 + 2)));
-      const baseY = Math.max(14, Math.min(86, 100 - slot.x));
+      const baseX = Math.max(7, Math.min(93, 100 - ((96 - slot.y) * 0.78 + 4)));
+      const baseY = Math.max(12, Math.min(88, 100 - slot.x + (slot.role === "DF" ? 3 : -3)));
       return {
         uid: `o_${slot.id}`,
         side: "opp",
@@ -1070,8 +1070,8 @@
     const userNodes = slots.map((slot) => {
       const player = state.squad[slot.id];
       const effOvr = getEffectiveOvr(player, slot.role);
-      const baseX = Math.max(7, Math.min(84, (96 - slot.y) * 0.88 + 2));
-      const baseY = Math.max(14, Math.min(86, slot.x));
+      const baseX = Math.max(7, Math.min(76, (96 - slot.y) * 0.78 + 4));
+      const baseY = Math.max(12, Math.min(88, slot.x));
       return {
         uid: `u_${slot.id}`,
         side: "user",
@@ -1564,13 +1564,13 @@
       } else if (role === "DF") {
         action = roll < 0.72 ? "PASS" : "DRIBBLE";
       } else if (role === "MF") {
-        if (roll < 0.50) action = "PASS";
-        else if (roll < 0.88) action = "DRIBBLE";
+        if (roll < 0.55) action = "PASS";
+        else if (roll < 0.93) action = "DRIBBLE";
         else action = "SHOT";
       } else {
         // FW
-        if (roll < 0.54) action = "SHOT";
-        else if (roll < 0.84) action = "DRIBBLE";
+        if (roll < 0.40) action = "SHOT";
+        else if (roll < 0.74) action = "DRIBBLE";
         else action = "PASS";
       }
 
@@ -1787,10 +1787,10 @@
         calcNodeDuelScore(carrier, attSupport, defTarget?.player?.element) - (isLongShot ? 3.2 : 0);
       const stopScore = calcNodeDuelScore(defTarget, defSupport, carrier?.player?.element);
 
-      // Probabilidade equilibrada: bloqueio da zaga barra ~58% dos chutes bloqueados; goleiro defende ~66% em igualdade
+      // Probabilidade equilibrada: bloqueio da zaga e goleiro contêm excessos
       const goalProb = vsDefender
-        ? logisticWinProb(shotScore, stopScore, -3.2, 0.14, 0.62)
-        : logisticWinProb(shotScore, stopScore, -5.8, 0.12, 0.68);
+        ? logisticWinProb(shotScore, stopScore, -4.2, 0.10, 0.54)
+        : logisticWinProb(shotScore, stopScore, -6.8, 0.10, 0.58);
       const isGoal = Math.random() < goalProb;
 
       spendStamina(carrier, 14);
