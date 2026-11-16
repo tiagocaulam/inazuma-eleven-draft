@@ -1567,11 +1567,29 @@
     return `M ${x1.toFixed(1)} ${y1.toFixed(1)} A ${r} ${r} 0 ${largeArc} 1 ${x2.toFixed(1)} ${y2.toFixed(1)}`;
   }
 
-  function playHalftimeRefereeQTE(st, ovrDiff) {
+  function updateVoluntaryRecoverButtonDOM(st) {
+    const btn = document.getElementById("btn-voluntary-recover");
+    if (!btn || !st) return;
+    const charges = st.recoverCharges ?? 0;
+    const iconHTML = UI.sportsDrink
+      ? `<img src="${UI.sportsDrink}" alt="" style="width:15px; height:15px; object-fit:contain;" />`
+      : "";
+    btn.innerHTML = `${iconHTML}<span>Recuperar (${charges})</span>`;
+    btn.disabled = charges <= 0 || Boolean(st.finished || st.penalties);
+  }
+
+  function computeShortestAngleDiffDeg(a, b) {
+    let diff = ((a - b + 540) % 360) - 180;
+    return Math.abs(diff);
+  }
+
+  // Desafio circular de 1 única volta (usado no Apito de 45' e no botão voluntário Recuperar)
+  function openCircleTimingChallenge(st, ovrDiff, opts = {}) {
+    const isHalftime = opts.mode === "HALFTIME";
     clearTournamentTimers(false);
     const slotEl = document.getElementById("shot-clash-slot");
     if (!slotEl || !st || !st.pitch) {
-      if (st?.pitch) {
+      if (isHalftime && st?.pitch) {
         [...st.pitch.userNodes, ...st.pitch.oppNodes].forEach((n) => {
           n.stamina = Math.min(100, n.stamina + 20);
         });
@@ -1583,36 +1601,57 @@
       return;
     }
 
-    const yellowArc = describeSvgArc(80, 80, 56, -68, 68);
-    const greenArc = describeSvgArc(80, 80, 56, -34, 34);
-    const drinkIcon = UI.sportsDrink || UI.onigiriIcon || UI.tpPendant || "";
-    const refImg = UI.refereeWhistle || UI.whistleIcon || "";
-    const whistleBadge = UI.whistleIcon
-      ? `<img src="${UI.whistleIcon}" alt="" style="width:18px; height:18px; object-fit:contain;" />`
+    // Alvo fixo no topo (0°) no Intervalo; ângulo aleatório no desafio voluntário!
+    const targetDeg = isHalftime ? 0 : Math.round(-120 + Math.random() * 240);
+    const greenHalf = isHalftime ? 34 : 32;
+    const yellowHalf = isHalftime ? 68 : 64;
+    const speedDegPerSec = isHalftime ? 175 : 190;
+    const startDeg = ((targetDeg + 180 + 540) % 360) - 180;
+
+    const yellowArc = describeSvgArc(80, 80, 56, targetDeg - yellowHalf, targetDeg + yellowHalf);
+    const greenArc = describeSvgArc(80, 80, 56, targetDeg - greenHalf, targetDeg + greenHalf);
+    const drinkIcon = isHalftime
+      ? UI.sportsDrink || UI.onigiriIcon || UI.tpPendant || ""
+      : UI.onigiriIcon || UI.sportsDrink || "";
+    const headerImg = isHalftime ? UI.refereeWhistle || UI.whistleIcon || "" : UI.sportsDrink || UI.onigiriIcon || "";
+    const badgeImg = isHalftime ? UI.whistleIcon : UI.onigiriIcon;
+    const badgeHTML = badgeImg
+      ? `<img src="${badgeImg}" alt="" style="width:18px; height:18px; object-fit:contain;" />`
       : "";
+
+    const headerTitle = isHalftime
+      ? "45' • APITO DO JUIZ — FIM DO 1º TEMPO!"
+      : `${st.minute}' • PAUSA TÁTICA — RECUPERAÇÃO`;
+    const headerSub = isHalftime
+      ? `Dream Team ${st.userScore} x ${st.oppScore} ${st.oppTeam.name}`
+      : "Desafio rápido de fôlego (1 volta única!)";
+    const bodyHint = isHalftime
+      ? `Você tem <strong style="color:#fde047;">1 volta</strong> para acertar o <strong style="color:#4ade80;">VERDE</strong> e restaurar o time no intervalo!`
+      : `Acerte o <strong style="color:#4ade80;">VERDE</strong> na <strong style="color:#fde047;">única volta</strong> para recuperar energia imediata!`;
 
     slotEl.style.display = "flex";
     slotEl.innerHTML = `
       <div class="halftime-qte-stage">
         <div class="halftime-ref-row">
-          ${refImg ? `<img class="halftime-ref-img" src="${refImg}" alt="Árbitro" />` : ""}
+          ${headerImg ? `<img class="${isHalftime ? "halftime-ref-img" : "qte-vol-img"}" src="${headerImg}" alt="" />` : ""}
           <div style="flex:1; min-width:0;">
             <div style="display:flex; align-items:center; gap:5px; font-size:0.72rem; font-weight:900; color:#facc15; text-transform:uppercase;">
-              ${whistleBadge}<span>45' • APITO DO JUIZ — FIM DO 1º TEMPO!</span>
+              ${badgeHTML}<span>${headerTitle}</span>
             </div>
             <div style="font-size:0.84rem; font-weight:900; color:#fff; margin-top:2px;">
-              Dream Team ${st.userScore} x ${st.oppScore} ${st.oppTeam.name}
+              ${headerSub}
             </div>
           </div>
+          <span class="prep-xp-pill" id="qte-lap-pill" style="font-size:0.64rem; padding:3px 8px;">1 VOLTA</span>
         </div>
 
         <div class="halftime-qte-body">
-          <div class="qte-circle-wrap" id="qte-circle-wrap" title="Clique ou aperte Espaço para acertar o verde!">
+          <div class="qte-circle-wrap" id="qte-circle-wrap" title="Clique ou aperte Espaço na zona verde (1 volta)!">
             <svg class="qte-circle-svg" viewBox="0 0 160 160">
               <circle cx="80" cy="80" r="56" fill="none" stroke="rgba(148, 163, 184, 0.25)" stroke-width="14" />
               <path d="${yellowArc}" fill="none" stroke="#eab308" stroke-width="14" stroke-linecap="round" />
               <path d="${greenArc}" fill="none" stroke="#22c55e" stroke-width="15" stroke-linecap="round" />
-              <g id="qte-needle-group" transform="rotate(180 80 80)">
+              <g id="qte-needle-group" transform="rotate(${startDeg.toFixed(1)} 80 80)">
                 <line x1="80" y1="80" x2="80" y2="16" stroke="#ffffff" stroke-width="3.2" stroke-linecap="round" />
                 <circle cx="80" cy="24" r="5.5" fill="#fde047" stroke="#0f172a" stroke-width="2" />
               </g>
@@ -1624,14 +1663,14 @@
 
           <div class="qte-controls-col">
             <div style="font-size:0.74rem; font-weight:800; color:#cbd5e1; line-height:1.35;">
-              Acerte a zona <strong style="color:#4ade80;">VERDE</strong> do círculo no intervalo para recuperar a energia máxima do elenco!
+              ${bodyHint}
             </div>
             <div id="qte-result-area"></div>
             <button class="ie-cmd-btn ie-cmd-green" id="btn-qte-stop" style="width:100%; justify-content:center;">
               <span>PARAR NO VERDE!</span>
             </button>
             <button class="ie-cmd-btn" id="btn-qte-skip" style="width:100%; justify-content:center; font-size:0.7rem; padding:4px 8px;">
-              <span>Descanso Rápido (+12% Energia)</span>
+              <span>${isHalftime ? "Descanso Rápido (+12%)" : "Pular (+6%)"}</span>
             </button>
           </div>
         </div>
@@ -1640,23 +1679,16 @@
 
     let qteResolved = false;
     const startT = performance.now();
-    const computeAngleAt = (now) => {
+    const computeProgressAt = (now) => {
       const elapsedSec = Math.max(0, (now - startT) / 1000);
-      const raw = (180 + elapsedSec * 165) % 360;
-      return raw > 180 ? raw - 360 : raw; // -180..+180 (0° é o centro exato do verde)
+      const traveledDeg = elapsedSec * speedDegPerSec;
+      const raw = (startDeg + traveledDeg) % 360;
+      const angle = ((raw + 540) % 360) - 180;
+      return { traveledDeg, angle };
     };
-    let curAngleDeg = 180; // começa oposto ao verde para dar tempo de reagir
+    let curAngleDeg = startDeg;
 
-    const tickNeedle = (now) => {
-      if (qteResolved || state.phase !== "tournament") return;
-      curAngleDeg = computeAngleAt(now);
-      const needle = document.getElementById("qte-needle-group");
-      if (needle) needle.setAttribute("transform", `rotate(${curAngleDeg.toFixed(1)} 80 80)`);
-      state.tournament.qteRafId = requestAnimationFrame(tickNeedle);
-    };
-    state.tournament.qteRafId = requestAnimationFrame(tickNeedle);
-
-    const finalizeSecondHalf = () => {
+    const finalizeResume = () => {
       state.tournament.pendingClashFinish = null;
       if (state.tournament.qteRafId) {
         cancelAnimationFrame(state.tournament.qteRafId);
@@ -1672,15 +1704,19 @@
         mSlot.style.display = "none";
       }
       if (st.pitch && !st.finished) {
-        const nextSide = st.pitch.initialSide === "user" ? "opp" : "user";
-        resetPitchForKickoff(st.pitch, nextSide, true);
-        st.pitch.ticker = `46' Início do 2º Tempo — posse de ${nextSide === "user" ? "Dream Team" : st.oppTeam.name}!`;
+        if (isHalftime) {
+          const nextSide = st.pitch.initialSide === "user" ? "opp" : "user";
+          resetPitchForKickoff(st.pitch, nextSide, true);
+          st.pitch.ticker = `46' Início do 2º Tempo — posse de ${nextSide === "user" ? "Dream Team" : st.oppTeam.name}!`;
+        } else {
+          st.pitch.ticker = `${st.minute}' Fôlego renovado! Bola em jogo!`;
+        }
         syncLivePitchDOM(st);
         if (!handleMinuteEndBoundaries(st, ovrDiff)) startMatchInterval();
       }
     };
 
-    const resolveQte = (isSkip = false) => {
+    const resolveQte = (reason = "CLICK") => {
       if (qteResolved) return;
       qteResolved = true;
 
@@ -1693,51 +1729,60 @@
         state.tournament.qteKeyHandler = null;
       }
 
-      if (!isSkip) {
-        curAngleDeg = computeAngleAt(performance.now());
+      const isSkip = reason === "SKIP";
+      const isTimeout = reason === "TIMEOUT";
+      if (!isSkip && !isTimeout) {
+        curAngleDeg = computeProgressAt(performance.now()).angle;
         const needle = document.getElementById("qte-needle-group");
         if (needle) needle.setAttribute("transform", `rotate(${curAngleDeg.toFixed(1)} 80 80)`);
       }
 
-      const absDeg = Math.abs(curAngleDeg);
+      const diffDeg = computeShortestAngleDiffDeg(curAngleDeg, targetDeg);
       const hasTireBonus = (state.tournament?.prepBonuses?.staminaMul || 1) < 1;
       const extra = hasTireBonus ? 5 : 0;
 
-      let userGain = 12 + extra;
+      let userGain = (isHalftime ? 12 : 6) + extra;
       let zoneCls = "is-miss";
-      let zoneLabel = `Descanso curto (+${userGain}% Energia)`;
+      let zoneLabel = isTimeout
+        ? `Acabou a volta! Descanso mínimo (+${userGain}% Energia)`
+        : `Fora do alvo (+${userGain}% Energia)`;
 
-      if (!isSkip && absDeg <= 34) {
-        userGain = 40 + extra;
+      if (!isSkip && !isTimeout && diffDeg <= greenHalf) {
+        userGain = (isHalftime ? 40 : 35) + extra;
         zoneCls = "is-green";
         zoneLabel = `VERDE PERFEITO! +${userGain}% Energia!`;
-      } else if (!isSkip && absDeg <= 68) {
-        userGain = 25 + extra;
+      } else if (!isSkip && !isTimeout && diffDeg <= yellowHalf) {
+        userGain = (isHalftime ? 25 : 20) + extra;
         zoneCls = "is-yellow";
         zoneLabel = `BOM TIMING (AMARELO)! +${userGain}% Energia!`;
       }
 
       if (st.pitch) {
         st.pitch.userNodes.forEach((n) => {
-          n.stamina = Math.min(100, n.stamina + userGain);
+          const gkExtra = !isHalftime && n.role === "GK" && zoneCls === "is-green" ? 7 : 0;
+          n.stamina = Math.min(100, n.stamina + userGain + gkExtra);
         });
-        st.pitch.oppNodes.forEach((n) => {
-          n.stamina = Math.min(100, n.stamina + 20);
-        });
+        if (isHalftime) {
+          st.pitch.oppNodes.forEach((n) => {
+            n.stamina = Math.min(100, n.stamina + 20);
+          });
+        }
         syncLivePitchDOM(st);
       }
 
       prependNarrationLine(
         st,
         zoneCls === "is-green" ? "nar-dribble" : "",
-        `45' [Intervalo] Árbitro apitou o fim do 1º tempo (${st.userScore} x ${st.oppScore}) • ${zoneLabel}`,
+        isHalftime
+          ? `45' [Intervalo] Árbitro apitou o fim do 1º tempo (${st.userScore} x ${st.oppScore}) • ${zoneLabel}`
+          : `${st.minute}' [Recuperação] Pausa de fôlego do time • ${zoneLabel}`,
         null,
         null,
-        "BALL"
+        isHalftime ? "BALL" : "GK"
       );
 
       if (isSkip) {
-        finalizeSecondHalf();
+        finalizeResume();
         return;
       }
 
@@ -1748,25 +1793,55 @@
       if (stopBtn) stopBtn.disabled = true;
       if (skipBtn) skipBtn.style.display = "none";
 
-      state.tournament.clashTimer1 = setTimeout(finalizeSecondHalf, 950);
+      state.tournament.clashTimer1 = setTimeout(finalizeResume, 900);
     };
 
-    state.tournament.pendingClashFinish = () => resolveQte(true);
+    const tickNeedle = (now) => {
+      if (qteResolved || state.phase !== "tournament") return;
+      const { traveledDeg, angle } = computeProgressAt(now);
+      if (traveledDeg >= 360) {
+        curAngleDeg = startDeg;
+        const needle = document.getElementById("qte-needle-group");
+        if (needle) needle.setAttribute("transform", `rotate(${startDeg.toFixed(1)} 80 80)`);
+        resolveQte("TIMEOUT");
+        return;
+      }
+      curAngleDeg = angle;
+      const needle = document.getElementById("qte-needle-group");
+      if (needle) needle.setAttribute("transform", `rotate(${curAngleDeg.toFixed(1)} 80 80)`);
+      state.tournament.qteRafId = requestAnimationFrame(tickNeedle);
+    };
+    state.tournament.qteRafId = requestAnimationFrame(tickNeedle);
+
+    state.tournament.pendingClashFinish = () => resolveQte("SKIP");
 
     const stopBtn = document.getElementById("btn-qte-stop");
     const skipBtn = document.getElementById("btn-qte-skip");
     const circleWrap = document.getElementById("qte-circle-wrap");
-    if (stopBtn) stopBtn.addEventListener("click", () => resolveQte(false));
-    if (circleWrap) circleWrap.addEventListener("click", () => resolveQte(false));
-    if (skipBtn) skipBtn.addEventListener("click", () => resolveQte(true));
+    if (stopBtn) stopBtn.addEventListener("click", () => resolveQte("CLICK"));
+    if (circleWrap) circleWrap.addEventListener("click", () => resolveQte("CLICK"));
+    if (skipBtn) skipBtn.addEventListener("click", () => resolveQte("SKIP"));
 
     state.tournament.qteKeyHandler = (ev) => {
       if (ev.code === "Space" || ev.key === " ") {
         ev.preventDefault();
-        resolveQte(false);
+        resolveQte("CLICK");
       }
     };
     document.addEventListener("keydown", state.tournament.qteKeyHandler);
+  }
+
+  function playHalftimeRefereeQTE(st, ovrDiff) {
+    openCircleTimingChallenge(st, ovrDiff, { mode: "HALFTIME" });
+  }
+
+  function triggerVoluntaryRecoveryChallenge(st) {
+    if (!st || st.finished || !st.running || st.penalties || (st.recoverCharges || 0) <= 0) return;
+    if (state.tournament.pendingClashFinish || state.tournament.pendingBeatFinish) return;
+    st.recoverCharges--;
+    updateVoluntaryRecoverButtonDOM(st);
+    const ovrDiff = st.pitch?.matchSupport?.ovrDiff || 0;
+    openCircleTimingChallenge(st, ovrDiff, { mode: "VOLUNTARY" });
   }
 
   function handleMinuteEndBoundaries(st, ovrDiff) {
@@ -4898,6 +4973,7 @@
     st.running = true;
     st.finished = false;
     st.halftimeHandled = false;
+    st.recoverCharges = 2;
     st.won = null;
     st.penalties = null;
     st.penaltiesText = null;
@@ -7293,7 +7369,15 @@
               <h3 style="font-size:0.96rem; color:#fff;">Dream Team vs ${st.oppTeam.name}</h3>
             </div>
           </div>
-          <div style="display:flex; align-items:center; gap:8px;">
+          <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+            ${
+              !st.finished && !st.penalties
+                ? `<button class="ie-cmd-btn ie-cmd-green" id="btn-voluntary-recover" style="padding:5px 10px; font-size:0.72rem;" ${(st.recoverCharges ?? 0) <= 0 ? "disabled" : ""} title="Abrir desafio de recuperação de energia (1 volta)">
+                    ${UI.sportsDrink ? `<img src="${UI.sportsDrink}" alt="" style="width:15px; height:15px; object-fit:contain;" />` : ""}
+                    <span>Recuperar (${st.recoverCharges ?? 0})</span>
+                  </button>`
+                : ""
+            }
             <button class="ie-cmd-btn" id="btn-toggle-speed" style="padding:5px 10px; font-size:0.72rem;">
               <span>Vel: ${state.simSpeed}x</span>
             </button>
@@ -7400,6 +7484,13 @@
 
     if (!st.finished && st.penalties) {
       attachPenaltyListeners(st);
+    }
+
+    const recoverBtn = document.getElementById("btn-voluntary-recover");
+    if (recoverBtn) {
+      recoverBtn.addEventListener("click", () => {
+        triggerVoluntaryRecoveryChallenge(st);
+      });
     }
 
     const speedBtn = document.getElementById("btn-toggle-speed");
