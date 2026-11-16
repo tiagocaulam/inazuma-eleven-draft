@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Inazuma Eleven 7x0 — Draft & Futebol Fronteira</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-icon">⚡</span>
+      <h1>Inazuma Eleven — Draft 7x0</h1>
+    </div>
+
+    <div style="display:flex; gap:8px; align-items:center;">
+      <button id="btn-auto-draft" class="ui-btn" title="Preencher vagas automaticamente para testar rápido">
+        ⚡ Autopreencher
+      </button>
+      <button id="btn-reset" class="ui-btn btn-danger" title="Voltar ao Menu Inicial">
+        🏠 Menu Inicial
+      </button>
+    </div>
+  </header>
+
+  <main class="app-wrap">
+    <!-- HUD Superior (oculto na tela inicial do menu) -->
+    <div id="hud-bars-wrap" style="display:none; flex-direction:column; gap:8px;">
+      <div class="ovr-header-bar">
+        <div class="ovr-pill main-ovr">
+          <small>OVERALL</small>
+          <strong id="val-ovr">0</strong>
+        </div>
+        <div class="ovr-pill">
+          <small>ATAQUE</small>
+          <strong id="val-atk">0</strong>
+        </div>
+        <div class="ovr-pill">
+          <small>MEIO</small>
+          <strong id="val-mid">0</strong>
+        </div>
+        <div class="ovr-pill">
+          <small>DEF / GOL</small>
+          <strong id="val-def">0</strong>
+        </div>
+        <div class="ovr-pill main-ovr">
+          <small>QUÍMICA</small>
+          <strong id="val-chem">0%</strong>
+        </div>
+      </div>
+
+      <!-- Barra de Laços de Amizade / Mesmo Time / Afinidade -->
+      <div class="chemistry-bonds-bar" id="bonds-bar"></div>
+    </div>
+
+    <!-- Container Principal (Menu Inicial -> Roleta de Times -> Campo -> Mata-Mata) -->
+    <section class="screen-card" id="main-screen-container"></section>
+  </main>
+
+  <script src="data.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>
