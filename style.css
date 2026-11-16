@@ -1475,9 +1475,365 @@ body {
   color: #170d02;
 }
 
+.shot-clash-stage.stage-dribble {
+  background: radial-gradient(circle at 50% 50%, #4c1d95 0%, #1e1b4b 70%, #030712 100%);
+  border-color: #c084fc;
+  box-shadow: 0 0 26px rgba(192, 132, 252, 0.28), inset 0 0 28px rgba(0, 0, 0, 0.65);
+}
+
+.shot-clash-stage.stage-steal {
+  background: radial-gradient(circle at 50% 50%, #0c4a6e 0%, #082f49 70%, #030712 100%);
+  border-color: #38bdf8;
+  box-shadow: 0 0 26px rgba(56, 189, 248, 0.28), inset 0 0 28px rgba(0, 0, 0, 0.65);
+}
+
+.clash-move-dribble {
+  background: linear-gradient(90deg, rgba(147, 51, 234, 0.4), rgba(192, 132, 252, 0.35));
+  border: 1.5px solid #c084fc;
+  color: #f3e8ff;
+}
+
+.clash-move-pass {
+  background: linear-gradient(90deg, rgba(16, 185, 129, 0.35), rgba(56, 189, 248, 0.35));
+  border: 1.5px solid #34d399;
+  color: #ecfdf5;
+}
+
+.dribble-runner {
+  position: absolute;
+  left: 4%;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  animation: dribbleDash 2.1s cubic-bezier(0.32, 0.72, 0.35, 1) forwards;
+}
+
+.dribble-trail {
+  width: 54px;
+  height: 20px;
+  margin-right: -14px;
+  border-radius: 999px 0 0 999px;
+  background: linear-gradient(90deg, rgba(168, 85, 247, 0) 0%, rgba(192, 132, 252, 0.8) 55%, #f0abfc 100%);
+  filter: blur(2px);
+  animation: flameFlicker 0.16s infinite alternate;
+}
+
+.clash-orb-violet {
+  background: radial-gradient(circle at 35% 35%, #f5d0fe 0%, #a855f7 55%, #6b21a8 100%);
+  box-shadow: 0 0 18px #c084fc, 0 0 30px #9333ea;
+}
+
+.steal-runner {
+  position: absolute;
+  right: 4%;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  flex-direction: row-reverse;
+  animation: stealCut 2.1s cubic-bezier(0.25, 0.82, 0.4, 1) forwards;
+}
+
+.steal-trail {
+  width: 54px;
+  height: 20px;
+  margin-left: -14px;
+  border-radius: 0 999px 999px 0;
+  background: linear-gradient(270deg, rgba(56, 189, 248, 0) 0%, rgba(56, 189, 248, 0.8) 55%, #bae6fd 100%);
+  filter: blur(2px);
+  animation: flameFlicker 0.16s infinite alternate;
+}
+
+.clash-orb-cyan {
+  background: radial-gradient(circle at 35% 35%, #e0f2fe 0%, #38bdf8 55%, #0284c7 100%);
+  box-shadow: 0 0 18px #38bdf8, 0 0 30px #0ea5e9;
+}
+
+@keyframes dribbleDash {
+  0% { left: 2%; transform: translateY(-50%) scale(0.95); }
+  45% { left: 48%; transform: translateY(-64%) scale(1.04); }
+  100% { left: calc(100% - 94px); transform: translateY(-50%) scale(1); }
+}
+
+@keyframes stealCut {
+  0% { right: 2%; }
+  70% { right: calc(52% - 36px); }
+  100% { right: calc(100% - 96px); }
+}
+
 @keyframes clashPop {
   from { opacity: 0; transform: scale(0.85); }
   to { opacity: 1; transform: scale(1); }
+}
+
+/* =========================================================
+   MAPA TÁTICO 2D AO VIVO (CAMPO COM PASSES E POSIÇÕES)
+   ========================================================= */
+.live-pitch-card {
+  background: rgba(6, 15, 36, 0.92);
+  border: 1.5px solid rgba(56, 189, 248, 0.42);
+  border-radius: 12px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pitch-header-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.pitch-side-dir {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.68rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.pitch-side-dir img {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+}
+
+.pitch-action-ticker {
+  flex: 1;
+  min-width: 210px;
+  text-align: center;
+  background: rgba(15, 31, 68, 0.92);
+  border: 1px solid rgba(250, 204, 21, 0.45);
+  border-radius: 999px;
+  padding: 3px 12px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: #fef08a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.live-tactical-pitch {
+  position: relative;
+  width: 100%;
+  height: 230px;
+  border-radius: 10px;
+  border: 2px solid rgba(255, 255, 255, 0.55);
+  overflow: hidden;
+  background:
+    repeating-linear-gradient(
+      90deg,
+      #14532d 0px,
+      #14532d 38px,
+      #166534 38px,
+      #166534 76px
+    );
+  box-shadow: inset 0 0 28px rgba(0, 0, 0, 0.5);
+}
+
+.pitch-line-mid {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: rgba(255, 255, 255, 0.42);
+  transform: translateX(-50%);
+}
+
+.pitch-center-circle {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 66px;
+  height: 66px;
+  border: 2px solid rgba(255, 255, 255, 0.42);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.pitch-box-left {
+  position: absolute;
+  left: 0;
+  top: 21%;
+  bottom: 21%;
+  width: 13%;
+  border: 2px solid rgba(255, 255, 255, 0.42);
+  border-left: none;
+}
+
+.pitch-box-right {
+  position: absolute;
+  right: 0;
+  top: 21%;
+  bottom: 21%;
+  width: 13%;
+  border: 2px solid rgba(255, 255, 255, 0.42);
+  border-right: none;
+}
+
+.pitch-goal-left {
+  position: absolute;
+  left: 0;
+  top: 37%;
+  bottom: 37%;
+  width: 4.5%;
+  border: 2px solid rgba(255, 255, 255, 0.55);
+  border-left: none;
+  background: rgba(34, 197, 94, 0.14);
+}
+
+.pitch-goal-right {
+  position: absolute;
+  right: 0;
+  top: 37%;
+  bottom: 37%;
+  width: 4.5%;
+  border: 2px solid rgba(255, 255, 255, 0.55);
+  border-right: none;
+  background: rgba(239, 68, 68, 0.14);
+}
+
+.pitch-pass-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.pitch-player-token {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 44px;
+  pointer-events: none;
+  z-index: 4;
+  transition: left 0.34s ease-out, top 0.34s ease-out, transform 0.2s ease;
+}
+
+.pitch-token-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  object-fit: contain;
+  background: #07132c;
+  padding: 1px;
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.pitch-player-token.side-user .pitch-token-avatar {
+  border: 2px solid #22c55e;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
+}
+
+.pitch-player-token.side-opp .pitch-token-avatar {
+  border: 2px solid #ef4444;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
+}
+
+.pitch-player-token.has-ball {
+  z-index: 7;
+  transform: translate(-50%, -50%) scale(1.16);
+}
+
+.pitch-player-token.has-ball .pitch-token-avatar {
+  border-color: #facc15;
+  box-shadow: 0 0 12px rgba(250, 204, 21, 0.95), 0 0 22px rgba(250, 204, 21, 0.5);
+}
+
+.pitch-player-token.is-challenger {
+  z-index: 6;
+  transform: translate(-50%, -50%) scale(1.08);
+}
+
+.pitch-player-token.is-challenger .pitch-token-avatar {
+  border-color: #38bdf8;
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.85);
+}
+
+.pitch-token-stamina {
+  width: 24px;
+  height: 3px;
+  border-radius: 999px;
+  background: rgba(2, 6, 23, 0.85);
+  overflow: hidden;
+  margin-top: 1px;
+}
+
+.pitch-token-stamina-fill {
+  height: 100%;
+  background: #4ade80;
+  transition: width 0.3s ease, background-color 0.3s ease;
+}
+
+.pitch-token-name {
+  font-size: 0.52rem;
+  font-weight: 800;
+  color: #f8fafc;
+  background: rgba(2, 6, 23, 0.82);
+  padding: 0 4px;
+  border-radius: 3px;
+  max-width: 44px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 1px;
+  line-height: 1.25;
+}
+
+.pitch-ball-dot {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  z-index: 9;
+  filter: drop-shadow(0 0 6px rgba(250, 204, 21, 0.95)) drop-shadow(0 2px 3px rgba(0, 0, 0, 0.85));
+  pointer-events: none;
+  transition: left 0.32s cubic-bezier(0.25, 0.8, 0.35, 1), top 0.32s cubic-bezier(0.25, 0.8, 0.35, 1);
+}
+
+.pitch-live-stats {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+}
+
+.pitch-stat-pill {
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 7px;
+  padding: 4px 6px;
+  text-align: center;
+}
+
+.pitch-stat-pill small {
+  display: block;
+  font-size: 0.56rem;
+  font-weight: 800;
+  color: #94a3b8;
+  text-transform: uppercase;
+}
+
+.pitch-stat-pill strong {
+  font-size: 0.72rem;
+  font-weight: 900;
+  color: #f8fafc;
 }
 
 /* =========================================================
@@ -1690,5 +2046,31 @@ body {
   .clash-result-banner {
     font-size: 1.05rem;
     padding: 8px 16px;
+  }
+
+  .live-tactical-pitch {
+    height: 190px;
+  }
+
+  .pitch-player-token {
+    width: 34px;
+  }
+
+  .pitch-token-avatar {
+    width: 22px;
+    height: 22px;
+  }
+
+  .pitch-token-name {
+    font-size: 0.46rem;
+    max-width: 34px;
+  }
+
+  .pitch-token-stamina {
+    width: 18px;
+  }
+
+  .pitch-live-stats {
+    grid-template-columns: repeat(3, 1fr);
   }
 }
