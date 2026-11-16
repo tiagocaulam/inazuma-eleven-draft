@@ -17,18 +17,41 @@
     return `<img class="${cls}" src="${src}" alt="${elemName}" title="${elemName}" />`;
   }
 
-  function moveIconHTML(cat) {
+  function moveIconHTML(cat, extraCls = "") {
     const src = UI["move" + cat];
     if (!src) return "";
-    return `<img class="move-icon-img" src="${src}" alt="${cat}" />`;
+    const cls = extraCls ? `move-icon-img ${extraCls}` : "move-icon-img";
+    return `<img class="${cls}" src="${src}" alt="${cat}" />`;
   }
 
-  function captainIconHTML() {
-    return UI.captain ? `<img class="captain-icon-img" src="${UI.captain}" alt="Capitão" title="Capitão" />` : "";
+  function captainIconHTML(extraCls = "") {
+    if (!UI.captain) return "";
+    const cls = extraCls ? `captain-icon-img ${extraCls}` : "captain-icon-img";
+    return `<img class="${cls}" src="${UI.captain}" alt="Capitão" title="Capitão" />`;
   }
 
-  function formationIconHTML() {
-    return UI.formation ? `<img class="form-icon-img" src="${UI.formation}" alt="" />` : "";
+  function formationIconHTML(extraCls = "") {
+    if (!UI.formation) return "";
+    const cls = extraCls ? `form-icon-img ${extraCls}` : "form-icon-img";
+    return `<img class="${cls}" src="${UI.formation}" alt="" />`;
+  }
+
+  function ffLogoIconHTML(extraCls = "") {
+    const src = UI.ffLogo || UI.raimonEmblem;
+    if (!src) return "";
+    const cls = extraCls ? `ff-mini-img ${extraCls}` : "ff-mini-img";
+    return `<img class="${cls}" src="${src}" alt="FF" />`;
+  }
+
+  function buildMiniBallSVG(cls = "mini-ball-svg") {
+    return `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10.2" fill="#f8fafc" stroke="#0f172a" stroke-width="1.8"/><polygon points="12,7.2 15.8,10 14.3,14.5 9.7,14.5 8.2,10" fill="#0f172a"/><line x1="12" y1="7.2" x2="12" y2="2" stroke="#0f172a" stroke-width="1.4"/><line x1="15.8" y1="10" x2="21.2" y2="8.2" stroke="#0f172a" stroke-width="1.4"/><line x1="8.2" y1="10" x2="2.8" y2="8.2" stroke="#0f172a" stroke-width="1.4"/><line x1="14.3" y1="14.5" x2="18.2" y2="20" stroke="#0f172a" stroke-width="1.4"/><line x1="9.7" y1="14.5" x2="5.8" y2="20" stroke="#0f172a" stroke-width="1.4"/></svg>`;
+  }
+
+  function renderPitchIconTag(iconCat, extraCls = "badge-move-icon") {
+    if (!iconCat) return "";
+    if (iconCat === "BALL") return buildMiniBallSVG(extraCls);
+    if (iconCat === "FF") return ffLogoIconHTML(extraCls);
+    return moveIconHTML(iconCat, extraCls);
   }
 
   const NORMAL_SHOT_DESCRIPTIONS = [
@@ -44,49 +67,49 @@
   const FRIENDSHIP_BONDS = [
     {
       id: "trio_raimon",
-      name: "⚡ Trio Lendário (Endo, Goenji, Kido)",
+      name: "Trio Lendário (Endo, Goenji, Kido)",
       members: ["Endou Mamoru", "Gouenji Shuuya", "Kidou Yuuto"],
       minCount: 2,
       chemPerMatch: 14
     },
     {
       id: "fogo_gelo",
-      name: "❄️🔥 Fogo Cruzado (Goenji & Fubuki)",
+      name: "Fogo Cruzado (Goenji & Fubuki)",
       members: ["Gouenji Shuuya", "Fubuki Shirou"],
       minCount: 2,
       chemPerMatch: 16
     },
     {
       id: "laco_imperial",
-      name: "🦅 Irmandade Imperial (Kido, Sakuma, Genda, Fudou)",
+      name: "Irmandade Imperial (Kido, Sakuma, Genda, Fudou)",
       members: ["Kidou Yuuto", "Sakuma Jirou", "Genda Koujirou", "Fudou Akio"],
       minCount: 2,
       chemPerMatch: 12
     },
     {
       id: "trio_caos",
-      name: "🐉 Trio Caos / Dragão de Fogo (Aphrodi, Burn, Gazel, Choi)",
+      name: "Trio Caos / Dragão de Fogo (Aphrodi, Burn, Gazel, Choi)",
       members: ["Afuro Terumi", "Nagumo Haruya", "Suzuno Fuusuke", "Choi Chang-Soo"],
       minCount: 2,
       chemPerMatch: 13
     },
     {
       id: "laco_aliea",
-      name: "☄️ Estrelas do Instituto Alien (Hiroto, Reize, Desarm, Ulvida, Nero)",
+      name: "Estrelas do Instituto Alien (Hiroto, Reize, Desarm, Ulvida, Nero)",
       members: ["Kiyama Hiroto", "Midorikawa Ryuuji", "Saginuma Osamu", "Yagami Reina", "Nemuro Keita"],
       minCount: 2,
       chemPerMatch: 12
     },
     {
       id: "laco_fenix_usa",
-      name: "🦄 Laço Fênix & Unicórnio (Ichinose, Domon, Kruger, Dylan, Endo)",
+      name: "Laço Fênix & Unicórnio (Ichinose, Domon, Kruger, Dylan, Endo)",
       members: ["Ichinose Kazuya", "Domon Asuka", "Mark Krueger", "Dylan Keith", "Endou Mamoru"],
       minCount: 2,
       chemPerMatch: 11
     },
     {
       id: "caravana_inazuma",
-      name: "🚌 Caravana Inazuma (Kazemaru, Kabeyama, Someoka, Tsunami, Tachimukai, Kogure, Touko)",
+      name: "Caravana Inazuma (Kazemaru, Kabeyama, Someoka, Tsunami, Tachimukai, Kogure, Touko)",
       members: [
         "Kazemaru Ichirouta",
         "Kabeyama Heigorou",
@@ -101,7 +124,7 @@
     },
     {
       id: "inazuma_japan_ffi",
-      name: "🇯🇵 Companheiros de Seleção (Toramaru, Tobitaka, Hijikata, Hiroto, Fubuki, Goenji, Endo)",
+      name: "Companheiros de Seleção (Toramaru, Tobitaka, Hijikata, Hiroto, Fubuki, Goenji, Endo)",
       members: [
         "Utsunomiya Toramaru",
         "Tobitaka Seiya",
@@ -116,21 +139,21 @@
     },
     {
       id: "laco_orfeu",
-      name: "🇮🇹 Mestres da Orfeu (Fidio, Nakata, Blasi)",
+      name: "Mestres da Orfeu (Fidio, Nakata, Blasi)",
       members: ["Fideo Ardena", "Nakata Hidetoshi", "Gigi Blasi"],
       minCount: 2,
       chemPerMatch: 14
     },
     {
       id: "legado_daisuke",
-      name: "🧤 Legado de Daisuke (Endo & Rococo)",
+      name: "Legado de Daisuke (Endo & Rococo)",
       members: ["Endou Mamoru", "Rococo Urupa"],
       minCount: 2,
       chemPerMatch: 16
     },
     {
       id: "geracao_go",
-      name: "🌟 Revolução GO & Chrono Storm (Tenma, Tsurugi, Shindou, Kirino, Shinsuke, Fei, Kinako, Zanark)",
+      name: "Revolução GO & Chrono Storm (Tenma, Tsurugi, Shindou, Kirino, Shinsuke, Fei, Kinako, Zanark)",
       members: [
         "Matsukaze Tenma",
         "Tsurugi Kyousuke",
@@ -146,35 +169,35 @@
     },
     {
       id: "dupla_zero",
-      name: "☯️ Luz & Escuridão (Hakuryuu & Shuu)",
+      name: "Luz & Escuridão (Hakuryuu & Shuu)",
       members: ["Hakuryuu", "Shuu"],
       minCount: 2,
       chemPerMatch: 18
     },
     {
       id: "trio_ares_orion",
-      name: "🔥 Trindade Ares/Orion (Asuto, Haizaki, Nosaka)",
+      name: "Trindade Ares/Orion (Asuto, Haizaki, Nosaka)",
       members: ["Inamori Asuto", "Haizaki Ryouhei", "Nosaka Yuuma"],
       minCount: 2,
       chemPerMatch: 15
     },
     {
       id: "laco_outei_seishou",
-      name: "⚔️ Rivais & Parceiros (Nosaka, Nishikage, Haizaki, Mizukamiya, Kira Hiroto)",
+      name: "Rivais & Parceiros (Nosaka, Nishikage, Haizaki, Mizukamiya, Kira Hiroto)",
       members: ["Nosaka Yuuma", "Nishikage Seiya", "Haizaki Ryouhei", "Mizukamiya Seiryuu", "Kira Hiroto"],
       minCount: 2,
       chemPerMatch: 12
     },
     {
       id: "laco_orion_amigos",
-      name: "🌌 Estrelas de Orion (Ichihoshi, Froy, Malik, Asuto, Yurika)",
+      name: "Estrelas de Orion (Ichihoshi, Froy, Malik, Asuto, Yurika)",
       members: ["Ichihoshi Mitsuru", "Ichihoshi Hikaru", "Froy Girikanan", "Malik Kuabel", "Inamori Asuto", "Yurika Beor"],
       minCount: 2,
       chemPerMatch: 13
     },
     {
       id: "earth_eleven_galaxy",
-      name: "🌍 Earth Eleven (Ibuki, Matatagi, Konoha, Minaho, Manabe, Tenma, Tsurugi, Shindou)",
+      name: "Earth Eleven (Ibuki, Matatagi, Konoha, Minaho, Manabe, Tenma, Tsurugi, Shindou)",
       members: [
         "Ibuki Munemasa",
         "Matatagi Hayato",
@@ -373,7 +396,7 @@
         bondsPower += posPwr;
         activeBonds.push({
           type: correctPosCount === 11 ? "perfect-formation" : "team",
-          label: `📐 Formação Tática ${correctPosCount}/11 (+${posChem}% Quím • +${posPwr} Poder)`
+          label: `${formationIconHTML("inline-ui-icon")} Formação Tática ${correctPosCount}/11 (+${posChem}% Quím • +${posPwr} Poder)`
         });
       }
 
@@ -387,11 +410,11 @@
         chem += linkChem;
         bondsPower += linkPwr;
         const summaryParts = Object.keys(elemCountsByLink)
-          .map((el) => `${DB.elements[el]?.icon || "⚡"}×${elemCountsByLink[el]}`)
+          .map((el) => `${elemIconHTML(el, "inline-elem-icon")}×${elemCountsByLink[el]}`)
           .join(" ");
         activeBonds.push({
           type: "element",
-          label: `🔗 ${activeElemPairs.length}x Links Elementais Próximos (${summaryParts}) (+${linkChem}% • +${linkPwr} Poder)`
+          label: `${activeElemPairs.length}x Links Elementais (${summaryParts}) (+${linkChem}% • +${linkPwr} Poder)`
         });
       }
 
@@ -403,7 +426,7 @@
         bondsPower += clubPwr;
         activeBonds.push({
           type: "team",
-          label: `🏟️ Entrosamento de Elenco (+${clubChem}% • +${clubPwr} Poder)`
+          label: `${ffLogoIconHTML("inline-ui-icon")} Entrosamento de Elenco (+${clubChem}% • +${clubPwr} Poder)`
         });
       }
 
@@ -441,7 +464,7 @@
         bondsPower += pwr;
         activeBonds.push({
           type: "perfect-formation",
-          label: `📐 Formação Perfeita 11/11 (+20% Quím • +${pwr} Poder)`
+          label: `${formationIconHTML("inline-ui-icon")} Formação Perfeita 11/11 (+20% Quím • +${pwr} Poder)`
         });
       } else {
         const posChem = Math.round(correctPosCount * 1.4);
@@ -453,8 +476,8 @@
           type: improvised > 0 ? "warn-pos" : "team",
           label:
             improvised > 0
-              ? `⚠️ Posições: ${correctPosCount}/${count} (${improvised} improvisado = -OVR e sem bônus 11/11!)`
-              : `📐 Posições Corretas: ${correctPosCount}/11 (+${posChem}% Quím • Faça 11/11 p/ +20% e +2 OVR!)`
+              ? `${formationIconHTML("inline-ui-icon")} Posições: ${correctPosCount}/${count} (${improvised} improvisado = -OVR)`
+              : `${formationIconHTML("inline-ui-icon")} Posições: ${correctPosCount}/11 (+${posChem}% Quím • 11/11 = +20%)`
         });
       }
     }
@@ -470,11 +493,11 @@
       chem += linkChem;
       bondsPower += linkPwr;
       const summaryParts = Object.keys(elemCountsByLink)
-        .map((el) => `${DB.elements[el]?.icon || "⚡"}×${elemCountsByLink[el]}`)
+        .map((el) => `${elemIconHTML(el, "inline-elem-icon")}×${elemCountsByLink[el]}`)
         .join(" ");
       activeBonds.push({
         type: "element",
-        label: `🔗 ${activeElemPairs.length}x Links Elementais Próximos (${summaryParts}) (+${linkChem}% • +${linkPwr} Poder)`
+        label: `${activeElemPairs.length}x Links Elementais (${summaryParts}) (+${linkChem}% • +${linkPwr} Poder)`
       });
     }
 
@@ -489,7 +512,7 @@
         bondsPower += pwrBonus;
         activeBonds.push({
           type: "team",
-          label: `🏟️ ${c}x ${teamNames[tId]} (+${chemBonus}% • +${pwrBonus} Poder)`
+          label: `${ffLogoIconHTML("inline-ui-icon")} ${c}x ${teamNames[tId]} (+${chemBonus}% • +${pwrBonus} Poder)`
         });
       }
     });
@@ -925,7 +948,7 @@
           if (sel) {
             if (sel.pos === slot.role) {
               targetClass = "valid-target";
-              hintText = "⚡ Escalar";
+              hintText = "Escalar";
             } else {
               targetClass = "improv-target";
               hintText = "Improvisar";
@@ -957,7 +980,7 @@
             <div class="node-name">${p.name}</div>
             <div style="display:flex; align-items:center; gap:3px; margin-top:1px;">
               ${posIconHTML(slot.role, true)}
-              <span class="node-slot-label">${slot.label}${isImprovised ? "⚠️" : ""}</span>
+              <span class="node-slot-label">${slot.label}${isImprovised ? " *" : ""}</span>
             </div>
           </div>
         `;
@@ -1069,12 +1092,13 @@
         avatarsHTML = `<div class="nar-avatars">${actorImg}${targetImg}</div>`;
       }
     }
-    return `<div class="narration-item ${item.cls || ""}">${avatarsHTML}<div class="nar-text">${item.text}</div></div>`;
+    const catIcon = item.iconCat ? `<span class="nar-cat-badge">${renderPitchIconTag(item.iconCat, "nar-move-icon")}</span>` : "";
+    return `<div class="narration-item ${item.cls || ""}">${avatarsHTML}<div class="nar-text">${catIcon}<span>${item.text}</span></div></div>`;
   }
 
   // Insere apenas 1 linha nova no topo do histórico de narração sem tocar no resto da página!
-  function prependNarrationLine(st, cls, text, actor = null, target = null) {
-    const item = { cls, text, actor, target };
+  function prependNarrationLine(st, cls, text, actor = null, target = null, iconCat = null) {
+    const item = { cls, text, actor, target, iconCat };
     st.narration.unshift(item);
     const feedEl = document.getElementById("live-narration-feed");
     const countEl = document.getElementById("live-narration-count");
@@ -1093,7 +1117,7 @@
     if (listEl) {
       const color = side === "user" ? (goalObj.isHissatsu ? "#86efac" : "#cbd5e1") : (goalObj.isHissatsu ? "#fca5a5" : "#cbd5e1");
       const assistPart = goalObj.assistName
-        ? `<span style="color:#93c5fd; margin-left:4px;">• 🎯 Assist: ${goalObj.assistName}</span>`
+        ? `<span style="color:#93c5fd; margin-left:4px;">• Assist: ${goalObj.assistName}</span>`
         : "";
       listEl.insertAdjacentHTML(
         "beforeend",
@@ -1265,6 +1289,10 @@
     pitch.ballFlight = null;
     pitch.holdBallPos = null;
     pitch.lastAssistCandidate = null;
+    pitch.lastPasserUid = null;
+    pitch.lastAction = null;
+    pitch.sameActionStreak = 0;
+    pitch.teamConsecutivePasses = 0;
     pitch.ballX = 50;
     pitch.ballY = 50;
     pitch.passTrail = null;
@@ -1279,15 +1307,21 @@
   function handleMinuteEndBoundaries(st, ovrDiff) {
     if (st.minute === 45) {
       if (st.pitch) {
+        [...st.pitch.userNodes, ...st.pitch.oppNodes].forEach((n) => {
+          n.stamina = Math.min(100, n.stamina + 16);
+        });
         const nextSide = st.pitch.initialSide === "user" ? "opp" : "user";
         resetPitchForKickoff(st.pitch, nextSide, true);
-        st.pitch.ticker = `45' ⏱️ Fim do 1º Tempo! Recomeço com ${nextSide === "user" ? "Dream Team" : st.oppTeam.name}.`;
+        st.pitch.ticker = `45' Fim do 1º Tempo! Recomeço com ${nextSide === "user" ? "Dream Team" : st.oppTeam.name}.`;
         syncLivePitchDOM(st);
       }
       prependNarrationLine(
         st,
         "",
-        `⏱️ 45' Fim do 1º Tempo! Placar parcial: Dream Team ${st.userScore} x ${st.oppScore} ${st.oppTeam.name}.`
+        `45' Fim do 1º Tempo! Placar parcial: Dream Team ${st.userScore} x ${st.oppScore} ${st.oppTeam.name}.`,
+        null,
+        null,
+        "BALL"
       );
     }
 
@@ -1295,13 +1329,16 @@
       st.maxMinute = 120;
       if (st.pitch) {
         resetPitchForKickoff(st.pitch, "user", true);
-        st.pitch.ticker = `90' ⚡ Prorrogação iniciada! Bola no centro!`;
+        st.pitch.ticker = `90' Prorrogação iniciada! Bola no centro!`;
         syncLivePitchDOM(st);
       }
       prependNarrationLine(
         st,
         "nar-save",
-        `⚡ 90' Empate no tempo normal! Vamos para a Prorrogação (até os 120')!`
+        `90' Empate no tempo normal! Vamos para a Prorrogação (até os 120')!`,
+        null,
+        null,
+        "FF"
       );
     }
 
@@ -1319,14 +1356,20 @@
         prependNarrationLine(
           st,
           userWinPen ? "nar-goal-user" : "nar-goal-opp",
-          `🎯 120' FIM DA PRORROGAÇÃO! ${st.penaltiesText}!`
+          `120' FIM DA PRORROGAÇÃO! ${st.penaltiesText}!`,
+          null,
+          null,
+          "SH"
         );
       } else {
         st.won = st.userScore > st.oppScore;
         prependNarrationLine(
           st,
           st.won ? "nar-goal-user" : "nar-goal-opp",
-          `🏁 ${st.minute}' APITO FINAL! Dream Team ${st.userScore} x ${st.oppScore} ${st.oppTeam.name}!`
+          `${st.minute}' APITO FINAL! Dream Team ${st.userScore} x ${st.oppScore} ${st.oppTeam.name}!`,
+          null,
+          null,
+          "FF"
         );
       }
 
@@ -1360,8 +1403,8 @@
 
   function calcNodeDuelScore(node, teamSupportBonus, opponentElem = null) {
     if (!node) return 75;
-    // Jogador que centraliza muitas ações cansa e perde eficiência até circular a bola
-    const fatiguePenalty = node.stamina < 70 ? (70 - node.stamina) * 0.17 : 0;
+    // Penalidade leve e progressiva apenas quando a energia cai na zona vermelha (< 45%)
+    const fatiguePenalty = node.stamina < 45 ? Math.min(3.8, 1.4 + (45 - node.stamina) * 0.085) : 0;
     return (
       compressOvr(node.effOvr) +
       teamSupportBonus -
@@ -1378,7 +1421,7 @@
 
   function spendStamina(node, cost) {
     if (!node) return;
-    node.stamina = Math.max(22, node.stamina - cost);
+    node.stamina = Math.max(18, node.stamina - cost);
   }
 
   function buildOpponentLineup(oppTeam, stageIdx) {
@@ -1461,6 +1504,10 @@
       ballFlight: null,
       holdBallPos: null,
       lastAssistCandidate: null,
+      lastPasserUid: null,
+      lastAction: null,
+      sameActionStreak: 0,
+      teamConsecutivePasses: 0,
       justKickedOff: true,
       passTrail: null,
       floatBadge: null,
@@ -1617,24 +1664,26 @@
     }
   }
 
-  function showPitchBadge(pitch, x, y, text, cls = "badge-pass", durationMs = 750) {
+  function showPitchBadge(pitch, x, y, text, cls = "badge-pass", durationMs = 750, iconCat = null) {
     if (!pitch) return;
     pitch.floatBadge = {
       x: Math.max(12, Math.min(88, x)),
       y: Math.max(18, Math.min(86, y)),
       text,
+      iconCat,
       cls,
       until: performance.now() + durationMs
     };
   }
 
-  function showNodeBadge(pitch, uid, text, cls = "badge-dribble", durationMs = 1450) {
+  function showNodeBadge(pitch, uid, text, cls = "badge-dribble", durationMs = 1450, iconCat = null) {
     if (!pitch || !uid) return;
     if (!pitch.nodeBadges) pitch.nodeBadges = {};
     const scaled =
       state.simSpeed === 4 ? Math.min(340, durationMs) : state.simSpeed === 2 ? Math.round(durationMs * 0.5) : durationMs;
     pitch.nodeBadges[uid] = {
       text,
+      iconCat,
       cls,
       until: performance.now() + scaled
     };
@@ -1656,7 +1705,12 @@
           .join(" ");
         const nextClass = `pitch-token-action-badge ${nb.cls} ${edgeCls} is-visible`;
         if (badgeEl.className !== nextClass) badgeEl.className = nextClass;
-        if (badgeEl.textContent !== nb.text) badgeEl.textContent = nb.text;
+        const rKey = `${nb.iconCat || ""}|${nb.text}`;
+        if (badgeEl.dataset.renderKey !== rKey) {
+          badgeEl.dataset.renderKey = rKey;
+          const iconHTML = nb.iconCat ? renderPitchIconTag(nb.iconCat, "badge-move-icon") : "";
+          badgeEl.innerHTML = `${iconHTML}<span>${nb.text}</span>`;
+        }
       } else {
         if (badgeEl.className !== "pitch-token-action-badge") {
           badgeEl.className = "pitch-token-action-badge";
@@ -1807,7 +1861,12 @@
           badgeEl.className = `pitch-float-badge ${fb.cls} is-visible`;
           badgeEl.style.left = `${fb.x.toFixed(1)}%`;
           badgeEl.style.top = `${fb.y.toFixed(1)}%`;
-          if (badgeEl.textContent !== fb.text) badgeEl.textContent = fb.text;
+          const fKey = `${fb.iconCat || ""}|${fb.text}`;
+          if (badgeEl.dataset.renderKey !== fKey) {
+            badgeEl.dataset.renderKey = fKey;
+            const iconHTML = fb.iconCat ? renderPitchIconTag(fb.iconCat, "badge-move-icon") : "";
+            badgeEl.innerHTML = `${iconHTML}<span>${fb.text}</span>`;
+          }
         } else {
           badgeEl.className = "pitch-float-badge";
         }
@@ -1861,7 +1920,7 @@
     return candidates[candidates.length - 1];
   }
 
-  function pickPassReceiver(nodes, defNodes, carrier, strictForward = false) {
+  function pickPassReceiver(nodes, defNodes, carrier, strictForward = false, pitch = null) {
     const order = { GK: 0, DF: 1, MF: 2, FW: 3 };
     const effRole = getEffectiveCarrierRole(carrier);
     const curRank = order[effRole] ?? 2;
@@ -1900,20 +1959,29 @@
       const forwardGain = attIsUser ? n.targetX - carrier.x : carrier.x - n.targetX;
       const dist = Math.hypot(n.targetX - carrier.x, n.targetY - carrier.y);
       const forwardFactor =
-        forwardGain >= 4 ? 2.4 : forwardGain >= 0 ? 1.5 : forwardGain >= -6 ? 0.55 : 0.14;
-      const distFactor = dist >= 8 && dist <= 38 ? 1.45 : dist < 6 ? 0.4 : 0.75;
+        forwardGain >= 5 ? 2.5 : forwardGain >= 0 ? 1.55 : forwardGain >= -6 ? 0.52 : 0.14;
+      const distFactor = dist >= 9 && dist <= 40 ? 1.45 : dist < 6 ? 0.35 : 0.8;
 
+      const laneMidX = (carrier.x + n.targetX) * 0.5;
+      const laneMidY = (carrier.y + n.targetY) * 0.5;
       let minDefDist = 99;
+      let laneDefDist = 99;
       if (defNodes && defNodes.length) {
         defNodes.forEach((d) => {
           const dd = Math.hypot(d.x - n.targetX, d.y - n.targetY);
+          const ld = Math.hypot(d.x - laneMidX, d.y - laneMidY);
           if (dd < minDefDist) minDefDist = dd;
+          if (ld < laneDefDist) laneDefDist = ld;
         });
       }
-      const openFactor = minDefDist >= 10 ? 1.45 : minDefDist >= 6 ? 1.0 : 0.6;
-      const staminaW = Math.max(0.3, n.stamina / 100);
+      const openFactor =
+        (minDefDist >= 11 ? 1.55 : minDefDist >= 6.5 ? 1.05 : 0.52) *
+        (laneDefDist >= 9 ? 1.2 : laneDefDist < 4.5 ? 0.55 : 0.9);
+      const staminaW = n.stamina >= 45 ? 1.15 : 0.45;
+      const antiPingPongW = pitch && pitch.lastPasserUid === n.uid ? 0.28 : 1.0;
+      const wingSwitchW = Math.abs(n.targetY - carrier.y) >= 18 && forwardGain >= 0 && minDefDist >= 9 ? 1.25 : 1.0;
       const skillW = Math.pow(Math.max(55, n.effOvr) / 80, 0.65);
-      return forwardFactor * distFactor * openFactor * staminaW * skillW;
+      return forwardFactor * distFactor * openFactor * staminaW * antiPingPongW * wingSwitchW * skillW;
     });
 
     const total = weights.reduce((a, b) => a + b, 0);
@@ -1940,9 +2008,12 @@
     const centralLane = carrier.y >= 24 && carrier.y <= 76;
     const inFinalThird = attIsUser ? carrier.x >= 58 : carrier.x <= 42;
 
-    // Conta defensores na frente entre o portador e o gol
+    // Conta defensores na frente e mede pressão imediata em cima do portador
+    let nearestDefDist = 99;
     const blockingDefs = defNodes.filter((d) => {
       if (d.role === "GK") return false;
+      const dDist = Math.hypot(d.x - carrier.x, d.y - carrier.y);
+      if (dDist < nearestDefDist) nearestDefDist = dDist;
       const isAhead = attIsUser ? d.x >= carrier.x - 1 : d.x <= carrier.x + 1;
       const nearCorridor = Math.abs(d.y - carrier.y) <= 13 && Math.abs(d.x - carrier.x) <= 16;
       return isAhead && nearCorridor;
@@ -1956,44 +2027,73 @@
       return insideBox && closerToGoal;
     });
 
+    const isTired = carrier.stamina < 45;
+    const underClosePress = nearestDefDist < 9.5;
+    const tooManyDribbles = pitch.lastAction === "DRIBBLE" && (pitch.sameActionStreak || 0) >= 2;
+    const stalePasses = (pitch.teamConsecutivePasses || 0) >= 3;
     const roll = Math.random();
 
-    // 1) Cara a cara ou dentro da área central -> CHUTA! (sem passes idiotas para trás!)
+    // 1) Cara a cara ou dentro da área central -> finaliza com inteligência ou rola pro colega livre
     if ((inPenaltyX && centralLane) || goalDist <= 22) {
       if (blockingDefs <= 1 || goalDist <= 18) {
-        if (roll < 0.90 || !hasOpenBoxTarget) return { action: "SHOT", strictForward: true };
-        return { action: "PASS", strictForward: true };
+        if (hasOpenBoxTarget && (blockingDefs >= 1 && roll < 0.24)) {
+          return { action: "PASS", strictForward: true };
+        }
+        return { action: "SHOT", strictForward: true };
       }
-      if (roll < 0.72) return { action: "SHOT", strictForward: true };
-      if (roll < 0.88) return { action: "DRIBBLE", strictForward: true };
-      return hasOpenBoxTarget ? { action: "PASS", strictForward: true } : { action: "SHOT", strictForward: true };
+      if (hasOpenBoxTarget && roll < 0.36) return { action: "PASS", strictForward: true };
+      if (roll < 0.78) return { action: "SHOT", strictForward: true };
+      return isTired ? { action: "SHOT", strictForward: true } : { action: "DRIBBLE", strictForward: true };
     }
 
-    // 2) Ponta / linha de fundo na área -> cruza para quem entra na área ou corta para finalizar
+    // 2) Ponta / linha de fundo na área -> cruza quando há opção livre, corta pra dentro se tiver espaço
     if (inPenaltyX && !centralLane) {
-      if (hasOpenBoxTarget && roll < 0.58) return { action: "PASS", strictForward: true };
-      if (roll < 0.84) return { action: "DRIBBLE", strictForward: true };
+      if (hasOpenBoxTarget && roll < (isTired || tooManyDribbles ? 0.72 : 0.60)) {
+        return { action: "PASS", strictForward: true };
+      }
+      if (!isTired && !tooManyDribbles && roll < 0.85) return { action: "DRIBBLE", strictForward: true };
       return { action: "SHOT", strictForward: true };
     }
 
     // 3) Terço final / entrada da área
     if (inFinalThird || effRole === "FW") {
       if (blockingDefs === 0) {
-        if (roll < 0.56) return { action: "SHOT", strictForward: true };
-        if (roll < 0.80) return { action: "DRIBBLE", strictForward: true };
+        if (roll < 0.58) return { action: "SHOT", strictForward: true };
+        if (!isTired && !tooManyDribbles && roll < 0.82) return { action: "DRIBBLE", strictForward: true };
         return { action: "PASS", strictForward: true };
       }
-      if (roll < 0.36) return { action: "SHOT", strictForward: true };
-      if (roll < 0.72) return { action: "DRIBBLE", strictForward: true };
+      if ((isTired || tooManyDribbles) && roll < 0.65) {
+        return { action: "PASS", strictForward: true };
+      }
+      if (stalePasses && roll < 0.68) {
+        return roll < 0.36 ? { action: "SHOT", strictForward: true } : { action: "DRIBBLE", strictForward: true };
+      }
+      if (roll < 0.34) return { action: "SHOT", strictForward: true };
+      if (roll < 0.66) return { action: "DRIBBLE", strictForward: true };
       return { action: "PASS", strictForward: true };
     }
 
-    // 4) Defesa / Meio-campo construtivo
+    // 4) Defesa / Meio-campo construtivo: evita insistir no drible quando cansado ou encurralado, e quebra tiki-taka longo
     if (effRole === "DF") {
-      return roll < 0.76 ? { action: "PASS", strictForward: true } : { action: "DRIBBLE", strictForward: false };
+      if (isTired || underClosePress || tooManyDribbles) {
+        return roll < 0.86 ? { action: "PASS", strictForward: true } : { action: "DRIBBLE", strictForward: false };
+      }
+      return roll < 0.74 ? { action: "PASS", strictForward: true } : { action: "DRIBBLE", strictForward: false };
     }
-    if (roll < 0.56) return { action: "PASS", strictForward: false };
-    if (roll < 0.93) return { action: "DRIBBLE", strictForward: false };
+
+    if (isTired || tooManyDribbles) {
+      return roll < 0.78 ? { action: "PASS", strictForward: false } : { action: "DRIBBLE", strictForward: false };
+    }
+    if (stalePasses) {
+      if (roll < 0.52) return { action: "DRIBBLE", strictForward: false };
+      if (roll < 0.68) return { action: "SHOT", strictForward: true };
+      return { action: "PASS", strictForward: true };
+    }
+    if (underClosePress && blockingDefs >= 2) {
+      return roll < 0.72 ? { action: "PASS", strictForward: false } : { action: "DRIBBLE", strictForward: false };
+    }
+    if (roll < 0.54) return { action: "PASS", strictForward: false };
+    if (roll < 0.90) return { action: "DRIBBLE", strictForward: false };
     return { action: "SHOT", strictForward: true };
   }
 
@@ -2061,6 +2161,7 @@
         if (!el) return;
         el.classList.toggle("has-ball", node.uid === pitch.carrierUid);
         el.classList.toggle("is-challenger", node.uid === pitch.challengerUid);
+        el.classList.toggle("is-tired", node.stamina < 45);
 
         const stamBar = el.querySelector(".pitch-token-stamina-fill");
         if (stamBar) {
@@ -2220,12 +2321,13 @@
         const sideCls = node.side === "user" ? "side-user" : "side-opp";
         const ballCls = node.uid === pitch.carrierUid ? "has-ball" : "";
         const chalCls = node.uid === pitch.challengerUid ? "is-challenger" : "";
+        const tiredCls = node.stamina < 45 ? "is-tired" : "";
         const shortName = (node.player?.name || node.label).split(" ").slice(-1)[0];
         const stamColor =
           node.stamina >= 70 ? "#4ade80" : node.stamina >= 45 ? "#facc15" : "#ef4444";
 
         return `
-          <div id="pnode-${node.uid}" class="pitch-player-token ${sideCls} ${ballCls} ${chalCls}" style="left:${node.x}%; top:${node.y}%;">
+          <div id="pnode-${node.uid}" class="pitch-player-token ${sideCls} ${ballCls} ${chalCls} ${tiredCls}" style="left:${node.x}%; top:${node.y}%;">
             <div id="pbadge-${node.uid}" class="pitch-token-action-badge"></div>
             <img class="pitch-token-avatar" src="${node.player?.sprite || ""}" alt="${shortName}" />
             <div class="pitch-token-stamina">
@@ -2280,7 +2382,7 @@
           </svg>
 
           ${tokensHTML}
-          <div id="live-pitch-ball" class="pitch-ball-dot" style="left:${pitch.ballX}%; top:${pitch.ballY}%;">⚽</div>
+          <div id="live-pitch-ball" class="pitch-ball-dot" style="left:${pitch.ballX}%; top:${pitch.ballY}%;">${buildMiniBallSVG("pitch-ball-svg")}</div>
           <div id="pitch-float-badge" class="pitch-float-badge"></div>
           <div id="pitch-center-callout" class="pitch-center-callout" style="display:none;"></div>
           <div id="shot-clash-slot" class="pitch-clash-modal" style="display:none;"></div>
@@ -2513,10 +2615,10 @@
       }
 
       pitch.userNodes.forEach((n) => {
-        if (n.uid !== pitch.carrierUid) n.stamina = Math.min(100, n.stamina + 3.8);
+        if (n.uid !== pitch.carrierUid) n.stamina = Math.min(100, n.stamina + 1.5);
       });
       pitch.oppNodes.forEach((n) => {
-        if (n.uid !== pitch.carrierUid) n.stamina = Math.min(100, n.stamina + 3.8);
+        if (n.uid !== pitch.carrierUid) n.stamina = Math.min(100, n.stamina + 1.5);
       });
 
       const attIsUser = pitch.ballSide === "user";
@@ -2531,10 +2633,18 @@
       const carrier = findPitchNode(pitch, pitch.carrierUid) || attNodes[0];
       const effRole = getEffectiveCarrierRole(carrier);
 
-      // Decisão tática contextual inteligente (chuta quando de cara pro gol; evita passes para trás inúteis!)
+      // Decisão tática contextual inteligente (chuta quando de cara pro gol; evita repetição e cansaço!)
       const decision = chooseTacticalAction(carrier, attNodes, defNodes, attIsUser, pitch);
       const action = decision.action;
       const strictForward = decision.strictForward;
+
+      pitch.sameActionStreak = pitch.lastAction === action ? (pitch.sameActionStreak || 0) + 1 : 1;
+      pitch.lastAction = action;
+      if (action === "PASS") {
+        pitch.teamConsecutivePasses = (pitch.teamConsecutivePasses || 0) + 1;
+      } else {
+        pitch.teamConsecutivePasses = 0;
+      }
 
       const isSafeProtectedPass = Boolean(decision.safeRestart || carrier.role === "GK");
       const passFlightMs = state.simSpeed === 4 ? 70 : state.simSpeed === 2 ? 155 : 460;
@@ -2543,7 +2653,7 @@
       // AÇÃO 1: PASSE INDIVIDUAL (GOLEIRO E SAÍDA DE BOLA SÃO 100% PROTEGIDOS CONTRA ROUBO!)
       // ----------------------------------------------------------------------
       if (action === "PASS") {
-        const receiver = pickPassReceiver(attNodes, defNodes, carrier, strictForward);
+        const receiver = pickPassReceiver(attNodes, defNodes, carrier, strictForward, pitch);
         const midX = (carrier.x + receiver.targetX) * 0.5;
         const midY = (carrier.y + receiver.targetY) * 0.5;
         const pressRoles =
@@ -2556,16 +2666,23 @@
             : ["DF"];
         const interceptor = pickMarkerFor(defNodes, pressRoles, midX, midY);
 
+        let recMinDefDist = 99;
+        defNodes.forEach((d) => {
+          const dd = Math.hypot(d.x - receiver.targetX, d.y - receiver.targetY);
+          if (dd < recMinDefDist) recMinDefDist = dd;
+        });
+        const passLaneEdge = recMinDefDist >= 11 ? 1.4 : 0;
+
         const passScore = calcNodeDuelScore(carrier, attSupport, interceptor?.player?.element);
         const defScore = calcNodeDuelScore(interceptor, defSupport, carrier?.player?.element);
-        const sectorShift = effRole === "GK" ? 13 : effRole === "DF" ? 9.5 : effRole === "MF" ? 6.5 : 5.0;
+        const sectorShift = effRole === "GK" ? 14 : effRole === "DF" ? 13.0 : effRole === "MF" ? 11.2 : 9.0;
+        const minPassP = effRole === "DF" ? 0.78 : effRole === "MF" ? 0.75 : 0.71;
         const passSuccess = isSafeProtectedPass
           ? true
-          : Math.random() < logisticWinProb(passScore, defScore, sectorShift, 0.56, 0.93);
+          : Math.random() < logisticWinProb(passScore + passLaneEdge, defScore, sectorShift, minPassP, 0.95);
 
         const isGkOutlet = carrier.role === "GK";
-        spendStamina(carrier, isSafeProtectedPass ? 2 : 6);
-        if (!isSafeProtectedPass) spendStamina(interceptor, 4);
+        spendStamina(carrier, isSafeProtectedPass ? 1.5 : 4);
         if (attIsUser) {
           if (isGkOutlet) {
             pitch.stats.userGkReleases = (pitch.stats.userGkReleases || 0) + 1;
@@ -2592,6 +2709,7 @@
                 receiverUid: receiver.uid,
                 side: carrier.side
               };
+          pitch.lastPasserUid = carrier.uid;
           pitch.carrierUid = receiver.uid;
           pitch.challengerUid = null;
           pitch.holdBallPos = null;
@@ -2608,26 +2726,37 @@
             "PASS",
             attIsUser ? "#4ade80" : "#f87171"
           );
-          const passBadgeText = carrier.role === "GK" ? "🧤 REPOSIÇÃO" : "⚽ PASSE";
-          showPitchBadge(pitch, receiver.targetX, receiver.targetY, passBadgeText, "badge-pass", passFlightMs + 260);
+          const passBadgeText = carrier.role === "GK" ? "REPOSIÇÃO" : "PASSE";
+          showPitchBadge(
+            pitch,
+            receiver.targetX,
+            receiver.targetY,
+            passBadgeText,
+            "badge-pass",
+            passFlightMs + 260,
+            carrier.role === "GK" ? "GK" : "BALL"
+          );
           pitch.ticker =
             carrier.role === "GK"
-              ? `${st.minute}' 🧤 Reposição: ${carrier.player.name} ➔ ${receiver.player.name}`
-              : `${st.minute}' ⚽ Passe: ${carrier.player.name} ➔ ${receiver.player.name}`;
+              ? `${st.minute}' Reposição: ${carrier.player.name} ➔ ${receiver.player.name}`
+              : `${st.minute}' Passe: ${carrier.player.name} ➔ ${receiver.player.name}`;
           syncLivePitchDOM(st);
           handleMinuteEndBoundaries(st, ovrDiff);
           return;
         } else {
-          // Interceptado na linha de passe: roubo direto no campo mostrando técnica no ícone do jogador
+          // Interceptado na linha de passe: pausa leve sem texto no centro, exibindo técnica no ícone
           const ix = Math.max(12, Math.min(88, startX * 0.46 + receiver.targetX * 0.54));
           const iy = Math.max(14, Math.min(86, startY * 0.46 + receiver.targetY * 0.54));
           const stealMove = pickPlayerMove(interceptor.player, "DF") || "Corte Rápido";
+          spendStamina(interceptor, 10);
 
           pitch.ballSide = attIsUser ? "opp" : "user";
           pitch.carrierUid = interceptor.uid;
           pitch.challengerUid = null;
           pitch.holdBallPos = null;
           pitch.lastAssistCandidate = null;
+          pitch.lastPasserUid = null;
+          pitch.teamConsecutivePasses = 0;
           pinNodeToCoord(pitch, interceptor, ix, iy, false);
           startBallFlight(
             pitch,
@@ -2640,35 +2769,30 @@
             "INTERCEPT",
             "#38bdf8"
           );
-          showNodeBadge(pitch, carrier.uid, "❌ Interceptado", "badge-lost", 1550);
-          showNodeBadge(pitch, interceptor.uid, `🛡️ Roubou • ${stealMove}`, "badge-steal", 1550);
+          showNodeBadge(pitch, carrier.uid, "Interceptado", "badge-lost", 1550);
+          showNodeBadge(pitch, interceptor.uid, `Roubou • ${stealMove}`, "badge-steal", 1550, "DF");
 
           if (!attIsUser) {
             pitch.stats.userSteals++;
             recordUserPlayerStat(pitch, interceptor, "steals", 1);
           }
-          pitch.ticker = `${st.minute}' 🛡️ ${interceptor.player.name} roubou passe de ${carrier.player.name} (${stealMove})!`;
+          pitch.ticker = `${st.minute}' ${interceptor.player.name} roubou passe de ${carrier.player.name} (${stealMove})!`;
           prependNarrationLine(
             st,
             "nar-steal",
-            `🛡️ ${st.minute}' [Roubo] ${interceptor.player.name} deu o bote com 【${stealMove}】 e interceptou ${carrier.player.name}!`,
+            `${st.minute}' [Roubo] ${interceptor.player.name} deu o bote com 【${stealMove}】 e interceptou ${carrier.player.name}!`,
             { name: interceptor.player.name, sprite: interceptor.player.sprite, side: interceptor.side },
-            { name: carrier.player.name, sprite: carrier.player.sprite, side: carrier.side }
+            { name: carrier.player.name, sprite: carrier.player.sprite, side: carrier.side },
+            "DF"
           );
           syncLivePitchDOM(st);
-          pauseForPitchBeat(
-            st,
-            `<span class="callout-tag">ROUBO DE BOLA</span><strong>${interceptor.player.name}</strong><span>【${stealMove}】</span>`,
-            "callout-steal",
-            1500,
-            ovrDiff
-          );
+          pauseForPitchBeat(st, "", "", 1250, ovrDiff);
           return;
         }
       }
 
       // ----------------------------------------------------------------------
-      // AÇÃO 2: DRIBLE INDIVIDUAL (SEM MODAL: MOSTRA AVANÇOU / PERDEU E A TÉCNICA NO ÍCONE!)
+      // AÇÃO 2: DRIBLE INDIVIDUAL (SEM TEXTO NO MEIO: PAUSA LEVE + TÉCNICA NO ÍCONE!)
       // ----------------------------------------------------------------------
       if (action === "DRIBBLE") {
         const markerRoles = effRole === "DF" ? ["FW", "MF"] : effRole === "MF" ? ["MF", "DF"] : ["DF"];
@@ -2677,10 +2801,10 @@
 
         const dribScore = calcNodeDuelScore(carrier, attSupport, marker?.player?.element);
         const defScore = calcNodeDuelScore(marker, defSupport, carrier?.player?.element);
-        const wonDribble = Math.random() < logisticWinProb(dribScore, defScore, 1.0, 0.25, 0.78);
+        const wonDribble = Math.random() < logisticWinProb(dribScore, defScore, 4.4, 0.38, 0.86);
 
-        spendStamina(carrier, 11);
-        spendStamina(marker, 9);
+        spendStamina(carrier, 15);
+        spendStamina(marker, 11);
         if (attIsUser) {
           pitch.stats.userDribblesTry++;
           recordUserPlayerStat(pitch, carrier, "dribblesTry", 1);
@@ -2713,6 +2837,7 @@
           ) {
             pitch.lastAssistCandidate = null;
           }
+          pitch.lastPasserUid = null;
           const newX = Math.max(12, Math.min(86, startX + (attIsUser ? 12 : -12)));
           const dodgeY = Math.max(14, Math.min(86, startY + (marker.y >= startY ? -6.5 : 6.5)));
           pitch.carrierUid = carrier.uid;
@@ -2732,23 +2857,18 @@
             flightDuration: 280,
             fadeUntil: performance.now() + 680
           };
-          showNodeBadge(pitch, carrier.uid, `💨 Avançou • ${ofMove}`, "badge-dribble", 1550);
-          pitch.ticker = `${st.minute}' 💨 ${carrier.player.name} avançou com ${ofMove} sobre ${marker.player.name}!`;
+          showNodeBadge(pitch, carrier.uid, `Avançou • ${ofMove}`, "badge-dribble", 1550, "OF");
+          pitch.ticker = `${st.minute}' ${carrier.player.name} avançou com ${ofMove} sobre ${marker.player.name}!`;
           prependNarrationLine(
             st,
             "nar-dribble",
-            `💨 ${st.minute}' [Drible] ${carrier.player.name} ativou 【${ofMove}】 e avançou por ${marker.player.name}!`,
+            `${st.minute}' [Drible] ${carrier.player.name} ativou 【${ofMove}】 e avançou por ${marker.player.name}!`,
             { name: carrier.player.name, sprite: carrier.player.sprite, side: carrier.side },
-            { name: marker.player.name, sprite: marker.player.sprite, side: marker.side }
+            { name: marker.player.name, sprite: marker.player.sprite, side: marker.side },
+            "OF"
           );
           syncLivePitchDOM(st);
-          pauseForPitchBeat(
-            st,
-            `<span class="callout-tag">DRIBLE · AVANÇOU</span><strong>${carrier.player.name}</strong><span>【${ofMove}】</span>`,
-            "callout-dribble",
-            1500,
-            ovrDiff
-          );
+          pauseForPitchBeat(st, "", "", 1250, ovrDiff);
           return;
         } else {
           const tackleX = Math.max(12, Math.min(88, startX + (attIsUser ? 1.8 : -1.8)));
@@ -2758,33 +2878,30 @@
           pitch.challengerUid = null;
           pitch.holdBallPos = null;
           pitch.lastAssistCandidate = null;
+          pitch.lastPasserUid = null;
+          pitch.teamConsecutivePasses = 0;
           pinNodeToCoord(pitch, marker, tackleX, tackleY, true);
           pitch.ballFlight = null;
           pitch.ballX = tackleX + (marker.side === "user" ? 2.2 : -2.2);
           pitch.ballY = tackleY + 1.2;
           pitch.passTrail = null;
-          showNodeBadge(pitch, carrier.uid, "❌ Perdeu a bola", "badge-lost", 1550);
-          showNodeBadge(pitch, marker.uid, `🛡️ Roubou • ${dfMove}`, "badge-steal", 1550);
+          showNodeBadge(pitch, carrier.uid, "Perdeu a bola", "badge-lost", 1550);
+          showNodeBadge(pitch, marker.uid, `Roubou • ${dfMove}`, "badge-steal", 1550, "DF");
           if (!attIsUser) {
             pitch.stats.userSteals++;
             recordUserPlayerStat(pitch, marker, "steals", 1);
           }
-          pitch.ticker = `${st.minute}' 🛡️ ${carrier.player.name} perdeu a bola — roubo de ${marker.player.name} (${dfMove})!`;
+          pitch.ticker = `${st.minute}' ${carrier.player.name} perdeu a bola — roubo de ${marker.player.name} (${dfMove})!`;
           prependNarrationLine(
             st,
             "nar-steal",
-            `🛡️ ${st.minute}' [Desarme] ${marker.player.name} usou 【${dfMove}】 e roubou a bola de ${carrier.player.name}!`,
+            `${st.minute}' [Desarme] ${marker.player.name} usou 【${dfMove}】 e roubou a bola de ${carrier.player.name}!`,
             { name: marker.player.name, sprite: marker.player.sprite, side: marker.side },
-            { name: carrier.player.name, sprite: carrier.player.sprite, side: carrier.side }
+            { name: carrier.player.name, sprite: carrier.player.sprite, side: carrier.side },
+            "DF"
           );
           syncLivePitchDOM(st);
-          pauseForPitchBeat(
-            st,
-            `<span class="callout-tag">ROUBO DE BOLA</span><strong>${marker.player.name}</strong><span>【${dfMove}】</span>`,
-            "callout-steal",
-            1500,
-            ovrDiff
-          );
+          pauseForPitchBeat(st, "", "", 1250, ovrDiff);
           return;
         }
       }
@@ -2815,8 +2932,13 @@
         : logisticWinProb(shotScore, stopScore, -7.4, 0.08, 0.50);
       const isGoal = Math.random() < goalProb;
 
-      spendStamina(shooterNode, 14);
-      spendStamina(defTarget, 11);
+      const shotInfo = buildGoalShotLabel(shooterNode.player);
+      const pickedDefMove = pickPlayerMove(defTarget.player, defCategory);
+      const defMoveName =
+        pickedDefMove || (defCategory === "DF" ? "Bloqueio de Corpo" : "Defesa Direta");
+
+      spendStamina(shooterNode, shotInfo.isHissatsu ? 19 : 9);
+      spendStamina(defTarget, pickedDefMove ? 15 : 8);
       const shotAssistCandidate =
         pitch.lastAssistCandidate &&
         pitch.lastAssistCandidate.side === shooterNode.side &&
@@ -2825,17 +2947,14 @@
           ? pitch.lastAssistCandidate
           : null;
       pitch.lastAssistCandidate = null;
+      pitch.lastPasserUid = null;
+      pitch.teamConsecutivePasses = 0;
       if (attIsUser) {
         pitch.stats.userShots++;
         recordUserPlayerStat(pitch, shooterNode, "shots", 1);
       } else {
         pitch.stats.oppShots++;
       }
-
-      const shotInfo = buildGoalShotLabel(shooterNode.player);
-      const defMoveName =
-        pickPlayerMove(defTarget.player, defCategory) ||
-        (defCategory === "DF" ? "Bloqueio de Corpo" : "Defesa Direta");
 
       const shotOriginX = shooterNode.x;
       const shotOriginY = shooterNode.y;
@@ -2870,8 +2989,8 @@
         "SHOT",
         "#f97316"
       );
-      showPitchBadge(pitch, shotOriginX, shotOriginY, `🔥 ${shotInfo.label}`, "badge-shot", state.simSpeed === 1 ? 1900 : 650);
-      pitch.ticker = `${st.minute}' 🔥 CHUTE! ${shooterNode.player.name} (${shotInfo.label}) vs ${defTarget.player.name}!`;
+      showPitchBadge(pitch, shotOriginX, shotOriginY, shotInfo.label, "badge-shot", state.simSpeed === 1 ? 1900 : 650, "SH");
+      pitch.ticker = `${st.minute}' CHUTE! ${shooterNode.player.name} (${shotInfo.label}) vs ${defTarget.player.name}!`;
       syncLivePitchDOM(st);
 
       // Fase 2 (No impacto): se foi gol, bola entra e FICA visível na rede após o modal fechar!
@@ -2883,8 +3002,8 @@
           startBallFlight(pitch, duelX, duelY, goalX, goalY, state.simSpeed === 1 ? 360 : 50, 0.8, "GOAL", "#facc15");
           pitch.goalFlashSide = attIsUser ? "right" : "left";
           pitch.goalFlashUntil = performance.now() + 2600;
-          showPitchBadge(pitch, goalX, goalY, "⚽ GOOOL!!", "badge-goal", 1600);
-          showNodeBadge(pitch, shooterNode.uid, `⚽ GOOOL! • ${shotInfo.label}`, "badge-goal", 1650);
+          showPitchBadge(pitch, goalX, goalY, "GOOOL!!", "badge-goal", 1600, "SH");
+          showNodeBadge(pitch, shooterNode.uid, `GOOOL! • ${shotInfo.label}`, "badge-goal", 1650, "SH");
 
           if (attIsUser) {
             st.userScore++;
@@ -2912,10 +3031,11 @@
               st,
               "nar-goal-user",
               shotInfo.isHissatsu
-                ? `⚽ ${st.minute}' GOOOL DO DREAM TEAM! ${shooterNode.player.name} disparou 【${shotInfo.label}】${assistTag} e furou 【${defMoveName}】 de ${defTarget.player.name}! (${st.userScore} x ${st.oppScore})`
-                : `⚽ ${st.minute}' GOOOL DO DREAM TEAM! ${shooterNode.player.name} superou ${defTarget.player.name} com um ${shotInfo.label.toLowerCase()}${assistTag}! (${st.userScore} x ${st.oppScore})`,
+                ? `${st.minute}' GOOOL DO DREAM TEAM! ${shooterNode.player.name} disparou 【${shotInfo.label}】${assistTag} e furou 【${defMoveName}】 de ${defTarget.player.name}! (${st.userScore} x ${st.oppScore})`
+                : `${st.minute}' GOOOL DO DREAM TEAM! ${shooterNode.player.name} superou ${defTarget.player.name} com um ${shotInfo.label.toLowerCase()}${assistTag}! (${st.userScore} x ${st.oppScore})`,
               { name: shooterNode.player.name, sprite: shooterNode.player.sprite, side: "user" },
-              { name: defTarget.player.name, sprite: defTarget.player.sprite, side: "opp" }
+              { name: defTarget.player.name, sprite: defTarget.player.sprite, side: "opp" },
+              "SH"
             );
           } else {
             st.oppScore++;
@@ -2934,13 +3054,14 @@
               st,
               "nar-goal-opp",
               shotInfo.isHissatsu
-                ? `💥 ${st.minute}' GOL DE ${st.oppTeam.name.toUpperCase()}! ${shooterNode.player.name} usou 【${shotInfo.label}】 e venceu 【${defMoveName}】 de ${defTarget.player.name}! (${st.userScore} x ${st.oppScore})`
-                : `💥 ${st.minute}' GOL DE ${st.oppTeam.name.toUpperCase()}! ${shooterNode.player.name} venceu ${defTarget.player.name} com um ${shotInfo.label.toLowerCase()}! (${st.userScore} x ${st.oppScore})`,
+                ? `${st.minute}' GOL DE ${st.oppTeam.name.toUpperCase()}! ${shooterNode.player.name} usou 【${shotInfo.label}】 e venceu 【${defMoveName}】 de ${defTarget.player.name}! (${st.userScore} x ${st.oppScore})`
+                : `${st.minute}' GOL DE ${st.oppTeam.name.toUpperCase()}! ${shooterNode.player.name} venceu ${defTarget.player.name} com um ${shotInfo.label.toLowerCase()}! (${st.userScore} x ${st.oppScore})`,
               { name: shooterNode.player.name, sprite: shooterNode.player.sprite, side: "opp" },
-              { name: defTarget.player.name, sprite: defTarget.player.sprite, side: "user" }
+              { name: defTarget.player.name, sprite: defTarget.player.sprite, side: "user" },
+              "SH"
             );
           }
-          pitch.ticker = `${st.minute}' ⚽ GOOOL de ${shooterNode.player.name}! (${st.userScore} x ${st.oppScore})`;
+          pitch.ticker = `${st.minute}' GOOOL de ${shooterNode.player.name}! (${st.userScore} x ${st.oppScore})`;
         } else {
           pitch.ballSide = attIsUser ? "opp" : "user";
           pitch.carrierUid = defTarget.uid;
@@ -2953,7 +3074,7 @@
           pitch.ballX = duelX + (defTarget.side === "user" ? 2.2 : -2.2);
           pitch.ballY = duelY + 1.2;
           pitch.passTrail = null;
-          showPitchBadge(pitch, duelX, duelY, `🧤 ${defMoveName}`, "badge-steal", 1000);
+          showPitchBadge(pitch, duelX, duelY, defMoveName, "badge-steal", 1000, defCategory);
 
           if (defCategory === "DF") {
             if (!attIsUser) {
@@ -2962,26 +3083,28 @@
               recordUserPlayerStat(pitch, defTarget, "blocks", 1);
               recordUserPlayerStat(pitch, defTarget, "steals", 1);
             }
-            pitch.ticker = `${st.minute}' 🛡️ ${defTarget.player.name} bloqueou o chute de ${shooterNode.player.name}!`;
+            pitch.ticker = `${st.minute}' ${defTarget.player.name} bloqueou o chute de ${shooterNode.player.name}!`;
             prependNarrationLine(
               st,
               "nar-steal",
-              `🛡️ ${st.minute}' [Bloqueio da Zaga] ${defTarget.player.name} entrou na frente com 【${defMoveName}】 e bloqueou 【${shotInfo.label}】 de ${shooterNode.player.name}!`,
+              `${st.minute}' [Bloqueio da Zaga] ${defTarget.player.name} entrou na frente com 【${defMoveName}】 e bloqueou 【${shotInfo.label}】 de ${shooterNode.player.name}!`,
               { name: defTarget.player.name, sprite: defTarget.player.sprite, side: defTarget.side },
-              { name: shooterNode.player.name, sprite: shooterNode.player.sprite, side: shooterNode.side }
+              { name: shooterNode.player.name, sprite: shooterNode.player.sprite, side: shooterNode.side },
+              "DF"
             );
           } else {
             if (!attIsUser) {
               pitch.stats.userSaves++;
               recordUserPlayerStat(pitch, defTarget, "saves", 1);
             }
-            pitch.ticker = `${st.minute}' 🧤 ${defTarget.player.name} defendeu o chute de ${shooterNode.player.name}!`;
+            pitch.ticker = `${st.minute}' ${defTarget.player.name} defendeu o chute de ${shooterNode.player.name}!`;
             prependNarrationLine(
               st,
               "nar-save",
-              `🧤 ${st.minute}' [Defesa de Goleiro] ${defTarget.player.name} acionou 【${defMoveName}】 e espalmou 【${shotInfo.label}】 de ${shooterNode.player.name}!`,
+              `${st.minute}' [Defesa de Goleiro] ${defTarget.player.name} acionou 【${defMoveName}】 e espalmou 【${shotInfo.label}】 de ${shooterNode.player.name}!`,
               { name: defTarget.player.name, sprite: defTarget.player.sprite, side: defTarget.side },
-              { name: shooterNode.player.name, sprite: shooterNode.player.sprite, side: shooterNode.side }
+              { name: shooterNode.player.name, sprite: shooterNode.player.sprite, side: shooterNode.side },
+              "GK"
             );
           }
         }
@@ -2993,7 +3116,7 @@
           const concedingSide = attIsUser ? "opp" : "user";
           const doKickoffReset = () => {
             resetPitchForKickoff(pitch, concedingSide, true);
-            pitch.ticker = `${st.minute}' ⚽ Saída no centro com ${concedingSide === "user" ? "Dream Team" : st.oppTeam.name}!`;
+            pitch.ticker = `${st.minute}' Saída no centro com ${concedingSide === "user" ? "Dream Team" : st.oppTeam.name}!`;
           };
           if (skipRestart || state.simSpeed !== 1) {
             doKickoffReset();
@@ -3013,9 +3136,10 @@
         showNodeBadge(
           pitch,
           defTarget.uid,
-          `${defCategory === "DF" ? "🛡️ Bloqueou" : "🧤 Defendeu"} • ${defMoveName}`,
+          `${defCategory === "DF" ? "Bloqueou" : "Defendeu"} • ${defMoveName}`,
           "badge-steal",
-          1100
+          1100,
+          defCategory
         );
         if (skipRestart || state.simSpeed !== 1) return false;
         pauseForPitchBeat(st, "", "", 700, ovrDiff, null);
@@ -3023,10 +3147,10 @@
       };
 
       const bannerText = isGoal
-        ? "⚽ GOOOL!!"
+        ? "GOOOL!!"
         : defCategory === "DF"
-        ? "🛡️ BLOQUEADO PELA ZAGA!"
-        : "🧤 DEFENDEU!";
+        ? "BLOQUEADO PELA ZAGA!"
+        : "DEFENDEU!";
 
       const defRoleBadge = defCategory === "DF" ? "ZAGA • BLOQUEIO" : "GOLEIRO";
 
@@ -3069,7 +3193,8 @@
     st.narration = [
       {
         cls: "",
-        text: `⚡ 0' Apito inicial pela ${st.stageName} do Futebol Fronteira: Sua Seleção enfrenta ${st.oppTeam.name}!`
+        iconCat: "FF",
+        text: `0' Apito inicial pela ${st.stageName} do Futebol Fronteira: Sua Seleção enfrenta ${st.oppTeam.name}!`
       }
     ];
     st.running = true;
@@ -3109,10 +3234,10 @@
     const bondsBar = document.getElementById("bonds-bar");
     if (bondsBar) {
       if (stats.activeBonds.length === 0) {
-        bondsBar.innerHTML = `<span style="color:#93c5fd;">📐 <strong>Dica Tática:</strong> Escale todos os <strong>11 na posição correta</strong> (+20% Quím / +2 OVR) e conecte jogadores do <strong>mesmo elemento colados</strong> (lado/acima/abaixo) para ativar links elementais!</span>`;
+        bondsBar.innerHTML = `<span style="color:#93c5fd; display:inline-flex; align-items:center; gap:5px; flex-wrap:wrap;">${formationIconHTML("inline-ui-icon")} <strong>Dica Tática:</strong> Escale todos os <strong>11 na posição correta</strong> (+20% Quím / +2 OVR) e conecte jogadores do <strong>mesmo elemento colados</strong> para ativar links elementais!</span>`;
       } else {
         bondsBar.innerHTML =
-          `<strong style="color:#38bdf8; margin-right:4px;">🤝 Bônus & Laços:</strong>` +
+          `<strong style="color:#38bdf8; margin-right:4px; display:inline-flex; align-items:center; gap:4px;">${captainIconHTML("inline-ui-icon")} Laços:</strong>` +
           stats.activeBonds
             .map(
               (b) =>
@@ -3144,11 +3269,13 @@
           <p>
             Gire a roleta entre <strong>57 times</strong> de todas as sagas, escale 1 jogador por clube sorteado e conquiste o <strong>Futebol Fronteira</strong>!
           </p>
-          <div style="background:rgba(37,99,235,0.16); border:1px solid rgba(96,165,250,0.4); border-radius:8px; padding:9px 12px; margin-top:10px; font-size:0.74rem; color:#dbeafe; line-height:1.4; text-align:left;">
-            ⚡ <strong style="color:#facc15;">Como somar Poder Final & Química (para você e os adversários):</strong><br/>
-            • <strong>Posição Certa:</strong> <strong style="color:#86efac;">+20% Quím / +2 OVR</strong> e bônus de Poder ao escalar os 11 na posição natural!<br/>
-            • <strong>Sinergia Elemental Próxima 🔗:</strong> Colocar jogadores do <strong>mesmo elemento colados</strong> (ao lado, acima ou abaixo) acende um link no campo e dá +Química e +Poder!<br/>
-            • <strong>Duplas/Trios & Mesmo Clube:</strong> Laços do anime e colegas de equipe também somam força!
+          <div style="background:rgba(37,99,235,0.16); border:1px solid rgba(96,165,250,0.3); border-radius:8px; padding:9px 12px; margin-top:10px; font-size:0.74rem; color:#dbeafe; line-height:1.45; text-align:left;">
+            <div style="display:flex; align-items:center; gap:5px; margin-bottom:3px;">
+              ${ffLogoIconHTML("inline-ui-icon")} <strong style="color:#facc15;">Como somar Poder Final &amp; Química (para você e os adversários):</strong>
+            </div>
+            • <strong>Posição Certa:</strong> <strong style="color:#86efac;">+20% Quím / +2 OVR</strong> e bônus de Poder ao escalar os 11 na posição natural.<br/>
+            • <strong>Sinergia Elemental Próxima:</strong> Colocar jogadores do <strong>mesmo elemento colados</strong> (ao lado, acima ou abaixo) acende um link no campo e dá +Química e +Poder.<br/>
+            • <strong>Duplas/Trios &amp; Mesmo Clube:</strong> Laços do anime e colegas de equipe também somam força!
           </div>
 
           <div class="option-group">
@@ -3229,7 +3356,7 @@
             DREAM TEAM COMPLETO!
           </h2>
           <div style="font-size:0.95rem; font-weight:900; color:#fed7aa; margin-top:4px;">
-            ⚡ PODER FINAL: ${stats.power.toLocaleString("pt-BR")} PTS &nbsp;•&nbsp; OVR ${stats.ovr} &nbsp;•&nbsp; QUÍMICA ${stats.chem}%
+            PODER FINAL: ${stats.power.toLocaleString("pt-BR")} PTS &nbsp;•&nbsp; OVR ${stats.ovr} &nbsp;•&nbsp; QUÍMICA ${stats.chem}%
           </div>
           <div style="font-size:0.74rem; color:#93c5fd; margin-top:2px;">
             (Base Elenco: ${stats.basePower} + Química: +${stats.chemPower} + Duplas/Trios/Clubes: +${stats.bondsPower})
@@ -3277,13 +3404,13 @@
                       ${
                         hasNaturalOpen
                           ? `Toque em uma vaga de <strong>${sel.pos}</strong> em verde! (Feche 11/11 p/ <strong>+20% Quím e +2 OVR</strong> • Colar elementos iguais acende link próximo!)`
-                          : `⚠️ Vagas de ${sel.pos} ocupadas! Improvisar tira <strong>-6 a -14 OVR</strong> do jogador e perde o bônus de <strong>11/11 na Posição (+20% Quím / +2 OVR)</strong>.`
+                          : `Vagas de ${sel.pos} ocupadas! Improvisar tira <strong>-6 a -14 OVR</strong> do jogador e perde o bônus de <strong>11/11 na Posição (+20% Quím / +2 OVR)</strong>.`
                       }
                     </div>
                   </div>
                 </div>
                 <button class="ie-cmd-btn ie-cmd-gold" id="btn-back-to-team">
-                  <span>⬅️ Voltar ao Time</span>
+                  <span>← Voltar ao Time</span>
                 </button>`
               : `<div class="placing-player-info">
                   <div>
@@ -3542,7 +3669,7 @@
     if (!summary) return "";
     const rank = stats.power >= 1650 ? "S+" : stats.power >= 1450 ? "S" : stats.power >= 1250 ? "A" : "B";
     const statusTitle = summary.isChampion
-      ? "🏆 CAMPEÃO DO FUTEBOL FRONTEIRA"
+      ? `${ffLogoIconHTML("inline-trophy-icon")} CAMPEÃO DO FUTEBOL FRONTEIRA`
       : `FIM DA CAMPANHA — ${summary.stageName.toUpperCase()}`;
     const statusSub = summary.isChampion
       ? `${pluralPt(summary.wins, "vitória", "vitórias")} em ${pluralPt(summary.matchesPlayed, "jogo", "jogos")} · Poder ${stats.power.toLocaleString("pt-BR")} (Rank ${rank}) · OVR ${stats.ovr}`
@@ -4267,12 +4394,12 @@
     link.click();
     link.remove();
 
-    if (statusEl) statusEl.textContent = `✅ Imagem "${fileName}" exportada!`;
+    if (statusEl) statusEl.textContent = `Imagem "${fileName}" exportada!`;
     if (previewSlot) {
       previewSlot.innerHTML = `
         <div class="run-export-preview">
           <div style="font-size:0.74rem; color:#bae6fd; font-weight:800;">
-            🖼️ Prévia da Imagem Exportada (${W}x${H}px)
+            Prévia da Imagem Exportada (${W}x${H}px)
           </div>
           <img src="${dataUrl}" alt="Resumo da Campanha Dream Team" />
         </div>
@@ -4300,12 +4427,12 @@
         if (!isUnlocked) {
           return `
             <div class="bracket-step" style="opacity: 0.55;">
-              <div style="width:32px; height:32px; border-radius:8px; background:#0f172a; border:1px dashed rgba(148,163,184,0.4); display:flex; align-items:center; justify-content:center;">
-                🔒
+              <div style="width:32px; height:32px; border-radius:8px; background:#0f172a; border:1px dashed rgba(148,163,184,0.35); display:flex; align-items:center; justify-content:center;">
+                ${ffLogoIconHTML("inline-ui-icon")}
               </div>
               <div style="min-width:0;">
                 <div style="font-size:0.63rem; color:#94a3b8; font-weight:800; text-transform:uppercase;">${s.stageName}</div>
-                <div style="font-size:0.75rem; font-weight:800; color:#94a3b8;">❓ A Definir</div>
+                <div style="font-size:0.75rem; font-weight:800; color:#94a3b8;">A Definir</div>
               </div>
             </div>
           `;
@@ -4318,7 +4445,7 @@
               <div style="font-size:0.63rem; color:#94a3b8; font-weight:800; text-transform:uppercase;">${s.stageName}</div>
               <div style="font-size:0.75rem; font-weight:800; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${s.oppTeam.name}</div>
               <div style="font-size:0.7rem; font-weight:900; color:${s.finished ? (s.won ? "#4ade80" : "#f87171") : "#facc15"};">
-                ${s.finished ? `${s.userScore} x ${s.oppScore} ${s.won ? "✅" : "❌"}` : "🔥 Ao Vivo"}
+                ${s.finished ? `${s.userScore} x ${s.oppScore} · ${s.won ? "Vitória" : "Derrota"}` : "Ao Vivo"}
               </div>
             </div>
           </div>
@@ -4381,7 +4508,7 @@
         postMatchBarHTML = `
           <div class="match-finish-bar ${isChamp ? "is-win" : "is-loss"}">
             <div>
-              <strong>${isChamp ? "🏆 Campeão do Futebol Fronteira!" : `Fim de jogo · ${st.oppTeam.name} venceu`}</strong>
+              <strong>${isChamp ? "Campeão do Futebol Fronteira!" : `Fim de jogo · ${st.oppTeam.name} venceu`}</strong>
               <span>Clique para abrir o resumo completo da campanha, MVP e exportar imagem.</span>
             </div>
             <button class="ie-cmd-btn ${isChamp ? "ie-cmd-gold" : "ie-cmd-green"}" id="btn-view-run-results">
@@ -4468,7 +4595,7 @@
                     <div>
                       <div style="font-weight:800; color:#fff;">${g.minute}' ${g.name}</div>
                       <div style="font-size:0.68rem; color:${g.isHissatsu ? "#86efac" : "#cbd5e1"}; display:flex; align-items:center; flex-wrap:wrap; gap:4px;">
-                        ${g.isHissatsu ? `${moveIconHTML("SH")} <span>${g.shotLabel}</span>` : `<span>${g.shotLabel}</span>`}${g.assistName ? `<span style="color:#93c5fd; margin-left:4px;">• 🎯 Assist: ${g.assistName}</span>` : ""}
+                        ${g.isHissatsu ? `${moveIconHTML("SH")} <span>${g.shotLabel}</span>` : `<span>${g.shotLabel}</span>`}${g.assistName ? `<span style="color:#93c5fd; margin-left:4px;">• Assist: ${g.assistName}</span>` : ""}
                       </div>
                     </div>
                   </div>

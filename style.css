@@ -221,8 +221,7 @@ body {
 .start-menu-card {
   position: relative;
   background: linear-gradient(180deg, rgba(13, 30, 66, 0.96) 0%, rgba(7, 17, 40, 0.98) 100%);
-  border: 2px solid #3b82f6;
-  outline: 2px solid rgba(250, 204, 21, 0.45);
+  border: 1.5px solid rgba(59, 130, 246, 0.55);
   border-radius: 14px;
   overflow: hidden;
   max-width: 600px;
@@ -393,27 +392,26 @@ body {
 /* HUD Superior */
 .ovr-header-bar {
   background: linear-gradient(180deg, #112654 0%, #091533 100%);
-  border: 2px solid #2563eb;
+  border: 1px solid rgba(59, 130, 246, 0.35);
   border-radius: 10px;
   padding: 7px 10px;
   display: grid;
   grid-template-columns: repeat(6, 1fr);
   gap: 6px;
   text-align: center;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
 }
 
 .ovr-pill {
-  background: rgba(6, 16, 38, 0.72);
-  border: 1px solid rgba(96, 165, 250, 0.25);
+  background: rgba(6, 16, 38, 0.65);
+  border: none;
   border-radius: 6px;
   padding: 4px 3px;
 }
 
 .ovr-pill.power-ovr {
-  background: linear-gradient(180deg, rgba(249, 115, 22, 0.34), rgba(180, 83, 9, 0.3));
-  border-color: #fb923c;
-  box-shadow: 0 0 12px rgba(249, 115, 22, 0.25);
+  background: linear-gradient(180deg, rgba(249, 115, 22, 0.28), rgba(180, 83, 9, 0.24));
+  box-shadow: inset 0 0 0 1px rgba(251, 146, 60, 0.45);
 }
 
 .ovr-pill.power-ovr strong {
@@ -421,13 +419,13 @@ body {
 }
 
 .ovr-pill.main-ovr {
-  background: linear-gradient(180deg, rgba(250, 204, 21, 0.22), rgba(234, 88, 12, 0.22));
-  border-color: var(--ie-gold);
+  background: linear-gradient(180deg, rgba(250, 204, 21, 0.2), rgba(234, 88, 12, 0.18));
+  box-shadow: inset 0 0 0 1px rgba(250, 204, 21, 0.4);
 }
 
 .ovr-pill.chem-ovr {
-  background: linear-gradient(180deg, rgba(56, 189, 248, 0.2), rgba(37, 99, 235, 0.2));
-  border-color: var(--ie-cyan);
+  background: linear-gradient(180deg, rgba(56, 189, 248, 0.18), rgba(37, 99, 235, 0.18));
+  box-shadow: inset 0 0 0 1px rgba(56, 189, 248, 0.38);
 }
 
 .ovr-pill small {
@@ -500,13 +498,13 @@ body {
 /* Card Principal da Tela */
 .screen-card {
   background: var(--panel-bg);
-  border: 2px solid #1d4ed8;
+  border: 1px solid rgba(59, 130, 246, 0.32);
   border-radius: 14px;
-  padding: 15px;
+  padding: 14px;
   display: flex;
   flex-direction: column;
-  gap: 13px;
-  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.55);
+  gap: 12px;
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.52);
 }
 
 /* Cabeçalho estilo Barra de Título Inazuma */
@@ -998,7 +996,7 @@ body {
 
 .bracket-step {
   background: linear-gradient(180deg, #132854 0%, #0a1633 100%);
-  border: 1.5px solid #2563eb;
+  border: 1px solid rgba(59, 130, 246, 0.38);
   border-radius: 8px;
   padding: 8px 9px;
   display: flex;
@@ -1008,28 +1006,28 @@ body {
 }
 
 .bracket-step.active-stage {
-  border-color: var(--ie-gold);
-  background: linear-gradient(180deg, rgba(250, 204, 21, 0.2), rgba(14, 30, 66, 0.95));
+  border-color: rgba(250, 204, 21, 0.72);
+  background: linear-gradient(180deg, rgba(250, 204, 21, 0.16), rgba(14, 30, 66, 0.95));
 }
 
 .bracket-step.passed-stage {
-  border-color: #22c55e;
-  background: linear-gradient(180deg, rgba(34, 197, 94, 0.2), rgba(14, 30, 66, 0.95));
+  border-color: rgba(34, 197, 94, 0.65);
+  background: linear-gradient(180deg, rgba(34, 197, 94, 0.16), rgba(14, 30, 66, 0.95));
 }
 
 .bracket-step.lost-stage {
-  border-color: #ef4444;
-  background: linear-gradient(180deg, rgba(239, 68, 68, 0.2), rgba(14, 30, 66, 0.95));
+  border-color: rgba(239, 68, 68, 0.65);
+  background: linear-gradient(180deg, rgba(239, 68, 68, 0.16), rgba(14, 30, 66, 0.95));
 }
 
 .broadcast-card {
   background: linear-gradient(180deg, #0c1b3d 0%, #060f24 100%);
-  border: 2px solid var(--ie-gold);
+  border: none;
   border-radius: 12px;
-  padding: 15px;
+  padding: 12px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
 }
 
 .broadcast-header {
@@ -1075,7 +1073,7 @@ body {
   gap: 10px;
   border-radius: 12px;
   padding: 9px 10px;
-  border: 2px solid #2563eb;
+  border: 1px solid rgba(59, 130, 246, 0.38);
   background-color: #091738;
   background-size: cover;
   background-position: center;
@@ -1128,8 +1126,8 @@ body {
 }
 
 .goals-list {
-  background: rgba(6, 13, 30, 0.85);
-  border: 1.5px solid #1e3a8a;
+  background: rgba(6, 13, 30, 0.72);
+  border: none;
   border-radius: 10px;
   padding: 10px;
   display: flex;
@@ -1164,10 +1162,10 @@ body {
 }
 
 .narration-history-box {
-  background: rgba(5, 11, 26, 0.94);
-  border: 1.5px solid #1e3a8a;
+  background: rgba(5, 11, 26, 0.8);
+  border: none;
   border-radius: 10px;
-  padding: 12px;
+  padding: 11px;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -1789,8 +1787,8 @@ body {
 }
 
 .recap-stat-item {
-  background: rgba(15, 29, 66, 0.85);
-  border: 1px solid rgba(148, 163, 184, 0.24);
+  background: rgba(15, 29, 66, 0.72);
+  border: none;
   border-radius: 8px;
   padding: 7px 8px;
   text-align: center;
@@ -1965,8 +1963,8 @@ body {
 }
 
 .live-pitch-card {
-  background: rgba(6, 15, 36, 0.92);
-  border: 1.5px solid rgba(56, 189, 248, 0.42);
+  background: rgba(6, 15, 36, 0.78);
+  border: 1px solid rgba(148, 163, 184, 0.22);
   border-radius: 12px;
   padding: 8px 10px;
   display: flex;
@@ -1977,13 +1975,13 @@ body {
 }
 
 .live-pitch-card.poss-user {
-  border-color: rgba(34, 197, 94, 0.72);
-  box-shadow: 0 0 16px rgba(34, 197, 94, 0.16);
+  border-color: rgba(34, 197, 94, 0.5);
+  box-shadow: 0 0 12px rgba(34, 197, 94, 0.1);
 }
 
 .live-pitch-card.poss-opp {
-  border-color: rgba(239, 68, 68, 0.72);
-  box-shadow: 0 0 16px rgba(239, 68, 68, 0.16);
+  border-color: rgba(239, 68, 68, 0.5);
+  box-shadow: 0 0 12px rgba(239, 68, 68, 0.1);
 }
 
 .pitch-possession-bar {
@@ -1999,14 +1997,14 @@ body {
 }
 
 .pitch-possession-bar.poss-user {
-  background: linear-gradient(90deg, rgba(22, 163, 74, 0.28), rgba(15, 31, 68, 0.75));
-  border: 1px solid rgba(74, 222, 128, 0.55);
+  background: linear-gradient(90deg, rgba(22, 163, 74, 0.24), rgba(15, 31, 68, 0.72));
+  border: none;
   color: #dcfce7;
 }
 
 .pitch-possession-bar.poss-opp {
-  background: linear-gradient(90deg, rgba(15, 31, 68, 0.75), rgba(220, 38, 38, 0.28));
-  border: 1px solid rgba(248, 113, 113, 0.55);
+  background: linear-gradient(90deg, rgba(15, 31, 68, 0.72), rgba(220, 38, 38, 0.24));
+  border: none;
   color: #fee2e2;
 }
 
@@ -2066,10 +2064,10 @@ body {
   flex: 1;
   min-width: 0;
   text-align: center;
-  background: rgba(15, 31, 68, 0.92);
-  border: 1px solid rgba(250, 204, 21, 0.45);
+  background: rgba(15, 31, 68, 0.78);
+  border: none;
   border-radius: 999px;
-  padding: 3px 10px;
+  padding: 4px 10px;
   font-size: 0.68rem;
   font-weight: 800;
   color: #fef08a;
@@ -2170,6 +2168,9 @@ body {
 .pitch-float-badge {
   position: absolute;
   transform: translate(-50%, -135%);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   padding: 2px 7px;
   border-radius: 999px;
   font-size: 0.58rem;
@@ -2281,6 +2282,11 @@ body {
   box-shadow: 0 0 10px rgba(56, 189, 248, 0.85);
 }
 
+.pitch-player-token.is-tired .pitch-token-avatar {
+  box-shadow: 0 0 0 1.5px rgba(239, 68, 68, 0.72), 0 2px 6px rgba(0, 0, 0, 0.7);
+  filter: saturate(0.75) brightness(0.92);
+}
+
 .pitch-token-stamina {
   width: 24px;
   height: 3px;
@@ -2317,7 +2323,10 @@ body {
   bottom: calc(100% + 2px);
   left: 50%;
   transform: translateX(-50%) scale(0.9);
-  padding: 2px 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
   border-radius: 999px;
   font-size: 0.54rem;
   font-weight: 900;
@@ -2466,6 +2475,58 @@ body {
   will-change: left, top, transform;
 }
 
+.pitch-ball-svg {
+  width: 15px;
+  height: 15px;
+  display: block;
+}
+
+.badge-move-icon {
+  width: 13px;
+  height: 13px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.nar-text {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.nar-cat-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.nar-move-icon {
+  width: 15px;
+  height: 15px;
+  object-fit: contain;
+  display: block;
+}
+
+.inline-ui-icon,
+.inline-elem-icon {
+  width: 15px;
+  height: 15px;
+  object-fit: contain;
+  vertical-align: middle;
+  display: inline-block;
+}
+
+.inline-trophy-icon {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+  vertical-align: middle;
+  display: inline-block;
+  margin-right: 4px;
+}
+
 .pitch-live-stats {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
@@ -2473,8 +2534,8 @@ body {
 }
 
 .pitch-stat-pill {
-  background: rgba(15, 23, 42, 0.85);
-  border: 1px solid rgba(148, 163, 184, 0.22);
+  background: rgba(15, 23, 42, 0.72);
+  border: none;
   border-radius: 7px;
   padding: 4px 6px;
   text-align: center;
@@ -2757,7 +2818,7 @@ body {
 .run-summary-card {
   margin-top: 14px;
   background: linear-gradient(160deg, rgba(8, 22, 54, 0.96), rgba(4, 11, 29, 0.98));
-  border: 2px solid rgba(56, 189, 248, 0.42);
+  border: 1px solid rgba(56, 189, 248, 0.3);
   border-radius: 14px;
   padding: 16px;
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55);
@@ -2767,8 +2828,8 @@ body {
 }
 
 .run-summary-card.is-champion {
-  border-color: rgba(250, 204, 21, 0.72);
-  box-shadow: 0 12px 36px rgba(250, 204, 21, 0.14), 0 8px 24px rgba(0, 0, 0, 0.6);
+  border-color: rgba(250, 204, 21, 0.55);
+  box-shadow: 0 12px 36px rgba(250, 204, 21, 0.12), 0 8px 24px rgba(0, 0, 0, 0.6);
 }
 
 .run-summary-top {
@@ -2808,8 +2869,8 @@ body {
 }
 
 .run-total-box {
-  background: rgba(15, 31, 69, 0.78);
-  border: 1px solid rgba(148, 163, 184, 0.28);
+  background: rgba(15, 31, 69, 0.72);
+  border: none;
   border-radius: 10px;
   padding: 9px 10px;
   text-align: center;
@@ -2840,8 +2901,8 @@ body {
 }
 
 .run-mvp-banner {
-  background: linear-gradient(90deg, rgba(250, 204, 21, 0.16), rgba(249, 115, 22, 0.12), rgba(15, 31, 69, 0.9));
-  border: 1.5px solid rgba(250, 204, 21, 0.65);
+  background: linear-gradient(90deg, rgba(250, 204, 21, 0.14), rgba(249, 115, 22, 0.1), rgba(15, 31, 69, 0.85));
+  border: 1px solid rgba(250, 204, 21, 0.45);
   border-radius: 12px;
   padding: 12px 14px;
   display: flex;
@@ -2873,8 +2934,8 @@ body {
 }
 
 .run-mvp-pill {
-  background: rgba(8, 17, 42, 0.85);
-  border: 1px solid rgba(250, 204, 21, 0.4);
+  background: rgba(8, 17, 42, 0.78);
+  border: none;
   border-radius: 999px;
   padding: 4px 10px;
   font-size: 0.72rem;
@@ -2889,9 +2950,9 @@ body {
 }
 
 .run-award-card {
-  background: rgba(11, 24, 58, 0.88);
-  border: 1px solid rgba(148, 163, 184, 0.28);
-  border-left: 4px solid #38bdf8;
+  background: rgba(11, 24, 58, 0.82);
+  border: none;
+  border-left: 3px solid #38bdf8;
   border-radius: 10px;
   padding: 10px 12px;
   display: flex;
