@@ -1266,27 +1266,67 @@
     `;
   }
 
+  function getTacticalRole(slotLabel) {
+    if (slotLabel === "GOL") return "GK";
+    if (slotLabel === "LIB") return "LIB";
+    if (slotLabel === "ZAG") return "CB";
+    if (slotLabel === "LE" || slotLabel === "LD") return "FB";
+    if (slotLabel === "AE" || slotLabel === "AD") return "WB";
+    if (slotLabel === "VOL") return "DM";
+    if (slotLabel === "ME" || slotLabel === "MD") return "WM";
+    if (slotLabel === "MC") return "CM";
+    if (slotLabel === "MEI") return "AM";
+    if (slotLabel === "PE" || slotLabel === "PD") return "WING";
+    if (slotLabel === "CA" || slotLabel === "ATA") return "ST";
+    return "CM";
+  }
+
+  function calcNodeBaseSpeed(tacticalRole, effOvr) {
+    const roleMult =
+      tacticalRole === "WING" || tacticalRole === "ST"
+        ? 14.6
+        : tacticalRole === "WB" || tacticalRole === "FB" || tacticalRole === "AM"
+        ? 13.8
+        : tacticalRole === "WM" || tacticalRole === "CM"
+        ? 13.0
+        : tacticalRole === "DM" || tacticalRole === "LIB"
+        ? 12.2
+        : tacticalRole === "CB"
+        ? 11.4
+        : 9.2;
+    const ovrFactor = 0.92 + Math.max(0, effOvr - 70) * 0.0055;
+    return roleMult * ovrFactor;
+  }
+
   function resetPitchForKickoff(pitch, kickoffSide, snapNodes = false) {
     if (!pitch) return;
     const koNodes = kickoffSide === "user" ? pitch.userNodes : pitch.oppNodes;
     const koMid = koNodes.find((n) => n.role === "MF") || koNodes[5] || koNodes[0];
 
     [...pitch.userNodes, ...pitch.oppNodes].forEach((n) => {
-      n.advanceOffset = 0;
-      n.laneOffset = 0;
+      n.vx = 0;
+      n.vy = 0;
+      n.duelCooldown = 0.6;
+      n.staggerTimer = 0;
+      n.carryTime = 0;
+      n.decisionTimer = 0.25;
       if (snapNodes) {
-        // Mantém cada time no próprio campo de defesa/meio antes da saída de bola
         const halfClampX =
           n.side === "user" ? Math.min(46, n.baseX) : Math.max(54, n.baseX);
         n.x = halfClampX;
         n.y = n.baseY;
+        n.targetX = halfClampX;
+        n.targetY = n.baseY;
       }
     });
 
     pitch.ballSide = kickoffSide;
+    pitch.ballMode = "CARRIED";
     pitch.carrierUid = koMid ? koMid.uid : "u_MF1";
     pitch.challengerUid = null;
+    pitch.chaserUid = null;
     pitch.ballFlight = null;
+    pitch.passState = null;
     pitch.holdBallPos = null;
     pitch.lastAssistCandidate = null;
     pitch.lastPasserUid = null;
@@ -1295,12 +1335,16 @@
     pitch.teamConsecutivePasses = 0;
     pitch.ballX = 50;
     pitch.ballY = 50;
+    pitch.ballVx = 0;
+    pitch.ballVy = 0;
     pitch.passTrail = null;
     pitch.justKickedOff = true;
 
-    recomputePitchTargets(pitch);
     if (koMid) {
-      pinNodeToCoord(pitch, koMid, 50, 50, true);
+      koMid.x = 50;
+      koMid.y = 50;
+      koMid.targetX = 50;
+      koMid.targetY = 50;
     }
   }
 
@@ -1426,17 +1470,19 @@
 
   function buildOpponentLineup(oppTeam, stageIdx) {
     const { formSlots, assignments } = getOpponentSlotAssignments(oppTeam);
-    return formSlots.map((slot) => {
+    return formSlots.map((slot, idx) => {
       const player = assignments[slot.id];
       const rawPosMatch = player.pos === slot.role ? 0 : -4;
       const effOvr = Math.min(99, Math.max(58, Math.round(player.ovr + stageIdx * 1.5 + rawPosMatch)));
       const baseX = Math.max(7, Math.min(93, 100 - ((96 - slot.y) * 0.78 + 4)));
       const baseY = Math.max(12, Math.min(88, 100 - slot.x + (slot.role === "DF" ? 3 : -3)));
+      const tacticalRole = getTacticalRole(slot.label);
       return {
         uid: `o_${slot.id}`,
         side: "opp",
         slotId: slot.id,
         role: slot.role,
+        tacticalRole,
         label: slot.label,
         player,
         effOvr,
@@ -1445,26 +1491,35 @@
         baseY,
         x: baseX,
         y: baseY,
+        vx: 0,
+        vy: 0,
+        maxSpeed: calcNodeBaseSpeed(tacticalRole, effOvr),
         targetX: baseX,
         targetY: baseY,
-        advanceOffset: 0,
-        laneOffset: 0
+        targetSprint: 0.9,
+        duelCooldown: 0,
+        staggerTimer: 0,
+        carryTime: 0,
+        decisionTimer: 0.25 + (idx % 3) * 0.08,
+        wanderPhase: idx * 1.37
       };
     });
   }
 
   function initMatchPitchState(st, stageIdx) {
     const slots = getSlots();
-    const userNodes = slots.map((slot) => {
+    const userNodes = slots.map((slot, idx) => {
       const player = state.squad[slot.id];
       const effOvr = getEffectiveOvr(player, slot.role);
       const baseX = Math.max(7, Math.min(76, (96 - slot.y) * 0.78 + 4));
       const baseY = Math.max(12, Math.min(88, slot.x));
+      const tacticalRole = getTacticalRole(slot.label);
       return {
         uid: `u_${slot.id}`,
         side: "user",
         slotId: slot.id,
         role: slot.role,
+        tacticalRole,
         label: slot.label,
         player,
         effOvr,
@@ -1473,10 +1528,17 @@
         baseY,
         x: baseX,
         y: baseY,
+        vx: 0,
+        vy: 0,
+        maxSpeed: calcNodeBaseSpeed(tacticalRole, effOvr),
         targetX: baseX,
         targetY: baseY,
-        advanceOffset: 0,
-        laneOffset: 0
+        targetSprint: 0.9,
+        duelCooldown: 0,
+        staggerTimer: 0,
+        carryTime: 0,
+        decisionTimer: 0.25 + (idx % 3) * 0.08,
+        wanderPhase: idx * 1.19
       };
     });
 
@@ -1497,11 +1559,16 @@
       oppTeamName: st.oppTeam.name,
       initialSide: startSide,
       ballSide: startSide,
+      ballMode: "CARRIED",
       carrierUid: startNode ? startNode.uid : "u_MF1",
       challengerUid: null,
+      chaserUid: null,
       ballX: 50,
       ballY: 50,
+      ballVx: 0,
+      ballVy: 0,
       ballFlight: null,
+      passState: null,
       holdBallPos: null,
       lastAssistCandidate: null,
       lastPasserUid: null,
@@ -1514,6 +1581,9 @@
       nodeBadges: {},
       goalFlashSide: null,
       goalFlashUntil: 0,
+      simTime: 0,
+      minuteFloat: 0,
+      matchSupport: { userTeamSupport: 0, oppTeamSupport: 0, ovrDiff: 0 },
       ticker: `0' Bola rolando — ${startNode?.player?.name || "Meio-campo"} inicia a jogada!`,
       lastClashMinute: -10,
       stats: {
@@ -1562,9 +1632,6 @@
       }
     };
     recomputePitchTargets(pitch);
-    if (startNode) {
-      pinNodeToCoord(pitch, startNode, 50, 50, true);
-    }
     return pitch;
   }
 
@@ -1584,84 +1651,281 @@
     );
   }
 
-  function getNodeTacticalAnchor(node, pitch, refBallX, refBallY) {
-    if (node.role === "GK") {
-      return {
-        ax: node.baseX,
-        ay: Math.max(40, Math.min(60, 50 + (refBallY - 50) * 0.22))
-      };
-    }
-    const ballPush = ((refBallX - 50) / 50) * 7.5;
-    const sideBias =
-      node.side === "user"
-        ? pitch.ballSide === "user"
-          ? 5.5
-          : -4.5
-        : pitch.ballSide === "opp"
-        ? -5.5
-        : 4.5;
-    const verticalPull = ((refBallY - 50) / 50) * 4.5;
-    return {
-      ax: node.baseX + sideBias + ballPush,
-      ay: node.baseY + verticalPull
-    };
-  }
-
   function pinNodeToCoord(pitch, node, wx, wy, snapImmediate = false) {
     if (!pitch || !node) return;
-    const refBallX = pitch.ballFlight ? pitch.ballFlight.toX : pitch.ballX;
-    const refBallY = pitch.ballFlight ? pitch.ballFlight.toY : pitch.ballY;
-    const { ax, ay } = getNodeTacticalAnchor(node, pitch, refBallX, refBallY);
-    const clampedX = Math.max(10, Math.min(90, wx));
-    const clampedY = Math.max(11, Math.min(89, wy));
-    node.advanceOffset = clampedX - ax;
-    node.laneOffset = clampedY - ay;
+    const clampedX = Math.max(8, Math.min(92, wx));
+    const clampedY = Math.max(9, Math.min(91, wy));
     node.targetX = Number(clampedX.toFixed(1));
     node.targetY = Number(clampedY.toFixed(1));
     if (snapImmediate) {
       node.x = node.targetX;
       node.y = node.targetY;
+      node.vx = 0;
+      node.vy = 0;
+    }
+  }
+
+  function computeNodeRoleTarget(node, pitch, carrier, chaserUid, coverUid, deepestOppDefX, deepestOwnDefX) {
+    const isUser = node.side === "user";
+    const dir = isUser ? 1 : -1;
+    const ownGoalX = isUser ? 4 : 96;
+    const oppGoalX = isUser ? 96 : 4;
+    const inPossession = pitch.ballSide === node.side;
+    const ballX = pitch.ballFlight ? pitch.ballFlight.toX : pitch.passState ? pitch.passState.toX : pitch.ballX;
+    const ballY = pitch.ballFlight ? pitch.ballFlight.toY : pitch.passState ? pitch.passState.toY : pitch.ballY;
+    const t = pitch.simTime || 0;
+    const tr = node.tacticalRole || node.role;
+
+    // 1) Se está recebendo um passe em voo, corre para dominar a bola!
+    if (pitch.passState && pitch.passState.receiverUid === node.uid) {
+      return { tx: pitch.passState.toX, ty: pitch.passState.toY, sprint: 1.08 };
+    }
+
+    // 2) Portador da bola: conduz livremente buscando espaço e desviando de marcadores!
+    if (carrier && carrier.uid === node.uid && pitch.ballMode === "CARRIED") {
+      if (tr === "GK") {
+        return {
+          tx: isUser ? 11.5 : 88.5,
+          ty: Math.max(42, Math.min(58, node.baseY + (ballY - 50) * 0.25)),
+          sprint: 0.72
+        };
+      }
+      const defNodes = isUser ? pitch.oppNodes : pitch.userNodes;
+      let steerX = oppGoalX - dir * 10 - node.x;
+      let steerY = (50 + Math.sin(t * 1.1 + node.wanderPhase) * 16) - node.y;
+      const distGoal = Math.hypot(steerX, steerY) || 1;
+      steerX /= distGoal;
+      steerY /= distGoal;
+
+      // Steering avoidance ao redor de marcadores próximos para driblar pelo espaço livre
+      defNodes.forEach((d) => {
+        if (d.role === "GK") return;
+        const dx = node.x - d.x;
+        const dy = node.y - d.y;
+        const dist = Math.hypot(dx, dy);
+        if (dist > 0.1 && dist < 14.5) {
+          const repulse = Math.pow((14.5 - dist) / 14.5, 1.35) * 1.85;
+          steerX += (dx / dist) * repulse * 0.45;
+          steerY += (dy / dist) * repulse * 1.15;
+        }
+      });
+
+      if (node.y < 16) steerY += 0.7;
+      if (node.y > 84) steerY -= 0.7;
+
+      return {
+        tx: Math.max(8, Math.min(92, node.x + steerX * 14)),
+        ty: Math.max(11, Math.min(89, node.y + steerY * 14)),
+        sprint: node.staggerTimer > 0 ? 0.55 : 1.04
+      };
+    }
+
+    // 3) Goleiro sem bola: interposto entre a bola e o centro do gol
+    if (tr === "GK") {
+      const gx = isUser ? 6.2 + (ballX / 100) * 3.5 : 93.8 - ((100 - ballX) / 100) * 3.5;
+      const gy = Math.max(40, Math.min(60, 50 + (ballY - 50) * 0.24));
+      return { tx: gx, ty: gy, sprint: 0.9 };
+    }
+
+    // 4) Defendendo: marcador principal persegue o portador, segundo marcador faz cobertura!
+    if (!inPossession) {
+      const targetAnchorX = carrier ? carrier.x + (carrier.vx || 0) * 0.22 : ballX;
+      const targetAnchorY = carrier ? carrier.y + (carrier.vy || 0) * 0.22 : ballY;
+
+      if (chaserUid === node.uid && node.staggerTimer <= 0) {
+        return {
+          tx: Math.max(8, Math.min(92, targetAnchorX)),
+          ty: Math.max(10, Math.min(90, targetAnchorY)),
+          sprint: 1.06
+        };
+      }
+      if (coverUid === node.uid && node.staggerTimer <= 0) {
+        return {
+          tx: Math.max(8, Math.min(92, targetAnchorX * 0.78 + ownGoalX * 0.22)),
+          ty: Math.max(12, Math.min(88, targetAnchorY * 0.76 + 50 * 0.24)),
+          sprint: 0.96
+        };
+      }
+    }
+
+    // 5) Posicionamento tático fluido por função (com bola vs sem bola)
+    const ballShift = (ballX - 50) * 0.34;
+    const latPull = (ballY - 50) * (inPossession ? 0.24 : 0.36);
+
+    if (tr === "CB" || tr === "LIB") {
+      if (inPossession) {
+        const pushDepth = tr === "LIB" ? 13 : 8;
+        const maxHoldX = isUser ? 52 : 48;
+        const rawX = node.baseX + dir * pushDepth + ballShift * 0.65;
+        return {
+          tx: isUser ? Math.min(maxHoldX, Math.max(16, rawX)) : Math.max(maxHoldX, Math.min(84, rawX)),
+          ty: Math.max(16, Math.min(84, node.baseY + latPull * 0.55)),
+          sprint: 0.78
+        };
+      } else {
+        const holdX = isUser
+          ? Math.max(13, Math.min(node.baseX + 4, ballX - 8))
+          : Math.min(87, Math.max(node.baseX - 4, ballX + 8));
+        const tuckY = node.baseY * 0.72 + ballY * 0.28;
+        return { tx: holdX, ty: Math.max(14, Math.min(86, tuckY)), sprint: 0.9 };
+      }
+    }
+
+    if (tr === "FB" || tr === "WB") {
+      const sameFlankAsBall = (node.baseY < 50 && ballY < 54) || (node.baseY >= 50 && ballY >= 46);
+      if (inPossession) {
+        const overlapBoost = sameFlankAsBall ? (tr === "WB" ? 27 : 21) : tr === "WB" ? 16 : 11;
+        const rawX = node.baseX + dir * overlapBoost + ballShift * 0.45;
+        const wideY = node.baseY < 50 ? Math.min(18, node.baseY) : Math.max(82, node.baseY);
+        return {
+          tx: Math.max(14, Math.min(86, rawX)),
+          ty: wideY,
+          sprint: sameFlankAsBall ? 1.0 : 0.85
+        };
+      } else {
+        const holdX = isUser
+          ? Math.max(13, Math.min(node.baseX + 3, ballX - 5))
+          : Math.min(87, Math.max(node.baseX - 3, ballX + 5));
+        const trackY = node.baseY * 0.82 + ballY * 0.18;
+        return { tx: holdX, ty: Math.max(10, Math.min(90, trackY)), sprint: 0.92 };
+      }
+    }
+
+    if (tr === "DM") {
+      if (inPossession) {
+        const pivotX = Math.max(18, Math.min(82, ballX - dir * 13));
+        const oppSideY = ballY < 50 ? 56 : 44;
+        return { tx: pivotX, ty: node.baseY * 0.55 + oppSideY * 0.45, sprint: 0.84 };
+      } else {
+        const shieldX = isUser ? deepestOwnDefX + 10 : deepestOwnDefX - 10;
+        return {
+          tx: Math.max(18, Math.min(82, shieldX * 0.6 + ballX * 0.4)),
+          ty: Math.max(24, Math.min(76, 50 + (ballY - 50) * 0.45)),
+          sprint: 0.9
+        };
+      }
+    }
+
+    if (tr === "CM" || tr === "WM") {
+      if (inPossession) {
+        const adv = tr === "WM" ? 16 : 11;
+        const wobble = Math.sin(t * 1.15 + node.wanderPhase) * 6;
+        const wideY =
+          tr === "WM"
+            ? node.baseY < 50
+              ? 16
+              : 84
+            : Math.max(20, Math.min(80, node.baseY + latPull * 0.5 + wobble));
+        return {
+          tx: Math.max(18, Math.min(84, node.baseX + dir * adv + ballShift * 0.55)),
+          ty: wideY,
+          sprint: 0.88
+        };
+      } else {
+        return {
+          tx: Math.max(16, Math.min(84, node.baseX - dir * 5 + ballShift * 0.55)),
+          ty: Math.max(14, Math.min(86, node.baseY + latPull * 0.6)),
+          sprint: 0.88
+        };
+      }
+    }
+
+    if (tr === "AM") {
+      if (inPossession) {
+        const holeX = isUser ? Math.min(80, Math.max(54, deepestOppDefX - 8)) : Math.max(20, Math.min(46, deepestOppDefX + 8));
+        const probeY = 50 + Math.sin(t * 1.35 + node.wanderPhase) * 14 + (ballY < 50 ? 6 : -6);
+        return { tx: holeX, ty: Math.max(22, Math.min(78, probeY)), sprint: 0.94 };
+      } else {
+        return {
+          tx: Math.max(22, Math.min(78, ballX * 0.45 + node.baseX * 0.55)),
+          ty: Math.max(22, Math.min(78, ballY * 0.45 + 50 * 0.55)),
+          sprint: 0.86
+        };
+      }
+    }
+
+    if (tr === "WING") {
+      const ballOnOppositeFlank = (node.baseY < 50 && ballY > 56) || (node.baseY >= 50 && ballY < 44);
+      if (inPossession) {
+        const pushX = isUser
+          ? Math.min(89, Math.max(66, deepestOppDefX + 1))
+          : Math.max(11, Math.min(34, deepestOppDefX - 1));
+        const targetY = ballOnOppositeFlank
+          ? node.baseY < 50
+            ? 34
+            : 66
+          : node.baseY < 50
+          ? 14
+          : 86;
+        return { tx: pushX, ty: targetY, sprint: 0.98 };
+      } else {
+        return {
+          tx: Math.max(20, Math.min(80, ballX - dir * 6)),
+          ty: Math.max(14, Math.min(86, node.baseY * 0.72 + ballY * 0.28)),
+          sprint: 0.84
+        };
+      }
+    }
+
+    // ST (CA / ATA): espeta na última linha defensiva e faz desmarcações!
+    if (inPossession) {
+      const lineX = isUser
+        ? Math.min(90, Math.max(66, deepestOppDefX + 1.2))
+        : Math.max(10, Math.min(34, deepestOppDefX - 1.2));
+      const runY = node.baseY + Math.sin(t * 1.55 + node.wanderPhase) * 12;
+      return { tx: lineX, ty: Math.max(24, Math.min(76, runY)), sprint: 1.0 };
+    } else {
+      return {
+        tx: Math.max(18, Math.min(82, ballX + dir * 4)),
+        ty: Math.max(26, Math.min(74, ballY * 0.55 + node.baseY * 0.45)),
+        sprint: 0.82
+      };
     }
   }
 
   function recomputePitchTargets(pitch) {
     if (!pitch) return;
-    const refBallX = pitch.ballFlight ? pitch.ballFlight.toX : pitch.ballX;
-    const refBallY = pitch.ballFlight ? pitch.ballFlight.toY : pitch.ballY;
-
-    const all = [...pitch.userNodes, ...pitch.oppNodes];
-    all.forEach((node) => {
-      if (node.uid !== pitch.carrierUid && node.uid !== pitch.challengerUid) {
-        // Jogadores sem a bola recompõem suavemente sua posição na formação
-        node.advanceOffset = (node.advanceOffset || 0) * 0.7;
-        node.laneOffset = (node.laneOffset || 0) * 0.7;
-      }
-
-      if (node.role === "GK") {
-        node.targetX = node.baseX;
-        node.targetY = Math.max(40, Math.min(60, 50 + (refBallY - 50) * 0.22));
-        return;
-      }
-
-      const { ax, ay } = getNodeTacticalAnchor(node, pitch, refBallX, refBallY);
-      const tx = ax + (node.advanceOffset || 0);
-      const ty = ay + (node.laneOffset || 0);
-
-      node.targetX = Math.max(10, Math.min(90, Number(tx.toFixed(1))));
-      node.targetY = Math.max(11, Math.min(89, Number(ty.toFixed(1))));
-    });
-
-    // Se houver um marcador em duelo direto com o portador, aproxima ele do ponto do duelo
     const carrier = findPitchNode(pitch, pitch.carrierUid);
-    const challenger = findPitchNode(pitch, pitch.challengerUid);
-    if (carrier && challenger && challenger.role !== "GK" && !pitch.ballFlight) {
-      const gapX = challenger.side === "user" ? -3.8 : 3.8;
-      challenger.targetX = Math.max(10, Math.min(90, carrier.targetX + gapX));
-      challenger.targetY = Math.max(
-        11,
-        Math.min(89, carrier.targetY + (challenger.y >= carrier.y ? 2.2 : -2.2))
-      );
-    }
+    const attIsUser = pitch.ballSide === "user";
+    const defNodes = attIsUser ? pitch.oppNodes : pitch.userNodes;
+
+    const userBackLine = Math.min(...pitch.userNodes.filter((n) => n.role !== "GK").map((n) => n.x));
+    const oppBackLine = Math.max(...pitch.oppNodes.filter((n) => n.role !== "GK").map((n) => n.x));
+
+    const ballRefX = pitch.passState ? pitch.passState.toX : pitch.ballX;
+    const ballRefY = pitch.passState ? pitch.passState.toY : pitch.ballY;
+    const rankedDefs = defNodes
+      .filter((d) => d.role !== "GK" && (d.staggerTimer || 0) <= 0)
+      .map((d) => ({
+        uid: d.uid,
+        dist: Math.hypot(d.x - (carrier ? carrier.x : ballRefX), (d.y - (carrier ? carrier.y : ballRefY)) * 1.1)
+      }))
+      .sort((a, b) => a.dist - b.dist);
+
+    const chaserUid = rankedDefs[0]?.uid || null;
+    const coverUid = rankedDefs[1]?.uid || null;
+    pitch.chaserUid = chaserUid;
+    pitch.challengerUid = carrier && chaserUid && rankedDefs[0].dist < 10 ? chaserUid : null;
+
+    const assignTeamTargets = (teamNodes, deepestOwnDef, deepestOppDef) => {
+      teamNodes.forEach((node) => {
+        const aim = computeNodeRoleTarget(
+          node,
+          pitch,
+          carrier,
+          chaserUid,
+          coverUid,
+          deepestOppDef,
+          deepestOwnDef
+        );
+        node.targetX = aim.tx;
+        node.targetY = aim.ty;
+        node.targetSprint = aim.sprint || 0.9;
+      });
+    };
+
+    assignTeamTargets(pitch.userNodes, userBackLine, oppBackLine);
+    assignTeamTargets(pitch.oppNodes, oppBackLine, userBackLine);
   }
 
   function showPitchBadge(pitch, x, y, text, cls = "badge-pass", durationMs = 750, iconCat = null) {
@@ -1747,11 +2011,125 @@
     };
   }
 
+  function getSpeedMultiplier() {
+    if (state.simSpeed === 4) return 7.0;
+    if (state.simSpeed === 2) return 2.4;
+    return 1.0;
+  }
+
+  function renderPitchDOMFrame(pitch, st, now) {
+    const stepDomNode = (node) => {
+      const el = document.getElementById(`pnode-${node.uid}`);
+      if (el) {
+        el.style.left = `${node.x.toFixed(2)}%`;
+        el.style.top = `${node.y.toFixed(2)}%`;
+      }
+    };
+    pitch.userNodes.forEach(stepDomNode);
+    pitch.oppNodes.forEach(stepDomNode);
+
+    let ballScale = 1;
+    if (pitch.ballFlight) {
+      const f = pitch.ballFlight;
+      const t = Math.min(1, Math.max(0, (now - f.start) / f.duration));
+      const eased = 1 - Math.pow(1 - t, 2.1);
+      pitch.ballX = f.fromX + (f.toX - f.fromX) * eased;
+      pitch.ballY = f.fromY + (f.toY - f.fromY) * eased - Math.sin(t * Math.PI) * f.arcHeight;
+      ballScale = 1 + Math.sin(t * Math.PI) * 0.28;
+      if (pitch.passTrail) {
+        pitch.passTrail.curX = pitch.ballX;
+        pitch.passTrail.curY = pitch.ballY;
+      }
+      if (t >= 1) {
+        pitch.ballX = f.toX;
+        pitch.ballY = f.toY;
+        if (!pitch.carrierUid) {
+          pitch.holdBallPos = { x: f.toX, y: f.toY };
+        }
+        pitch.ballFlight = null;
+      }
+    } else if (pitch.passState && pitch.ballMode === "PASS_FLIGHT") {
+      ballScale = 1 + Math.sin(pitch.passState.progress * Math.PI) * 0.22;
+      if (pitch.passTrail) {
+        pitch.passTrail.curX = pitch.ballX;
+        pitch.passTrail.curY = pitch.ballY;
+        pitch.passTrail.fadeUntil = now + 380;
+      }
+    } else if (pitch.holdBallPos && !pitch.carrierUid) {
+      pitch.ballX = pitch.holdBallPos.x;
+      pitch.ballY = pitch.holdBallPos.y;
+    }
+
+    const ballEl = document.getElementById("live-pitch-ball");
+    if (ballEl) {
+      ballEl.style.left = `${pitch.ballX.toFixed(2)}%`;
+      ballEl.style.top = `${pitch.ballY.toFixed(2)}%`;
+      ballEl.style.transform = `translate(-50%, -50%) scale(${ballScale.toFixed(2)})`;
+    }
+
+    const lineGlow = document.getElementById("pitch-pass-glow");
+    const lineMain = document.getElementById("pitch-pass-line");
+    if (lineGlow && lineMain) {
+      const tr = pitch.passTrail;
+      if (tr && now < tr.fadeUntil) {
+        const endX = tr.curX !== undefined ? tr.curX : tr.toX;
+        const endY = tr.curY !== undefined ? tr.curY : tr.toY;
+        const remain = Math.max(0, Math.min(1, (tr.fadeUntil - now) / 460));
+        lineGlow.setAttribute("x1", tr.fromX.toFixed(1));
+        lineGlow.setAttribute("y1", tr.fromY.toFixed(1));
+        lineGlow.setAttribute("x2", endX.toFixed(1));
+        lineGlow.setAttribute("y2", endY.toFixed(1));
+        lineGlow.setAttribute("stroke", tr.color);
+        lineGlow.style.opacity = (0.38 * remain).toFixed(2);
+
+        lineMain.setAttribute("x1", tr.fromX.toFixed(1));
+        lineMain.setAttribute("y1", tr.fromY.toFixed(1));
+        lineMain.setAttribute("x2", endX.toFixed(1));
+        lineMain.setAttribute("y2", endY.toFixed(1));
+        lineMain.setAttribute("stroke", tr.color);
+        lineMain.style.opacity = (0.95 * remain).toFixed(2);
+      } else {
+        pitch.passTrail = null;
+        lineGlow.style.opacity = "0";
+        lineMain.style.opacity = "0";
+      }
+    }
+
+    const badgeEl = document.getElementById("pitch-float-badge");
+    if (badgeEl) {
+      const fb = pitch.floatBadge;
+      if (fb && now < fb.until) {
+        badgeEl.className = `pitch-float-badge ${fb.cls} is-visible`;
+        badgeEl.style.left = `${fb.x.toFixed(1)}%`;
+        badgeEl.style.top = `${fb.y.toFixed(1)}%`;
+        const fKey = `${fb.iconCat || ""}|${fb.text}`;
+        if (badgeEl.dataset.renderKey !== fKey) {
+          badgeEl.dataset.renderKey = fKey;
+          const iconHTML = fb.iconCat ? renderPitchIconTag(fb.iconCat, "badge-move-icon") : "";
+          badgeEl.innerHTML = `${iconHTML}<span>${fb.text}</span>`;
+        }
+      } else {
+        badgeEl.className = "pitch-float-badge";
+      }
+    }
+    syncNodeBadgesDOM(pitch, now);
+
+    const gLeft = document.getElementById("pitch-goal-left");
+    const gRight = document.getElementById("pitch-goal-right");
+    if (gLeft && gRight) {
+      const activeFlash = pitch.goalFlashUntil && now < pitch.goalFlashUntil ? pitch.goalFlashSide : null;
+      gLeft.classList.toggle("goal-flash", activeFlash === "left");
+      gRight.classList.toggle("goal-flash", activeFlash === "right");
+    }
+  }
+
   function startPitchRafLoop(st) {
     if (state.tournament.pitchRafId) {
       cancelAnimationFrame(state.tournament.pitchRafId);
       state.tournament.pitchRafId = null;
     }
+
+    let lastNow = performance.now();
 
     const step = (now) => {
       if (state.phase !== "tournament" || !st || !st.pitch) {
@@ -1766,121 +2144,23 @@
       }
 
       const pitch = st.pitch;
-      const followRate = state.simSpeed === 4 ? 0.38 : state.simSpeed === 2 ? 0.24 : 0.14;
+      const rawDt = Math.min(0.055, Math.max(0.004, (now - lastNow) / 1000));
+      lastNow = now;
 
-      const stepNode = (node) => {
-        node.x += (node.targetX - node.x) * followRate;
-        node.y += (node.targetY - node.y) * followRate;
-        const el = document.getElementById(`pnode-${node.uid}`);
-        if (el) {
-          el.style.left = `${node.x.toFixed(2)}%`;
-          el.style.top = `${node.y.toFixed(2)}%`;
-        }
-      };
-
-      pitch.userNodes.forEach(stepNode);
-      pitch.oppNodes.forEach(stepNode);
-
-      const carrier = findPitchNode(pitch, pitch.carrierUid);
-      let ballScale = 1;
-
-      if (pitch.ballFlight) {
-        const f = pitch.ballFlight;
-        const t = Math.min(1, Math.max(0, (now - f.start) / f.duration));
-        const eased = 1 - Math.pow(1 - t, 2.2);
-        pitch.ballX = f.fromX + (f.toX - f.fromX) * eased;
-        pitch.ballY = f.fromY + (f.toY - f.fromY) * eased - Math.sin(t * Math.PI) * f.arcHeight;
-        ballScale = 1 + Math.sin(t * Math.PI) * 0.28;
-        if (pitch.passTrail) {
-          pitch.passTrail.curX = pitch.ballX;
-          pitch.passTrail.curY = pitch.ballY;
-        }
-        if (t >= 1) {
-          pitch.ballX = f.toX;
-          pitch.ballY = f.toY;
-          if (!pitch.carrierUid) {
-            pitch.holdBallPos = { x: f.toX, y: f.toY };
+      const isPaused = Boolean(state.tournament.pendingBeatFinish || state.tournament.pendingClashFinish);
+      if (!st.finished && st.running && !isPaused) {
+        const simDtTotal = rawDt * getSpeedMultiplier();
+        const subSteps = Math.min(8, Math.max(1, Math.ceil(simDtTotal / 0.028)));
+        const subDt = simDtTotal / subSteps;
+        for (let s = 0; s < subSteps; s++) {
+          if (state.tournament.pendingBeatFinish || state.tournament.pendingClashFinish || st.finished || !st.running) {
+            break;
           }
-          pitch.ballFlight = null;
-        }
-      } else if (pitch.holdBallPos && !pitch.carrierUid) {
-        // Enquanto ninguém retomou a bola (ex: chute no ar / bola na rede do gol), ela NÃO volta ao pé do batedor!
-        pitch.ballX = pitch.holdBallPos.x;
-        pitch.ballY = pitch.holdBallPos.y;
-      } else if (carrier) {
-        // Bola colada no pé do portador com leve balanço de condução!
-        const weaveY = Math.sin(now * 0.014) * 0.65;
-        const footX = carrier.x + (carrier.side === "user" ? 2.3 : -2.3);
-        const footY = carrier.y + 1.3 + weaveY;
-        const ballFollow = state.simSpeed === 4 ? 0.6 : 0.38;
-        pitch.ballX += (footX - pitch.ballX) * ballFollow;
-        pitch.ballY += (footY - pitch.ballY) * ballFollow;
-      }
-
-      const ballEl = document.getElementById("live-pitch-ball");
-      if (ballEl) {
-        ballEl.style.left = `${pitch.ballX.toFixed(2)}%`;
-        ballEl.style.top = `${pitch.ballY.toFixed(2)}%`;
-        ballEl.style.transform = `translate(-50%, -50%) scale(${ballScale.toFixed(2)})`;
-      }
-
-      // Atualiza trilha SVG animada (cresce junto com a bola e depois suaviza o fade)
-      const lineGlow = document.getElementById("pitch-pass-glow");
-      const lineMain = document.getElementById("pitch-pass-line");
-      if (lineGlow && lineMain) {
-        const tr = pitch.passTrail;
-        if (tr && now < tr.fadeUntil) {
-          const endX = tr.curX !== undefined ? tr.curX : tr.toX;
-          const endY = tr.curY !== undefined ? tr.curY : tr.toY;
-          const remain = Math.max(0, Math.min(1, (tr.fadeUntil - now) / 460));
-          lineGlow.setAttribute("x1", tr.fromX.toFixed(1));
-          lineGlow.setAttribute("y1", tr.fromY.toFixed(1));
-          lineGlow.setAttribute("x2", endX.toFixed(1));
-          lineGlow.setAttribute("y2", endY.toFixed(1));
-          lineGlow.setAttribute("stroke", tr.color);
-          lineGlow.style.opacity = (0.38 * remain).toFixed(2);
-
-          lineMain.setAttribute("x1", tr.fromX.toFixed(1));
-          lineMain.setAttribute("y1", tr.fromY.toFixed(1));
-          lineMain.setAttribute("x2", endX.toFixed(1));
-          lineMain.setAttribute("y2", endY.toFixed(1));
-          lineMain.setAttribute("stroke", tr.color);
-          lineMain.style.opacity = (0.95 * remain).toFixed(2);
-        } else {
-          pitch.passTrail = null;
-          lineGlow.style.opacity = "0";
-          lineMain.style.opacity = "0";
+          stepContinuousPhysics(st, pitch, subDt);
         }
       }
 
-      // Atualiza badge flutuante no gramado e técnicas por jogador
-      const badgeEl = document.getElementById("pitch-float-badge");
-      if (badgeEl) {
-        const fb = pitch.floatBadge;
-        if (fb && now < fb.until) {
-          badgeEl.className = `pitch-float-badge ${fb.cls} is-visible`;
-          badgeEl.style.left = `${fb.x.toFixed(1)}%`;
-          badgeEl.style.top = `${fb.y.toFixed(1)}%`;
-          const fKey = `${fb.iconCat || ""}|${fb.text}`;
-          if (badgeEl.dataset.renderKey !== fKey) {
-            badgeEl.dataset.renderKey = fKey;
-            const iconHTML = fb.iconCat ? renderPitchIconTag(fb.iconCat, "badge-move-icon") : "";
-            badgeEl.innerHTML = `${iconHTML}<span>${fb.text}</span>`;
-          }
-        } else {
-          badgeEl.className = "pitch-float-badge";
-        }
-      }
-      syncNodeBadgesDOM(pitch, now);
-
-      // Flash na rede do gol quando sai gol
-      const gLeft = document.getElementById("pitch-goal-left");
-      const gRight = document.getElementById("pitch-goal-right");
-      if (gLeft && gRight) {
-        const activeFlash = pitch.goalFlashUntil && now < pitch.goalFlashUntil ? pitch.goalFlashSide : null;
-        gLeft.classList.toggle("goal-flash", activeFlash === "left");
-        gRight.classList.toggle("goal-flash", activeFlash === "right");
-      }
+      renderPitchDOMFrame(pitch, st, now);
 
       if (!st.finished || pitch.ballFlight) {
         state.tournament.pitchRafId = requestAnimationFrame(step);
@@ -2581,601 +2861,740 @@
     }, actionMs);
   }
 
-  function startMatchInterval() {
-    if (state.tournament.timerId) clearInterval(state.tournament.timerId);
+  function ensureMatchSupport(st, pitch) {
+    if (!pitch || pitch.matchSupportInitialized) return;
+    const stageIdx = state.tournament.stageIndex || 0;
+    const userStats = calcSquadStats();
+    const oppStats = calcOpponentStats(st.oppTeam, stageIdx);
+    pitch.matchSupport = {
+      userTeamSupport:
+        (userStats.chem / 100) * 4.4 +
+        (userStats.correctPosCount === 11 ? 2.4 : userStats.correctPosCount * 0.12),
+      oppTeamSupport:
+        (oppStats.chem / 100) * 4.4 +
+        (oppStats.correctPosCount === 11 ? 2.4 : oppStats.correctPosCount * 0.12),
+      ovrDiff: userStats.ovr - oppStats.ovr
+    };
+    pitch.matchSupportInitialized = true;
+  }
 
+  function resolvePhysicalDribbleClash(st, pitch, carrier, marker, attSupport, defSupport, ovrDiff) {
+    const attIsUser = carrier.side === "user";
+    const dribScore = calcNodeDuelScore(carrier, attSupport, marker?.player?.element);
+    const defScore = calcNodeDuelScore(marker, defSupport, carrier?.player?.element);
+    const wonDribble = Math.random() < logisticWinProb(dribScore, defScore, 4.4, 0.38, 0.86);
+
+    spendStamina(carrier, 14);
+    spendStamina(marker, 10);
+    carrier.duelCooldown = 2.4;
+    marker.duelCooldown = 2.4;
+
+    if (attIsUser) {
+      pitch.stats.userDribblesTry++;
+      recordUserPlayerStat(pitch, carrier, "dribblesTry", 1);
+    }
+
+    const ofMove = pickPlayerMove(carrier.player, "OF") || "Finta Veloz";
+    const dfMove = pickPlayerMove(marker.player, "DF") || "Marcação Cerrada";
+    const dir = attIsUser ? 1 : -1;
+
+    if (wonDribble) {
+      if (attIsUser) {
+        pitch.stats.userDribblesOk++;
+        recordUserPlayerStat(pitch, carrier, "dribblesOk", 1);
+      }
+      if (
+        !(
+          pitch.lastAssistCandidate &&
+          pitch.lastAssistCandidate.side === carrier.side &&
+          pitch.lastAssistCandidate.receiverUid === carrier.uid
+        )
+      ) {
+        pitch.lastAssistCandidate = null;
+      }
+      pitch.lastPasserUid = null;
+      pitch.lastAction = "DRIBBLE";
+      const dodgeSign = carrier.y >= marker.y ? 1 : -1;
+      carrier.vx = dir * carrier.maxSpeed * 1.15;
+      carrier.vy = dodgeSign * 7.5;
+      carrier.carryTime = 0.35;
+      carrier.decisionTimer = 0.32;
+      marker.staggerTimer = 1.65;
+      marker.vx *= 0.15;
+      marker.vy *= 0.15;
+
+      showNodeBadge(pitch, carrier.uid, `Avançou • ${ofMove}`, "badge-dribble", 1500, "OF");
+      pitch.ticker = `${st.minute}' ${carrier.player.name} avançou com ${ofMove} sobre ${marker.player.name}!`;
+      prependNarrationLine(
+        st,
+        "nar-dribble",
+        `${st.minute}' [Drible] ${carrier.player.name} ativou 【${ofMove}】 e avançou por ${marker.player.name}!`,
+        { name: carrier.player.name, sprite: carrier.player.sprite, side: carrier.side },
+        { name: marker.player.name, sprite: marker.player.sprite, side: marker.side },
+        "OF"
+      );
+      syncLivePitchDOM(st);
+      pauseForPitchBeat(st, "", "", 1050, ovrDiff);
+    } else {
+      pitch.ballSide = attIsUser ? "opp" : "user";
+      pitch.ballMode = "CARRIED";
+      pitch.carrierUid = marker.uid;
+      pitch.challengerUid = null;
+      pitch.holdBallPos = null;
+      pitch.lastAssistCandidate = null;
+      pitch.lastPasserUid = null;
+      pitch.lastAction = "STEAL";
+      pitch.teamConsecutivePasses = 0;
+      marker.carryTime = 0;
+      marker.decisionTimer = 0.25;
+      marker.vx = -dir * marker.maxSpeed * 0.85;
+      carrier.staggerTimer = 1.45;
+      carrier.vx *= 0.15;
+      carrier.vy *= 0.15;
+      pitch.ballX = marker.x + (marker.side === "user" ? 1.9 : -1.9);
+      pitch.ballY = marker.y + 1.0;
+
+      showNodeBadge(pitch, carrier.uid, "Perdeu a bola", "badge-lost", 1500);
+      showNodeBadge(pitch, marker.uid, `Roubou • ${dfMove}`, "badge-steal", 1500, "DF");
+      if (!attIsUser) {
+        pitch.stats.userSteals++;
+        recordUserPlayerStat(pitch, marker, "steals", 1);
+      }
+      pitch.ticker = `${st.minute}' ${carrier.player.name} perdeu a bola — roubo de ${marker.player.name} (${dfMove})!`;
+      prependNarrationLine(
+        st,
+        "nar-steal",
+        `${st.minute}' [Desarme] ${marker.player.name} usou 【${dfMove}】 e roubou a bola de ${carrier.player.name}!`,
+        { name: marker.player.name, sprite: marker.player.sprite, side: marker.side },
+        { name: carrier.player.name, sprite: carrier.player.sprite, side: carrier.side },
+        "DF"
+      );
+      syncLivePitchDOM(st);
+      pauseForPitchBeat(st, "", "", 1050, ovrDiff);
+    }
+  }
+
+  function launchContinuousPass(st, pitch, carrier, attNodes, defNodes, strictForward, safeRestart) {
+    const attIsUser = carrier.side === "user";
+    const isGkOutlet = carrier.role === "GK";
+    const isSafeProtectedPass = Boolean(safeRestart || isGkOutlet);
+    const receiver = pickPassReceiver(attNodes, defNodes, carrier, strictForward, pitch);
+    if (!receiver) return false;
+
+    const leadX = Math.max(8, Math.min(92, receiver.x + (receiver.vx || 0) * 0.25));
+    const leadY = Math.max(10, Math.min(90, receiver.y + (receiver.vy || 0) * 0.25));
+    const dist = Math.hypot(leadX - carrier.x, leadY - carrier.y);
+    const passSpeed = dist > 30 ? 54 : 45;
+    const duration = Math.max(0.24, Math.min(0.92, dist / passSpeed));
+
+    spendStamina(carrier, isSafeProtectedPass ? 1.5 : 4);
+    if (attIsUser) {
+      if (isGkOutlet) {
+        pitch.stats.userGkReleases = (pitch.stats.userGkReleases || 0) + 1;
+        recordUserPlayerStat(pitch, carrier, "gkReleases", 1);
+      } else {
+        pitch.stats.userPassesTry++;
+        recordUserPlayerStat(pitch, carrier, "passesTry", 1);
+      }
+    }
+
+    pitch.ballMode = "PASS_FLIGHT";
+    pitch.carrierUid = null;
+    pitch.challengerUid = null;
+    pitch.holdBallPos = null;
+    pitch.lastAction = "PASS";
+    pitch.teamConsecutivePasses = (pitch.teamConsecutivePasses || 0) + 1;
+
+    pitch.passState = {
+      passerUid: carrier.uid,
+      passerNode: carrier,
+      receiverUid: receiver.uid,
+      effRole: getEffectiveCarrierRole(carrier),
+      isGkOutlet,
+      isSafeProtectedPass,
+      fromX: pitch.ballX,
+      fromY: pitch.ballY,
+      toX: leadX,
+      toY: leadY,
+      elapsed: 0,
+      duration,
+      progress: 0
+    };
+
+    pitch.passTrail = {
+      fromX: pitch.ballX,
+      fromY: pitch.ballY,
+      toX: leadX,
+      toY: leadY,
+      curX: pitch.ballX,
+      curY: pitch.ballY,
+      color: attIsUser ? "#4ade80" : "#f87171",
+      start: performance.now(),
+      flightDuration: Math.round(duration * 1000),
+      fadeUntil: performance.now() + 900
+    };
+
+    const badgeTxt = isGkOutlet ? "REPOSIÇÃO" : "PASSE";
+    showPitchBadge(pitch, leadX, leadY, badgeTxt, "badge-pass", 700, isGkOutlet ? "GK" : "BALL");
+    pitch.ticker = isGkOutlet
+      ? `${st.minute}' Reposição: ${carrier.player.name} ➔ ${receiver.player.name}`
+      : `${st.minute}' Passe: ${carrier.player.name} ➔ ${receiver.player.name}`;
+    return true;
+  }
+
+  function pointToSegmentDist(px, py, ax, ay, bx, by) {
+    const dx = bx - ax;
+    const dy = by - ay;
+    const lenSq = dx * dx + dy * dy;
+    if (lenSq <= 0.0001) return Math.hypot(px - ax, py - ay);
+    const t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / lenSq));
+    return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
+  }
+
+  function launchContinuousShot(st, pitch, shooterNode, defNodes, attSupport, defSupport, ovrDiff) {
+    const attIsUser = shooterNode.side === "user";
+    const effRole = getEffectiveCarrierRole(shooterNode);
+    const goalX = attIsUser ? 97 : 3;
+    const goalY = 50;
+
+    // Verifica se algum defensor está realmente na linha de chute para tentar bloquear!
+    const laneBlockers = defNodes
+      .filter((n) => n.role === "DF" && (n.staggerTimer || 0) <= 0)
+      .map((n) => ({
+        node: n,
+        distLine: pointToSegmentDist(n.x, n.y, shooterNode.x, shooterNode.y, goalX, goalY),
+        distShooter: Math.hypot(n.x - shooterNode.x, n.y - shooterNode.y)
+      }))
+      .filter((b) => b.distLine <= 7.5 && b.distShooter >= 2 && b.distShooter <= 24)
+      .sort((a, b) => a.distShooter - b.distShooter);
+
+    const gkNode = defNodes.find((n) => n.role === "GK") || defNodes[0];
+    const vsDefender = laneBlockers.length > 0 && Math.random() < 0.34;
+    const defTarget = vsDefender ? laneBlockers[0].node : gkNode;
+    const defCategory = vsDefender ? "DF" : "GK";
+
+    const isLongShot = effRole === "MF" || Math.hypot(shooterNode.x - goalX, shooterNode.y - 50) > 25;
+    const shotScore =
+      calcNodeDuelScore(shooterNode, attSupport, defTarget?.player?.element) - (isLongShot ? 3.5 : 0);
+    const stopScore = calcNodeDuelScore(defTarget, defSupport, shooterNode?.player?.element);
+
+    const goalProb = vsDefender
+      ? logisticWinProb(shotScore, stopScore, -4.8, 0.08, 0.48)
+      : logisticWinProb(shotScore, stopScore, -7.4, 0.08, 0.50);
+    const isGoal = Math.random() < goalProb;
+
+    const shotInfo = buildGoalShotLabel(shooterNode.player);
+    const pickedDefMove = pickPlayerMove(defTarget.player, defCategory);
+    const defMoveName =
+      pickedDefMove || (defCategory === "DF" ? "Bloqueio de Corpo" : "Defesa Direta");
+
+    spendStamina(shooterNode, shotInfo.isHissatsu ? 19 : 9);
+    spendStamina(defTarget, pickedDefMove ? 15 : 8);
+    const shotAssistCandidate =
+      pitch.lastAssistCandidate &&
+      pitch.lastAssistCandidate.side === shooterNode.side &&
+      pitch.lastAssistCandidate.receiverUid === shooterNode.uid &&
+      pitch.lastAssistCandidate.passerUid !== shooterNode.uid
+        ? pitch.lastAssistCandidate
+        : null;
+    pitch.lastAssistCandidate = null;
+    pitch.lastPasserUid = null;
+    pitch.lastAction = "SHOT";
+    pitch.teamConsecutivePasses = 0;
+
+    if (attIsUser) {
+      pitch.stats.userShots++;
+      recordUserPlayerStat(pitch, shooterNode, "shots", 1);
+    } else {
+      pitch.stats.oppShots++;
+    }
+
+    const shotOriginX = shooterNode.x;
+    const shotOriginY = shooterNode.y;
+    const duelX = vsDefender
+      ? defTarget.x
+      : attIsUser
+      ? 91.5
+      : 8.5;
+    const duelY = vsDefender
+      ? defTarget.y
+      : Math.max(41, Math.min(59, 50 + (shotOriginY - 50) * 0.22));
+
+    pitch.ballMode = "SHOT_FLIGHT";
+    pitch.carrierUid = null;
+    pitch.challengerUid = defTarget.uid;
+    pitch.holdBallPos = { x: duelX, y: duelY };
+    pitch.lastClashMinute = st.minute;
+
+    const flightMs = state.simSpeed === 1 ? 1650 : 75;
+    startBallFlight(pitch, shotOriginX, shotOriginY, duelX, duelY, flightMs, 3.0, "SHOT", "#f97316");
+    showPitchBadge(pitch, shotOriginX, shotOriginY, shotInfo.label, "badge-shot", state.simSpeed === 1 ? 1750 : 600, "SH");
+    pitch.ticker = `${st.minute}' CHUTE! ${shooterNode.player.name} (${shotInfo.label}) vs ${defTarget.player.name}!`;
+    syncLivePitchDOM(st);
+
+    const applyShotImpact = () => {
+      if (isGoal) {
+        pitch.ballMode = "GOAL_NET";
+        pitch.carrierUid = null;
+        pitch.challengerUid = null;
+        pitch.holdBallPos = { x: goalX, y: goalY };
+        startBallFlight(pitch, duelX, duelY, goalX, goalY, state.simSpeed === 1 ? 360 : 40, 0.8, "GOAL", "#facc15");
+        pitch.goalFlashSide = attIsUser ? "right" : "left";
+        pitch.goalFlashUntil = performance.now() + 2600;
+        showPitchBadge(pitch, goalX, goalY, "GOOOL!!", "badge-goal", 1600, "SH");
+        showNodeBadge(pitch, shooterNode.uid, `GOOOL! • ${shotInfo.label}`, "badge-goal", 1650, "SH");
+
+        if (attIsUser) {
+          st.userScore++;
+          recordUserPlayerStat(pitch, shooterNode, "goals", 1);
+          const assistNode = shotAssistCandidate ? findPitchNode(pitch, shotAssistCandidate.passerUid) : null;
+          if (assistNode && assistNode.side === "user") {
+            recordUserPlayerStat(pitch, assistNode, "assists", 1);
+          }
+          const assistTag = assistNode ? ` (assist. de ${assistNode.player.name})` : "";
+          const goalObj = {
+            minute: st.minute,
+            name: shooterNode.player.name,
+            sprite: shooterNode.player.sprite,
+            shotLabel: shotInfo.label,
+            isHissatsu: shotInfo.isHissatsu,
+            assistName: assistNode ? assistNode.player.name : null
+          };
+          st.goalsUser.push(goalObj);
+          const scoreUserEl = document.getElementById("live-score-user");
+          if (scoreUserEl) scoreUserEl.textContent = st.userScore;
+          appendGoalItemDOM("user", goalObj);
+          prependNarrationLine(
+            st,
+            "nar-goal-user",
+            shotInfo.isHissatsu
+              ? `${st.minute}' GOOOL DO DREAM TEAM! ${shooterNode.player.name} disparou 【${shotInfo.label}】${assistTag} e furou 【${defMoveName}】 de ${defTarget.player.name}! (${st.userScore} x ${st.oppScore})`
+              : `${st.minute}' GOOOL DO DREAM TEAM! ${shooterNode.player.name} superou ${defTarget.player.name} com um ${shotInfo.label.toLowerCase()}${assistTag}! (${st.userScore} x ${st.oppScore})`,
+            { name: shooterNode.player.name, sprite: shooterNode.player.sprite, side: "user" },
+            { name: defTarget.player.name, sprite: defTarget.player.sprite, side: "opp" },
+            "SH"
+          );
+        } else {
+          st.oppScore++;
+          const goalObj = {
+            minute: st.minute,
+            name: shooterNode.player.name,
+            sprite: shooterNode.player.sprite,
+            shotLabel: shotInfo.label,
+            isHissatsu: shotInfo.isHissatsu
+          };
+          st.goalsOpp.push(goalObj);
+          const scoreOppEl = document.getElementById("live-score-opp");
+          if (scoreOppEl) scoreOppEl.textContent = st.oppScore;
+          appendGoalItemDOM("opp", goalObj);
+          prependNarrationLine(
+            st,
+            "nar-goal-opp",
+            shotInfo.isHissatsu
+              ? `${st.minute}' GOL DE ${st.oppTeam.name.toUpperCase()}! ${shooterNode.player.name} usou 【${shotInfo.label}】 e venceu 【${defMoveName}】 de ${defTarget.player.name}! (${st.userScore} x ${st.oppScore})`
+              : `${st.minute}' GOL DE ${st.oppTeam.name.toUpperCase()}! ${shooterNode.player.name} venceu ${defTarget.player.name} com um ${shotInfo.label.toLowerCase()}! (${st.userScore} x ${st.oppScore})`,
+            { name: shooterNode.player.name, sprite: shooterNode.player.sprite, side: "opp" },
+            { name: defTarget.player.name, sprite: defTarget.player.sprite, side: "user" },
+            "SH"
+          );
+        }
+        pitch.ticker = `${st.minute}' GOOOL de ${shooterNode.player.name}! (${st.userScore} x ${st.oppScore})`;
+      } else {
+        pitch.ballSide = attIsUser ? "opp" : "user";
+        pitch.ballMode = "CARRIED";
+        pitch.carrierUid = defTarget.uid;
+        pitch.challengerUid = null;
+        pitch.holdBallPos = null;
+        defTarget.carryTime = 0;
+        defTarget.decisionTimer = 0.35;
+        defTarget.duelCooldown = 1.8;
+        pitch.ballFlight = null;
+        pitch.ballX = defTarget.x + (defTarget.side === "user" ? 1.9 : -1.9);
+        pitch.ballY = defTarget.y + 1.0;
+        pitch.passTrail = null;
+        showPitchBadge(pitch, defTarget.x, defTarget.y, defMoveName, "badge-steal", 1000, defCategory);
+
+        if (defCategory === "DF") {
+          if (!attIsUser) {
+            pitch.stats.userSteals++;
+            pitch.stats.userBlocks = (pitch.stats.userBlocks || 0) + 1;
+            recordUserPlayerStat(pitch, defTarget, "blocks", 1);
+            recordUserPlayerStat(pitch, defTarget, "steals", 1);
+          }
+          pitch.ticker = `${st.minute}' ${defTarget.player.name} bloqueou o chute de ${shooterNode.player.name}!`;
+          prependNarrationLine(
+            st,
+            "nar-steal",
+            `${st.minute}' [Bloqueio da Zaga] ${defTarget.player.name} entrou na frente com 【${defMoveName}】 e bloqueou 【${shotInfo.label}】 de ${shooterNode.player.name}!`,
+            { name: defTarget.player.name, sprite: defTarget.player.sprite, side: defTarget.side },
+            { name: shooterNode.player.name, sprite: shooterNode.player.sprite, side: shooterNode.side },
+            "DF"
+          );
+        } else {
+          if (!attIsUser) {
+            pitch.stats.userSaves++;
+            recordUserPlayerStat(pitch, defTarget, "saves", 1);
+          }
+          pitch.ticker = `${st.minute}' ${defTarget.player.name} defendeu o chute de ${shooterNode.player.name}!`;
+          prependNarrationLine(
+            st,
+            "nar-save",
+            `${st.minute}' [Defesa de Goleiro] ${defTarget.player.name} acionou 【${defMoveName}】 e espalmou 【${shotInfo.label}】 de ${shooterNode.player.name}!`,
+            { name: defTarget.player.name, sprite: defTarget.player.sprite, side: defTarget.side },
+            { name: shooterNode.player.name, sprite: shooterNode.player.sprite, side: shooterNode.side },
+            "GK"
+          );
+        }
+      }
+    };
+
+    const onShotModalClosed = (skipRestart = false) => {
+      if (isGoal) {
+        const concedingSide = attIsUser ? "opp" : "user";
+        const doKickoffReset = () => {
+          resetPitchForKickoff(pitch, concedingSide, true);
+          pitch.ticker = `${st.minute}' Saída no centro com ${concedingSide === "user" ? "Dream Team" : st.oppTeam.name}!`;
+        };
+        if (skipRestart || state.simSpeed !== 1) {
+          doKickoffReset();
+          return false;
+        }
+        pauseForPitchBeat(
+          st,
+          `<span class="callout-tag">GOOOL!</span><strong>${shooterNode.player.name}</strong><span>${st.userScore} x ${st.oppScore} · ${shotInfo.label}</span>`,
+          "callout-goal",
+          1500,
+          ovrDiff,
+          doKickoffReset
+        );
+        return true;
+      }
+
+      showNodeBadge(
+        pitch,
+        defTarget.uid,
+        `${defCategory === "DF" ? "Bloqueou" : "Defendeu"} • ${defMoveName}`,
+        "badge-steal",
+        1100,
+        defCategory
+      );
+      if (skipRestart || state.simSpeed !== 1) return false;
+      pauseForPitchBeat(st, "", "", 700, ovrDiff, null);
+      return true;
+    };
+
+    const bannerText = isGoal
+      ? "GOOOL!!"
+      : defCategory === "DF"
+      ? "BLOQUEADO PELA ZAGA!"
+      : "DEFENDEU!";
+    const defRoleBadge = defCategory === "DF" ? "ZAGA • BLOQUEIO" : "GOLEIRO";
+
+    playShotClashAndContinue(
+      st,
+      {
+        kind: "SHOT",
+        dir: attIsUser ? "ltr" : "rtl",
+        userPlayer: attIsUser
+          ? { name: shooterNode.player.name, sprite: shooterNode.player.sprite, roleText: "CHUTE" }
+          : { name: defTarget.player.name, sprite: defTarget.player.sprite, roleText: defRoleBadge },
+        oppPlayer: attIsUser
+          ? { name: defTarget.player.name, sprite: defTarget.player.sprite, roleText: defRoleBadge }
+          : { name: shooterNode.player.name, sprite: shooterNode.player.sprite, roleText: "CHUTE" },
+        topMoveName: shotInfo.label,
+        bottomMoveName: defMoveName,
+        bottomIcon: defCategory,
+        outcomePositive: isGoal ? attIsUser : !attIsUser,
+        resultBannerText: bannerText
+      },
+      applyShotImpact,
+      ovrDiff,
+      onShotModalClosed
+    );
+  }
+
+  function stepContinuousPhysics(st, pitch, dt) {
+    if (!st || !pitch || st.finished || !st.running) return;
+    ensureMatchSupport(st, pitch);
+    const { userTeamSupport, oppTeamSupport, ovrDiff } = pitch.matchSupport;
+
+    pitch.simTime += dt;
+    pitch.minuteFloat += dt * 1.45;
+
+    const allNodes = [...pitch.userNodes, ...pitch.oppNodes];
+    allNodes.forEach((n) => {
+      if (n.duelCooldown > 0) n.duelCooldown = Math.max(0, n.duelCooldown - dt);
+      if (n.staggerTimer > 0) n.staggerTimer = Math.max(0, n.staggerTimer - dt);
+    });
+
+    // Avança minutos do relógio e recupera energia fora da posse
+    const targetMin = Math.floor(pitch.minuteFloat);
+    if (targetMin > st.minute) {
+      while (st.minute < targetMin && !st.finished) {
+        st.minute++;
+        const clockEl = document.getElementById("live-clock-text");
+        const barEl = document.getElementById("live-bar-fill");
+        if (clockEl) clockEl.textContent = `${st.minute}'`;
+        if (barEl) {
+          const pct = Math.min(100, Math.round((st.minute / st.maxMinute) * 100));
+          barEl.style.width = `${pct}%`;
+        }
+        allNodes.forEach((n) => {
+          if (n.uid !== pitch.carrierUid) n.stamina = Math.min(100, n.stamina + 1.5);
+        });
+        if (pitch.ballSide === "user") pitch.stats.userTicks++;
+        else pitch.stats.oppTicks++;
+
+        syncLivePitchDOM(st);
+        if (handleMinuteEndBoundaries(st, ovrDiff)) return;
+      }
+    }
+
+    // Steering + integração suave de velocidade e separação entre colegas (ZERO teleporte!)
+    recomputePitchTargets(pitch);
+    const steerNodes = (list) => {
+      list.forEach((node) => {
+        const dx = node.targetX - node.x;
+        const dy = node.targetY - node.y;
+        const dist = Math.hypot(dx, dy);
+        const staminaFactor = node.stamina < 45 ? 0.9 : 1.0;
+        const staggerFactor = node.staggerTimer > 0 ? 0.42 : 1.0;
+        const speedLimit = node.maxSpeed * (node.targetSprint || 0.9) * staminaFactor * staggerFactor;
+        const arriveScale = dist < 3.0 ? dist / 3.0 : 1.0;
+
+        let desVx = dist > 0.05 ? (dx / dist) * speedLimit * arriveScale : 0;
+        let desVy = dist > 0.05 ? (dy / dist) * speedLimit * arriveScale : 0;
+
+        // Separação suave entre companheiros para ninguém se amontoar
+        if (node.role !== "GK") {
+          list.forEach((other) => {
+            if (other.uid === node.uid || other.role === "GK") return;
+            const rx = node.x - other.x;
+            const ry = node.y - other.y;
+            const rDist = Math.hypot(rx, ry);
+            if (rDist > 0.05 && rDist < 6.8) {
+              const push = ((6.8 - rDist) / 6.8) * 11.5;
+              desVx += (rx / rDist) * push;
+              desVy += (ry / rDist) * push;
+            }
+          });
+        }
+
+        const accel = Math.min(1, dt * 8.2);
+        node.vx += (desVx - node.vx) * accel;
+        node.vy += (desVy - node.vy) * accel;
+        node.x += node.vx * dt;
+        node.y += node.vy * dt;
+
+        const minX = node.role === "GK" ? 4 : 8;
+        const maxX = node.role === "GK" ? 96 : 92;
+        node.x = Math.max(minX, Math.min(maxX, node.x));
+        node.y = Math.max(9, Math.min(91, node.y));
+      });
+    };
+    steerNodes(pitch.userNodes);
+    steerNodes(pitch.oppNodes);
+
+    const attIsUser = pitch.ballSide === "user";
+    const attNodes = attIsUser ? pitch.userNodes : pitch.oppNodes;
+    const defNodes = attIsUser ? pitch.oppNodes : pitch.userNodes;
+    const attSupport = attIsUser ? userTeamSupport : oppTeamSupport;
+    const defSupport = attIsUser ? oppTeamSupport : userTeamSupport;
+
+    // FASE A: BOLA NO PÉ DE UM PORTADOR EM MOVIMENTO CONTÍNUO
+    if (pitch.ballMode === "CARRIED") {
+      const carrier = findPitchNode(pitch, pitch.carrierUid) || attNodes[0];
+      if (!carrier) return;
+
+      carrier.carryTime += dt;
+      carrier.decisionTimer -= dt;
+
+      const weave = Math.sin(pitch.simTime * 8.5) * 0.42;
+      pitch.ballX = carrier.x + (attIsUser ? 1.8 : -1.8);
+      pitch.ballY = carrier.y + 0.9 + weave;
+
+      // 1) Checa contato físico real para embate Drible (OF) vs Desarme (DF)!
+      if (carrier.role !== "GK" && !pitch.justKickedOff && carrier.duelCooldown <= 0) {
+        let closestDef = null;
+        let closestDist = 999;
+        defNodes.forEach((d) => {
+          if (d.role === "GK" || d.staggerTimer > 0 || d.duelCooldown > 0) return;
+          const dist = Math.hypot(d.x - carrier.x, d.y - carrier.y);
+          if (dist < closestDist) {
+            closestDist = dist;
+            closestDef = d;
+          }
+        });
+        if (closestDef && closestDist <= 4.1) {
+          resolvePhysicalDribbleClash(st, pitch, carrier, closestDef, attSupport, defSupport, ovrDiff);
+          return;
+        }
+      }
+
+      // 2) Decisão tática contínua do portador (Passe ou Chute)
+      if (carrier.decisionTimer <= 0) {
+        carrier.decisionTimer = 0.22 + Math.random() * 0.14;
+
+        if (pitch.justKickedOff) {
+          pitch.justKickedOff = false;
+          launchContinuousPass(st, pitch, carrier, attNodes, defNodes, false, true);
+          return;
+        }
+
+        if (carrier.role === "GK") {
+          if (carrier.carryTime >= 0.45) {
+            launchContinuousPass(st, pitch, carrier, attNodes, defNodes, true, true);
+          }
+          return;
+        }
+
+        const oppGoalX = attIsUser ? 96 : 4;
+        const goalDist = Math.hypot(carrier.x - oppGoalX, carrier.y - 50);
+        const inPenaltyX = attIsUser ? carrier.x >= 72 : carrier.x <= 28;
+        const centralLane = carrier.y >= 24 && carrier.y <= 76;
+        const inFinalThird = attIsUser ? carrier.x >= 58 : carrier.x <= 42;
+
+        let nearestDefDist = 99;
+        let blockingDefs = 0;
+        defNodes.forEach((d) => {
+          if (d.role === "GK") return;
+          const dd = Math.hypot(d.x - carrier.x, d.y - carrier.y);
+          if (dd < nearestDefDist) nearestDefDist = dd;
+          const isAhead = attIsUser ? d.x >= carrier.x - 1 : d.x <= carrier.x + 1;
+          if (isAhead && Math.abs(d.y - carrier.y) <= 13 && Math.abs(d.x - carrier.x) <= 16) blockingDefs++;
+        });
+
+        const roll = Math.random();
+        const mustShoot =
+          (inPenaltyX && centralLane) ||
+          goalDist <= 22 ||
+          (inFinalThird && blockingDefs === 0 && goalDist <= 29 && roll < 0.56) ||
+          (effRoleOrPos(carrier) === "FW" && goalDist <= 31 && roll < 0.34);
+
+        if (mustShoot) {
+          launchContinuousShot(st, pitch, carrier, defNodes, attSupport, defSupport, ovrDiff);
+          return;
+        }
+
+        const tiredPass = carrier.stamina < 45 && roll < 0.65;
+        const pressPass = nearestDefDist < 9.5 && roll < 0.52;
+        const flowPass = carrier.carryTime >= 0.9 && roll < (carrier.role === "DF" ? 0.66 : 0.44);
+        const forceRecycle = carrier.carryTime >= 2.3;
+
+        if (tiredPass || pressPass || flowPass || forceRecycle) {
+          const strictFwd = inFinalThird || carrier.role === "DF";
+          launchContinuousPass(st, pitch, carrier, attNodes, defNodes, strictFwd, false);
+          return;
+        }
+      }
+      return;
+    }
+
+    // FASE B: BOLA VIAJANDO NO PASSE (CORRE PARA INTERCEPTAÇÃO FÍSICA OU RECEPÇÃO)
+    if (pitch.ballMode === "PASS_FLIGHT" && pitch.passState) {
+      const ps = pitch.passState;
+      const receiver = findPitchNode(pitch, ps.receiverUid);
+      if (receiver) {
+        ps.toX = ps.toX * 0.85 + receiver.x * 0.15;
+        ps.toY = ps.toY * 0.85 + receiver.y * 0.15;
+      }
+      ps.elapsed += dt;
+      ps.progress = Math.min(1, ps.elapsed / ps.duration);
+      pitch.ballX = ps.fromX + (ps.toX - ps.fromX) * ps.progress;
+      pitch.ballY = ps.fromY + (ps.toY - ps.fromY) * ps.progress;
+
+      // Interceptação física apenas se um marcador realmente cruzar a trajetória!
+      if (!ps.isSafeProtectedPass && ps.progress >= 0.18 && ps.progress <= 0.88) {
+        const interceptor = defNodes.find(
+          (d) =>
+            d.role !== "GK" &&
+            d.staggerTimer <= 0 &&
+            d.duelCooldown <= 0 &&
+            Math.hypot(d.x - pitch.ballX, d.y - pitch.ballY) <= 3.0
+        );
+        if (interceptor) {
+          interceptor.duelCooldown = 1.8;
+          const passScore = calcNodeDuelScore(ps.passerNode, attSupport, interceptor?.player?.element);
+          const defScore = calcNodeDuelScore(interceptor, defSupport, ps.passerNode?.player?.element);
+          const sectorShift = ps.effRole === "DF" ? 7.5 : ps.effRole === "MF" ? 5.5 : 4.0;
+          const interceptProb = 1 - logisticWinProb(passScore, defScore, sectorShift, 0.56, 0.88);
+          if (Math.random() < interceptProb) {
+            const stealMove = pickPlayerMove(interceptor.player, "DF") || "Corte Rápido";
+            spendStamina(interceptor, 10);
+
+            pitch.ballSide = attIsUser ? "opp" : "user";
+            pitch.ballMode = "CARRIED";
+            pitch.carrierUid = interceptor.uid;
+            pitch.challengerUid = null;
+            pitch.passState = null;
+            pitch.lastAssistCandidate = null;
+            pitch.lastPasserUid = null;
+            pitch.lastAction = "STEAL";
+            pitch.teamConsecutivePasses = 0;
+            interceptor.carryTime = 0;
+            interceptor.decisionTimer = 0.25;
+            pitch.ballX = interceptor.x + (interceptor.side === "user" ? 1.9 : -1.9);
+            pitch.ballY = interceptor.y + 1.0;
+
+            if (ps.passerNode) showNodeBadge(pitch, ps.passerNode.uid, "Interceptado", "badge-lost", 1500);
+            showNodeBadge(pitch, interceptor.uid, `Roubou • ${stealMove}`, "badge-steal", 1500, "DF");
+            if (!attIsUser) {
+              pitch.stats.userSteals++;
+              recordUserPlayerStat(pitch, interceptor, "steals", 1);
+            }
+            pitch.ticker = `${st.minute}' ${interceptor.player.name} roubou passe de ${ps.passerNode?.player?.name || ""} (${stealMove})!`;
+            prependNarrationLine(
+              st,
+              "nar-steal",
+              `${st.minute}' [Roubo] ${interceptor.player.name} deu o bote com 【${stealMove}】 e interceptou ${ps.passerNode?.player?.name || ""}!`,
+              { name: interceptor.player.name, sprite: interceptor.player.sprite, side: interceptor.side },
+              ps.passerNode ? { name: ps.passerNode.player.name, sprite: ps.passerNode.player.sprite, side: ps.passerNode.side } : null,
+              "DF"
+            );
+            syncLivePitchDOM(st);
+            pauseForPitchBeat(st, "", "", 1050, ovrDiff);
+            return;
+          }
+        }
+      }
+
+      if (ps.progress >= 1 || (receiver && ps.progress >= 0.45 && Math.hypot(receiver.x - pitch.ballX, receiver.y - pitch.ballY) <= 2.4)) {
+        const catcher = receiver || attNodes[0];
+        if (attIsUser && !ps.isGkOutlet) {
+          pitch.stats.userPassesOk++;
+          if (ps.passerNode) recordUserPlayerStat(pitch, ps.passerNode, "passesOk", 1);
+        }
+        pitch.lastAssistCandidate = ps.isGkOutlet
+          ? null
+          : { passerUid: ps.passerUid, receiverUid: catcher.uid, side: catcher.side };
+        pitch.lastPasserUid = ps.passerUid;
+        pitch.ballMode = "CARRIED";
+        pitch.carrierUid = catcher.uid;
+        pitch.passState = null;
+        catcher.carryTime = 0;
+        catcher.decisionTimer = 0.22;
+        pitch.ballX = catcher.x + (catcher.side === "user" ? 1.8 : -1.8);
+        pitch.ballY = catcher.y + 1.0;
+        syncLivePitchDOM(st);
+      }
+    }
+  }
+
+  function effRoleOrPos(node) {
+    return getEffectiveCarrierRole(node);
+  }
+
+  function startMatchInterval() {
+    if (state.tournament.timerId) {
+      clearInterval(state.tournament.timerId);
+      state.tournament.timerId = null;
+    }
     const stageIdx = state.tournament.stageIndex;
     const st = state.tournament.stages[stageIdx];
     if (!st || st.finished) return;
     if (!st.pitch) st.pitch = initMatchPitchState(st, stageIdx);
+    ensureMatchSupport(st, st.pitch);
     if (!state.tournament.pitchRafId) startPitchRafLoop(st);
-
-    const userStats = calcSquadStats();
-    const oppStats = calcOpponentStats(st.oppTeam, stageIdx);
-
-    // Ambos os times usam o mesmo sistema de Química + Formação + Links Elementais Próximos!
-    const userTeamSupport =
-      (userStats.chem / 100) * 4.4 +
-      (userStats.correctPosCount === 11 ? 2.4 : userStats.correctPosCount * 0.12);
-    const oppTeamSupport =
-      (oppStats.chem / 100) * 4.4 +
-      (oppStats.correctPosCount === 11 ? 2.4 : oppStats.correctPosCount * 0.12);
-    const ovrDiff = userStats.ovr - oppStats.ovr;
-
-    state.tournament.timerId = setInterval(() => {
-      st.minute++;
-      const pitch = st.pitch;
-
-      const clockEl = document.getElementById("live-clock-text");
-      const barEl = document.getElementById("live-bar-fill");
-      if (clockEl) clockEl.textContent = `${st.minute}'`;
-      if (barEl) {
-        const pct = Math.min(100, Math.round((st.minute / st.maxMinute) * 100));
-        barEl.style.width = `${pct}%`;
-      }
-
-      pitch.userNodes.forEach((n) => {
-        if (n.uid !== pitch.carrierUid) n.stamina = Math.min(100, n.stamina + 1.5);
-      });
-      pitch.oppNodes.forEach((n) => {
-        if (n.uid !== pitch.carrierUid) n.stamina = Math.min(100, n.stamina + 1.5);
-      });
-
-      const attIsUser = pitch.ballSide === "user";
-      const attNodes = attIsUser ? pitch.userNodes : pitch.oppNodes;
-      const defNodes = attIsUser ? pitch.oppNodes : pitch.userNodes;
-      const attSupport = attIsUser ? userTeamSupport : oppTeamSupport;
-      const defSupport = attIsUser ? oppTeamSupport : userTeamSupport;
-
-      if (attIsUser) pitch.stats.userTicks++;
-      else pitch.stats.oppTicks++;
-
-      const carrier = findPitchNode(pitch, pitch.carrierUid) || attNodes[0];
-      const effRole = getEffectiveCarrierRole(carrier);
-
-      // Decisão tática contextual inteligente (chuta quando de cara pro gol; evita repetição e cansaço!)
-      const decision = chooseTacticalAction(carrier, attNodes, defNodes, attIsUser, pitch);
-      const action = decision.action;
-      const strictForward = decision.strictForward;
-
-      pitch.sameActionStreak = pitch.lastAction === action ? (pitch.sameActionStreak || 0) + 1 : 1;
-      pitch.lastAction = action;
-      if (action === "PASS") {
-        pitch.teamConsecutivePasses = (pitch.teamConsecutivePasses || 0) + 1;
-      } else {
-        pitch.teamConsecutivePasses = 0;
-      }
-
-      const isSafeProtectedPass = Boolean(decision.safeRestart || carrier.role === "GK");
-      const passFlightMs = state.simSpeed === 4 ? 70 : state.simSpeed === 2 ? 155 : 460;
-
-      // ----------------------------------------------------------------------
-      // AÇÃO 1: PASSE INDIVIDUAL (GOLEIRO E SAÍDA DE BOLA SÃO 100% PROTEGIDOS CONTRA ROUBO!)
-      // ----------------------------------------------------------------------
-      if (action === "PASS") {
-        const receiver = pickPassReceiver(attNodes, defNodes, carrier, strictForward, pitch);
-        const midX = (carrier.x + receiver.targetX) * 0.5;
-        const midY = (carrier.y + receiver.targetY) * 0.5;
-        const pressRoles =
-          effRole === "GK"
-            ? ["FW"]
-            : effRole === "DF"
-            ? ["FW", "MF"]
-            : effRole === "MF"
-            ? ["MF", "DF"]
-            : ["DF"];
-        const interceptor = pickMarkerFor(defNodes, pressRoles, midX, midY);
-
-        let recMinDefDist = 99;
-        defNodes.forEach((d) => {
-          const dd = Math.hypot(d.x - receiver.targetX, d.y - receiver.targetY);
-          if (dd < recMinDefDist) recMinDefDist = dd;
-        });
-        const passLaneEdge = recMinDefDist >= 11 ? 1.4 : 0;
-
-        const passScore = calcNodeDuelScore(carrier, attSupport, interceptor?.player?.element);
-        const defScore = calcNodeDuelScore(interceptor, defSupport, carrier?.player?.element);
-        const sectorShift = effRole === "GK" ? 14 : effRole === "DF" ? 13.0 : effRole === "MF" ? 11.2 : 9.0;
-        const minPassP = effRole === "DF" ? 0.78 : effRole === "MF" ? 0.75 : 0.71;
-        const passSuccess = isSafeProtectedPass
-          ? true
-          : Math.random() < logisticWinProb(passScore + passLaneEdge, defScore, sectorShift, minPassP, 0.95);
-
-        const isGkOutlet = carrier.role === "GK";
-        spendStamina(carrier, isSafeProtectedPass ? 1.5 : 4);
-        if (attIsUser) {
-          if (isGkOutlet) {
-            pitch.stats.userGkReleases = (pitch.stats.userGkReleases || 0) + 1;
-            recordUserPlayerStat(pitch, carrier, "gkReleases", 1);
-          } else {
-            pitch.stats.userPassesTry++;
-            recordUserPlayerStat(pitch, carrier, "passesTry", 1);
-          }
-        }
-
-        const startX = carrier.x;
-        const startY = carrier.y;
-
-        if (passSuccess) {
-          if (attIsUser && !isGkOutlet) {
-            pitch.stats.userPassesOk++;
-            recordUserPlayerStat(pitch, carrier, "passesOk", 1);
-          }
-          // Reposição do goleiro após defesa recomeça o ataque, não conta como passe de campo nem assistência
-          pitch.lastAssistCandidate = isGkOutlet
-            ? null
-            : {
-                passerUid: carrier.uid,
-                receiverUid: receiver.uid,
-                side: carrier.side
-              };
-          pitch.lastPasserUid = carrier.uid;
-          pitch.carrierUid = receiver.uid;
-          pitch.challengerUid = null;
-          pitch.holdBallPos = null;
-          recomputePitchTargets(pitch);
-
-          startBallFlight(
-            pitch,
-            startX,
-            startY,
-            receiver.targetX,
-            receiver.targetY,
-            passFlightMs,
-            2.4,
-            "PASS",
-            attIsUser ? "#4ade80" : "#f87171"
-          );
-          const passBadgeText = carrier.role === "GK" ? "REPOSIÇÃO" : "PASSE";
-          showPitchBadge(
-            pitch,
-            receiver.targetX,
-            receiver.targetY,
-            passBadgeText,
-            "badge-pass",
-            passFlightMs + 260,
-            carrier.role === "GK" ? "GK" : "BALL"
-          );
-          pitch.ticker =
-            carrier.role === "GK"
-              ? `${st.minute}' Reposição: ${carrier.player.name} ➔ ${receiver.player.name}`
-              : `${st.minute}' Passe: ${carrier.player.name} ➔ ${receiver.player.name}`;
-          syncLivePitchDOM(st);
-          handleMinuteEndBoundaries(st, ovrDiff);
-          return;
-        } else {
-          // Interceptado na linha de passe: pausa leve sem texto no centro, exibindo técnica no ícone
-          const ix = Math.max(12, Math.min(88, startX * 0.46 + receiver.targetX * 0.54));
-          const iy = Math.max(14, Math.min(86, startY * 0.46 + receiver.targetY * 0.54));
-          const stealMove = pickPlayerMove(interceptor.player, "DF") || "Corte Rápido";
-          spendStamina(interceptor, 10);
-
-          pitch.ballSide = attIsUser ? "opp" : "user";
-          pitch.carrierUid = interceptor.uid;
-          pitch.challengerUid = null;
-          pitch.holdBallPos = null;
-          pitch.lastAssistCandidate = null;
-          pitch.lastPasserUid = null;
-          pitch.teamConsecutivePasses = 0;
-          pinNodeToCoord(pitch, interceptor, ix, iy, false);
-          startBallFlight(
-            pitch,
-            startX,
-            startY,
-            ix,
-            iy,
-            passFlightMs,
-            1.6,
-            "INTERCEPT",
-            "#38bdf8"
-          );
-          showNodeBadge(pitch, carrier.uid, "Interceptado", "badge-lost", 1550);
-          showNodeBadge(pitch, interceptor.uid, `Roubou • ${stealMove}`, "badge-steal", 1550, "DF");
-
-          if (!attIsUser) {
-            pitch.stats.userSteals++;
-            recordUserPlayerStat(pitch, interceptor, "steals", 1);
-          }
-          pitch.ticker = `${st.minute}' ${interceptor.player.name} roubou passe de ${carrier.player.name} (${stealMove})!`;
-          prependNarrationLine(
-            st,
-            "nar-steal",
-            `${st.minute}' [Roubo] ${interceptor.player.name} deu o bote com 【${stealMove}】 e interceptou ${carrier.player.name}!`,
-            { name: interceptor.player.name, sprite: interceptor.player.sprite, side: interceptor.side },
-            { name: carrier.player.name, sprite: carrier.player.sprite, side: carrier.side },
-            "DF"
-          );
-          syncLivePitchDOM(st);
-          pauseForPitchBeat(st, "", "", 1250, ovrDiff);
-          return;
-        }
-      }
-
-      // ----------------------------------------------------------------------
-      // AÇÃO 2: DRIBLE INDIVIDUAL (SEM TEXTO NO MEIO: PAUSA LEVE + TÉCNICA NO ÍCONE!)
-      // ----------------------------------------------------------------------
-      if (action === "DRIBBLE") {
-        const markerRoles = effRole === "DF" ? ["FW", "MF"] : effRole === "MF" ? ["MF", "DF"] : ["DF"];
-        const aheadX = Math.max(12, Math.min(88, carrier.x + (attIsUser ? 7 : -7)));
-        const marker = pickMarkerFor(defNodes, markerRoles, aheadX, carrier.y);
-
-        const dribScore = calcNodeDuelScore(carrier, attSupport, marker?.player?.element);
-        const defScore = calcNodeDuelScore(marker, defSupport, carrier?.player?.element);
-        const wonDribble = Math.random() < logisticWinProb(dribScore, defScore, 4.4, 0.38, 0.86);
-
-        spendStamina(carrier, 15);
-        spendStamina(marker, 11);
-        if (attIsUser) {
-          pitch.stats.userDribblesTry++;
-          recordUserPlayerStat(pitch, carrier, "dribblesTry", 1);
-        }
-
-        const ofMove = pickPlayerMove(carrier.player, "OF") || "Finta Veloz";
-        const dfMove = pickPlayerMove(marker.player, "DF") || "Marcação Cerrada";
-        const startX = carrier.x;
-        const startY = carrier.y;
-
-        pinNodeToCoord(
-          pitch,
-          marker,
-          carrier.x + (attIsUser ? 3.8 : -3.8),
-          carrier.y + (marker.y >= carrier.y ? 2.0 : -2.0),
-          false
-        );
-
-        if (wonDribble) {
-          if (attIsUser) {
-            pitch.stats.userDribblesOk++;
-            recordUserPlayerStat(pitch, carrier, "dribblesOk", 1);
-          }
-          if (
-            !(
-              pitch.lastAssistCandidate &&
-              pitch.lastAssistCandidate.side === carrier.side &&
-              pitch.lastAssistCandidate.receiverUid === carrier.uid
-            )
-          ) {
-            pitch.lastAssistCandidate = null;
-          }
-          pitch.lastPasserUid = null;
-          const newX = Math.max(12, Math.min(86, startX + (attIsUser ? 12 : -12)));
-          const dodgeY = Math.max(14, Math.min(86, startY + (marker.y >= startY ? -6.5 : 6.5)));
-          pitch.carrierUid = carrier.uid;
-          pitch.challengerUid = null;
-          pitch.holdBallPos = null;
-          pinNodeToCoord(pitch, carrier, newX, dodgeY, false);
-
-          pitch.passTrail = {
-            fromX: startX,
-            fromY: startY,
-            toX: newX,
-            toY: dodgeY,
-            curX: newX,
-            curY: dodgeY,
-            color: "#c084fc",
-            start: performance.now(),
-            flightDuration: 280,
-            fadeUntil: performance.now() + 680
-          };
-          showNodeBadge(pitch, carrier.uid, `Avançou • ${ofMove}`, "badge-dribble", 1550, "OF");
-          pitch.ticker = `${st.minute}' ${carrier.player.name} avançou com ${ofMove} sobre ${marker.player.name}!`;
-          prependNarrationLine(
-            st,
-            "nar-dribble",
-            `${st.minute}' [Drible] ${carrier.player.name} ativou 【${ofMove}】 e avançou por ${marker.player.name}!`,
-            { name: carrier.player.name, sprite: carrier.player.sprite, side: carrier.side },
-            { name: marker.player.name, sprite: marker.player.sprite, side: marker.side },
-            "OF"
-          );
-          syncLivePitchDOM(st);
-          pauseForPitchBeat(st, "", "", 1250, ovrDiff);
-          return;
-        } else {
-          const tackleX = Math.max(12, Math.min(88, startX + (attIsUser ? 1.8 : -1.8)));
-          const tackleY = startY;
-          pitch.ballSide = attIsUser ? "opp" : "user";
-          pitch.carrierUid = marker.uid;
-          pitch.challengerUid = null;
-          pitch.holdBallPos = null;
-          pitch.lastAssistCandidate = null;
-          pitch.lastPasserUid = null;
-          pitch.teamConsecutivePasses = 0;
-          pinNodeToCoord(pitch, marker, tackleX, tackleY, true);
-          pitch.ballFlight = null;
-          pitch.ballX = tackleX + (marker.side === "user" ? 2.2 : -2.2);
-          pitch.ballY = tackleY + 1.2;
-          pitch.passTrail = null;
-          showNodeBadge(pitch, carrier.uid, "Perdeu a bola", "badge-lost", 1550);
-          showNodeBadge(pitch, marker.uid, `Roubou • ${dfMove}`, "badge-steal", 1550, "DF");
-          if (!attIsUser) {
-            pitch.stats.userSteals++;
-            recordUserPlayerStat(pitch, marker, "steals", 1);
-          }
-          pitch.ticker = `${st.minute}' ${carrier.player.name} perdeu a bola — roubo de ${marker.player.name} (${dfMove})!`;
-          prependNarrationLine(
-            st,
-            "nar-steal",
-            `${st.minute}' [Desarme] ${marker.player.name} usou 【${dfMove}】 e roubou a bola de ${carrier.player.name}!`,
-            { name: marker.player.name, sprite: marker.player.sprite, side: marker.side },
-            { name: carrier.player.name, sprite: carrier.player.sprite, side: carrier.side },
-            "DF"
-          );
-          syncLivePitchDOM(st);
-          pauseForPitchBeat(st, "", "", 1250, ovrDiff);
-          return;
-        }
-      }
-
-      // ----------------------------------------------------------------------
-      // AÇÃO 3: FINALIZAÇÃO (CHUTE vs BLOQUEIO DA ZAGA PRÓXIMA ou GOLEIRO)
-      // ----------------------------------------------------------------------
-      const pureDefs = defNodes.filter((n) => n.role === "DF");
-      const gkNode = defNodes.find((n) => n.role === "GK") || defNodes[0];
-      const goalX = attIsUser ? 97 : 3;
-      const goalY = 50;
-
-      const vsDefender = pureDefs.length > 0 && Math.random() < 0.30;
-      const blocker = vsDefender
-        ? pickMarkerFor(pureDefs, ["DF"], (carrier.x + goalX) * 0.5, (carrier.y + goalY) * 0.5)
-        : null;
-      const defTarget = vsDefender ? blocker : gkNode;
-      const defCategory = vsDefender ? "DF" : "GK";
-      const shooterNode = carrier;
-
-      const isLongShot = effRole === "MF";
-      const shotScore =
-        calcNodeDuelScore(shooterNode, attSupport, defTarget?.player?.element) - (isLongShot ? 3.5 : 0);
-      const stopScore = calcNodeDuelScore(defTarget, defSupport, shooterNode?.player?.element);
-
-      const goalProb = vsDefender
-        ? logisticWinProb(shotScore, stopScore, -4.8, 0.08, 0.48)
-        : logisticWinProb(shotScore, stopScore, -7.4, 0.08, 0.50);
-      const isGoal = Math.random() < goalProb;
-
-      const shotInfo = buildGoalShotLabel(shooterNode.player);
-      const pickedDefMove = pickPlayerMove(defTarget.player, defCategory);
-      const defMoveName =
-        pickedDefMove || (defCategory === "DF" ? "Bloqueio de Corpo" : "Defesa Direta");
-
-      spendStamina(shooterNode, shotInfo.isHissatsu ? 19 : 9);
-      spendStamina(defTarget, pickedDefMove ? 15 : 8);
-      const shotAssistCandidate =
-        pitch.lastAssistCandidate &&
-        pitch.lastAssistCandidate.side === shooterNode.side &&
-        pitch.lastAssistCandidate.receiverUid === shooterNode.uid &&
-        pitch.lastAssistCandidate.passerUid !== shooterNode.uid
-          ? pitch.lastAssistCandidate
-          : null;
-      pitch.lastAssistCandidate = null;
-      pitch.lastPasserUid = null;
-      pitch.teamConsecutivePasses = 0;
-      if (attIsUser) {
-        pitch.stats.userShots++;
-        recordUserPlayerStat(pitch, shooterNode, "shots", 1);
-      } else {
-        pitch.stats.oppShots++;
-      }
-
-      const shotOriginX = shooterNode.x;
-      const shotOriginY = shooterNode.y;
-
-      const duelX = vsDefender
-        ? Math.max(14, Math.min(86, shotOriginX * 0.38 + goalX * 0.62))
-        : attIsUser
-        ? 91.5
-        : 8.5;
-      const duelY = vsDefender
-        ? Math.max(20, Math.min(80, shotOriginY * 0.42 + goalY * 0.58))
-        : Math.max(41, Math.min(59, 50 + (shotOriginY - 50) * 0.22));
-
-      // CRÍTICO: assim que chuta, o batedor SOLTA a bola! Ela NUNCA volta pro pé dele!
-      pitch.carrierUid = null;
-      pitch.challengerUid = defTarget.uid;
-      pitch.holdBallPos = { x: duelX, y: duelY };
-      pitch.lastClashMinute = st.minute;
-      if (vsDefender) {
-        pinNodeToCoord(pitch, defTarget, duelX, duelY, false);
-      }
-
-      // Fase 1: bola voa continuamente até o momento do impacto (1850ms no modo 1x)
-      startBallFlight(
-        pitch,
-        shotOriginX,
-        shotOriginY,
-        duelX,
-        duelY,
-        state.simSpeed === 1 ? 1850 : passFlightMs,
-        3.2,
-        "SHOT",
-        "#f97316"
-      );
-      showPitchBadge(pitch, shotOriginX, shotOriginY, shotInfo.label, "badge-shot", state.simSpeed === 1 ? 1900 : 650, "SH");
-      pitch.ticker = `${st.minute}' CHUTE! ${shooterNode.player.name} (${shotInfo.label}) vs ${defTarget.player.name}!`;
-      syncLivePitchDOM(st);
-
-      // Fase 2 (No impacto): se foi gol, bola entra e FICA visível na rede após o modal fechar!
-      const applyShotImpact = () => {
-        if (isGoal) {
-          pitch.carrierUid = null;
-          pitch.challengerUid = null;
-          pitch.holdBallPos = { x: goalX, y: goalY };
-          startBallFlight(pitch, duelX, duelY, goalX, goalY, state.simSpeed === 1 ? 360 : 50, 0.8, "GOAL", "#facc15");
-          pitch.goalFlashSide = attIsUser ? "right" : "left";
-          pitch.goalFlashUntil = performance.now() + 2600;
-          showPitchBadge(pitch, goalX, goalY, "GOOOL!!", "badge-goal", 1600, "SH");
-          showNodeBadge(pitch, shooterNode.uid, `GOOOL! • ${shotInfo.label}`, "badge-goal", 1650, "SH");
-
-          if (attIsUser) {
-            st.userScore++;
-            recordUserPlayerStat(pitch, shooterNode, "goals", 1);
-            const assistNode = shotAssistCandidate
-              ? findPitchNode(pitch, shotAssistCandidate.passerUid)
-              : null;
-            if (assistNode && assistNode.side === "user") {
-              recordUserPlayerStat(pitch, assistNode, "assists", 1);
-            }
-            const assistTag = assistNode ? ` (assist. de ${assistNode.player.name})` : "";
-            const goalObj = {
-              minute: st.minute,
-              name: shooterNode.player.name,
-              sprite: shooterNode.player.sprite,
-              shotLabel: shotInfo.label,
-              isHissatsu: shotInfo.isHissatsu,
-              assistName: assistNode ? assistNode.player.name : null
-            };
-            st.goalsUser.push(goalObj);
-            const scoreUserEl = document.getElementById("live-score-user");
-            if (scoreUserEl) scoreUserEl.textContent = st.userScore;
-            appendGoalItemDOM("user", goalObj);
-            prependNarrationLine(
-              st,
-              "nar-goal-user",
-              shotInfo.isHissatsu
-                ? `${st.minute}' GOOOL DO DREAM TEAM! ${shooterNode.player.name} disparou 【${shotInfo.label}】${assistTag} e furou 【${defMoveName}】 de ${defTarget.player.name}! (${st.userScore} x ${st.oppScore})`
-                : `${st.minute}' GOOOL DO DREAM TEAM! ${shooterNode.player.name} superou ${defTarget.player.name} com um ${shotInfo.label.toLowerCase()}${assistTag}! (${st.userScore} x ${st.oppScore})`,
-              { name: shooterNode.player.name, sprite: shooterNode.player.sprite, side: "user" },
-              { name: defTarget.player.name, sprite: defTarget.player.sprite, side: "opp" },
-              "SH"
-            );
-          } else {
-            st.oppScore++;
-            const goalObj = {
-              minute: st.minute,
-              name: shooterNode.player.name,
-              sprite: shooterNode.player.sprite,
-              shotLabel: shotInfo.label,
-              isHissatsu: shotInfo.isHissatsu
-            };
-            st.goalsOpp.push(goalObj);
-            const scoreOppEl = document.getElementById("live-score-opp");
-            if (scoreOppEl) scoreOppEl.textContent = st.oppScore;
-            appendGoalItemDOM("opp", goalObj);
-            prependNarrationLine(
-              st,
-              "nar-goal-opp",
-              shotInfo.isHissatsu
-                ? `${st.minute}' GOL DE ${st.oppTeam.name.toUpperCase()}! ${shooterNode.player.name} usou 【${shotInfo.label}】 e venceu 【${defMoveName}】 de ${defTarget.player.name}! (${st.userScore} x ${st.oppScore})`
-                : `${st.minute}' GOL DE ${st.oppTeam.name.toUpperCase()}! ${shooterNode.player.name} venceu ${defTarget.player.name} com um ${shotInfo.label.toLowerCase()}! (${st.userScore} x ${st.oppScore})`,
-              { name: shooterNode.player.name, sprite: shooterNode.player.sprite, side: "opp" },
-              { name: defTarget.player.name, sprite: defTarget.player.sprite, side: "user" },
-              "SH"
-            );
-          }
-          pitch.ticker = `${st.minute}' GOOOL de ${shooterNode.player.name}! (${st.userScore} x ${st.oppScore})`;
-        } else {
-          pitch.ballSide = attIsUser ? "opp" : "user";
-          pitch.carrierUid = defTarget.uid;
-          pitch.challengerUid = null;
-          pitch.holdBallPos = null;
-          if (vsDefender) {
-            pinNodeToCoord(pitch, defTarget, duelX, duelY, true);
-          }
-          pitch.ballFlight = null;
-          pitch.ballX = duelX + (defTarget.side === "user" ? 2.2 : -2.2);
-          pitch.ballY = duelY + 1.2;
-          pitch.passTrail = null;
-          showPitchBadge(pitch, duelX, duelY, defMoveName, "badge-steal", 1000, defCategory);
-
-          if (defCategory === "DF") {
-            if (!attIsUser) {
-              pitch.stats.userSteals++;
-              pitch.stats.userBlocks = (pitch.stats.userBlocks || 0) + 1;
-              recordUserPlayerStat(pitch, defTarget, "blocks", 1);
-              recordUserPlayerStat(pitch, defTarget, "steals", 1);
-            }
-            pitch.ticker = `${st.minute}' ${defTarget.player.name} bloqueou o chute de ${shooterNode.player.name}!`;
-            prependNarrationLine(
-              st,
-              "nar-steal",
-              `${st.minute}' [Bloqueio da Zaga] ${defTarget.player.name} entrou na frente com 【${defMoveName}】 e bloqueou 【${shotInfo.label}】 de ${shooterNode.player.name}!`,
-              { name: defTarget.player.name, sprite: defTarget.player.sprite, side: defTarget.side },
-              { name: shooterNode.player.name, sprite: shooterNode.player.sprite, side: shooterNode.side },
-              "DF"
-            );
-          } else {
-            if (!attIsUser) {
-              pitch.stats.userSaves++;
-              recordUserPlayerStat(pitch, defTarget, "saves", 1);
-            }
-            pitch.ticker = `${st.minute}' ${defTarget.player.name} defendeu o chute de ${shooterNode.player.name}!`;
-            prependNarrationLine(
-              st,
-              "nar-save",
-              `${st.minute}' [Defesa de Goleiro] ${defTarget.player.name} acionou 【${defMoveName}】 e espalmou 【${shotInfo.label}】 de ${shooterNode.player.name}!`,
-              { name: defTarget.player.name, sprite: defTarget.player.sprite, side: defTarget.side },
-              { name: shooterNode.player.name, sprite: shooterNode.player.sprite, side: shooterNode.side },
-              "GK"
-            );
-          }
-        }
-      };
-
-      // Fase 3 (Após o modal fechar): deixa o usuário VER a bola na rede por 1,5s antes do reinício no centro!
-      const onShotModalClosed = (skipRestart = false) => {
-        if (isGoal) {
-          const concedingSide = attIsUser ? "opp" : "user";
-          const doKickoffReset = () => {
-            resetPitchForKickoff(pitch, concedingSide, true);
-            pitch.ticker = `${st.minute}' Saída no centro com ${concedingSide === "user" ? "Dream Team" : st.oppTeam.name}!`;
-          };
-          if (skipRestart || state.simSpeed !== 1) {
-            doKickoffReset();
-            return false;
-          }
-          pauseForPitchBeat(
-            st,
-            `<span class="callout-tag">GOOOL!</span><strong>${shooterNode.player.name}</strong><span>${st.userScore} x ${st.oppScore} · ${shotInfo.label}</span>`,
-            "callout-goal",
-            1500,
-            ovrDiff,
-            doKickoffReset
-          );
-          return true;
-        }
-
-        showNodeBadge(
-          pitch,
-          defTarget.uid,
-          `${defCategory === "DF" ? "Bloqueou" : "Defendeu"} • ${defMoveName}`,
-          "badge-steal",
-          1100,
-          defCategory
-        );
-        if (skipRestart || state.simSpeed !== 1) return false;
-        pauseForPitchBeat(st, "", "", 700, ovrDiff, null);
-        return true;
-      };
-
-      const bannerText = isGoal
-        ? "GOOOL!!"
-        : defCategory === "DF"
-        ? "BLOQUEADO PELA ZAGA!"
-        : "DEFENDEU!";
-
-      const defRoleBadge = defCategory === "DF" ? "ZAGA • BLOQUEIO" : "GOLEIRO";
-
-      playShotClashAndContinue(
-        st,
-        {
-          kind: "SHOT",
-          dir: attIsUser ? "ltr" : "rtl",
-          userPlayer: attIsUser
-            ? { name: shooterNode.player.name, sprite: shooterNode.player.sprite, roleText: "CHUTE" }
-            : { name: defTarget.player.name, sprite: defTarget.player.sprite, roleText: defRoleBadge },
-          oppPlayer: attIsUser
-            ? { name: defTarget.player.name, sprite: defTarget.player.sprite, roleText: defRoleBadge }
-            : { name: shooterNode.player.name, sprite: shooterNode.player.sprite, roleText: "CHUTE" },
-          topMoveName: shotInfo.label,
-          bottomMoveName: defMoveName,
-          bottomIcon: defCategory,
-          outcomePositive: isGoal ? attIsUser : !attIsUser,
-          resultBannerText: bannerText
-        },
-        applyShotImpact,
-        ovrDiff,
-        onShotModalClosed
-      );
-    }, getTickMs());
   }
 
   function runLiveMatchSimulation(stageIdx) {
