@@ -238,6 +238,10 @@
       actionBeatTimer: null,
       pendingBeatFinish: null,
       penTimerId: null,
+      prepTimerId: null,
+      prepMatchTimerId: null,
+      prep: null,
+      prepBonuses: { xp: 0, chem: 0, power: 0, staminaMul: 1, log: [] },
       showRunSummary: false
     }
   };
@@ -287,7 +291,8 @@
 
   function getEffectiveOvr(player, slotRole) {
     if (!player) return 0;
-    if (playerMatchesRole(player, slotRole)) return player.ovr;
+    const bonus = player.boostOvr || 0;
+    if (playerMatchesRole(player, slotRole)) return Math.min(99, player.ovr + bonus);
     const validPos = getPlayerPositionsList(player);
     const adj = validPos.some(
       (pos) =>
@@ -295,7 +300,7 @@
         (pos === "MF" && (slotRole === "DF" || slotRole === "FW")) ||
         (pos === "FW" && slotRole === "MF")
     );
-    return Math.max(45, player.ovr - (adj ? 6 : 14));
+    return Math.min(99, Math.max(45, player.ovr + bonus - (adj ? 6 : 14)));
   }
 
   function pickPlayerMove(player, category) {
@@ -586,6 +591,21 @@
         });
       }
     });
+
+    const prepB = !isOpponent ? state.tournament?.prepBonuses : null;
+    if (prepB && (prepB.chem > 0 || prepB.power > 0 || (prepB.log && prepB.log.length > 0))) {
+      chem += prepB.chem || 0;
+      bondsPower += prepB.power || 0;
+      const evtCnt = prepB.log ? prepB.log.length : 0;
+      const xpTag = prepB.xp > 0 ? ` • ${prepB.xp} XP` : "";
+      const prepIcon = UI.steelTowerIcon
+        ? `<img class="inline-ui-icon" src="${UI.steelTowerIcon}" alt="" />`
+        : "";
+      activeBonds.push({
+        type: "friendship",
+        label: `${prepIcon} Preparação (${evtCnt}x) (+${prepB.chem || 0}% Quím • +${prepB.power || 0} Poder${xpTag})`
+      });
+    }
 
     chem = Math.min(100, Math.max(0, chem));
 
@@ -1049,8 +1069,24 @@
     return 680; // 1x tático: tempo legível entre passes e movimentação no campo
   }
 
+  function resetSquadPrepBonuses() {
+    Object.keys(state.squad).forEach((slotId) => {
+      const p = state.squad[slotId];
+      if (!p) return;
+      delete p.boostOvr;
+      delete p.equippedItems;
+      delete p.keshin;
+      delete p.moveEvoCount;
+      if (p._baseMovesSnapshot) {
+        p.moves = JSON.parse(JSON.stringify(p._baseMovesSnapshot));
+        delete p._baseMovesSnapshot;
+      }
+    });
+  }
+
   function startTournamentGo() {
     clearTournamentTimers(false);
+    resetSquadPrepBonuses();
 
     const tiers = [
       DB.teams.filter((t) => t.baseOvr <= 81),
@@ -1100,6 +1136,10 @@
       actionBeatTimer: null,
       pendingBeatFinish: null,
       penTimerId: null,
+      prepTimerId: null,
+      prepMatchTimerId: null,
+      prep: null,
+      prepBonuses: { xp: 0, chem: 0, power: 0, staminaMul: 1, log: [] },
       showRunSummary: false
     };
 
@@ -1198,6 +1238,14 @@
     if (state.tournament.penTimerId) {
       clearTimeout(state.tournament.penTimerId);
       state.tournament.penTimerId = null;
+    }
+    if (state.tournament.prepTimerId) {
+      clearTimeout(state.tournament.prepTimerId);
+      state.tournament.prepTimerId = null;
+    }
+    if (state.tournament.prepMatchTimerId) {
+      clearTimeout(state.tournament.prepMatchTimerId);
+      state.tournament.prepMatchTimerId = null;
     }
 
     const calloutEl = document.getElementById("pitch-center-callout");
@@ -1497,9 +1545,13 @@
     if (!node) return 75;
     // Penalidade leve e progressiva apenas quando a energia cai na zona vermelha (< 45%)
     const fatiguePenalty = node.stamina < 45 ? Math.min(3.8, 1.4 + (45 - node.stamina) * 0.085) : 0;
+    const keshinBonus = node.player?.keshin ? 1.8 : 0;
+    const evoBonus = node.player?.moveEvoCount ? Math.min(1.5, node.player.moveEvoCount * 0.9) : 0;
     return (
       compressOvr(node.effOvr) +
-      teamSupportBonus -
+      teamSupportBonus +
+      keshinBonus +
+      evoBonus -
       fatiguePenalty +
       getElementEdge(node.player?.element, opponentElem)
     );
@@ -1513,7 +1565,8 @@
 
   function spendStamina(node, cost) {
     if (!node) return;
-    node.stamina = Math.max(18, node.stamina - cost);
+    const mul = node.side === "user" ? state.tournament?.prepBonuses?.staminaMul || 1 : 1;
+    node.stamina = Math.max(18, node.stamina - cost * mul);
   }
 
   function buildOpponentLineup(oppTeam, stageIdx) {
@@ -5665,6 +5718,796 @@
     return dataUrl;
   }
 
+  // ============================================================================
+  // PREPARAÇÃO ENTRE PARTIDAS: LOCAIS DE INAZUMA + ROLETA + BOOSTS REAIS
+  // ============================================================================
+  const CANONICAL_KESHINS = {
+    GK: [
+      { name: "Majin Great (Mão Demoníaca)", iconKey: "keshinMajin" },
+      { name: "Kougaishin Poseidon", iconKey: "keshinIcon" },
+      { name: "Goujin Tekki Atlas", iconKey: "keshinCoin" }
+    ],
+    DF: [
+      { name: "Kensei Lancelot", iconKey: "keshinIcon" },
+      { name: "Teppeki Gigadon", iconKey: "keshinCoin" },
+      { name: "Juukishi Kingburn", iconKey: "keshinIcon" }
+    ],
+    MF: [
+      { name: "Sousha Maestro", iconKey: "keshinIcon" },
+      { name: "Majin Pegasus Arc", iconKey: "keshinPegasus" },
+      { name: "Gouen no Gazard", iconKey: "keshinIcon" }
+    ],
+    FW: [
+      { name: "Majin Pegasus Arc", iconKey: "keshinPegasus" },
+      { name: "Kensei Lancelot", iconKey: "keshinIcon" },
+      { name: "Majuu Grendel", iconKey: "keshinMajin" }
+    ]
+  };
+
+  function getPrepLocationsCatalog() {
+    return [
+      {
+        id: "town",
+        title: "Cidade de Inazuma",
+        sub: "Lojas & Rua Comercial • Equipamentos",
+        banner: UI.locTown || UI.stadiumBg,
+        badgeIcon: UI.itemShoesLegend || UI.itemGloveLegend,
+        desc: "Gire a roleta nas lojas da cidade para conquistar chuteiras, luvas, pingentes ou pulseiras para um jogador do seu elenco.",
+        events: [
+          {
+            id: "shoes_legend",
+            title: "Chuteiras Lendárias",
+            icon: UI.itemShoesLegend,
+            kind: "ITEM_PICK",
+            targetRoles: ["FW", "MF"],
+            ovrBoost: 3,
+            teamPower: 12,
+            teamChem: 0,
+            weight: 2.0,
+            summary: "+3 OVR para um Atacante ou Meia • +12 Poder"
+          },
+          {
+            id: "shoes_thunder",
+            title: "Chuteiras do Trovão",
+            icon: UI.itemShoesThunder,
+            kind: "ITEM_PICK",
+            targetRoles: ["FW", "MF", "DF"],
+            ovrBoost: 2,
+            teamPower: 15,
+            teamChem: 0,
+            weight: 2.2,
+            summary: "+2 OVR para um jogador de linha • +15 Poder"
+          },
+          {
+            id: "glove_legend",
+            title: "Luvas Lendárias",
+            icon: UI.itemGloveLegend || UI.itemGloveRaimon,
+            kind: "ITEM_PICK",
+            targetRoles: ["GK"],
+            ovrBoost: 3,
+            teamPower: 15,
+            teamChem: 0,
+            weight: 1.7,
+            summary: "+3 OVR para o seu Goleiro • +15 Poder"
+          },
+          {
+            id: "spike_block",
+            title: "Travas de Bloqueio",
+            icon: UI.itemSpikeBlock,
+            kind: "ITEM_PICK",
+            targetRoles: ["DF"],
+            ovrBoost: 3,
+            teamPower: 12,
+            teamChem: 0,
+            weight: 1.8,
+            summary: "+3 OVR para um Zagueiro • +12 Poder"
+          },
+          {
+            id: "pendant_lightning",
+            title: "Pingente Relâmpago",
+            icon: UI.itemPendantLightning,
+            kind: "ITEM_PICK",
+            targetRoles: ["GK", "DF", "MF", "FW"],
+            ovrBoost: 2,
+            teamPower: 20,
+            teamChem: 3,
+            weight: 1.6,
+            summary: "+2 OVR para qualquer titular • +3% Química • +20 Poder"
+          },
+          {
+            id: "misanga_friend",
+            title: "Pulseira da Amizade",
+            icon: UI.itemMisangaFriend || UI.itemBraceletFortune,
+            kind: "ITEM_PICK",
+            targetRoles: ["GK", "DF", "MF", "FW"],
+            ovrBoost: 2,
+            teamPower: 18,
+            teamChem: 7,
+            weight: 1.6,
+            summary: "+2 OVR em um titular • +7% Química • +18 Poder"
+          }
+        ]
+      },
+      {
+        id: "riverbank",
+        title: "Margem do Rio",
+        sub: "Campinho Clássico • Confrontos 4x4 & XP",
+        banner: UI.locRiverbank || UI.stadiumBg,
+        badgeIcon: UI.ffLogo || UI.moveOF,
+        desc: "Encare um Confronto 4x4 contra rivais aleatórios ou treine no campo clássico para ganhar XP e elevar o OVR coletivo do time.",
+        events: [
+          {
+            id: "clash_4v4",
+            title: "Confronto 4x4 de Rua!",
+            icon: UI.ffLogo || UI.moveSH,
+            kind: "STREET_4V4",
+            weight: 3.4,
+            summary: "Duelo 4x4 contra rivais! Vitória dá +140 XP e +1 OVR em TODO o elenco (+80 XP se empatar)."
+          },
+          {
+            id: "river_xp",
+            title: "Coletivo & XP Geral",
+            icon: UI.keshinCoin || UI.formation,
+            kind: "COLLECTIVE",
+            applyRoles: ["GK", "DF", "MF", "FW"],
+            ovrBoost: 1,
+            teamPower: 22,
+            teamChem: 2,
+            xpGain: 120,
+            weight: 1.5,
+            summary: "+120 XP • +1 OVR em todos os 11 titulares • +2% Quím • +22 Poder"
+          },
+          {
+            id: "river_tactics",
+            title: "Roda Tática na Margem",
+            icon: UI.formation || UI.moveOF,
+            kind: "COLLECTIVE",
+            applyRoles: ["MF"],
+            ovrBoost: 1,
+            teamPower: 40,
+            teamChem: 8,
+            xpGain: 75,
+            weight: 1.5,
+            summary: "+8% Química • +40 Poder • +1 OVR nos Meias • +75 XP"
+          },
+          {
+            id: "river_shot",
+            title: "Finalização na Correnteza",
+            icon: UI.moveSH,
+            kind: "COLLECTIVE",
+            applyRoles: ["FW"],
+            ovrBoost: 2,
+            teamPower: 25,
+            teamChem: 0,
+            xpGain: 65,
+            weight: 1.2,
+            summary: "+2 OVR nos Atacantes • +25 Poder • +65 XP"
+          }
+        ]
+      },
+      {
+        id: "training",
+        title: "Centro Inabikari",
+        sub: "Treino Secreto • Incorporação & Técnicas",
+        banner: UI.locTraining || UI.stadiumBg,
+        badgeIcon: UI.keshinPegasus || UI.keshinIcon,
+        desc: "Desbloqueie o poder oculto da equipe despertando uma Incorporação (Keshin) ou evoluindo técnicas Hissatsu para o próximo duelo.",
+        events: [
+          {
+            id: "keshin_awaken",
+            title: "Despertar Incorporação!",
+            icon: UI.keshinPegasus || UI.keshinIcon,
+            kind: "KESHIN_PICK",
+            ovrBoost: 3,
+            teamPower: 15,
+            xpGain: 90,
+            weight: 2.5,
+            summary: "Escolha 1 titular para despertar um Espírito Guerreiro: +3 OVR e bônus nos duelos!"
+          },
+          {
+            id: "evo_move",
+            title: "Evoluir Técnica (G2/Shin)",
+            icon: UI.manualInazuma || UI.manualKeshin,
+            kind: "EVO_PICK",
+            ovrBoost: 2,
+            teamPower: 15,
+            xpGain: 75,
+            weight: 2.5,
+            summary: "Fortaleça a técnica principal de 1 titular para G2/V2/Shin (+2 OVR + bônus em duelo)!"
+          },
+          {
+            id: "tire_training",
+            title: "Treino de Pneus do Endou",
+            icon: UI.steelTowerIcon || UI.moveGK,
+            kind: "COLLECTIVE",
+            applyRoles: ["GK", "DF"],
+            ovrBoost: 1,
+            teamPower: 25,
+            teamChem: 2,
+            xpGain: 80,
+            staminaMul: 0.78,
+            weight: 1.5,
+            summary: "+1 OVR no Goleiro & Zagueiros • -22% gasto de energia • +25 Poder"
+          },
+          {
+            id: "secret_manual",
+            title: "Manual Secreto Inabikari",
+            icon: UI.manualSkill || UI.manualInazuma,
+            kind: "MANUAL_PICK",
+            targetRoles: ["GK", "DF", "MF", "FW"],
+            ovrBoost: 2,
+            teamPower: 25,
+            teamChem: 4,
+            xpGain: 70,
+            weight: 1.5,
+            summary: "Escolha 1 titular para estudar o manual: +2 OVR • +4% Química • +25 Poder"
+          }
+        ]
+      }
+    ];
+  }
+
+  function pickWeightedPrepEvent(events) {
+    const total = events.reduce((s, e) => s + (e.weight || 1), 0);
+    let r = Math.random() * total;
+    for (let i = 0; i < events.length; i++) {
+      r -= events[i].weight || 1;
+      if (r <= 0) return events[i];
+    }
+    return events[events.length - 1];
+  }
+
+  function evolvePlayerPrimaryMove(player, slotRole) {
+    if (!player || !player.moves) return null;
+    if (!player._baseMovesSnapshot) {
+      player._baseMovesSnapshot = JSON.parse(JSON.stringify(player.moves));
+    }
+    const order =
+      slotRole === "GK"
+        ? ["GK", "DF", "SH", "OF"]
+        : slotRole === "DF"
+        ? ["DF", "OF", "SH", "GK"]
+        : slotRole === "MF"
+        ? ["OF", "SH", "DF", "GK"]
+        : ["SH", "OF", "DF", "GK"];
+
+    for (const cat of order) {
+      const arr = player.moves[cat];
+      if (Array.isArray(arr) && arr.length > 0) {
+        const oldName = arr[0];
+        let nextName = oldName;
+        if (cat === "GK") {
+          nextName = oldName.includes("Shin") ? `${oldName} ★` : oldName.includes("Kai") ? oldName.replace("Kai", "Shin") : `${oldName} Shin`;
+        } else if (cat === "DF") {
+          nextName = oldName.includes("V2") ? oldName.replace("V2", "V3") : oldName.includes("V3") ? `${oldName} ★` : `${oldName} V2`;
+        } else {
+          nextName = oldName.includes("G2") ? oldName.replace("G2", "G3") : oldName.includes("G3") ? `${oldName} ★` : `${oldName} G2`;
+        }
+        arr[0] = nextName;
+        player.moveEvoCount = (player.moveEvoCount || 0) + 1;
+        player.hissatsu = [
+          ...(player.moves[order[0]] || []),
+          ...(player.moves[order[1]] || [])
+        ]
+          .slice(0, 2)
+          .join(" / ");
+        return { cat, oldName, nextName };
+      }
+    }
+    return null;
+  }
+
+  function buildStreet4v4Matchup() {
+    const slots = getSlots();
+    const pickUserByRole = (role, usedSet) => {
+      const exact = slots.filter((s) => s.role === role && state.squad[s.id] && !usedSet.has(s.id));
+      const pool = exact.length > 0 ? exact : slots.filter((s) => state.squad[s.id] && !usedSet.has(s.id));
+      const chosenSlot = pool[Math.floor(Math.random() * pool.length)];
+      if (!chosenSlot) return null;
+      usedSet.add(chosenSlot.id);
+      return { slot: chosenSlot, player: state.squad[chosenSlot.id] };
+    };
+    const usedUser = new Set();
+    const userQuartet = ["GK", "DF", "MF", "FW"]
+      .map((r) => pickUserByRole(r, usedUser))
+      .filter(Boolean);
+
+    const usedOppIds = getPickedPlayerIds();
+    const pickOppByRole = (role) => {
+      const cands = [];
+      DB.teams.forEach((t) => {
+        t.players.forEach((p) => {
+          if (!usedOppIds.has(p.id) && p.pos === role && p.ovr >= 78 && p.ovr <= 92) {
+            cands.push({ player: p, teamName: t.name, role });
+          }
+        });
+      });
+      const picked = cands[Math.floor(Math.random() * cands.length)] || { player: DB.teams[0].players[0], teamName: DB.teams[0].name, role };
+      usedOppIds.add(picked.player.id);
+      return picked;
+    };
+    const oppQuartet = ["GK", "DF", "MF", "FW"].map(pickOppByRole);
+
+    return { userQuartet, oppQuartet, status: "READY", userGoals: 0, oppGoals: 0, log: [] };
+  }
+
+  function openBetweenMatchPrep(nextStageIdx) {
+    clearTournamentTimers(false);
+    const t = state.tournament;
+    if (!t.prepBonuses) {
+      t.prepBonuses = { xp: 0, chem: 0, power: 0, staminaMul: 1, log: [] };
+    }
+    t.prep = {
+      nextStageIdx,
+      phase: "CHOOSE_LOC",
+      locId: null,
+      event: null,
+      rouletteStrip: [],
+      rouletteWinnerIdx: 21,
+      appliedMsg: null,
+      clash4v4: null
+    };
+    renderAll();
+  }
+
+  function startPrepLocationRoulette(locId) {
+    const t = state.tournament;
+    if (!t.prep) return;
+    const loc = getPrepLocationsCatalog().find((x) => x.id === locId);
+    if (!loc) return;
+
+    if (t.prepTimerId) {
+      clearTimeout(t.prepTimerId);
+      t.prepTimerId = null;
+    }
+
+    const winnerEvent = pickWeightedPrepEvent(loc.events);
+    const strip = [];
+    const winnerIdx = 21;
+    for (let i = 0; i < 27; i++) {
+      if (i === winnerIdx) strip.push(winnerEvent);
+      else strip.push(loc.events[Math.floor(Math.random() * loc.events.length)]);
+    }
+
+    t.prep.locId = locId;
+    t.prep.phase = "SPINNING";
+    t.prep.event = winnerEvent;
+    t.prep.rouletteStrip = strip;
+    t.prep.rouletteWinnerIdx = winnerIdx;
+    t.prep.appliedMsg = null;
+    t.prep.clash4v4 = winnerEvent.kind === "STREET_4V4" ? buildStreet4v4Matchup() : null;
+
+    renderTournamentScreen();
+
+    requestAnimationFrame(() => {
+      const stripEl = document.getElementById("prep-roulette-strip");
+      const vpEl = document.getElementById("prep-roulette-viewport");
+      if (stripEl && vpEl) {
+        const slotW = 122; // 112px slot + 10px gap
+        const vpCenter = vpEl.clientWidth / 2;
+        const targetOffset = -(winnerIdx * slotW + 56 + 10 - vpCenter);
+        stripEl.style.transition = "transform 2.2s cubic-bezier(0.12, 0.85, 0.22, 1)";
+        stripEl.style.transform = `translate3d(${targetOffset}px, 0, 0)`;
+      }
+    });
+
+    t.prepTimerId = setTimeout(() => {
+      t.prepTimerId = null;
+      if (!state.tournament.prep || state.tournament.prep.phase !== "SPINNING") return;
+      if (winnerEvent.kind === "COLLECTIVE") {
+        applyPrepCollectiveEvent(winnerEvent);
+      } else {
+        state.tournament.prep.phase = "RESULT";
+        renderTournamentScreen();
+      }
+    }, 2350);
+  }
+
+  function applyPrepCollectiveEvent(event) {
+    const t = state.tournament;
+    if (!t.prep) return;
+    const slots = getSlots();
+    const affectedNames = [];
+    slots.forEach((slot) => {
+      const p = state.squad[slot.id];
+      if (!p) return;
+      if (!event.applyRoles || event.applyRoles.includes(slot.role)) {
+        if (event.ovrBoost) {
+          p.boostOvr = (p.boostOvr || 0) + event.ovrBoost;
+          affectedNames.push(p.name);
+        }
+      }
+    });
+    t.prepBonuses.xp += event.xpGain || 0;
+    t.prepBonuses.chem += event.teamChem || 0;
+    t.prepBonuses.power += event.teamPower || 0;
+    if (event.staminaMul) {
+      t.prepBonuses.staminaMul = Math.min(t.prepBonuses.staminaMul || 1, event.staminaMul);
+    }
+    t.prepBonuses.log.push(event.title);
+    t.prep.phase = "DONE";
+    t.prep.appliedMsg = `${event.title} aplicado! ${event.summary}${affectedNames.length > 0 ? ` (${affectedNames.length} atletas fortalecidos)` : ""}`;
+    renderAll();
+  }
+
+  function applyPrepPlayerReward(slotId) {
+    const t = state.tournament;
+    const prep = t.prep;
+    const event = prep?.event;
+    const player = state.squad[slotId];
+    const slot = getSlots().find((s) => s.id === slotId);
+    if (!prep || !event || !player || !slot) return;
+
+    let msg = "";
+    if (event.kind === "ITEM_PICK" || event.kind === "MANUAL_PICK") {
+      player.boostOvr = (player.boostOvr || 0) + (event.ovrBoost || 2);
+      if (!Array.isArray(player.equippedItems)) player.equippedItems = [];
+      player.equippedItems.push({ title: event.title, icon: event.icon });
+      msg = `${player.name} equipou ${event.title} e ganhou +${event.ovrBoost} OVR (agora ${getEffectiveOvr(player, slot.role)})!`;
+    } else if (event.kind === "KESHIN_PICK") {
+      const pool = CANONICAL_KESHINS[slot.role] || CANONICAL_KESHINS.MF;
+      const chosenK = pool[Math.floor(Math.random() * pool.length)];
+      player.keshin = { name: chosenK.name, icon: UI[chosenK.iconKey] || UI.keshinIcon };
+      player.boostOvr = (player.boostOvr || 0) + (event.ovrBoost || 3);
+      msg = `${player.name} despertou a Incorporação 【${chosenK.name}】 (+${event.ovrBoost} OVR e bônus em todos os duelos)!`;
+    } else if (event.kind === "EVO_PICK") {
+      const evo = evolvePlayerPrimaryMove(player, slot.role);
+      player.boostOvr = (player.boostOvr || 0) + (event.ovrBoost || 2);
+      msg = evo
+        ? `${player.name} evoluiu 【${evo.oldName}】 ➔ 【${evo.nextName}】 e subiu +${event.ovrBoost} OVR!`
+        : `${player.name} aperfeiçoou sua técnica e ganhou +${event.ovrBoost} OVR!`;
+    }
+
+    t.prepBonuses.xp += event.xpGain || 50;
+    t.prepBonuses.chem += event.teamChem || 0;
+    t.prepBonuses.power += event.teamPower || 0;
+    t.prepBonuses.log.push(`${event.title} (${player.name})`);
+    prep.phase = "DONE";
+    prep.appliedMsg = msg;
+    renderAll();
+  }
+
+  function runStreet4v4Challenge() {
+    const t = state.tournament;
+    const prep = t.prep;
+    const c4 = prep?.clash4v4;
+    if (!prep || !c4 || c4.status !== "READY") return;
+
+    c4.status = "RUNNING";
+    c4.log = [];
+    c4.userGoals = 0;
+    c4.oppGoals = 0;
+
+    const uFw = c4.userQuartet[3]?.player;
+    const uMf = c4.userQuartet[2]?.player;
+    const uGk = c4.userQuartet[0]?.player;
+    const oFw = c4.oppQuartet[3]?.player;
+    const oMf = c4.oppQuartet[2]?.player;
+    const oGk = c4.oppQuartet[0]?.player;
+
+    const userAvg = c4.userQuartet.reduce((s, x) => s + getEffectiveOvr(x.player, x.slot.role), 0) / Math.max(1, c4.userQuartet.length);
+    const oppAvg = c4.oppQuartet.reduce((s, x) => s + x.player.ovr, 0) / Math.max(1, c4.oppQuartet.length);
+
+    const step1Win = Math.random() < logisticWinProb(userAvg, oppAvg, 1.5, 0.35, 0.85);
+    const uMfMove = pickPlayerMove(uMf, "OF") || "Passe Relâmpago";
+    const oMfMove = pickPlayerMove(oMf, "OF") || "Avanço Rápido";
+    const step1Text = step1Win
+      ? `1' ${uMf.name} cortou a marcação com 【${uMfMove}】 e serviu o ataque!`
+      : `1' ${oMf.name} escapou com 【${oMfMove}】 pelo meio do campinho!`;
+
+    const uShMove = pickPlayerMove(uFw, "SH") || "Chute Forte";
+    const oGkMove = pickPlayerMove(oGk, "GK") || "Defesa Firme";
+    const uScored = Math.random() < logisticWinProb(userAvg + 3, oppAvg, 2.2, 0.42, 0.86);
+    const step2Text = uScored
+      ? `2' GOOOL! ${uFw.name} mandou 【${uShMove}】 e venceu 【${oGkMove}】 de ${oGk.name}!`
+      : `2' ${oGk.name} saltou com 【${oGkMove}】 e segurou 【${uShMove}】 de ${uFw.name}!`;
+
+    const oShMove = pickPlayerMove(oFw, "SH") || "Bomba Direta";
+    const uGkMove = pickPlayerMove(uGk, "GK") || "Mão Firme";
+    const oScored = Math.random() < logisticWinProb(oppAvg, userAvg + 2.5, -2.5, 0.14, 0.58);
+    const uExtraGoal = !uScored && Math.random() < 0.55;
+    const step3Text = oScored
+      ? `3' ${oFw.name} descontou com 【${oShMove}】 passando por ${uGk.name}!`
+      : uExtraGoal
+      ? `3' ${uGk.name} defendeu com 【${uGkMove}】 e no contra-ataque ${uFw.name} fechou o placar!`
+      : `3' ${uGk.name} brilhou com 【${uGkMove}】 e garantiu a meta no campinho!`;
+
+    c4.userGoals = (uScored ? 1 : 0) + (uExtraGoal ? 1 : 0);
+    c4.oppGoals = oScored ? 1 : 0;
+    const plannedLines = [step1Text, step2Text, step3Text];
+
+    renderTournamentScreen();
+
+    let idx = 0;
+    const advance = () => {
+      if (!state.tournament.prep || state.tournament.prep.clash4v4 !== c4) return;
+      if (idx < plannedLines.length) {
+        c4.log.push(plannedLines[idx]);
+        idx++;
+        renderTournamentScreen();
+        t.prepMatchTimerId = setTimeout(advance, 520);
+      } else {
+        c4.status = "DONE";
+        const won = c4.userGoals > c4.oppGoals;
+        const xp = won ? 140 : 80;
+        const pwr = won ? 30 : 25;
+        if (won) {
+          Object.values(state.squad).forEach((p) => {
+            if (p) p.boostOvr = (p.boostOvr || 0) + 1;
+          });
+        } else {
+          c4.userQuartet.forEach((item) => {
+            if (item.player) item.player.boostOvr = (item.player.boostOvr || 0) + 1;
+          });
+        }
+        t.prepBonuses.xp += xp;
+        t.prepBonuses.power += pwr;
+        t.prepBonuses.log.push(`4x4 Margem do Rio (${c4.userGoals}x${c4.oppGoals})`);
+        prep.phase = "DONE";
+        prep.appliedMsg = won
+          ? `Vitória no 4x4 (${c4.userGoals} x ${c4.oppGoals})! Você ganhou +${xp} XP, +1 OVR em TODOS os 11 titulares e +${pwr} Poder!`
+          : `Duelo intenso no 4x4 (${c4.userGoals} x ${c4.oppGoals})! Os 4 participantes ganharam +${xp} XP, +1 OVR cada e +${pwr} Poder!`;
+        renderAll();
+      }
+    };
+    t.prepMatchTimerId = setTimeout(advance, 320);
+  }
+
+  function buildBetweenMatchPrepHTML(t, stats) {
+    const prep = t.prep;
+    const nextStage = t.stages[prep.nextStageIdx];
+    const locations = getPrepLocationsCatalog();
+    const activeLoc = locations.find((l) => l.id === prep.locId);
+
+    const headerBanner = `
+      <div class="prep-top-banner">
+        <div>
+          <span style="font-size:0.7rem; font-weight:900; color:#facc15; text-transform:uppercase;">
+            INTERVALO DO TORNEIO • RUMO À ${nextStage.stageName.toUpperCase()}
+          </span>
+          <h3 style="font-size:1.05rem; font-weight:900; color:#fff; margin-top:2px;">
+            Escolha um local de Inazuma para preparar seu time
+          </h3>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+          <span class="prep-xp-pill">XP Acumulado: ${t.prepBonuses?.xp || 0}</span>
+          <div class="prep-next-opp-pill">
+            <img src="${nextStage.oppTeam.emblem}" alt="" />
+            <div>
+              <div style="font-size:0.6rem; color:#94a3b8; font-weight:800; text-transform:uppercase;">Próximo Rival</div>
+              <div style="font-size:0.76rem; color:#fff; font-weight:900;">${nextStage.oppTeam.name}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    let bodyHTML = "";
+    if (prep.phase === "CHOOSE_LOC") {
+      bodyHTML = `
+        <div class="prep-locations-grid">
+          ${locations
+            .map(
+              (loc) => `
+            <div class="prep-loc-card" data-prep-loc="${loc.id}">
+              <div class="prep-loc-banner" style="background-image:url('${loc.banner || ""}')">
+                ${loc.badgeIcon ? `<img class="prep-loc-badge-icon" src="${loc.badgeIcon}" alt="" />` : ""}
+                <div class="prep-loc-title-wrap">
+                  <div class="prep-loc-sub">${loc.sub}</div>
+                  <div class="prep-loc-title">${loc.title}</div>
+                </div>
+              </div>
+              <div class="prep-loc-body">
+                <p class="prep-loc-desc">${loc.desc}</p>
+                <div class="prep-loc-loot-row">
+                  ${loc.events
+                    .slice(0, 3)
+                    .map(
+                      (ev) => `
+                    <span class="prep-loot-chip">
+                      ${ev.icon ? `<img src="${ev.icon}" alt="" />` : ""}
+                      <span>${ev.title}</span>
+                    </span>
+                  `
+                    )
+                    .join("")}
+                </div>
+                <button class="ie-cmd-btn ie-cmd-gold" style="width:100%; justify-content:center;">
+                  <span>Ir e Girar Roleta</span>
+                </button>
+              </div>
+            </div>
+          `
+            )
+            .join("")}
+        </div>
+      `;
+    } else {
+      const stripHTML = (prep.rouletteStrip || [])
+        .map((ev, idx) => {
+          const isWin = prep.phase !== "SPINNING" && idx === prep.rouletteWinnerIdx;
+          return `
+            <div class="prep-roulette-slot ${isWin ? "is-winner" : ""}">
+              ${ev.icon ? `<img src="${ev.icon}" alt="" />` : ""}
+              <span>${ev.title}</span>
+            </div>
+          `;
+        })
+        .join("");
+
+      let outcomeHTML = "";
+      if (prep.phase === "SPINNING") {
+        outcomeHTML = `
+          <div style="text-align:center; font-size:0.82rem; font-weight:800; color:#fde047; padding:6px 0;">
+            Girando a roleta de ${activeLoc?.title || "Inazuma"}... sorteando recompensa!
+          </div>
+        `;
+      } else if (prep.phase === "RESULT" && prep.event) {
+        const ev = prep.event;
+        if (ev.kind === "STREET_4V4" && prep.clash4v4) {
+          const c4 = prep.clash4v4;
+          const renderMini = (list, sideCls) =>
+            list
+              .map(
+                (x) => `
+              <div class="prep-4v4-mini ${sideCls}">
+                <img src="${x.player.sprite}" alt="${x.player.name}" />
+                <div style="min-width:0;">
+                  <div style="font-size:0.7rem; font-weight:800; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${x.player.name}</div>
+                  <div style="font-size:0.62rem; color:#93c5fd; font-weight:700;">${x.slot?.role || x.role} · OVR ${x.slot ? getEffectiveOvr(x.player, x.slot.role) : x.player.ovr}</div>
+                </div>
+              </div>
+            `
+              )
+              .join("");
+
+          outcomeHTML = `
+            <div class="prep-reward-box">
+              <div class="prep-reward-hero">
+                <div class="prep-reward-icon-frame">
+                  ${ev.icon ? `<img src="${ev.icon}" alt="" />` : ""}
+                </div>
+                <div style="flex:1; min-width:200px;">
+                  <div style="font-size:0.7rem; font-weight:900; color:#facc15; text-transform:uppercase;">Evento Sorteado • Margem do Rio</div>
+                  <div style="font-size:1.05rem; font-weight:900; color:#fff;">${ev.title}</div>
+                  <div style="font-size:0.76rem; color:#cbd5e1;">${ev.summary}</div>
+                </div>
+                ${
+                  c4.status === "READY"
+                    ? `<button class="ie-cmd-btn ie-cmd-gold" id="btn-run-4v4"><span>Disputar 4x4!</span></button>`
+                    : `<span class="prep-xp-pill">4x4 ${c4.userGoals} x ${c4.oppGoals}</span>`
+                }
+              </div>
+              <div class="prep-4v4-matchup">
+                <div class="prep-4v4-side">${renderMini(c4.userQuartet, "is-user")}</div>
+                <div style="font-weight:900; font-size:0.95rem; color:#facc15;">VS</div>
+                <div class="prep-4v4-side">${renderMini(c4.oppQuartet, "is-opp")}</div>
+              </div>
+              ${
+                c4.log.length > 0
+                  ? `<div class="prep-4v4-log">${c4.log.map((l) => `<div>• ${l}</div>`).join("")}</div>`
+                  : ""
+              }
+            </div>
+          `;
+        } else {
+          // Escolha de jogador para Item / Keshin / Evolução / Manual
+          const eligibleSlots = getSlots().filter((slot) => {
+            const p = state.squad[slot.id];
+            if (!p) return false;
+            if (ev.targetRoles && ev.targetRoles.length > 0) {
+              return ev.targetRoles.includes(slot.role);
+            }
+            return true;
+          });
+          const pickList = eligibleSlots.length > 0 ? eligibleSlots : getSlots().filter((s) => state.squad[s.id]);
+
+          outcomeHTML = `
+            <div class="prep-reward-box">
+              <div class="prep-reward-hero">
+                <div class="prep-reward-icon-frame">
+                  ${ev.icon ? `<img src="${ev.icon}" alt="" />` : ""}
+                </div>
+                <div style="flex:1; min-width:200px;">
+                  <div style="font-size:0.7rem; font-weight:900; color:#facc15; text-transform:uppercase;">Prêmio da Roleta • ${activeLoc?.title || ""}</div>
+                  <div style="font-size:1.05rem; font-weight:900; color:#fff;">${ev.title}</div>
+                  <div style="font-size:0.76rem; color:#cbd5e1;">${ev.summary}</div>
+                </div>
+              </div>
+              <div style="font-size:0.76rem; font-weight:800; color:#93c5fd;">
+                Selecione qual jogador do seu elenco vai receber este bônus:
+              </div>
+              <div class="prep-pick-grid">
+                ${pickList
+                  .map((slot) => {
+                    const p = state.squad[slot.id];
+                    const curOvr = getEffectiveOvr(p, slot.role);
+                    const nextOvr = Math.min(99, curOvr + (ev.ovrBoost || 0));
+                    const extraInfo =
+                      ev.kind === "EVO_PICK"
+                        ? (() => {
+                            const ord = slot.role === "GK" ? ["GK", "DF", "SH", "OF"] : slot.role === "DF" ? ["DF", "OF", "SH", "GK"] : slot.role === "MF" ? ["OF", "SH", "DF", "GK"] : ["SH", "OF", "DF", "GK"];
+                            for (const c of ord) {
+                              if (p.moves?.[c]?.length) return `Técnica: ${p.moves[c][0]}`;
+                            }
+                            return p.hissatsu;
+                          })()
+                        : p.keshin
+                        ? `Incorporação: ${p.keshin.name}`
+                        : p.equippedItems?.length
+                        ? `Itens: ${p.equippedItems.map((x) => x.title).join(", ")}`
+                        : p.hissatsu;
+
+                    return `
+                      <div class="prep-pick-card" data-prep-pick="${slot.id}">
+                        <img class="prep-pick-sprite" src="${getPlayerFormSprite(p, slot.role)}" alt="${p.name}" />
+                        <div style="min-width:0; flex:1;">
+                          <div style="font-size:0.78rem; font-weight:900; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                            ${posIconHTML(slot.role, true)} ${p.name}
+                          </div>
+                          <div style="font-size:0.68rem; font-weight:800; color:#4ade80; margin-top:2px;">
+                            OVR ${curOvr} ➔ ${nextOvr}
+                          </div>
+                          <div style="font-size:0.64rem; color:#94a3b8; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                            ${extraInfo || ""}
+                          </div>
+                        </div>
+                      </div>
+                    `;
+                  })
+                  .join("")}
+              </div>
+            </div>
+          `;
+        }
+      } else if (prep.phase === "DONE") {
+        outcomeHTML = `
+          <div class="prep-reward-box">
+            <div class="prep-reward-hero">
+              <div class="prep-reward-icon-frame">
+                ${prep.event?.icon ? `<img src="${prep.event.icon}" alt="" />` : ""}
+              </div>
+              <div style="flex:1; min-width:200px;">
+                <div style="font-size:0.7rem; font-weight:900; color:#4ade80; text-transform:uppercase;">Preparação Concluída!</div>
+                <div style="font-size:0.96rem; font-weight:900; color:#fff; margin-top:2px;">${prep.appliedMsg || "Bônus aplicado com sucesso!"}</div>
+                <div style="font-size:0.75rem; color:#cbd5e1; margin-top:4px;">
+                  Time pronto com <strong>OVR ${stats.ovr}</strong> • <strong>Poder ${stats.power.toLocaleString("pt-BR")}</strong> • <strong>Química ${stats.chem}%</strong>
+                </div>
+              </div>
+              <button class="ie-cmd-btn ie-cmd-green" id="btn-prep-proceed">
+                <span>Ir para ${nextStage.stageName} →</span>
+              </button>
+            </div>
+          </div>
+        `;
+      }
+
+      bodyHTML = `
+        <div class="prep-roulette-box">
+          <div class="prep-roulette-header">
+            ${activeLoc?.banner ? `<img class="prep-roulette-thumb" src="${activeLoc.banner}" alt="" />` : ""}
+            <div>
+              <div style="font-size:0.68rem; font-weight:900; color:#facc15; text-transform:uppercase;">${activeLoc?.sub || ""}</div>
+              <div style="font-size:0.95rem; font-weight:900; color:#fff;">${activeLoc?.title || ""}</div>
+            </div>
+          </div>
+          <div class="prep-roulette-viewport" id="prep-roulette-viewport">
+            <div class="prep-roulette-marker"></div>
+            <div class="prep-roulette-strip" id="prep-roulette-strip">${stripHTML}</div>
+          </div>
+          ${outcomeHTML}
+        </div>
+      `;
+    }
+
+    return `
+      <div class="prep-stage-card">
+        ${headerBanner}
+        ${bodyHTML}
+      </div>
+    `;
+  }
+
   // TELA 3: TORNEIO FUTEBOL FRONTEIRA
   function renderTournamentScreen() {
     const container = document.getElementById("main-screen-container");
@@ -5713,6 +6556,52 @@
     const pct = Math.min(100, Math.round((st.minute / st.maxMinute) * 100));
 
     const isRunEnded = st.finished && ((st.won && t.stageIndex === 3) || !st.won);
+
+    if (t.prep) {
+      container.innerHTML = `
+        <div class="bracket-row">${bracketHTML}</div>
+        ${buildBetweenMatchPrepHTML(t, stats)}
+      `;
+
+      if (t.prep.phase !== "CHOOSE_LOC" && t.prep.phase !== "SPINNING") {
+        const stripEl = document.getElementById("prep-roulette-strip");
+        const vpEl = document.getElementById("prep-roulette-viewport");
+        if (stripEl && vpEl) {
+          const slotW = 122;
+          const vpCenter = vpEl.clientWidth / 2;
+          const targetOffset = -(t.prep.rouletteWinnerIdx * slotW + 56 + 10 - vpCenter);
+          stripEl.style.transition = "none";
+          stripEl.style.transform = `translate3d(${targetOffset}px, 0, 0)`;
+        }
+      }
+
+      container.querySelectorAll("[data-prep-loc]").forEach((card) => {
+        card.addEventListener("click", () => {
+          startPrepLocationRoulette(card.getAttribute("data-prep-loc"));
+        });
+      });
+
+      const run4v4Btn = document.getElementById("btn-run-4v4");
+      if (run4v4Btn) {
+        run4v4Btn.addEventListener("click", () => runStreet4v4Challenge());
+      }
+
+      container.querySelectorAll("[data-prep-pick]").forEach((pCard) => {
+        pCard.addEventListener("click", () => {
+          applyPrepPlayerReward(pCard.getAttribute("data-prep-pick"));
+        });
+      });
+
+      const proceedBtn = document.getElementById("btn-prep-proceed");
+      if (proceedBtn) {
+        proceedBtn.addEventListener("click", () => {
+          const nextIdx = t.prep.nextStageIdx;
+          t.prep = null;
+          runLiveMatchSimulation(nextIdx);
+        });
+      }
+      return;
+    }
 
     if (isRunEnded && t.showRunSummary) {
       const runSummaryObj = computeTournamentRunSummary(t);
@@ -5779,10 +6668,10 @@
           <div class="match-finish-bar is-win">
             <div>
               <strong>Classificado para a ${nextStage.stageName}!</strong>
-              <span>Avance para enfrentar o próximo adversário do torneio.</span>
+              <span>Visite um local de Inazuma e gire a roleta para fortalecer seu time antes do próximo jogo.</span>
             </div>
             <button class="ie-cmd-btn ie-cmd-green" id="btn-next-round">
-              <span>Ir para ${nextStage.stageName} →</span>
+              <span>Preparar para ${nextStage.stageName} →</span>
             </button>
           </div>
         `;
@@ -5940,7 +6829,7 @@
     const nextRoundBtn = document.getElementById("btn-next-round");
     if (nextRoundBtn) {
       nextRoundBtn.addEventListener("click", () => {
-        runLiveMatchSimulation(t.stageIndex + 1);
+        openBetweenMatchPrep(t.stageIndex + 1);
       });
     }
   }
