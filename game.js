@@ -309,57 +309,73 @@
     });
 
     let chem = 0;
+    let bondsPower = 0;
     const activeBonds = [];
 
-    // 1. Química por Mesmo Time (Colegas de Clube/Escola)
+    // 1. Química & Poder por Mesmo Time (Colegas de Clube/Escola)
     Object.keys(teamsCount).forEach((tId) => {
       const c = teamsCount[tId];
       if (c >= 2) {
-        const bonus = (c - 1) * 14;
-        chem += bonus;
+        const chemBonus = (c - 1) * 14;
+        const pwrBonus = (c - 1) * 85;
+        chem += chemBonus;
+        bondsPower += pwrBonus;
         activeBonds.push({
           type: "team",
-          label: `🏟️ ${c}x ${teamNames[tId]} (+${bonus}%)`
+          label: `🏟️ ${c}x ${teamNames[tId]} (+${chemBonus}% • +${pwrBonus} Poder)`
         });
       }
     });
 
-    // 2. Química por Laços de Amizade / Duplas e Trios do Anime
+    // 2. Química & Poder por Laços de Amizade / Duplas e Trios do Anime
     FRIENDSHIP_BONDS.forEach((bond) => {
       const matched = bond.members.filter((m) => fullNamesInSquad.has(m));
       if (matched.length >= bond.minCount) {
-        const bonus = (matched.length - 1) * bond.chemPerMatch;
-        chem += bonus;
+        const chemBonus = (matched.length - 1) * bond.chemPerMatch;
+        const pwrBonus = (matched.length - 1) * 120;
+        chem += chemBonus;
+        bondsPower += pwrBonus;
         activeBonds.push({
           type: "friendship",
-          label: `${bond.name} (+${bonus}%)`
+          label: `${bond.name} (+${chemBonus}% • +${pwrBonus} Poder)`
         });
       }
     });
 
-    // 3. Química por Ressonância Elemental (3+ jogadores do mesmo elemento)
+    // 3. Química & Poder por Ressonância Elemental (3+ jogadores do mesmo elemento)
     Object.keys(elemsCount).forEach((el) => {
       const c = elemsCount[el];
       if (c >= 3) {
-        const bonus = (c - 2) * 7;
-        chem += bonus;
+        const chemBonus = (c - 2) * 7;
+        const pwrBonus = (c - 2) * 55;
+        chem += chemBonus;
+        bondsPower += pwrBonus;
         const icon = DB.elements[el]?.icon || "⚡";
         activeBonds.push({
           type: "element",
-          label: `${icon} ${c}x Afinidade ${el} (+${bonus}%)`
+          label: `${icon} ${c}x Afinidade ${el} (+${chemBonus}% • +${pwrBonus} Poder)`
         });
       }
     });
 
     chem = Math.min(100, Math.max(0, chem));
 
-    // A Química dá bônus direto no Overall Geral do time (+0 a +4 OVR)!
+    // A Química dá bônus direto no Overall Geral do time (+0 a +3 OVR)!
     const chemOvrBonus = chem >= 80 ? 3 : chem >= 55 ? 2 : chem >= 30 ? 1 : 0;
     const ovr = count > 0 ? Math.min(99, Math.round(sumOvr / count) + chemOvrBonus) : 0;
+
+    // Poder Final Total = Soma dos OVRs individuais + Bônus de Química + Bônus de Duplas/Trios/Clubes/Elementos
+    const chemPower = chem * 3;
+    const basePower = Math.round(sumOvr);
+    const power = count > 0 ? basePower + chemPower + bondsPower : 0;
 
     return {
       count,
       ovr,
+      power,
+      basePower,
+      chemPower,
+      bondsPower,
       atk: atkCnt > 0 ? Math.round(atkSum / atkCnt) : 0,
       mid: midCnt > 0 ? Math.round(midSum / midCnt) : 0,
       def: defCnt > 0 ? Math.round(defSum / defCnt) : 0,
@@ -842,6 +858,7 @@
 
     const userStats = calcSquadStats();
     const oppOvr = st.oppTeam.baseOvr + stageIdx * 1.5;
+    const oppPower = Math.round(oppOvr * 11 + 180 + stageIdx * 115);
 
     const slots = getSlots();
     const userAll = slots.map((s) => state.squad[s.id]).filter(Boolean);
@@ -864,9 +881,12 @@
     const oppDefenders = oppAll.filter((p) => p.pos === "DF" || p.pos === "MF");
     const oppGk = oppAll.find((p) => p.pos === "GK") || oppAll[0];
 
+    // Diferença combinada de OVR e Poder Final (duplas, trios e química pesam na partida!)
     const ovrDiff = userStats.ovr - oppOvr;
-    const userGoalProbPerMin = Math.max(0.008, Math.min(0.045, 0.022 + ovrDiff * 0.0022));
-    const oppGoalProbPerMin = Math.max(0.006, Math.min(0.040, 0.018 - ovrDiff * 0.0018));
+    const powerEdge = (userStats.power - oppPower) / 140;
+    const totalEdge = ovrDiff * 0.65 + powerEdge;
+    const userGoalProbPerMin = Math.max(0.008, Math.min(0.048, 0.022 + totalEdge * 0.0022));
+    const oppGoalProbPerMin = Math.max(0.006, Math.min(0.042, 0.018 - totalEdge * 0.0018));
 
     state.tournament.timerId = setInterval(() => {
       st.minute++;
@@ -1099,6 +1119,8 @@
 
     headerWrap.style.display = "flex";
     const stats = calcSquadStats();
+    const pwrEl = document.getElementById("val-power");
+    if (pwrEl) pwrEl.textContent = stats.power.toLocaleString("pt-BR");
     document.getElementById("val-ovr").textContent = stats.ovr;
     document.getElementById("val-atk").textContent = stats.atk;
     document.getElementById("val-mid").textContent = stats.mid;
@@ -1135,8 +1157,7 @@
           <div class="start-hero-overlay"></div>
           <div class="start-hero-content">
             ${UI.ieLogo ? `<img class="start-ie-logo" src="${UI.ieLogo}" alt="Inazuma Eleven" />` : `<h2>INAZUMA ELEVEN</h2>`}
-            <div class="start-title-ribbon">DREAM TEAM</div>
-            ${UI.ffLogo ? `<img class="start-ff-badge" src="${UI.ffLogo}" alt="Football Frontier" />` : ""}
+            <div class="start-title-ribbon">DREAM TEAM • FUTEBOL FRONTEIRA</div>
           </div>
         </div>
 
@@ -1218,12 +1239,18 @@
       const stats = calcSquadStats();
       container.innerHTML = `
         <div class="go-ready-banner">
-          ${UI.ffLogo ? `<img src="${UI.ffLogo}" alt="Futebol Fronteira" style="max-width:190px; height:auto; margin-bottom:6px;" />` : ""}
+          ${UI.raimonEmblem ? `<img src="${UI.raimonEmblem}" alt="Dream Team" style="width:52px; height:52px; object-fit:contain; margin-bottom:4px;" />` : ""}
           <h2 style="font-size:1.35rem; font-weight:900; color:#4ade80;">
-            DREAM TEAM COMPLETO! (OVR ${stats.ovr} • QUÍMICA ${stats.chem}%)
+            DREAM TEAM COMPLETO!
           </h2>
-          <p style="font-size:0.82rem; color:#dbeafe; max-width:560px; margin:4px auto 10px;">
-            Seus 11 titulares estão em campo! Toque em dois jogadores se quiser trocar posições ou clique em <strong>DAR GO!</strong> para o Futebol Fronteira!
+          <div style="font-size:0.95rem; font-weight:900; color:#fed7aa; margin-top:4px;">
+            ⚡ PODER FINAL: ${stats.power.toLocaleString("pt-BR")} PTS &nbsp;•&nbsp; OVR ${stats.ovr} &nbsp;•&nbsp; QUÍMICA ${stats.chem}%
+          </div>
+          <div style="font-size:0.74rem; color:#93c5fd; margin-top:2px;">
+            (Base Elenco: ${stats.basePower} + Química: +${stats.chemPower} + Duplas/Trios/Clubes: +${stats.bondsPower})
+          </div>
+          <p style="font-size:0.82rem; color:#dbeafe; max-width:560px; margin:8px auto 10px;">
+            Toque em dois jogadores no campo se quiser trocar posições ou clique em <strong>DAR GO!</strong> para o Futebol Fronteira!
           </p>
           <button class="ie-cmd-btn ie-cmd-green" id="btn-start-go" style="padding:13px 28px; font-size:1rem;">
             <span>DAR GO! — INICIAR FUTEBOL FRONTEIRA</span>
@@ -1357,18 +1384,22 @@
     let footerActions = "";
     if (st.finished) {
       if (st.won && t.stageIndex === 3) {
+        const rank = stats.power >= 1650 ? "S+" : stats.power >= 1450 ? "S" : stats.power >= 1250 ? "A" : "B";
         footerActions = `
           <div class="go-ready-banner" style="margin-top:8px;">
-            <div style="font-size:2.2rem;">🏆⚡🎉</div>
+            <div style="font-size:2.2rem;">🏆⚡</div>
             <h3 style="font-size:1.35rem; font-weight:900; color:#facc15;">
               CAMPEÃO DO FUTEBOL FRONTEIRA!!
             </h3>
-            <p style="font-size:0.84rem; color:#e2e8f0; margin:6px 0 12px;">
-              Sua Seleção de Inazuma Eleven (OVR ${stats.ovr} • Química ${stats.chem}%) venceu todas as etapas e levantou a taça!
+            <div style="font-size:1rem; font-weight:900; color:#fed7aa; margin-top:4px;">
+              PONTUAÇÃO FINAL: ${stats.power.toLocaleString("pt-BR")} PTS (RANK ${rank})
+            </div>
+            <p style="font-size:0.82rem; color:#e2e8f0; margin:6px 0 12px;">
+              OVR ${stats.ovr} • Química ${stats.chem}% • Laços & Sinergias (+${stats.bondsPower} Poder)
             </p>
             <div style="display:flex; justify-content:center; gap:10px; flex-wrap:wrap;">
-              <button class="ui-btn btn-go" id="btn-play-again-draft">🔄 Novo Jogo</button>
-              <button class="ui-btn" id="btn-rematch-cup">⚽ Jogar Outro Torneio com Este Time</button>
+              <button class="ie-cmd-btn ie-cmd-green" id="btn-play-again-draft"><span>🔄 Novo Jogo</span></button>
+              <button class="ie-cmd-btn ie-cmd-gold" id="btn-rematch-cup"><span>Jogar Outro Torneio</span></button>
             </div>
           </div>
         `;
@@ -1380,8 +1411,8 @@
               <strong style="color:#4ade80; font-size:0.92rem;">✅ Classificado para a ${nextStage.stageName}!</strong>
               <div style="font-size:0.76rem; color:#cbd5e1;">Toque ao lado para revelar o adversário da ${nextStage.stageName}!</div>
             </div>
-            <button class="ui-btn btn-go" id="btn-next-round" style="padding:10px 18px;">
-              ⏩ Ir para ${nextStage.stageName} →
+            <button class="ie-cmd-btn ie-cmd-green" id="btn-next-round" style="padding:10px 18px;">
+              <span>⏩ Ir para ${nextStage.stageName} →</span>
             </button>
           </div>
         `;
@@ -1393,8 +1424,8 @@
               <div style="font-size:0.76rem; color:#cbd5e1;">Tente a revanche ou comece um novo jogo!</div>
             </div>
             <div style="display:flex; gap:8px;">
-              <button class="ui-btn" id="btn-retry-stage">🔥 Revanche</button>
-              <button class="ui-btn btn-go" id="btn-new-draft-after-loss">🔄 Novo Jogo</button>
+              <button class="ie-cmd-btn ie-cmd-gold" id="btn-retry-stage"><span>🔥 Revanche</span></button>
+              <button class="ie-cmd-btn ie-cmd-green" id="btn-new-draft-after-loss"><span>🔄 Novo Jogo</span></button>
             </div>
           </div>
         `;
@@ -1402,6 +1433,7 @@
     }
 
     const stadiumStyle = UI.stadiumBg ? `background-image: url('${UI.stadiumBg}');` : "";
+    const oppPower = Math.round((st.oppTeam.baseOvr + t.stageIndex * 1.5) * 11 + 180 + t.stageIndex * 115);
 
     container.innerHTML = `
       <div class="bracket-row">${bracketHTML}</div>
@@ -1409,10 +1441,10 @@
       <div class="broadcast-card">
         <div class="broadcast-header">
           <div style="display:flex; align-items:center; gap:10px;">
-            ${UI.ffLogo ? `<img src="${UI.ffLogo}" alt="Futebol Fronteira" style="height:28px; width:auto;" />` : ""}
+            ${UI.raimonEmblem ? `<img src="${UI.raimonEmblem}" alt="" style="height:28px; width:28px; object-fit:contain;" />` : ""}
             <div>
               <span style="font-size:0.7rem; font-weight:900; color:#facc15; text-transform:uppercase;">
-                ${st.stageName}
+                FUTEBOL FRONTEIRA • ${st.stageName}
               </span>
               <h3 style="font-size:0.96rem; color:#fff;">Dream Team vs ${st.oppTeam.name}</h3>
             </div>
@@ -1436,7 +1468,7 @@
           <div class="score-team">
             ${UI.raimonEmblem ? `<img class="score-emblem" src="${UI.raimonEmblem}" alt="Dream Team" />` : `<div style="font-size:1.9rem;">⚡</div>`}
             <div style="font-weight:900; font-size:0.95rem;">Dream Team</div>
-            <div style="font-size:0.72rem; color:#4ade80; font-weight:700;">OVR ${stats.ovr} • Quím. ${stats.chem}%</div>
+            <div style="font-size:0.7rem; color:#fed7aa; font-weight:800;">Poder ${stats.power.toLocaleString("pt-BR")} • OVR ${stats.ovr}</div>
           </div>
 
           <div class="score-digits">
@@ -1448,7 +1480,7 @@
           <div class="score-team">
             <img class="score-emblem" src="${st.oppTeam.emblem}" alt="${st.oppTeam.name}" />
             <div style="font-weight:900; font-size:0.95rem;">${st.oppTeam.name}</div>
-            <div style="font-size:0.72rem; color:#facc15; font-weight:700;">OVR ${Math.round(st.oppTeam.baseOvr + t.stageIndex * 1.5)}</div>
+            <div style="font-size:0.7rem; color:#facc15; font-weight:800;">Poder ${oppPower.toLocaleString("pt-BR")} • OVR ${Math.round(st.oppTeam.baseOvr + t.stageIndex * 1.5)}</div>
           </div>
         </div>
 

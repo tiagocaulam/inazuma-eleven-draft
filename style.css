@@ -397,7 +397,7 @@ body {
   border-radius: 10px;
   padding: 7px 10px;
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(6, 1fr);
   gap: 6px;
   text-align: center;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
@@ -408,6 +408,16 @@ body {
   border: 1px solid rgba(96, 165, 250, 0.25);
   border-radius: 6px;
   padding: 4px 3px;
+}
+
+.ovr-pill.power-ovr {
+  background: linear-gradient(180deg, rgba(249, 115, 22, 0.34), rgba(180, 83, 9, 0.3));
+  border-color: #fb923c;
+  box-shadow: 0 0 12px rgba(249, 115, 22, 0.25);
+}
+
+.ovr-pill.power-ovr strong {
+  color: #fed7aa;
 }
 
 .ovr-pill.main-ovr {
@@ -1284,7 +1294,8 @@ body {
 
   .ovr-header-bar {
     padding: 6px;
-    gap: 4px;
+    gap: 5px;
+    grid-template-columns: repeat(3, 1fr);
   }
 
   .ovr-pill small {
