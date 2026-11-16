@@ -1583,8 +1583,8 @@
       return;
     }
 
-    const yellowArc = describeSvgArc(80, 80, 56, -58, 58);
-    const greenArc = describeSvgArc(80, 80, 56, -26, 26);
+    const yellowArc = describeSvgArc(80, 80, 56, -68, 68);
+    const greenArc = describeSvgArc(80, 80, 56, -34, 34);
     const drinkIcon = UI.sportsDrink || UI.onigiriIcon || UI.tpPendant || "";
     const refImg = UI.refereeWhistle || UI.whistleIcon || "";
     const whistleBadge = UI.whistleIcon
@@ -1640,13 +1640,16 @@
 
     let qteResolved = false;
     const startT = performance.now();
+    const computeAngleAt = (now) => {
+      const elapsedSec = Math.max(0, (now - startT) / 1000);
+      const raw = (180 + elapsedSec * 165) % 360;
+      return raw > 180 ? raw - 360 : raw; // -180..+180 (0° é o centro exato do verde)
+    };
     let curAngleDeg = 180; // começa oposto ao verde para dar tempo de reagir
 
     const tickNeedle = (now) => {
       if (qteResolved || state.phase !== "tournament") return;
-      const elapsedSec = (now - startT) / 1000;
-      const raw = (180 + elapsedSec * 255) % 360;
-      curAngleDeg = raw > 180 ? raw - 360 : raw; // -180..+180 (0° é o centro exato do verde)
+      curAngleDeg = computeAngleAt(now);
       const needle = document.getElementById("qte-needle-group");
       if (needle) needle.setAttribute("transform", `rotate(${curAngleDeg.toFixed(1)} 80 80)`);
       state.tournament.qteRafId = requestAnimationFrame(tickNeedle);
@@ -1690,6 +1693,12 @@
         state.tournament.qteKeyHandler = null;
       }
 
+      if (!isSkip) {
+        curAngleDeg = computeAngleAt(performance.now());
+        const needle = document.getElementById("qte-needle-group");
+        if (needle) needle.setAttribute("transform", `rotate(${curAngleDeg.toFixed(1)} 80 80)`);
+      }
+
       const absDeg = Math.abs(curAngleDeg);
       const hasTireBonus = (state.tournament?.prepBonuses?.staminaMul || 1) < 1;
       const extra = hasTireBonus ? 5 : 0;
@@ -1698,11 +1707,11 @@
       let zoneCls = "is-miss";
       let zoneLabel = `Descanso curto (+${userGain}% Energia)`;
 
-      if (!isSkip && absDeg <= 26) {
+      if (!isSkip && absDeg <= 34) {
         userGain = 40 + extra;
         zoneCls = "is-green";
         zoneLabel = `VERDE PERFEITO! +${userGain}% Energia!`;
-      } else if (!isSkip && absDeg <= 58) {
+      } else if (!isSkip && absDeg <= 68) {
         userGain = 25 + extra;
         zoneCls = "is-yellow";
         zoneLabel = `BOM TIMING (AMARELO)! +${userGain}% Energia!`;
