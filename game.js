@@ -1574,7 +1574,7 @@
         else action = "PASS";
       }
 
-      const canHissatsuFieldDuel = state.simSpeed === 1 && st.minute - pitch.lastClashMinute >= 3;
+      const canHissatsuFieldDuel = state.simSpeed === 1 && st.minute - pitch.lastClashMinute >= 2;
 
       // ----------------------------------------------------------------------
       // AÇÃO 1: PASSE INDIVIDUAL + CHANCE DE INTERCEPTAÇÃO/ROUBO
@@ -2346,8 +2346,6 @@
           </div>
         </div>
 
-        ${buildLivePitchBoxHTML(st, st.oppTeam)}
-
         ${
           st.penaltiesText
             ? `<div style="text-align:center; background:rgba(250,204,21,0.15); border:1px solid #facc15; padding:6px; border-radius:8px; font-weight:800; color:#fde047; font-size:0.82rem;">
@@ -2356,9 +2354,13 @@
             : ""
         }
 
-        <div id="shot-clash-slot" style="display:none;"></div>
+        <div class="match-arena-split">
+          ${buildLivePitchBoxHTML(st, st.oppTeam)}
 
-        <div id="goals-columns-box" class="goals-columns">
+          <div class="match-right-panel">
+            <div id="shot-clash-slot" style="display:none;"></div>
+
+            <div id="goals-columns-box" class="goals-columns">
           <div class="goals-list" id="live-goals-user">
             <div style="font-size:0.7rem; font-weight:800; color:#4ade80; text-transform:uppercase; display:flex; align-items:center; gap:5px;">
               ${moveIconHTML("SH")} <span>Gols do Dream Team</span>
@@ -2407,6 +2409,8 @@
                     )
                     .join("")
             }
+          </div>
+        </div>
           </div>
         </div>
 
