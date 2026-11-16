@@ -2028,15 +2028,68 @@
   }
 
   function renderPitchDOMFrame(pitch, st, now) {
+    // 1) Animações de dash (drible) e repulsão da onda de choque (roubo), inclusive durante a pausa breve
+    if (pitch.dashFx) {
+      const df = pitch.dashFx;
+      const dNode = findPitchNode(pitch, df.uid);
+      const t = Math.min(1, Math.max(0, (now - df.start) / df.duration));
+      const eased = 1 - Math.pow(1 - t, 3);
+      if (dNode) {
+        dNode.x = df.fromX + (df.toX - df.fromX) * eased;
+        dNode.y = df.fromY + (df.toY - df.fromY) * eased;
+        const dir = dNode.side === "user" ? 1 : -1;
+        pitch.ballX = dNode.x + dir * 2.0;
+        pitch.ballY = dNode.y + 0.9;
+        if (pitch.passTrail) {
+          pitch.passTrail.curX = dNode.x;
+          pitch.passTrail.curY = dNode.y;
+          pitch.passTrail.fadeUntil = Math.max(pitch.passTrail.fadeUntil, now + 380);
+        }
+      }
+      if (t >= 1) pitch.dashFx = null;
+    }
+
+    if (pitch.pushTweens && pitch.pushTweens.length > 0) {
+      pitch.pushTweens = pitch.pushTweens.filter((pt) => {
+        const t = Math.min(1, Math.max(0, (now - pt.start) / pt.duration));
+        const eased = 1 - Math.pow(1 - t, 2.5);
+        pt.node.x = pt.fromX + (pt.toX - pt.fromX) * eased;
+        pt.node.y = pt.fromY + (pt.toY - pt.fromY) * eased;
+        return t < 1;
+      });
+    }
+
+    const activeDashUid = pitch.dashFx ? pitch.dashFx.uid : null;
     const stepDomNode = (node) => {
       const el = document.getElementById(`pnode-${node.uid}`);
       if (el) {
         el.style.left = `${node.x.toFixed(2)}%`;
         el.style.top = `${node.y.toFixed(2)}%`;
+        el.classList.toggle("is-dashing", node.uid === activeDashUid);
       }
     };
     pitch.userNodes.forEach(stepDomNode);
     pitch.oppNodes.forEach(stepDomNode);
+
+    const shockEl = document.getElementById("pitch-shockwave");
+    if (shockEl) {
+      const sf = pitch.shockFx;
+      if (sf && now - sf.start < sf.duration) {
+        const t = Math.max(0, Math.min(1, (now - sf.start) / sf.duration));
+        const eased = 1 - Math.pow(1 - t, 2.2);
+        const sizePx = 28 + eased * 130;
+        shockEl.style.left = `${sf.x.toFixed(1)}%`;
+        shockEl.style.top = `${sf.y.toFixed(1)}%`;
+        shockEl.style.width = `${sizePx.toFixed(0)}px`;
+        shockEl.style.height = `${sizePx.toFixed(0)}px`;
+        shockEl.style.opacity = (0.95 * (1 - t)).toFixed(2);
+        shockEl.classList.add("is-active");
+      } else {
+        pitch.shockFx = null;
+        shockEl.classList.remove("is-active");
+        shockEl.style.opacity = "0";
+      }
+    }
 
     let ballScale = 1;
     if (pitch.ballFlight) {
@@ -3153,6 +3206,7 @@
             <line id="pitch-pass-line" x1="50" y1="50" x2="50" y2="50" stroke="#facc15" stroke-width="0.9" stroke-dasharray="2.5 1.8" stroke-linecap="round" style="opacity:0;" />
           </svg>
 
+          <div id="pitch-shockwave" class="pitch-shockwave"></div>
           ${tokensHTML}
           <div id="live-pitch-ball" class="pitch-ball-dot" style="left:${pitch.ballX}%; top:${pitch.ballY}%;">${buildMiniBallSVG("pitch-ball-svg")}</div>
           <div id="pitch-float-badge" class="pitch-float-badge"></div>
@@ -3370,6 +3424,39 @@
     pitch.matchSupportInitialized = true;
   }
 
+  function triggerStealShockwave(pitch, centerX, centerY, stealerUid, tackledUid = null) {
+    if (!pitch) return;
+    const now = performance.now();
+    const dur = state.simSpeed === 4 ? 95 : state.simSpeed === 2 ? 220 : 420;
+    pitch.shockFx = { x: centerX, y: centerY, start: now, duration: dur + 120 };
+    pitch.pushTweens = [];
+
+    [...pitch.userNodes, ...pitch.oppNodes].forEach((n) => {
+      if (n.uid === stealerUid || n.role === "GK") return;
+      const dx = n.x - centerX;
+      const dy = n.y - centerY;
+      const dist = Math.hypot(dx, dy);
+      if (dist > 20) return;
+
+      const angle = dist > 0.25 ? Math.atan2(dy, dx) : n.side === "user" ? Math.PI : 0;
+      const pushDist = n.uid === tackledUid ? 6.6 : Math.max(2.6, (1 - dist / 20) * 5.8);
+      const toX = Math.max(8, Math.min(92, n.x + Math.cos(angle) * pushDist));
+      const toY = Math.max(10, Math.min(90, n.y + Math.sin(angle) * pushDist));
+
+      n.vx = Math.cos(angle) * 7.5;
+      n.vy = Math.sin(angle) * 7.5;
+      pitch.pushTweens.push({
+        node: n,
+        fromX: n.x,
+        fromY: n.y,
+        toX,
+        toY,
+        start: now,
+        duration: dur
+      });
+    });
+  }
+
   function resolvePhysicalDribbleClash(st, pitch, carrier, marker, attSupport, defSupport, ovrDiff) {
     const attIsUser = carrier.side === "user";
     const dribScore = calcNodeDuelScore(carrier, attSupport, marker?.player?.element);
@@ -3406,9 +3493,36 @@
       }
       pitch.lastPasserUid = null;
       pitch.lastAction = "DRIBBLE";
-      const dodgeSign = carrier.y >= marker.y ? 1 : -1;
+      const startX = carrier.x;
+      const startY = carrier.y;
+      const dodgeSign = startY >= marker.y ? 1 : -1;
+      const dashToX = Math.max(10, Math.min(90, startX + dir * 10.5));
+      const dashToY = Math.max(12, Math.min(88, startY + dodgeSign * 5.2));
+      const dashMs = state.simSpeed === 4 ? 95 : state.simSpeed === 2 ? 190 : 380;
+
+      pitch.dashFx = {
+        uid: carrier.uid,
+        fromX: startX,
+        fromY: startY,
+        toX: dashToX,
+        toY: dashToY,
+        start: performance.now(),
+        duration: dashMs
+      };
+      pitch.passTrail = {
+        fromX: startX,
+        fromY: startY,
+        toX: dashToX,
+        toY: dashToY,
+        curX: startX,
+        curY: startY,
+        color: "#c084fc",
+        start: performance.now(),
+        flightDuration: dashMs,
+        fadeUntil: performance.now() + dashMs + 520
+      };
       carrier.vx = dir * carrier.maxSpeed * 1.15;
-      carrier.vy = dodgeSign * 7.5;
+      carrier.vy = dodgeSign * 6.5;
       carrier.carryTime = 0.35;
       carrier.decisionTimer = 0.32;
       marker.staggerTimer = 1.65;
@@ -3446,6 +3560,7 @@
       pitch.ballX = marker.x + (marker.side === "user" ? 1.9 : -1.9);
       pitch.ballY = marker.y + 1.0;
 
+      triggerStealShockwave(pitch, marker.x, marker.y, marker.uid, carrier.uid);
       showNodeBadge(pitch, carrier.uid, "Perdeu a bola", "badge-lost", 1500);
       showNodeBadge(pitch, marker.uid, `Roubou • ${dfMove}`, "badge-steal", 1500, "DF");
       if (!attIsUser) {
@@ -4011,8 +4126,7 @@
           const sectorShift = ps.effRole === "DF" ? 7.5 : ps.effRole === "MF" ? 5.5 : 4.0;
           const interceptProb = 1 - logisticWinProb(passScore, defScore, sectorShift, 0.56, 0.88);
           if (Math.random() < interceptProb) {
-            const stealMove = pickPlayerMove(interceptor.player, "DF") || "Corte Rápido";
-            spendStamina(interceptor, 10);
+            spendStamina(interceptor, 4);
 
             pitch.ballSide = attIsUser ? "opp" : "user";
             pitch.ballMode = "CARRIED";
@@ -4028,23 +4142,23 @@
             pitch.ballX = interceptor.x + (interceptor.side === "user" ? 1.9 : -1.9);
             pitch.ballY = interceptor.y + 1.0;
 
-            if (ps.passerNode) showNodeBadge(pitch, ps.passerNode.uid, "Interceptado", "badge-lost", 1500);
-            showNodeBadge(pitch, interceptor.uid, `Roubou • ${stealMove}`, "badge-steal", 1500, "DF");
+            if (ps.passerNode) showNodeBadge(pitch, ps.passerNode.uid, "Interceptado", "badge-lost", 1450);
+            showNodeBadge(pitch, interceptor.uid, "Interceptou", "badge-steal", 1450, "BALL");
             if (!attIsUser) {
               pitch.stats.userSteals++;
               recordUserPlayerStat(pitch, interceptor, "steals", 1);
             }
-            pitch.ticker = `${st.minute}' ${interceptor.player.name} roubou passe de ${ps.passerNode?.player?.name || ""} (${stealMove})!`;
+            pitch.ticker = `${st.minute}' ${interceptor.player.name} interceptou o passe de ${ps.passerNode?.player?.name || ""}!`;
             prependNarrationLine(
               st,
               "nar-steal",
-              `${st.minute}' [Roubo] ${interceptor.player.name} deu o bote com 【${stealMove}】 e interceptou ${ps.passerNode?.player?.name || ""}!`,
+              `${st.minute}' [Interceptação] ${interceptor.player.name} interceptou o passe de ${ps.passerNode?.player?.name || ""}!`,
               { name: interceptor.player.name, sprite: interceptor.player.sprite, side: interceptor.side },
               ps.passerNode ? { name: ps.passerNode.player.name, sprite: ps.passerNode.player.sprite, side: ps.passerNode.side } : null,
-              "DF"
+              "BALL"
             );
             syncLivePitchDOM(st);
-            pauseForPitchBeat(st, "", "", 1050, ovrDiff);
+            pauseForPitchBeat(st, "", "", 950, ovrDiff);
             return;
           }
         }
