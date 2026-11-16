@@ -1674,55 +1674,29 @@ body {
 /* =========================================================
    MAPA TÁTICO 2D AO VIVO (CAMPO COM PASSES E POSIÇÕES)
    ========================================================= */
-.match-arena-split {
+.match-arena-grid {
   display: grid;
   grid-template-columns: 1.35fr 1fr;
   gap: 10px;
   align-items: stretch;
 }
 
+.match-arena-grid .live-pitch-card {
+  grid-column: 1;
+  grid-row: 1;
+}
+
 .match-right-panel {
+  grid-column: 2;
+  grid-row: 1;
   display: flex;
   flex-direction: column;
   min-width: 0;
 }
 
-.match-right-panel #shot-clash-slot {
-  height: 100%;
-}
-
-.match-right-panel .shot-clash-stage {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  padding: 10px 10px;
-}
-
-.match-right-panel .clash-arena-grid {
-  grid-template-columns: 72px 1fr 72px;
-  gap: 6px;
-}
-
-.match-right-panel .clash-avatar {
-  width: 54px;
-  height: 54px;
-}
-
-.match-right-panel .clash-fighter-name {
-  max-width: 72px;
-  font-size: 0.66rem;
-}
-
-.match-right-panel .fireball-trail,
-.match-right-panel .dribble-trail,
-.match-right-panel .steal-trail {
-  width: 38px;
-}
-
-.match-right-panel .clash-move-pill {
-  font-size: 0.72rem;
-  padding: 4px 10px;
+.match-arena-grid .narration-history-box {
+  grid-column: 1 / -1;
+  grid-row: 2;
 }
 
 .match-right-panel .goals-columns {
@@ -1733,12 +1707,127 @@ body {
 
 .match-right-panel .goals-list {
   min-height: 110px;
-  max-height: 142px;
+  max-height: 146px;
+}
+
+/* Modal de Chute / Bloqueio sobreposto diretamente ao campo tático */
+.pitch-clash-modal {
+  position: absolute;
+  inset: 0;
+  z-index: 25;
+  background: rgba(3, 10, 28, 0.80);
+  backdrop-filter: blur(2.5px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  animation: modalOverlayIn 0.18s ease-out;
+}
+
+@keyframes modalOverlayIn {
+  from { opacity: 0; transform: scale(0.97); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.pitch-modal-stage {
+  width: 100%;
+  height: 100%;
+  max-width: 520px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 8px 10px !important;
+  margin: 0 !important;
+  background: rgba(8, 20, 52, 0.90) !important;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.82), inset 0 0 22px rgba(250, 204, 21, 0.14) !important;
+}
+
+.pitch-modal-stage .clash-arena-grid {
+  grid-template-columns: 74px 1fr 74px;
+  gap: 8px;
+}
+
+.pitch-modal-stage .clash-avatar {
+  width: 52px;
+  height: 52px;
+}
+
+.pitch-modal-stage .clash-fighter-name {
+  max-width: 74px;
+  font-size: 0.65rem;
+}
+
+.pitch-modal-stage .fireball-trail {
+  width: 38px;
+}
+
+.pitch-modal-stage .clash-track {
+  height: 38px;
+}
+
+.pitch-modal-stage .clash-move-pill {
+  font-size: 0.7rem;
+  padding: 3px 9px;
 }
 
 @media (max-width: 820px) {
-  .match-arena-split {
+  .phase-tournament #hud-bars-wrap {
+    display: none !important;
+  }
+
+  .phase-tournament .bracket-row {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 4px;
+  }
+
+  .phase-tournament .bracket-step {
+    padding: 4px 5px;
+    gap: 4px;
+  }
+
+  .phase-tournament .bracket-step img,
+  .phase-tournament .bracket-step > div:first-child {
+    width: 20px !important;
+    height: 20px !important;
+  }
+
+  .match-arena-grid {
     grid-template-columns: 1fr;
+    gap: 7px;
+  }
+
+  .match-arena-grid .live-pitch-card {
+    grid-column: 1;
+    grid-row: auto;
+    order: 1;
+  }
+
+  .match-arena-grid .narration-history-box {
+    grid-column: 1;
+    grid-row: auto;
+    order: 2;
+    padding: 8px;
+  }
+
+  .match-arena-grid .narration-feed {
+    max-height: 108px;
+  }
+
+  .match-arena-grid .match-right-panel {
+    grid-column: 1;
+    grid-row: auto;
+    order: 3;
+  }
+
+  .match-right-panel .goals-columns {
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+
+  .match-right-panel .goals-list {
+    min-height: 68px;
+    max-height: 92px;
+    padding: 6px;
   }
 }
 
@@ -2089,6 +2178,63 @@ body {
   line-height: 1.25;
 }
 
+/* Técnica + resultado (Avançou / Perdeu / Roubou) ancorada diretamente sobre o ícone do jogador */
+.pitch-token-action-badge {
+  position: absolute;
+  bottom: calc(100% + 2px);
+  left: 50%;
+  transform: translateX(-50%) scale(0.9);
+  padding: 2px 6px;
+  border-radius: 999px;
+  font-size: 0.54rem;
+  font-weight: 900;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 16;
+  opacity: 0;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.85);
+  transition: opacity 0.16s ease, transform 0.16s ease;
+}
+
+.pitch-token-action-badge.is-visible {
+  opacity: 1;
+  transform: translateX(-50%) scale(1);
+}
+
+.pitch-token-action-badge.pos-below {
+  bottom: auto;
+  top: calc(100% + 2px);
+}
+
+.pitch-token-action-badge.pos-left {
+  left: 0;
+  transform: translateX(-8%) scale(1);
+}
+
+.pitch-token-action-badge.pos-right {
+  left: auto;
+  right: 0;
+  transform: translateX(8%) scale(1);
+}
+
+.pitch-token-action-badge.badge-dribble {
+  background: rgba(88, 28, 135, 0.96);
+  border: 1.5px solid #d8b4fe;
+  color: #faf5ff;
+}
+
+.pitch-token-action-badge.badge-steal {
+  background: rgba(7, 89, 133, 0.96);
+  border: 1.5px solid #7dd3fc;
+  color: #e0f2fe;
+}
+
+.pitch-token-action-badge.badge-lost {
+  background: rgba(127, 29, 29, 0.95);
+  border: 1.5px solid #fca5a5;
+  color: #fee2e2;
+}
+
 .pitch-ball-dot {
   position: absolute;
   transform: translate(-50%, -50%);
@@ -2292,61 +2438,61 @@ body {
     height: 13px;
   }
 
-  .bracket-row {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 6px;
-  }
-
   .broadcast-card {
-    padding: 10px;
+    padding: 8px;
+    gap: 7px;
   }
 
   .live-scoreboard {
-    padding: 10px 6px;
+    padding: 7px 6px;
     gap: 6px;
   }
 
   .score-emblem {
-    width: 38px;
-    height: 38px;
+    width: 32px;
+    height: 32px;
   }
 
   .score-digits {
-    font-size: 1.65rem;
+    font-size: 1.45rem;
     gap: 6px;
   }
 
   .goals-columns {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr 1fr;
   }
 
-  .clash-arena-grid {
-    grid-template-columns: 68px 1fr 68px;
-    gap: 6px;
+  .clash-arena-grid,
+  .pitch-modal-stage .clash-arena-grid {
+    grid-template-columns: 62px 1fr 62px;
+    gap: 4px;
   }
 
-  .clash-avatar {
-    width: 48px;
-    height: 48px;
+  .clash-avatar,
+  .pitch-modal-stage .clash-avatar {
+    width: 42px;
+    height: 42px;
   }
 
-  .clash-fighter-name {
-    font-size: 0.64rem;
-    max-width: 66px;
+  .clash-fighter-name,
+  .pitch-modal-stage .clash-fighter-name {
+    font-size: 0.58rem;
+    max-width: 62px;
   }
 
-  .clash-move-pill {
-    font-size: 0.68rem;
-    padding: 3px 8px;
+  .clash-move-pill,
+  .pitch-modal-stage .clash-move-pill {
+    font-size: 0.62rem;
+    padding: 2px 7px;
   }
 
   .clash-result-banner {
-    font-size: 1.05rem;
-    padding: 8px 16px;
+    font-size: 0.98rem;
+    padding: 7px 14px;
   }
 
   .live-tactical-pitch {
-    height: 190px;
+    height: 184px;
   }
 
   .pitch-player-token {
@@ -2363,12 +2509,30 @@ body {
     max-width: 34px;
   }
 
+  .pitch-token-action-badge {
+    font-size: 0.48rem;
+    padding: 1.5px 5px;
+  }
+
   .pitch-token-stamina {
     width: 18px;
   }
 
   .pitch-live-stats {
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 4px;
+  }
+
+  .pitch-stat-pill {
+    padding: 3px 2px;
+  }
+
+  .pitch-stat-pill small {
+    font-size: 0.5rem;
+  }
+
+  .pitch-stat-pill strong {
+    font-size: 0.66rem;
   }
 }
 
