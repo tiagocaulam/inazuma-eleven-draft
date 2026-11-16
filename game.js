@@ -1086,14 +1086,17 @@
     if (emptyEl) emptyEl.remove();
     if (listEl) {
       const color = side === "user" ? (goalObj.isHissatsu ? "#86efac" : "#cbd5e1") : (goalObj.isHissatsu ? "#fca5a5" : "#cbd5e1");
+      const assistPart = goalObj.assistName
+        ? `<span style="color:#93c5fd; margin-left:4px;">• 🎯 Assist: ${goalObj.assistName}</span>`
+        : "";
       listEl.insertAdjacentHTML(
         "beforeend",
         `<div class="goal-item ${side === "user" ? "user-goal" : "opp-goal"}">
           <img src="${goalObj.sprite}" alt="" />
           <div>
             <div style="font-weight:800; color:#fff;">${goalObj.minute}' ${goalObj.name}</div>
-            <div style="font-size:0.68rem; color:${color}; display:flex; align-items:center; gap:4px;">
-              ${goalObj.isHissatsu ? `${moveIconHTML("SH")} <span>${goalObj.shotLabel}</span>` : `<span>${goalObj.shotLabel}</span>`}
+            <div style="font-size:0.68rem; color:${color}; display:flex; align-items:center; flex-wrap:wrap; gap:4px;">
+              ${goalObj.isHissatsu ? `${moveIconHTML("SH")} <span>${goalObj.shotLabel}</span>` : `<span>${goalObj.shotLabel}</span>`}${assistPart}
             </div>
           </div>
         </div>`
@@ -1237,6 +1240,7 @@
     pitch.challengerUid = null;
     pitch.ballFlight = null;
     pitch.holdBallPos = null;
+    pitch.lastAssistCandidate = null;
     pitch.ballX = 50;
     pitch.ballY = 50;
     pitch.passTrail = null;
@@ -1432,6 +1436,7 @@
       ballY: 50,
       ballFlight: null,
       holdBallPos: null,
+      lastAssistCandidate: null,
       justKickedOff: true,
       passTrail: null,
       floatBadge: null,
@@ -1447,9 +1452,39 @@
         userDribblesOk: 0,
         userDribblesTry: 0,
         userSteals: 0,
+        userBlocks: 0,
         userSaves: 0,
         userShots: 0,
-        oppShots: 0
+        oppShots: 0,
+        playerStats: (() => {
+          const map = {};
+          userNodes.forEach((n) => {
+            map[n.uid] = {
+              uid: n.uid,
+              slotId: n.slotId,
+              role: n.role,
+              id: n.player.id,
+              name: n.player.name,
+              fullName: n.player.fullName || n.player.name,
+              sprite: n.player.sprite,
+              element: n.player.element,
+              teamEmblem: n.player.teamEmblem,
+              teamName: n.player.teamName,
+              ovr: n.effOvr,
+              goals: 0,
+              assists: 0,
+              passesOk: 0,
+              passesTry: 0,
+              dribblesOk: 0,
+              dribblesTry: 0,
+              steals: 0,
+              blocks: 0,
+              shots: 0,
+              saves: 0
+            };
+          });
+          return map;
+        })()
       }
     };
     recomputePitchTargets(pitch);
@@ -1457,6 +1492,13 @@
       pinNodeToCoord(pitch, startNode, 50, 50, true);
     }
     return pitch;
+  }
+
+  function recordUserPlayerStat(pitch, node, field, amount = 1) {
+    if (!pitch?.stats?.playerStats || !node || node.side !== "user") return;
+    const entry = pitch.stats.playerStats[node.uid];
+    if (!entry) return;
+    entry[field] = (entry[field] || 0) + amount;
   }
 
   function findPitchNode(pitch, uid) {
@@ -2317,13 +2359,24 @@
 
         spendStamina(carrier, isSafeProtectedPass ? 2 : 6);
         if (!isSafeProtectedPass) spendStamina(interceptor, 4);
-        if (attIsUser) pitch.stats.userPassesTry++;
+        if (attIsUser) {
+          pitch.stats.userPassesTry++;
+          recordUserPlayerStat(pitch, carrier, "passesTry", 1);
+        }
 
         const startX = carrier.x;
         const startY = carrier.y;
 
         if (passSuccess) {
-          if (attIsUser) pitch.stats.userPassesOk++;
+          if (attIsUser) {
+            pitch.stats.userPassesOk++;
+            recordUserPlayerStat(pitch, carrier, "passesOk", 1);
+          }
+          pitch.lastAssistCandidate = {
+            passerUid: carrier.uid,
+            receiverUid: receiver.uid,
+            side: carrier.side
+          };
           pitch.carrierUid = receiver.uid;
           pitch.challengerUid = null;
           pitch.holdBallPos = null;
@@ -2379,12 +2432,16 @@
             pitch.carrierUid = interceptor.uid;
             pitch.challengerUid = null;
             pitch.holdBallPos = null;
+            pitch.lastAssistCandidate = null;
             pinNodeToCoord(pitch, interceptor, ix, iy, true);
             pitch.ballFlight = null;
             pitch.ballX = ix + (interceptor.side === "user" ? 2.2 : -2.2);
             pitch.ballY = iy + 1.2;
             showPitchBadge(pitch, ix, iy, `🛡️ ${stealMove}`, "badge-steal", 900);
-            if (!attIsUser) pitch.stats.userSteals++;
+            if (!attIsUser) {
+              pitch.stats.userSteals++;
+              recordUserPlayerStat(pitch, interceptor, "steals", 1);
+            }
             pitch.ticker = `${st.minute}' 🛡️ ${interceptor.player.name} interceptou passe de ${carrier.player.name}!`;
             prependNarrationLine(
               st,
@@ -2444,7 +2501,10 @@
 
         spendStamina(carrier, 11);
         spendStamina(marker, 9);
-        if (attIsUser) pitch.stats.userDribblesTry++;
+        if (attIsUser) {
+          pitch.stats.userDribblesTry++;
+          recordUserPlayerStat(pitch, carrier, "dribblesTry", 1);
+        }
 
         const ofMove = pickPlayerMove(carrier.player, "OF") || "Finta Veloz";
         const dfMove = pickPlayerMove(marker.player, "DF") || "Marcação Cerrada";
@@ -2462,7 +2522,19 @@
 
         const applyDribbleOutcome = () => {
           if (wonDribble) {
-            if (attIsUser) pitch.stats.userDribblesOk++;
+            if (attIsUser) {
+              pitch.stats.userDribblesOk++;
+              recordUserPlayerStat(pitch, carrier, "dribblesOk", 1);
+            }
+            if (
+              !(
+                pitch.lastAssistCandidate &&
+                pitch.lastAssistCandidate.side === carrier.side &&
+                pitch.lastAssistCandidate.receiverUid === carrier.uid
+              )
+            ) {
+              pitch.lastAssistCandidate = null;
+            }
             const newX = Math.max(12, Math.min(86, startX + (attIsUser ? 12 : -12)));
             const dodgeY = Math.max(14, Math.min(86, startY + (marker.y >= startY ? -6.5 : 6.5)));
             pitch.carrierUid = carrier.uid;
@@ -2498,13 +2570,17 @@
             pitch.carrierUid = marker.uid;
             pitch.challengerUid = null;
             pitch.holdBallPos = null;
+            pitch.lastAssistCandidate = null;
             pinNodeToCoord(pitch, marker, tackleX, tackleY, true);
             pitch.ballFlight = null;
             pitch.ballX = tackleX + (marker.side === "user" ? 2.2 : -2.2);
             pitch.ballY = tackleY + 1.2;
             pitch.passTrail = null;
             showPitchBadge(pitch, tackleX, tackleY, `🛡️ ${dfMove}`, "badge-steal", 900);
-            if (!attIsUser) pitch.stats.userSteals++;
+            if (!attIsUser) {
+              pitch.stats.userSteals++;
+              recordUserPlayerStat(pitch, marker, "steals", 1);
+            }
             pitch.ticker = `${st.minute}' 🛡️ ${marker.player.name} desarmou ${carrier.player.name}!`;
             prependNarrationLine(
               st,
@@ -2577,8 +2653,20 @@
 
       spendStamina(shooterNode, 14);
       spendStamina(defTarget, 11);
-      if (attIsUser) pitch.stats.userShots++;
-      else pitch.stats.oppShots++;
+      const shotAssistCandidate =
+        pitch.lastAssistCandidate &&
+        pitch.lastAssistCandidate.side === shooterNode.side &&
+        pitch.lastAssistCandidate.receiverUid === shooterNode.uid &&
+        pitch.lastAssistCandidate.passerUid !== shooterNode.uid
+          ? pitch.lastAssistCandidate
+          : null;
+      pitch.lastAssistCandidate = null;
+      if (attIsUser) {
+        pitch.stats.userShots++;
+        recordUserPlayerStat(pitch, shooterNode, "shots", 1);
+      } else {
+        pitch.stats.oppShots++;
+      }
 
       const shotInfo = buildGoalShotLabel(shooterNode.player);
       const defMoveName =
@@ -2635,12 +2723,21 @@
 
           if (attIsUser) {
             st.userScore++;
+            recordUserPlayerStat(pitch, shooterNode, "goals", 1);
+            const assistNode = shotAssistCandidate
+              ? findPitchNode(pitch, shotAssistCandidate.passerUid)
+              : null;
+            if (assistNode && assistNode.side === "user") {
+              recordUserPlayerStat(pitch, assistNode, "assists", 1);
+            }
+            const assistTag = assistNode ? ` (assist. de ${assistNode.player.name})` : "";
             const goalObj = {
               minute: st.minute,
               name: shooterNode.player.name,
               sprite: shooterNode.player.sprite,
               shotLabel: shotInfo.label,
-              isHissatsu: shotInfo.isHissatsu
+              isHissatsu: shotInfo.isHissatsu,
+              assistName: assistNode ? assistNode.player.name : null
             };
             st.goalsUser.push(goalObj);
             const scoreUserEl = document.getElementById("live-score-user");
@@ -2650,8 +2747,8 @@
               st,
               "nar-goal-user",
               shotInfo.isHissatsu
-                ? `⚽ ${st.minute}' GOOOL DO DREAM TEAM! ${shooterNode.player.name} disparou 【${shotInfo.label}】 e furou 【${defMoveName}】 de ${defTarget.player.name}! (${st.userScore} x ${st.oppScore})`
-                : `⚽ ${st.minute}' GOOOL DO DREAM TEAM! ${shooterNode.player.name} superou ${defTarget.player.name} com um ${shotInfo.label.toLowerCase()}! (${st.userScore} x ${st.oppScore})`,
+                ? `⚽ ${st.minute}' GOOOL DO DREAM TEAM! ${shooterNode.player.name} disparou 【${shotInfo.label}】${assistTag} e furou 【${defMoveName}】 de ${defTarget.player.name}! (${st.userScore} x ${st.oppScore})`
+                : `⚽ ${st.minute}' GOOOL DO DREAM TEAM! ${shooterNode.player.name} superou ${defTarget.player.name} com um ${shotInfo.label.toLowerCase()}${assistTag}! (${st.userScore} x ${st.oppScore})`,
               { name: shooterNode.player.name, sprite: shooterNode.player.sprite, side: "user" },
               { name: defTarget.player.name, sprite: defTarget.player.sprite, side: "opp" }
             );
@@ -2694,7 +2791,12 @@
           showPitchBadge(pitch, duelX, duelY, `🧤 ${defMoveName}`, "badge-steal", 1000);
 
           if (defCategory === "DF") {
-            if (!attIsUser) pitch.stats.userSteals++;
+            if (!attIsUser) {
+              pitch.stats.userSteals++;
+              pitch.stats.userBlocks = (pitch.stats.userBlocks || 0) + 1;
+              recordUserPlayerStat(pitch, defTarget, "blocks", 1);
+              recordUserPlayerStat(pitch, defTarget, "steals", 1);
+            }
             pitch.ticker = `${st.minute}' 🛡️ ${defTarget.player.name} bloqueou o chute de ${shooterNode.player.name}!`;
             prependNarrationLine(
               st,
@@ -2704,7 +2806,10 @@
               { name: shooterNode.player.name, sprite: shooterNode.player.sprite, side: shooterNode.side }
             );
           } else {
-            if (!attIsUser) pitch.stats.userSaves++;
+            if (!attIsUser) {
+              pitch.stats.userSaves++;
+              recordUserPlayerStat(pitch, defTarget, "saves", 1);
+            }
             pitch.ticker = `${st.minute}' 🧤 ${defTarget.player.name} defendeu o chute de ${shooterNode.player.name}!`;
             prependNarrationLine(
               st,
@@ -3021,6 +3126,925 @@
     renderDraftWheelAndRoster(false);
   }
 
+  function computeTournamentRunSummary(t = state.tournament) {
+    if (!t || !Array.isArray(t.stages)) return null;
+    const finishedStages = t.stages.filter((s, idx) => idx <= t.stageIndex && s.finished);
+    const currentStage = t.stages[t.stageIndex];
+    const isChampion = Boolean(currentStage && currentStage.finished && currentStage.won && t.stageIndex === 3);
+
+    const playerTotals = {};
+    getSlots().forEach((slot) => {
+      const p = state.squad[slot.id];
+      if (!p) return;
+      const uid = `u_${slot.id}`;
+      playerTotals[uid] = {
+        uid,
+        slotId: slot.id,
+        role: slot.role,
+        id: p.id,
+        name: p.name,
+        fullName: p.fullName || p.name,
+        sprite: p.sprite,
+        element: p.element,
+        teamEmblem: p.teamEmblem,
+        teamName: p.teamName,
+        ovr: getEffectiveOvr(p, slot.role),
+        matches: finishedStages.length,
+        goals: 0,
+        assists: 0,
+        passesOk: 0,
+        passesTry: 0,
+        dribblesOk: 0,
+        dribblesTry: 0,
+        steals: 0,
+        blocks: 0,
+        shots: 0,
+        saves: 0
+      };
+    });
+
+    let goalsFor = 0;
+    let goalsAgainst = 0;
+    let passesOk = 0;
+    let passesTry = 0;
+    let dribblesOk = 0;
+    let dribblesTry = 0;
+    let steals = 0;
+    let blocks = 0;
+    let saves = 0;
+    let shots = 0;
+    let oppShots = 0;
+    let userTicksSum = 0;
+    let totalTicksSum = 0;
+    let wins = 0;
+    let losses = 0;
+
+    const matchResults = [];
+
+    finishedStages.forEach((s) => {
+      goalsFor += s.userScore || 0;
+      goalsAgainst += s.oppScore || 0;
+      if (s.won) wins++;
+      else losses++;
+
+      const ps = s.pitch?.stats;
+      if (ps) {
+        passesOk += ps.userPassesOk || 0;
+        passesTry += ps.userPassesTry || 0;
+        dribblesOk += ps.userDribblesOk || 0;
+        dribblesTry += ps.userDribblesTry || 0;
+        steals += ps.userSteals || 0;
+        blocks += ps.userBlocks || 0;
+        saves += ps.userSaves || 0;
+        shots += ps.userShots || 0;
+        oppShots += ps.oppShots || 0;
+        userTicksSum += ps.userTicks || 0;
+        totalTicksSum += (ps.userTicks || 0) + (ps.oppTicks || 0);
+
+        if (ps.playerStats) {
+          Object.keys(ps.playerStats).forEach((uid) => {
+            const mp = ps.playerStats[uid];
+            if (!playerTotals[uid]) {
+              playerTotals[uid] = { ...mp, matches: finishedStages.length };
+            } else {
+              const target = playerTotals[uid];
+              target.goals += mp.goals || 0;
+              target.assists += mp.assists || 0;
+              target.passesOk += mp.passesOk || 0;
+              target.passesTry += mp.passesTry || 0;
+              target.dribblesOk += mp.dribblesOk || 0;
+              target.dribblesTry += mp.dribblesTry || 0;
+              target.steals += mp.steals || 0;
+              target.blocks += mp.blocks || 0;
+              target.shots += mp.shots || 0;
+              target.saves += mp.saves || 0;
+            }
+          });
+        }
+      }
+
+      matchResults.push({
+        stageName: s.stageName,
+        oppName: s.oppTeam?.name || "Adversário",
+        oppEmblem: s.oppTeam?.emblem || "",
+        userScore: s.userScore || 0,
+        oppScore: s.oppScore || 0,
+        won: Boolean(s.won),
+        penaltiesText: s.penaltiesText || null
+      });
+    });
+
+    const playersList = Object.values(playerTotals).map((p) => {
+      const mvpScore = +(
+        p.goals * 4.0 +
+        p.assists * 3.0 +
+        p.saves * 2.2 +
+        p.steals * 1.8 +
+        p.dribblesOk * 1.4 +
+        p.passesOk * 0.45
+      ).toFixed(1);
+      const passAcc = p.passesTry > 0 ? Math.round((p.passesOk / p.passesTry) * 100) : 0;
+      const dribbleAcc = p.dribblesTry > 0 ? Math.round((p.dribblesOk / p.dribblesTry) * 100) : 0;
+      return { ...p, mvpScore, passAcc, dribbleAcc };
+    });
+
+    const pickLeader = (list, sortFn) => {
+      if (!list.length) return null;
+      return list.slice().sort(sortFn)[0];
+    };
+
+    const topScorer = pickLeader(
+      playersList,
+      (a, b) => b.goals - a.goals || b.assists - a.assists || b.shots - a.shots || b.ovr - a.ovr
+    );
+    const topAssister = pickLeader(
+      playersList,
+      (a, b) => b.assists - a.assists || b.passesOk - a.passesOk || b.goals - a.goals || b.ovr - a.ovr
+    );
+    const topPasser = pickLeader(
+      playersList,
+      (a, b) => b.passesOk - a.passesOk || b.passAcc - a.passAcc || b.ovr - a.ovr
+    );
+    const topDribbler = pickLeader(
+      playersList,
+      (a, b) => b.dribblesOk - a.dribblesOk || b.dribblesTry - a.dribblesTry || b.ovr - a.ovr
+    );
+    const topStealer = pickLeader(
+      playersList,
+      (a, b) => b.steals - a.steals || b.blocks - a.blocks || b.ovr - a.ovr
+    );
+    const keepersPool = playersList.filter((p) => p.role === "GK" || p.saves > 0);
+    const topKeeper = pickLeader(
+      keepersPool.length ? keepersPool : playersList,
+      (a, b) => b.saves - a.saves || (b.role === "GK" ? 1 : 0) - (a.role === "GK" ? 1 : 0) || b.ovr - a.ovr
+    );
+    const mvp = pickLeader(
+      playersList,
+      (a, b) => b.mvpScore - a.mvpScore || b.goals - a.goals || b.assists - a.assists || b.ovr - a.ovr
+    );
+
+    const rosterSorted = playersList
+      .slice()
+      .sort((a, b) => b.mvpScore - a.mvpScore || b.goals - a.goals || b.passesOk - a.passesOk);
+
+    return {
+      isChampion,
+      stageName: currentStage?.stageName || "Torneio",
+      eliminatedBy: !isChampion && currentStage && !currentStage.won ? currentStage.oppTeam?.name || "" : "",
+      matchesPlayed: finishedStages.length,
+      wins,
+      losses,
+      goalsFor,
+      goalsAgainst,
+      goalDiff: goalsFor - goalsAgainst,
+      passesOk,
+      passesTry,
+      passAccuracyPct: passesTry > 0 ? Math.round((passesOk / passesTry) * 100) : 0,
+      dribblesOk,
+      dribblesTry,
+      dribbleAccuracyPct: dribblesTry > 0 ? Math.round((dribblesOk / dribblesTry) * 100) : 0,
+      steals,
+      blocks,
+      saves,
+      shots,
+      oppShots,
+      avgPossessionPct: totalTicksSum > 0 ? Math.round((userTicksSum / totalTicksSum) * 100) : 50,
+      topScorer,
+      topAssister,
+      topPasser,
+      topDribbler,
+      topStealer,
+      topKeeper,
+      mvp,
+      rosterSorted,
+      matchResults,
+      allStages: t.stages
+    };
+  }
+
+  function buildRunSummaryCardHTML(summary, stats, t) {
+    if (!summary) return "";
+    const rank = stats.power >= 1650 ? "S+" : stats.power >= 1450 ? "S" : stats.power >= 1250 ? "A" : "B";
+    const gamesWord = summary.matchesPlayed === 1 ? "jogo" : "jogos";
+    const statusTitle = summary.isChampion
+      ? "🏆 CAMPEÃO DO FUTEBOL FRONTEIRA!!"
+      : `💔 FIM DA RUN — ${summary.stageName.toUpperCase()}`;
+    const statusSub = summary.isChampion
+      ? `${summary.wins} vitória(s) em ${summary.matchesPlayed} ${gamesWord} • Poder ${stats.power.toLocaleString("pt-BR")} PTS (Rank ${rank})`
+      : `${summary.wins}V / ${summary.losses}D em ${summary.matchesPlayed} ${gamesWord} • Parou diante de ${summary.eliminatedBy || "Adversário"} • Poder ${stats.power.toLocaleString("pt-BR")} (Rank ${rank})`;
+
+    const renderAwardCard = (cls, tag, player, statMain, statSub) => {
+      if (!player) return "";
+      return `
+        <div class="run-award-card ${cls}">
+          <img class="run-award-avatar" src="${player.sprite || ""}" alt="${player.name}" />
+          <div class="run-award-info">
+            <div class="run-award-tag">${tag}</div>
+            <div class="run-award-player">${player.name} <span style="color:#93c5fd; font-size:0.7rem;">(${player.role})</span></div>
+            <div class="run-award-stat">${statMain}</div>
+            <div class="run-award-sub">${statSub}</div>
+          </div>
+        </div>
+      `;
+    };
+
+    const mvp = summary.mvp;
+    const goalDiffStr = summary.goalDiff >= 0 ? `+${summary.goalDiff}` : `${summary.goalDiff}`;
+    const actionButtons = summary.isChampion
+      ? `
+        <button class="ie-cmd-btn export-png-btn" id="btn-export-run-png"><span>📸 Exportar Imagem (PNG)</span></button>
+        <button class="ie-cmd-btn ie-cmd-green" id="btn-play-again-draft"><span>🔄 Novo Jogo</span></button>
+        <button class="ie-cmd-btn ie-cmd-gold" id="btn-rematch-cup"><span>Jogar Outro Torneio</span></button>
+      `
+      : `
+        <button class="ie-cmd-btn export-png-btn" id="btn-export-run-png"><span>📸 Exportar Imagem (PNG)</span></button>
+        <button class="ie-cmd-btn ie-cmd-gold" id="btn-retry-stage"><span>🔥 Revanche</span></button>
+        <button class="ie-cmd-btn ie-cmd-green" id="btn-new-draft-after-loss"><span>🔄 Novo Jogo</span></button>
+      `;
+
+    return `
+      <div class="run-summary-card ${summary.isChampion ? "is-champion" : ""}" id="run-summary-card">
+        <div class="run-summary-top">
+          <div>
+            <h3 style="font-size:1.15rem; font-weight:900; color:${summary.isChampion ? "#facc15" : "#fca5a5"};">
+              ${statusTitle}
+            </h3>
+            <div style="font-size:0.78rem; color:#cbd5e1; margin-top:2px;">
+              ${statusSub} • OVR ${stats.ovr} • Química ${stats.chem}%
+            </div>
+          </div>
+          <div class="run-summary-actions">
+            ${actionButtons}
+            <span class="export-png-status" id="export-png-status"></span>
+          </div>
+        </div>
+
+        <div class="run-team-totals-grid">
+          <div class="run-total-box">
+            <small>⚽ Gols Feitos</small>
+            <strong style="color:#4ade80;">${summary.goalsFor}</strong>
+            <span>Saldo ${goalDiffStr} (${summary.shots} chutes)</span>
+          </div>
+          <div class="run-total-box">
+            <small>🥅 Gols Levados</small>
+            <strong style="color:#f87171;">${summary.goalsAgainst}</strong>
+            <span>${summary.oppShots} chutes sofridos</span>
+          </div>
+          <div class="run-total-box">
+            <small>👟 Passes Corretos</small>
+            <strong style="color:#86efac;">${summary.passesOk}</strong>
+            <span>de ${summary.passesTry} (${summary.passAccuracyPct}%)</span>
+          </div>
+          <div class="run-total-box">
+            <small>🧤 Defesas (GOL)</small>
+            <strong style="color:#facc15;">${summary.saves}</strong>
+            <span>${summary.topKeeper ? summary.topKeeper.name : "Goleiro"}</span>
+          </div>
+          <div class="run-total-box">
+            <small>⚡ Dribles Certos</small>
+            <strong style="color:#c084fc;">${summary.dribblesOk}</strong>
+            <span>de ${summary.dribblesTry} (${summary.dribbleAccuracyPct}%)</span>
+          </div>
+          <div class="run-total-box">
+            <small>🛡️ Roubos de Bola</small>
+            <strong style="color:#38bdf8;">${summary.steals}</strong>
+            <span>Inclui ${summary.blocks} bloqueio(s)</span>
+          </div>
+          <div class="run-total-box">
+            <small>📊 Posse Média</small>
+            <strong style="color:#fed7aa;">${summary.avgPossessionPct}%</strong>
+            <span>${summary.matchesPlayed} partida(s)</span>
+          </div>
+        </div>
+
+        ${
+          mvp
+            ? `
+          <div class="run-mvp-banner">
+            <div class="run-mvp-left">
+              <img class="run-mvp-avatar" src="${mvp.sprite || ""}" alt="${mvp.name}" />
+              <div>
+                <div style="font-size:0.66rem; font-weight:900; color:#facc15; text-transform:uppercase; letter-spacing:0.5px;">
+                  🌟 Craque / MVP da Campanha
+                </div>
+                <div style="font-size:1rem; font-weight:900; color:#fff;">
+                  ${mvp.name} <span style="font-size:0.75rem; color:#fde047;">(${mvp.role} • OVR ${mvp.ovr})</span>
+                </div>
+                <div style="font-size:0.7rem; color:#e2e8f0;">${mvp.teamName || "Dream Team"} • Nota ${mvp.mvpScore}</div>
+              </div>
+            </div>
+            <div class="run-mvp-pills">
+              <span class="run-mvp-pill">⚽ ${mvp.goals}G</span>
+              <span class="run-mvp-pill">🎯 ${mvp.assists}A</span>
+              <span class="run-mvp-pill">👟 ${mvp.passesOk} PAS</span>
+              <span class="run-mvp-pill">⚡ ${mvp.dribblesOk} DRI</span>
+              <span class="run-mvp-pill">🛡️ ${mvp.steals} ROU</span>
+              ${mvp.saves > 0 ? `<span class="run-mvp-pill">🧤 ${mvp.saves} DEF</span>` : ""}
+            </div>
+          </div>
+        `
+            : ""
+        }
+
+        <div class="run-awards-grid">
+          ${renderAwardCard(
+            "award-goals",
+            "⚽ Artilheiro do Time",
+            summary.topScorer,
+            `${summary.topScorer?.goals || 0} gol(s)`,
+            `${summary.topScorer?.shots || 0} chutes • ${summary.topScorer?.assists || 0} assist.`
+          )}
+          ${renderAwardCard(
+            "award-assists",
+            "🎯 Mais Assistências",
+            summary.topAssister,
+            `${summary.topAssister?.assists || 0} assistência(s)`,
+            `${summary.topAssister?.passesOk || 0} passes • ${summary.topAssister?.goals || 0} gol(s)`
+          )}
+          ${renderAwardCard(
+            "award-passes",
+            "👟 Mais Passes Corretos",
+            summary.topPasser,
+            `${summary.topPasser?.passesOk || 0} passe(s) certo(s)`,
+            `de ${summary.topPasser?.passesTry || 0} tent. (${summary.topPasser?.passAcc || 0}%)`
+          )}
+          ${renderAwardCard(
+            "award-dribbles",
+            "⚡ Mais Dribles",
+            summary.topDribbler,
+            `${summary.topDribbler?.dribblesOk || 0} drible(s) certo(s)`,
+            `de ${summary.topDribbler?.dribblesTry || 0} tent. (${summary.topDribbler?.dribbleAcc || 0}%)`
+          )}
+          ${renderAwardCard(
+            "award-steals",
+            "🛡️ Mais Roubos de Bola",
+            summary.topStealer,
+            `${summary.topStealer?.steals || 0} roubo(s)`,
+            `Inclui ${summary.topStealer?.blocks || 0} bloqueio(s) defensivo(s)`
+          )}
+          ${renderAwardCard(
+            "award-saves",
+            "🧤 Paredão • Goleiro",
+            summary.topKeeper,
+            `${summary.topKeeper?.saves || 0} defesa(s)`,
+            `${summary.goalsAgainst} gol(s) sofrido(s) em ${summary.matchesPlayed} jogo(s)`
+          )}
+        </div>
+
+        <div class="run-roster-wrap">
+          <table class="run-roster-table">
+            <thead>
+              <tr>
+                <th>Jogador</th>
+                <th class="num">Pos</th>
+                <th class="num">Gols</th>
+                <th class="num">Assist</th>
+                <th class="num">Passes</th>
+                <th class="num">Dribles</th>
+                <th class="num">Roubos</th>
+                <th class="num">Defesas</th>
+                <th class="num">MVP</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${summary.rosterSorted
+                .map(
+                  (p) => `
+                <tr>
+                  <td style="display:flex; align-items:center; gap:6px; font-weight:800;">
+                    <img src="${p.sprite || ""}" alt="" style="width:22px; height:22px; border-radius:50%; object-fit:contain;" />
+                    <span>${p.name}</span>
+                  </td>
+                  <td class="num" style="color:#93c5fd; font-weight:800;">${p.role}</td>
+                  <td class="num" style="font-weight:900; color:${p.goals > 0 ? "#4ade80" : "#94a3b8"};">${p.goals}</td>
+                  <td class="num" style="font-weight:900; color:${p.assists > 0 ? "#38bdf8" : "#94a3b8"};">${p.assists}</td>
+                  <td class="num">${p.passesOk}/${p.passesTry}</td>
+                  <td class="num">${p.dribblesOk}/${p.dribblesTry}</td>
+                  <td class="num" style="color:${p.steals > 0 ? "#22d3ee" : "#94a3b8"}; font-weight:800;">${p.steals}</td>
+                  <td class="num" style="color:${p.saves > 0 ? "#facc15" : "#94a3b8"}; font-weight:800;">${p.saves}</td>
+                  <td class="num" style="color:#fde047; font-weight:900;">${p.mvpScore}</td>
+                </tr>
+              `
+                )
+                .join("")}
+            </tbody>
+          </table>
+        </div>
+
+        <div id="run-export-preview-slot"></div>
+      </div>
+    `;
+  }
+
+  function loadCanvasImageSafe(src) {
+    return new Promise((resolve) => {
+      if (!src) {
+        resolve(null);
+        return;
+      }
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => resolve(null);
+      img.src = src;
+    });
+  }
+
+  function fillRoundRect(ctx, x, y, w, h, r) {
+    const rr = Math.min(r, w / 2, h / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + rr, y);
+    ctx.lineTo(x + w - rr, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + rr);
+    ctx.lineTo(x + w, y + h - rr);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - rr, y + h);
+    ctx.lineTo(x + rr, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - rr);
+    ctx.lineTo(x, y + rr);
+    ctx.quadraticCurveTo(x, y, x + rr, y);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  function strokeRoundRect(ctx, x, y, w, h, r) {
+    const rr = Math.min(r, w / 2, h / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + rr, y);
+    ctx.lineTo(x + w - rr, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + rr);
+    ctx.lineTo(x + w, y + h - rr);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - rr, y + h);
+    ctx.lineTo(x + rr, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - rr);
+    ctx.lineTo(x, y + rr);
+    ctx.quadraticCurveTo(x, y, x + rr, y);
+    ctx.closePath();
+    ctx.stroke();
+  }
+
+  function drawClippedText(ctx, text, x, y, maxW) {
+    let out = String(text || "");
+    if (ctx.measureText(out).width <= maxW) {
+      ctx.fillText(out, x, y);
+      return;
+    }
+    while (out.length > 1 && ctx.measureText(out + "...").width > maxW) {
+      out = out.slice(0, -1);
+    }
+    ctx.fillText(out + "...", x, y);
+  }
+
+  function drawCircularAvatar(ctx, img, cx, cy, radius, borderColor, bgFill) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+    ctx.fillStyle = bgFill || "#0b1a3d";
+    ctx.fill();
+    ctx.clip();
+    if (img) {
+      ctx.drawImage(img, cx - radius * 0.92, cy - radius * 0.92, radius * 1.84, radius * 1.84);
+    }
+    ctx.restore();
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+    ctx.strokeStyle = borderColor || "#facc15";
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  async function exportRunSummaryImage(summary, stats, t) {
+    const statusEl = document.getElementById("export-png-status");
+    const previewSlot = document.getElementById("run-export-preview-slot");
+    if (statusEl) statusEl.textContent = "⏳ Gerando imagem...";
+
+    const imgCache = new Map();
+    const urls = new Set();
+    if (UI.raimonEmblem) urls.add(UI.raimonEmblem);
+    [
+      summary.mvp,
+      summary.topScorer,
+      summary.topAssister,
+      summary.topPasser,
+      summary.topDribbler,
+      summary.topStealer,
+      summary.topKeeper,
+      ...(summary.rosterSorted || [])
+    ].forEach((p) => {
+      if (p?.sprite) urls.add(p.sprite);
+    });
+    (summary.allStages || []).forEach((s) => {
+      if (s?.oppTeam?.emblem) urls.add(s.oppTeam.emblem);
+    });
+
+    await Promise.all(
+      Array.from(urls).map(async (u) => {
+        imgCache.set(u, await loadCanvasImageSafe(u));
+      })
+    );
+
+    const W = 1200;
+    const H = 1480;
+    const canvas = document.createElement("canvas");
+    canvas.width = W;
+    canvas.height = H;
+    const ctx = canvas.getContext("2d");
+    const fontFamily = "'Segoe UI', Roboto, Arial, sans-serif";
+
+    // Fundo gradiente Inazuma
+    const bgGrad = ctx.createLinearGradient(0, 0, 0, H);
+    bgGrad.addColorStop(0, "#051029");
+    bgGrad.addColorStop(0.45, "#0b2052");
+    bgGrad.addColorStop(1, "#040b1d");
+    ctx.fillStyle = bgGrad;
+    ctx.fillRect(0, 0, W, H);
+
+    // Linhas sutis diagonais de energia
+    ctx.save();
+    ctx.strokeStyle = "rgba(56, 189, 248, 0.06)";
+    ctx.lineWidth = 36;
+    for (let x = -300; x < W + 300; x += 180) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x - 320, H);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    // Moldura externa
+    ctx.strokeStyle = summary.isChampion ? "rgba(250, 204, 21, 0.72)" : "rgba(56, 189, 248, 0.5)";
+    ctx.lineWidth = 4;
+    strokeRoundRect(ctx, 14, 14, W - 28, H - 28, 20);
+
+    // HEADER CARD (y: 28..168)
+    ctx.fillStyle = "rgba(6, 17, 44, 0.9)";
+    fillRoundRect(ctx, 32, 28, W - 64, 140, 16);
+    ctx.strokeStyle = summary.isChampion ? "#facc15" : "#38bdf8";
+    ctx.lineWidth = 2;
+    strokeRoundRect(ctx, 32, 28, W - 64, 140, 16);
+
+    const emblemImg = UI.raimonEmblem ? imgCache.get(UI.raimonEmblem) : null;
+    if (emblemImg) {
+      ctx.drawImage(emblemImg, 54, 48, 96, 96);
+    }
+
+    ctx.textBaseline = "top";
+    ctx.fillStyle = "#93c5fd";
+    ctx.font = `900 18px ${fontFamily}`;
+    ctx.fillText("INAZUMA ELEVEN • DREAM TEAM • FUTEBOL FRONTEIRA", 170, 44);
+
+    const gamesWord = summary.matchesPlayed === 1 ? "jogo" : "jogos";
+    ctx.fillStyle = summary.isChampion ? "#facc15" : "#fca5a5";
+    ctx.font = `900 30px ${fontFamily}`;
+    drawClippedText(
+      ctx,
+      summary.isChampion ? "CAMPEÃO DO FUTEBOL FRONTEIRA!" : `FIM DA RUN — ${summary.stageName.toUpperCase()}`,
+      170,
+      76,
+      748
+    );
+
+    const rank = stats.power >= 1650 ? "S+" : stats.power >= 1450 ? "S" : stats.power >= 1250 ? "A" : "B";
+    ctx.fillStyle = "#e2e8f0";
+    ctx.font = `700 19px ${fontFamily}`;
+    drawClippedText(
+      ctx,
+      `${summary.wins}V / ${summary.losses}D em ${summary.matchesPlayed} ${gamesWord} • OVR ${stats.ovr} • Química ${stats.chem}% • Laços +${stats.bondsPower}`,
+      170,
+      122,
+      748
+    );
+
+    // Pill de Rank / Poder no canto direito do Header
+    ctx.fillStyle = "rgba(250, 204, 21, 0.16)";
+    fillRoundRect(ctx, 940, 44, 206, 108, 14);
+    ctx.strokeStyle = "#facc15";
+    ctx.lineWidth = 2;
+    strokeRoundRect(ctx, 940, 44, 206, 108, 14);
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#fde047";
+    ctx.font = `900 15px ${fontFamily}`;
+    ctx.fillText("PODER FINAL", 1043, 56);
+    ctx.fillStyle = "#ffffff";
+    ctx.font = `900 32px ${fontFamily}`;
+    ctx.fillText(stats.power.toLocaleString("pt-BR"), 1043, 80);
+    ctx.fillStyle = "#facc15";
+    ctx.font = `900 18px ${fontFamily}`;
+    ctx.fillText(`RANK ${rank}`, 1043, 120);
+    ctx.textAlign = "left";
+
+    // TEAM TOTALS STRIP (y: 184..288)
+    const totals = [
+      { label: "GOLS FEITOS", val: String(summary.goalsFor), sub: `Saldo ${summary.goalDiff >= 0 ? "+" : ""}${summary.goalDiff}`, color: "#4ade80" },
+      { label: "GOLS LEVADOS", val: String(summary.goalsAgainst), sub: `${summary.oppShots} chutes adv.`, color: "#f87171" },
+      { label: "PASSES CERTOS", val: String(summary.passesOk), sub: `${summary.passesOk}/${summary.passesTry} (${summary.passAccuracyPct}%)`, color: "#86efac" },
+      { label: "DEFESAS GOL", val: String(summary.saves), sub: summary.topKeeper?.name || "Goleiro", color: "#facc15" },
+      { label: "DRIBLES CERTOS", val: String(summary.dribblesOk), sub: `${summary.dribblesOk}/${summary.dribblesTry} (${summary.dribbleAccuracyPct}%)`, color: "#c084fc" },
+      { label: "ROUBOS DE BOLA", val: String(summary.steals), sub: `${summary.blocks} bloqueio(s)`, color: "#38bdf8" },
+      { label: "POSSE / CHUTES", val: `${summary.avgPossessionPct}%`, sub: `${summary.shots} chutes totais`, color: "#fed7aa" }
+    ];
+    const boxGap = 10;
+    const boxW = (W - 64 - boxGap * (totals.length - 1)) / totals.length;
+    totals.forEach((item, i) => {
+      const bx = 32 + i * (boxW + boxGap);
+      ctx.fillStyle = "rgba(13, 28, 66, 0.92)";
+      fillRoundRect(ctx, bx, 184, boxW, 102, 12);
+      ctx.strokeStyle = "rgba(148, 163, 184, 0.35)";
+      ctx.lineWidth = 1.5;
+      strokeRoundRect(ctx, bx, 184, boxW, 102, 12);
+
+      ctx.textAlign = "center";
+      ctx.fillStyle = "#93c5fd";
+      ctx.font = `900 12px ${fontFamily}`;
+      ctx.fillText(item.label, bx + boxW / 2, 196);
+      ctx.fillStyle = item.color;
+      ctx.font = `900 32px ${fontFamily}`;
+      ctx.fillText(item.val, bx + boxW / 2, 218);
+      ctx.fillStyle = "#cbd5e1";
+      ctx.font = `700 12px ${fontFamily}`;
+      drawClippedText(ctx, item.sub, bx + boxW / 2, 260, boxW - 10);
+    });
+    ctx.textAlign = "left";
+
+    // MVP BANNER (y: 302..410)
+    ctx.fillStyle = "rgba(250, 204, 21, 0.13)";
+    fillRoundRect(ctx, 32, 302, W - 64, 108, 14);
+    ctx.strokeStyle = "rgba(250, 204, 21, 0.78)";
+    ctx.lineWidth = 2;
+    strokeRoundRect(ctx, 32, 302, W - 64, 108, 14);
+
+    if (summary.mvp) {
+      const m = summary.mvp;
+      drawCircularAvatar(ctx, imgCache.get(m.sprite), 96, 356, 38, "#facc15", "#09183b");
+      ctx.fillStyle = "#facc15";
+      ctx.font = `900 15px ${fontFamily}`;
+      ctx.fillText("CRAQUE / MVP DA CAMPANHA", 150, 318);
+      ctx.fillStyle = "#ffffff";
+      ctx.font = `900 28px ${fontFamily}`;
+      drawClippedText(ctx, `${m.name} (${m.role} • OVR ${m.ovr})`, 150, 342, 430);
+      ctx.fillStyle = "#cbd5e1";
+      ctx.font = `700 16px ${fontFamily}`;
+      ctx.fillText(`${m.teamName || "Dream Team"} • Nota ${m.mvpScore}`, 150, 378);
+
+      const pills = [
+        `${m.goals} Gols`,
+        `${m.assists} Assist`,
+        `${m.passesOk} Passes`,
+        `${m.dribblesOk} Dribles`,
+        `${m.steals} Roubos`,
+        `${m.saves} Defesas`
+      ];
+      pills.forEach((txt, idx) => {
+        const px = 605 + (idx % 3) * 182;
+        const py = 318 + Math.floor(idx / 3) * 40;
+        ctx.fillStyle = "rgba(7, 15, 38, 0.9)";
+        fillRoundRect(ctx, px, py, 170, 32, 16);
+        ctx.strokeStyle = "rgba(250, 204, 21, 0.45)";
+        ctx.lineWidth = 1.2;
+        strokeRoundRect(ctx, px, py, 170, 32, 16);
+        ctx.textAlign = "center";
+        ctx.fillStyle = "#fef08a";
+        ctx.font = `900 15px ${fontFamily}`;
+        ctx.fillText(txt, px + 85, py + 8);
+      });
+      ctx.textAlign = "left";
+    }
+
+    // 6 INDIVIDUAL AWARD CARDS (y: 428..792) - 3 cols x 2 rows
+    const awards = [
+      {
+        title: "ARTILHEIRO DO TIME",
+        accent: "#f97316",
+        p: summary.topScorer,
+        main: `${summary.topScorer?.goals || 0} GOL(S)`,
+        sub: `${summary.topScorer?.shots || 0} chutes • ${summary.topScorer?.assists || 0} assist.`
+      },
+      {
+        title: "MAIS ASSISTÊNCIAS",
+        accent: "#38bdf8",
+        p: summary.topAssister,
+        main: `${summary.topAssister?.assists || 0} ASSISTÊNCIA(S)`,
+        sub: `${summary.topAssister?.passesOk || 0} passes • ${summary.topAssister?.goals || 0} gol(s)`
+      },
+      {
+        title: "MAIS PASSES CORRETOS",
+        accent: "#4ade80",
+        p: summary.topPasser,
+        main: `${summary.topPasser?.passesOk || 0} PASSES CERTOS`,
+        sub: `${summary.topPasser?.passesOk || 0}/${summary.topPasser?.passesTry || 0} (${summary.topPasser?.passAcc || 0}% acerto)`
+      },
+      {
+        title: "MAIS DRIBLES",
+        accent: "#c084fc",
+        p: summary.topDribbler,
+        main: `${summary.topDribbler?.dribblesOk || 0} DRIBLE(S)`,
+        sub: `${summary.topDribbler?.dribblesOk || 0}/${summary.topDribbler?.dribblesTry || 0} (${summary.topDribbler?.dribbleAcc || 0}% acerto)`
+      },
+      {
+        title: "MAIS ROUBOS DE BOLA",
+        accent: "#22d3ee",
+        p: summary.topStealer,
+        main: `${summary.topStealer?.steals || 0} ROUBO(S)`,
+        sub: `Inclui ${summary.topStealer?.blocks || 0} bloqueio(s) defensivo(s)`
+      },
+      {
+        title: "PAREDÃO • GOLEIRO",
+        accent: "#facc15",
+        p: summary.topKeeper,
+        main: `${summary.topKeeper?.saves || 0} DEFESA(S)`,
+        sub: `${summary.goalsAgainst} gol(s) levado(s) em ${summary.matchesPlayed} jogo(s)`
+      }
+    ];
+
+    const awGap = 16;
+    const awW = (W - 64 - awGap * 2) / 3;
+    const awH = 172;
+    awards.forEach((aw, idx) => {
+      const col = idx % 3;
+      const row = Math.floor(idx / 3);
+      const ax = 32 + col * (awW + awGap);
+      const ay = 428 + row * (awH + 16);
+
+      ctx.fillStyle = "rgba(10, 23, 56, 0.94)";
+      fillRoundRect(ctx, ax, ay, awW, awH, 14);
+      ctx.strokeStyle = "rgba(148, 163, 184, 0.32)";
+      ctx.lineWidth = 1.5;
+      strokeRoundRect(ctx, ax, ay, awW, awH, 14);
+
+      ctx.fillStyle = aw.accent;
+      fillRoundRect(ctx, ax, ay, 8, awH, 4);
+
+      if (aw.p) {
+        drawCircularAvatar(ctx, imgCache.get(aw.p.sprite), ax + 64, ay + 88, 38, aw.accent, "#081433");
+        ctx.fillStyle = "#93c5fd";
+        ctx.font = `900 13px ${fontFamily}`;
+        ctx.fillText(aw.title, ax + 116, ay + 20);
+
+        ctx.fillStyle = "#ffffff";
+        ctx.font = `900 22px ${fontFamily}`;
+        drawClippedText(ctx, `${aw.p.name} (${aw.p.role})`, ax + 116, ay + 46, awW - 130);
+
+        ctx.fillStyle = aw.accent;
+        ctx.font = `900 26px ${fontFamily}`;
+        ctx.fillText(aw.main, ax + 116, ay + 84);
+
+        ctx.fillStyle = "#cbd5e1";
+        ctx.font = `700 14px ${fontFamily}`;
+        drawClippedText(ctx, aw.sub, ax + 116, ay + 124, awW - 130);
+      }
+    });
+
+    // STAGE BRACKET RESULTS (y: 806..930)
+    ctx.fillStyle = "#93c5fd";
+    ctx.font = `900 16px ${fontFamily}`;
+    ctx.fillText("CAMPANHA JOGO A JOGO", 32, 792);
+
+    const stGap = 14;
+    const stW = (W - 64 - stGap * 3) / 4;
+    (summary.allStages || []).forEach((s, idx) => {
+      const sx = 32 + idx * (stW + stGap);
+      const sy = 818;
+      const reached = idx <= t.stageIndex && s.finished;
+      ctx.fillStyle = reached
+        ? s.won
+          ? "rgba(20, 83, 45, 0.55)"
+          : "rgba(127, 29, 29, 0.55)"
+        : "rgba(15, 23, 42, 0.65)";
+      fillRoundRect(ctx, sx, sy, stW, 108, 12);
+      ctx.strokeStyle = reached ? (s.won ? "#4ade80" : "#f87171") : "rgba(148, 163, 184, 0.25)";
+      ctx.lineWidth = 1.5;
+      strokeRoundRect(ctx, sx, sy, stW, 108, 12);
+
+      const oppEmb = s.oppTeam?.emblem ? imgCache.get(s.oppTeam.emblem) : null;
+      if (oppEmb && idx <= t.stageIndex) {
+        ctx.drawImage(oppEmb, sx + 14, sy + 32, 46, 46);
+      }
+
+      ctx.fillStyle = "#93c5fd";
+      ctx.font = `900 12px ${fontFamily}`;
+      ctx.fillText((s.stageName || "").toUpperCase(), sx + 70, sy + 16);
+
+      ctx.fillStyle = "#ffffff";
+      ctx.font = `800 16px ${fontFamily}`;
+      drawClippedText(ctx, idx <= t.stageIndex ? s.oppTeam?.name || "Adversário" : "Não enfrentado", sx + 70, sy + 38, stW - 82);
+
+      ctx.fillStyle = reached ? (s.won ? "#4ade80" : "#f87171") : "#64748b";
+      ctx.font = `900 22px ${fontFamily}`;
+      ctx.fillText(
+        reached ? `${s.userScore} x ${s.oppScore} ${s.won ? "VITÓRIA" : "DERROTA"}` : "—",
+        sx + 70,
+        sy + 68
+      );
+    });
+
+    // ROSTER TABLE (y: 944..1416)
+    ctx.fillStyle = "#93c5fd";
+    ctx.font = `900 16px ${fontFamily}`;
+    ctx.fillText("DESEMPENHO COMPLETO DO ELENCO NA RUN", 32, 944);
+
+    const tblY = 970;
+    ctx.fillStyle = "rgba(8, 19, 46, 0.94)";
+    fillRoundRect(ctx, 32, tblY, W - 64, 442, 12);
+    ctx.strokeStyle = "rgba(148, 163, 184, 0.3)";
+    ctx.lineWidth = 1.5;
+    strokeRoundRect(ctx, 32, tblY, W - 64, 442, 12);
+
+    ctx.fillStyle = "rgba(15, 36, 82, 0.95)";
+    fillRoundRect(ctx, 32, tblY, W - 64, 38, 12);
+
+    const cols = [
+      { label: "JOGADOR", x: 56, align: "left" },
+      { label: "POS", x: 380, align: "center" },
+      { label: "OVR", x: 455, align: "center" },
+      { label: "GOLS", x: 540, align: "center" },
+      { label: "ASSIST", x: 630, align: "center" },
+      { label: "PASSES", x: 745, align: "center" },
+      { label: "DRIBLES", x: 865, align: "center" },
+      { label: "ROUBOS", x: 970, align: "center" },
+      { label: "DEFESAS", x: 1060, align: "center" },
+      { label: "MVP", x: 1135, align: "center" }
+    ];
+    ctx.fillStyle = "#93c5fd";
+    ctx.font = `900 13px ${fontFamily}`;
+    cols.forEach((c) => {
+      ctx.textAlign = c.align;
+      ctx.fillText(c.label, c.x, tblY + 12);
+    });
+
+    const rows = (summary.rosterSorted || []).slice(0, 11);
+    rows.forEach((p, idx) => {
+      const ry = tblY + 42 + idx * 36;
+      if (idx % 2 === 1) {
+        ctx.fillStyle = "rgba(255, 255, 255, 0.03)";
+        ctx.fillRect(34, ry, W - 68, 34);
+      }
+      const spImg = p.sprite ? imgCache.get(p.sprite) : null;
+      if (spImg) {
+        ctx.drawImage(spImg, 50, ry + 4, 26, 26);
+      }
+      ctx.textAlign = "left";
+      ctx.fillStyle = "#ffffff";
+      ctx.font = `800 16px ${fontFamily}`;
+      drawClippedText(ctx, p.name, 84, ry + 8, 250);
+
+      ctx.textAlign = "center";
+      ctx.fillStyle = "#93c5fd";
+      ctx.font = `800 15px ${fontFamily}`;
+      ctx.fillText(p.role, 380, ry + 9);
+      ctx.fillStyle = "#cbd5e1";
+      ctx.fillText(String(p.ovr), 455, ry + 9);
+      ctx.fillStyle = p.goals > 0 ? "#4ade80" : "#64748b";
+      ctx.font = `900 16px ${fontFamily}`;
+      ctx.fillText(String(p.goals), 540, ry + 9);
+      ctx.fillStyle = p.assists > 0 ? "#38bdf8" : "#64748b";
+      ctx.fillText(String(p.assists), 630, ry + 9);
+      ctx.fillStyle = "#e2e8f0";
+      ctx.font = `700 15px ${fontFamily}`;
+      ctx.fillText(`${p.passesOk}/${p.passesTry}`, 745, ry + 9);
+      ctx.fillText(`${p.dribblesOk}/${p.dribblesTry}`, 865, ry + 9);
+      ctx.fillStyle = p.steals > 0 ? "#22d3ee" : "#64748b";
+      ctx.font = `900 16px ${fontFamily}`;
+      ctx.fillText(String(p.steals), 970, ry + 9);
+      ctx.fillStyle = p.saves > 0 ? "#facc15" : "#64748b";
+      ctx.fillText(String(p.saves), 1060, ry + 9);
+      ctx.fillStyle = "#fde047";
+      ctx.fillText(String(p.mvpScore), 1135, ry + 9);
+    });
+    ctx.textAlign = "left";
+
+    // Rodapé
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#64748b";
+    ctx.font = `700 14px ${fontFamily}`;
+    ctx.fillText("Inazuma Eleven Dream Team • Resumo Oficial da Campanha no Futebol Fronteira", W / 2, 1434);
+    ctx.textAlign = "left";
+
+    const dataUrl = canvas.toDataURL("image/png");
+    const fileName = summary.isChampion
+      ? "inazuma-dream-team-campeao.png"
+      : "inazuma-dream-team-resumo-run.png";
+
+    const link = document.createElement("a");
+    link.href = dataUrl;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+
+    if (statusEl) statusEl.textContent = `✅ Imagem "${fileName}" exportada!`;
+    if (previewSlot) {
+      previewSlot.innerHTML = `
+        <div class="run-export-preview">
+          <div style="font-size:0.74rem; color:#bae6fd; font-weight:800;">
+            🖼️ Prévia da Imagem Exportada (${W}x${H}px)
+          </div>
+          <img src="${dataUrl}" alt="Resumo da Campanha Dream Team" />
+        </div>
+      `;
+    }
+    return dataUrl;
+  }
+
   // TELA 3: TORNEIO FUTEBOL FRONTEIRA
   function renderTournamentScreen() {
     const container = document.getElementById("main-screen-container");
@@ -3069,28 +4093,12 @@
     const pct = Math.min(100, Math.round((st.minute / st.maxMinute) * 100));
 
     let footerActions = "";
+    let runSummaryObj = null;
     if (st.finished) {
-      if (st.won && t.stageIndex === 3) {
-        const rank = stats.power >= 1650 ? "S+" : stats.power >= 1450 ? "S" : stats.power >= 1250 ? "A" : "B";
-        footerActions = `
-          <div class="go-ready-banner" style="margin-top:8px;">
-            <div style="font-size:2.2rem;">🏆⚡</div>
-            <h3 style="font-size:1.35rem; font-weight:900; color:#facc15;">
-              CAMPEÃO DO FUTEBOL FRONTEIRA!!
-            </h3>
-            <div style="font-size:1rem; font-weight:900; color:#fed7aa; margin-top:4px;">
-              PONTUAÇÃO FINAL: ${stats.power.toLocaleString("pt-BR")} PTS (RANK ${rank})
-            </div>
-            <p style="font-size:0.82rem; color:#e2e8f0; margin:6px 0 12px;">
-              OVR ${stats.ovr} • Química ${stats.chem}% • Laços & Sinergias (+${stats.bondsPower} Poder)
-            </p>
-            <div style="display:flex; justify-content:center; gap:10px; flex-wrap:wrap;">
-              <button class="ie-cmd-btn ie-cmd-green" id="btn-play-again-draft"><span>🔄 Novo Jogo</span></button>
-              <button class="ie-cmd-btn ie-cmd-gold" id="btn-rematch-cup"><span>Jogar Outro Torneio</span></button>
-            </div>
-          </div>
-        `;
-      } else if (st.won) {
+      if ((st.won && t.stageIndex === 3) || !st.won) {
+        runSummaryObj = computeTournamentRunSummary(t);
+        footerActions = buildRunSummaryCardHTML(runSummaryObj, stats, t);
+      } else {
         const nextStage = t.stages[t.stageIndex + 1];
         footerActions = `
           <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(34,197,94,0.14); border:1.5px solid #22c55e; padding:12px 16px; border-radius:12px; flex-wrap:wrap; gap:10px;">
@@ -3101,19 +4109,6 @@
             <button class="ie-cmd-btn ie-cmd-green" id="btn-next-round" style="padding:10px 18px;">
               <span>⏩ Ir para ${nextStage.stageName} →</span>
             </button>
-          </div>
-        `;
-      } else {
-        footerActions = `
-          <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(239,68,68,0.14); border:1.5px solid #ef4444; padding:12px 16px; border-radius:12px; flex-wrap:wrap; gap:10px;">
-            <div>
-              <strong style="color:#f87171; font-size:0.92rem;">💔 Eliminado na ${st.stageName} pelo ${st.oppTeam.name}!</strong>
-              <div style="font-size:0.76rem; color:#cbd5e1;">Tente a revanche ou comece um novo jogo!</div>
-            </div>
-            <div style="display:flex; gap:8px;">
-              <button class="ie-cmd-btn ie-cmd-gold" id="btn-retry-stage"><span>🔥 Revanche</span></button>
-              <button class="ie-cmd-btn ie-cmd-green" id="btn-new-draft-after-loss"><span>🔄 Novo Jogo</span></button>
-            </div>
           </div>
         `;
       }
@@ -3201,8 +4196,8 @@
                     <img src="${g.sprite}" alt="" />
                     <div>
                       <div style="font-weight:800; color:#fff;">${g.minute}' ${g.name}</div>
-                      <div style="font-size:0.68rem; color:${g.isHissatsu ? "#86efac" : "#cbd5e1"}; display:flex; align-items:center; gap:4px;">
-                        ${g.isHissatsu ? `${moveIconHTML("SH")} <span>${g.shotLabel}</span>` : `<span>${g.shotLabel}</span>`}
+                      <div style="font-size:0.68rem; color:${g.isHissatsu ? "#86efac" : "#cbd5e1"}; display:flex; align-items:center; flex-wrap:wrap; gap:4px;">
+                        ${g.isHissatsu ? `${moveIconHTML("SH")} <span>${g.shotLabel}</span>` : `<span>${g.shotLabel}</span>`}${g.assistName ? `<span style="color:#93c5fd; margin-left:4px;">• 🎯 Assist: ${g.assistName}</span>` : ""}
                       </div>
                     </div>
                   </div>
@@ -3304,6 +4299,13 @@
     const rematchCup = document.getElementById("btn-rematch-cup");
     if (rematchCup) {
       rematchCup.addEventListener("click", () => startTournamentGo());
+    }
+
+    const exportPngBtn = document.getElementById("btn-export-run-png");
+    if (exportPngBtn && runSummaryObj) {
+      exportPngBtn.addEventListener("click", () => {
+        exportRunSummaryImage(runSummaryObj, stats, t);
+      });
     }
   }
 
