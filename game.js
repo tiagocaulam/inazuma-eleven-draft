@@ -258,13 +258,43 @@
     return getSlots().filter((s) => !state.squad[s.id]);
   }
 
+  function getPlayerPositionsList(player) {
+    if (!player) return [];
+    const list = [player.pos];
+    if (Array.isArray(player.altPositions)) {
+      player.altPositions.forEach((r) => {
+        if (r && !list.includes(r)) list.push(r);
+      });
+    }
+    return list;
+  }
+
+  function playerMatchesRole(player, role) {
+    return Boolean(player && role && getPlayerPositionsList(player).includes(role));
+  }
+
+  function getPlayerFormSprite(player, roleOrMode) {
+    if (!player) return "";
+    const fs = player.formSprites;
+    if (fs) {
+      if (roleOrMode && fs[roleOrMode]) return fs[roleOrMode];
+      if ((roleOrMode === "MF" || roleOrMode === "FW" || roleOrMode === "DF") && fs.FIELD) {
+        return fs.FIELD;
+      }
+    }
+    return player.sprite || "";
+  }
+
   function getEffectiveOvr(player, slotRole) {
     if (!player) return 0;
-    if (player.pos === slotRole) return player.ovr;
-    const adj =
-      (player.pos === "DF" && slotRole === "MF") ||
-      (player.pos === "MF" && (slotRole === "DF" || slotRole === "FW")) ||
-      (player.pos === "FW" && slotRole === "MF");
+    if (playerMatchesRole(player, slotRole)) return player.ovr;
+    const validPos = getPlayerPositionsList(player);
+    const adj = validPos.some(
+      (pos) =>
+        (pos === "DF" && slotRole === "MF") ||
+        (pos === "MF" && (slotRole === "DF" || slotRole === "FW")) ||
+        (pos === "FW" && slotRole === "MF")
+    );
     return Math.max(45, player.ovr - (adj ? 6 : 14));
   }
 
@@ -352,9 +382,9 @@
       const adjP = isOpponent
         ? { ...p, ovr: Math.min(99, Math.max(58, Math.round(p.ovr + ovrAdjust))) }
         : p;
-      if (adjP.pos === s.role) correctPosCount++;
+      if (playerMatchesRole(adjP, s.role)) correctPosCount++;
       const eff = isOpponent
-        ? Math.max(55, adjP.ovr - (adjP.pos === s.role ? 0 : 4))
+        ? Math.max(55, adjP.ovr - (playerMatchesRole(adjP, s.role) ? 0 : 4))
         : getEffectiveOvr(adjP, s.role);
       sumOvr += eff;
       sumBasePwr += calcPlayerPowerContribution(eff);
@@ -604,7 +634,10 @@
       const assignments = {};
       let correct = 0;
       const pickByRole = (role) => {
-        const idx = raw.findIndex((p) => !usedIds.has(p.id) && p.pos === role);
+        let idx = raw.findIndex((p) => !usedIds.has(p.id) && p.pos === role);
+        if (idx < 0) {
+          idx = raw.findIndex((p) => !usedIds.has(p.id) && playerMatchesRole(p, role));
+        }
         if (idx >= 0) {
           usedIds.add(raw[idx].id);
           return raw[idx];
@@ -619,7 +652,7 @@
       formSlots.forEach((slot) => {
         const chosen = pickByRole(slot.role);
         assignments[slot.id] = chosen;
-        if (chosen && chosen.pos === slot.role) correct++;
+        if (chosen && playerMatchesRole(chosen, slot.role)) correct++;
       });
       if (!best || correct > best.correct) {
         best = { formSlots, assignments, correct };
@@ -656,7 +689,7 @@
     let pool = DB.teams.filter(
       (t) =>
         !state.usedTeamIds.includes(t.id) &&
-        t.players.some((p) => !pickedIds.has(p.id) && openRoles.has(p.pos))
+        t.players.some((p) => !pickedIds.has(p.id) && getPlayerPositionsList(p).some((r) => openRoles.has(r)))
     );
     if (pool.length === 0) {
       pool = DB.teams.filter((t) => t.players.some((p) => !pickedIds.has(p.id)));
@@ -743,9 +776,13 @@
             ${sortedPlayers
               .map((p) => {
                 const alreadyPicked = pickedIds.has(p.id);
-                const hasNaturalSlot = openRoles.has(p.pos);
+                const hasNaturalSlot = getPlayerPositionsList(p).some((r) => openRoles.has(r));
                 const movesSummary = formatPlayerMovesSummary(p);
                 const hasLink = !alreadyPicked && hasAffinityWithCurrentSquad({ ...p, teamId: team.id });
+                const altPosHTML =
+                  Array.isArray(p.altPositions) && p.altPositions.length > 0
+                    ? `<span class="dual-pos-chip" title="Também joga sem penalidade em ${p.altPositions.join("/")}">/${p.altPositions.map((r) => posIconHTML(r, true)).join("")}</span>`
+                    : "";
 
                 return `
                   <div class="roster-player-card ${alreadyPicked ? "disabled-card" : ""} ${!hasNaturalSlot && !alreadyPicked ? "pos-full-card" : ""}"
@@ -755,7 +792,7 @@
                       <div class="roster-name">${p.isCaptain ? captainIconHTML() : ""} <span>#${p.number} ${p.name}</span></div>
                       <div class="roster-sub">${movesSummary}</div>
                       <div class="roster-badges">
-                        ${posIconHTML(p.pos, true)}
+                        ${posIconHTML(p.pos, true)}${altPosHTML}
                         <span class="ovr-tag">${state.hideOvrBeforePick && !alreadyPicked ? "OVR ??" : `OVR ${p.ovr}`}</span>
                         ${elemIconHTML(p.element)}
                         ${hasLink ? `<span class="affinity-badge">+Química</span>` : ""}
@@ -947,7 +984,7 @@
           let targetClass = "";
           let hintText = "Vazio";
           if (sel) {
-            if (sel.pos === slot.role) {
+            if (playerMatchesRole(sel, slot.role)) {
               targetClass = "valid-target";
               hintText = "Escalar";
             } else {
@@ -968,7 +1005,8 @@
         }
 
         const effOvr = getEffectiveOvr(p, slot.role);
-        const isImprovised = p.pos !== slot.role;
+        const isImprovised = !playerMatchesRole(p, slot.role);
+        const nodeSprite = getPlayerFormSprite(p, slot.role);
 
         return `
           <div class="field-node occupied ${isSwap ? "swap-active" : ""}"
@@ -977,7 +1015,7 @@
             ${p.teamEmblem ? `<img class="node-team-emblem" src="${p.teamEmblem}" alt="" />` : ""}
             <div class="node-ovr">${effOvr}</div>
             ${elemIconHTML(p.element, "node-elem-mini")}
-            <img class="node-avatar" src="${p.sprite}" alt="${p.name}" />
+            <img class="node-avatar" src="${nodeSprite}" alt="${p.name}" />
             <div class="node-name">${p.name}</div>
             <div style="display:flex; align-items:center; gap:3px; margin-top:1px;">
               ${posIconHTML(slot.role, true)}
@@ -1482,7 +1520,7 @@
     const { formSlots, assignments } = getOpponentSlotAssignments(oppTeam);
     return formSlots.map((slot, idx) => {
       const player = assignments[slot.id];
-      const rawPosMatch = player.pos === slot.role ? 0 : -4;
+      const rawPosMatch = playerMatchesRole(player, slot.role) ? 0 : -4;
       const effOvr = Math.min(99, Math.max(58, Math.round(player.ovr + stageIdx * 1.5 + rawPosMatch)));
       const baseX = Math.max(7, Math.min(93, 100 - ((96 - slot.y) * 0.78 + 4)));
       const baseY = Math.max(12, Math.min(88, 100 - slot.x + (slot.role === "DF" ? 3 : -3)));
@@ -1619,7 +1657,7 @@
               id: n.player.id,
               name: n.player.name,
               fullName: n.player.fullName || n.player.name,
-              sprite: n.player.sprite,
+              sprite: getPlayerFormSprite(n.player, n.role),
               element: n.player.element,
               teamEmblem: n.player.teamEmblem,
               teamName: n.player.teamName,
@@ -2027,6 +2065,26 @@
     return 1.0;
   }
 
+  function resolveDynamicNodeSprite(node, pitch) {
+    const p = node?.player;
+    if (!p) return "";
+    const fs = p.formSprites;
+    if (fs && fs.ATK && fs.DEF) {
+      const isUser = node.side === "user";
+      const dir = isUser ? 1 : -1;
+      const inAtkHalf = isUser ? node.x >= 47 : node.x <= 53;
+      const hasBall = pitch && (pitch.carrierUid === node.uid || pitch.dashFx?.uid === node.uid);
+      const teamAttacking = pitch && pitch.ballSide === node.side;
+      if (hasBall || (teamAttacking && (inAtkHalf || node.role === "FW" || (node.vx || 0) * dir > 2.0))) {
+        return fs.ATK;
+      }
+      if (!teamAttacking || !inAtkHalf) {
+        return fs.DEF;
+      }
+    }
+    return getPlayerFormSprite(p, node.role);
+  }
+
   function renderPitchDOMFrame(pitch, st, now) {
     // 1) Animações de dash (drible) e repulsão da onda de choque (roubo), inclusive durante a pausa breve
     if (pitch.dashFx) {
@@ -2066,6 +2124,14 @@
         el.style.left = `${node.x.toFixed(2)}%`;
         el.style.top = `${node.y.toFixed(2)}%`;
         el.classList.toggle("is-dashing", node.uid === activeDashUid);
+        if (node.player?.formSprites) {
+          const nextSprite = resolveDynamicNodeSprite(node, pitch);
+          if (nextSprite && node._renderedSprite !== nextSprite) {
+            const imgEl = el.querySelector(".pitch-token-avatar");
+            if (imgEl) imgEl.src = nextSprite;
+            node._renderedSprite = nextSprite;
+          }
+        }
       }
     };
     pitch.userNodes.forEach(stepDomNode);
@@ -2088,6 +2154,45 @@
         pitch.shockFx = null;
         shockEl.classList.remove("is-active");
         shockEl.style.opacity = "0";
+      }
+    }
+
+    const saveRingEl = document.getElementById("pitch-save-ring");
+    if (saveRingEl) {
+      const sr = pitch.saveRingFx;
+      if (sr && now - sr.start < sr.duration) {
+        const t = Math.max(0, Math.min(1, (now - sr.start) / sr.duration));
+        const eased = Math.pow(t, 0.72);
+        const sizePx = 136 - eased * 118;
+        const opacity = t < 0.75 ? 0.35 + (t / 0.75) * 0.6 : Math.max(0, 0.95 * (1 - (t - 0.75) / 0.25));
+        saveRingEl.style.left = `${sr.x.toFixed(1)}%`;
+        saveRingEl.style.top = `${sr.y.toFixed(1)}%`;
+        saveRingEl.style.width = `${Math.max(16, sizePx).toFixed(0)}px`;
+        saveRingEl.style.height = `${Math.max(16, sizePx).toFixed(0)}px`;
+        saveRingEl.style.opacity = opacity.toFixed(2);
+        saveRingEl.classList.add("is-active");
+      } else {
+        pitch.saveRingFx = null;
+        saveRingEl.classList.remove("is-active");
+        saveRingEl.style.opacity = "0";
+      }
+    }
+
+    const goalBurstEl = document.getElementById("pitch-goal-burst");
+    if (goalBurstEl) {
+      const gb = pitch.goalBurstFx;
+      if (gb && now - gb.start < gb.duration) {
+        const t = Math.max(0, Math.min(1, (now - gb.start) / gb.duration));
+        const scale = 0.36 + (1 - Math.pow(1 - t, 2.2)) * 0.88;
+        const flicker = t < 0.38 ? (Math.sin(t * 42) > -0.25 ? 0.95 : 0.58) : Math.max(0, (1 - t) / 0.62);
+        const dirScaleX = gb.side === "right" ? -1 : 1;
+        goalBurstEl.className = `pitch-goal-burst side-${gb.side} is-active`;
+        goalBurstEl.style.transform = `translateY(-50%) scaleX(${dirScaleX}) scale(${scale.toFixed(2)})`;
+        goalBurstEl.style.opacity = flicker.toFixed(2);
+      } else {
+        pitch.goalBurstFx = null;
+        goalBurstEl.className = "pitch-goal-burst";
+        goalBurstEl.style.opacity = "0";
       }
     }
 
@@ -3149,10 +3254,11 @@
         const stamColor =
           node.stamina >= 70 ? "#4ade80" : node.stamina >= 45 ? "#facc15" : "#ef4444";
 
+        const initSprite = resolveDynamicNodeSprite(node, pitch);
         return `
           <div id="pnode-${node.uid}" class="pitch-player-token ${sideCls} ${ballCls} ${chalCls} ${tiredCls}" style="left:${node.x}%; top:${node.y}%;">
             <div id="pbadge-${node.uid}" class="pitch-token-action-badge"></div>
-            <img class="pitch-token-avatar" src="${node.player?.sprite || ""}" alt="${shortName}" />
+            <img class="pitch-token-avatar" src="${initSprite}" alt="${shortName}" />
             <div class="pitch-token-stamina">
               <div class="pitch-token-stamina-fill" style="width:${Math.round(node.stamina)}%; background:${stamColor};"></div>
             </div>
@@ -3203,6 +3309,18 @@
           </svg>
 
           <div id="pitch-shockwave" class="pitch-shockwave"></div>
+          <div id="pitch-save-ring" class="pitch-save-ring"></div>
+          <div id="pitch-goal-burst" class="pitch-goal-burst">
+            <svg viewBox="0 0 120 120" fill="none">
+              <polyline points="20,60 44,50 62,32 92,16" stroke="#fde047" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+              <polyline points="22,60 52,55 76,47 110,41" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+              <polyline points="22,60 52,66 78,74 112,82" stroke="#fde047" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+              <polyline points="20,60 44,72 64,88 94,106" stroke="#38bdf8" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/>
+              <polyline points="20,56 38,38 50,18 68,4" stroke="#facc15" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <polyline points="20,64 38,84 52,102 70,116" stroke="#facc15" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <circle cx="20" cy="60" r="10" fill="rgba(254, 240, 138, 0.72)"/>
+            </svg>
+          </div>
           ${tokensHTML}
           <div id="live-pitch-ball" class="pitch-ball-dot" style="left:${pitch.ballX}%; top:${pitch.ballY}%;">${buildMiniBallSVG("pitch-ball-svg")}</div>
           <div id="pitch-float-badge" class="pitch-float-badge"></div>
@@ -3451,6 +3569,27 @@
         duration: dur
       });
     });
+  }
+
+  function triggerSaveImplosion(pitch, centerX, centerY) {
+    if (!pitch) return;
+    const dur = state.simSpeed === 4 ? 105 : state.simSpeed === 2 ? 230 : 440;
+    pitch.saveRingFx = {
+      x: Math.max(4, Math.min(96, centerX)),
+      y: Math.max(10, Math.min(90, centerY)),
+      start: performance.now(),
+      duration: dur
+    };
+  }
+
+  function triggerGoalLightningBurst(pitch, goalSide) {
+    if (!pitch) return;
+    const dur = state.simSpeed === 4 ? 150 : state.simSpeed === 2 ? 320 : 620;
+    pitch.goalBurstFx = {
+      side: goalSide === "left" ? "left" : "right",
+      start: performance.now(),
+      duration: dur
+    };
   }
 
   function resolvePhysicalDribbleClash(st, pitch, carrier, marker, attSupport, defSupport, ovrDiff) {
@@ -3742,8 +3881,10 @@
         pitch.challengerUid = null;
         pitch.holdBallPos = { x: goalX, y: goalY };
         startBallFlight(pitch, duelX, duelY, goalX, goalY, state.simSpeed === 1 ? 360 : 40, 0.8, "GOAL", "#facc15");
-        pitch.goalFlashSide = attIsUser ? "right" : "left";
+        const gSide = attIsUser ? "right" : "left";
+        pitch.goalFlashSide = gSide;
         pitch.goalFlashUntil = performance.now() + 2600;
+        triggerGoalLightningBurst(pitch, gSide);
         showPitchBadge(pitch, goalX, goalY, "GOOOL!!", "badge-goal", 1600, "SH");
         showNodeBadge(pitch, shooterNode.uid, `GOOOL! • ${shotInfo.label}`, "badge-goal", 1650, "SH");
 
@@ -3815,6 +3956,7 @@
         pitch.ballX = defTarget.x + (defTarget.side === "user" ? 1.9 : -1.9);
         pitch.ballY = defTarget.y + 1.0;
         pitch.passTrail = null;
+        triggerSaveImplosion(pitch, duelX, duelY);
         showPitchBadge(pitch, defTarget.x, defTarget.y, defMoveName, "badge-steal", 1000, defCategory);
 
         if (defCategory === "DF") {
@@ -3899,11 +4041,11 @@
         kind: "SHOT",
         dir: attIsUser ? "ltr" : "rtl",
         userPlayer: attIsUser
-          ? { name: shooterNode.player.name, sprite: shooterNode.player.sprite, roleText: "CHUTE" }
-          : { name: defTarget.player.name, sprite: defTarget.player.sprite, roleText: defRoleBadge },
+          ? { name: shooterNode.player.name, sprite: resolveDynamicNodeSprite(shooterNode, pitch), roleText: "CHUTE" }
+          : { name: defTarget.player.name, sprite: resolveDynamicNodeSprite(defTarget, pitch), roleText: defRoleBadge },
         oppPlayer: attIsUser
-          ? { name: defTarget.player.name, sprite: defTarget.player.sprite, roleText: defRoleBadge }
-          : { name: shooterNode.player.name, sprite: shooterNode.player.sprite, roleText: "CHUTE" },
+          ? { name: defTarget.player.name, sprite: resolveDynamicNodeSprite(defTarget, pitch), roleText: defRoleBadge }
+          : { name: shooterNode.player.name, sprite: resolveDynamicNodeSprite(shooterNode, pitch), roleText: "CHUTE" },
         topMoveName: shotInfo.label,
         bottomMoveName: defMoveName,
         bottomIcon: defCategory,
@@ -4490,7 +4632,7 @@
         id: p.id,
         name: p.name,
         fullName: p.fullName || p.name,
-        sprite: p.sprite,
+        sprite: getPlayerFormSprite(p, slot.role),
         element: p.element,
         teamEmblem: p.teamEmblem,
         teamName: p.teamName,
@@ -5767,7 +5909,7 @@
           const candidates = [];
           DB.teams.forEach((t) => {
             t.players.forEach((p) => {
-              if (!pickedIds.has(p.id) && p.pos === slot.role) {
+              if (!pickedIds.has(p.id) && playerMatchesRole(p, slot.role)) {
                 candidates.push({ ...p, teamId: t.id, teamName: t.name, teamEmblem: t.emblem });
               }
             });

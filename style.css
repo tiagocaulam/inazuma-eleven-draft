@@ -730,6 +730,19 @@ body {
   flex-wrap: wrap;
 }
 
+.dual-pos-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: rgba(15, 23, 42, 0.8);
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  font-size: 0.62rem;
+  font-weight: 800;
+  color: #cbd5e1;
+}
+
 .ovr-tag {
   font-size: 0.71rem;
   font-weight: 900;
@@ -2333,6 +2346,56 @@ body {
 
 .pitch-shockwave.is-active {
   display: block;
+}
+
+.pitch-save-ring {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  border: 2.5px solid rgba(250, 204, 21, 0.94);
+  background: radial-gradient(circle, rgba(254, 240, 138, 0.28) 0%, rgba(250, 204, 21, 0) 68%);
+  box-shadow: 0 0 16px rgba(250, 204, 21, 0.62), inset 0 0 12px rgba(253, 224, 71, 0.35);
+  pointer-events: none;
+  z-index: 8;
+  opacity: 0;
+  display: none;
+}
+
+.pitch-save-ring.is-active {
+  display: block;
+}
+
+.pitch-goal-burst {
+  position: absolute;
+  top: 50%;
+  width: 148px;
+  height: 148px;
+  pointer-events: none;
+  z-index: 9;
+  opacity: 0;
+  display: none;
+  transform-origin: center center;
+}
+
+.pitch-goal-burst.side-right {
+  right: -28px;
+  transform: translateY(-50%) scaleX(-1);
+}
+
+.pitch-goal-burst.side-left {
+  left: -28px;
+  transform: translateY(-50%);
+}
+
+.pitch-goal-burst.is-active {
+  display: block;
+}
+
+.pitch-goal-burst svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  filter: drop-shadow(0 0 8px rgba(250, 204, 21, 0.85)) drop-shadow(0 0 14px rgba(56, 189, 248, 0.5));
 }
 
 .pitch-token-stamina {
