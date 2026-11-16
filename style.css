@@ -2352,11 +2352,11 @@ body {
   position: absolute;
   transform: translate(-50%, -50%);
   border-radius: 50%;
-  border: 2.5px solid rgba(250, 204, 21, 0.94);
-  background: radial-gradient(circle, rgba(254, 240, 138, 0.28) 0%, rgba(250, 204, 21, 0) 68%);
-  box-shadow: 0 0 16px rgba(250, 204, 21, 0.62), inset 0 0 12px rgba(253, 224, 71, 0.35);
+  border: 3px solid rgba(250, 204, 21, 0.98);
+  background: radial-gradient(circle, rgba(254, 240, 138, 0.34) 0%, rgba(250, 204, 21, 0) 68%);
+  box-shadow: 0 0 20px rgba(250, 204, 21, 0.78), inset 0 0 16px rgba(253, 224, 71, 0.42);
   pointer-events: none;
-  z-index: 8;
+  z-index: 15;
   opacity: 0;
   display: none;
 }
@@ -2368,22 +2368,22 @@ body {
 .pitch-goal-burst {
   position: absolute;
   top: 50%;
-  width: 148px;
-  height: 148px;
+  width: 170px;
+  height: 170px;
   pointer-events: none;
-  z-index: 9;
+  z-index: 15;
   opacity: 0;
   display: none;
   transform-origin: center center;
 }
 
 .pitch-goal-burst.side-right {
-  right: -28px;
+  right: -18px;
   transform: translateY(-50%) scaleX(-1);
 }
 
 .pitch-goal-burst.side-left {
-  left: -28px;
+  left: -18px;
   transform: translateY(-50%);
 }
 

@@ -3573,7 +3573,7 @@
 
   function triggerSaveImplosion(pitch, centerX, centerY) {
     if (!pitch) return;
-    const dur = state.simSpeed === 4 ? 105 : state.simSpeed === 2 ? 230 : 440;
+    const dur = state.simSpeed === 4 ? 130 : state.simSpeed === 2 ? 270 : 620;
     pitch.saveRingFx = {
       x: Math.max(4, Math.min(96, centerX)),
       y: Math.max(10, Math.min(90, centerY)),
@@ -3584,7 +3584,7 @@
 
   function triggerGoalLightningBurst(pitch, goalSide) {
     if (!pitch) return;
-    const dur = state.simSpeed === 4 ? 150 : state.simSpeed === 2 ? 320 : 620;
+    const dur = state.simSpeed === 4 ? 170 : state.simSpeed === 2 ? 360 : 850;
     pitch.goalBurstFx = {
       side: goalSide === "left" ? "left" : "right",
       start: performance.now(),
@@ -3884,7 +3884,7 @@
         const gSide = attIsUser ? "right" : "left";
         pitch.goalFlashSide = gSide;
         pitch.goalFlashUntil = performance.now() + 2600;
-        triggerGoalLightningBurst(pitch, gSide);
+        if (state.simSpeed !== 1) triggerGoalLightningBurst(pitch, gSide);
         showPitchBadge(pitch, goalX, goalY, "GOOOL!!", "badge-goal", 1600, "SH");
         showNodeBadge(pitch, shooterNode.uid, `GOOOL! • ${shotInfo.label}`, "badge-goal", 1650, "SH");
 
@@ -3956,7 +3956,7 @@
         pitch.ballX = defTarget.x + (defTarget.side === "user" ? 1.9 : -1.9);
         pitch.ballY = defTarget.y + 1.0;
         pitch.passTrail = null;
-        triggerSaveImplosion(pitch, duelX, duelY);
+        if (state.simSpeed !== 1) triggerSaveImplosion(pitch, duelX, duelY);
         showPitchBadge(pitch, defTarget.x, defTarget.y, defMoveName, "badge-steal", 1000, defCategory);
 
         if (defCategory === "DF") {
@@ -3995,6 +3995,7 @@
 
     const onShotModalClosed = (skipRestart = false) => {
       if (isGoal) {
+        const gSide = attIsUser ? "right" : "left";
         const concedingSide = attIsUser ? "opp" : "user";
         const doKickoffReset = () => {
           resetPitchForKickoff(pitch, concedingSide, true);
@@ -4004,6 +4005,9 @@
           doKickoffReset();
           return false;
         }
+        pitch.goalFlashSide = gSide;
+        pitch.goalFlashUntil = performance.now() + 1800;
+        triggerGoalLightningBurst(pitch, gSide);
         pauseForPitchBeat(
           st,
           `<span class="callout-tag">GOOOL!</span><strong>${shooterNode.player.name}</strong><span>${st.userScore} x ${st.oppScore} · ${shotInfo.label}</span>`,
@@ -4015,6 +4019,9 @@
         return true;
       }
 
+      if (state.simSpeed === 1) {
+        triggerSaveImplosion(pitch, pitch.ballX, pitch.ballY);
+      }
       showNodeBadge(
         pitch,
         defTarget.uid,
@@ -4024,7 +4031,7 @@
         defCategory
       );
       if (skipRestart || state.simSpeed !== 1) return false;
-      pauseForPitchBeat(st, "", "", 700, ovrDiff, null);
+      pauseForPitchBeat(st, "", "", 780, ovrDiff, null);
       return true;
     };
 
