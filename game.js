@@ -122,6 +122,43 @@
       members: ["Hakuryuu", "Shuu"],
       minCount: 2,
       chemPerMatch: 18
+    },
+    {
+      id: "trio_ares_orion",
+      name: "🔥 Trindade Ares/Orion (Asuto, Haizaki, Nosaka)",
+      members: ["Inamori Asuto", "Haizaki Ryouhei", "Nosaka Yuuma"],
+      minCount: 2,
+      chemPerMatch: 15
+    },
+    {
+      id: "laco_outei_seishou",
+      name: "⚔️ Rivais & Parceiros (Nosaka, Nishikage, Haizaki, Mizukamiya, Kira Hiroto)",
+      members: ["Nosaka Yuuma", "Nishikage Seiya", "Haizaki Ryouhei", "Mizukamiya Seiryuu", "Kira Hiroto"],
+      minCount: 2,
+      chemPerMatch: 12
+    },
+    {
+      id: "laco_orion_amigos",
+      name: "🌌 Estrelas de Orion (Ichihoshi, Froy, Malik, Asuto, Yurika)",
+      members: ["Ichihoshi Mitsuru", "Ichihoshi Hikaru", "Froy Girikanan", "Malik Kuabel", "Inamori Asuto", "Yurika Beor"],
+      minCount: 2,
+      chemPerMatch: 13
+    },
+    {
+      id: "earth_eleven_galaxy",
+      name: "🌍 Earth Eleven (Ibuki, Matatagi, Konoha, Minaho, Manabe, Tenma, Tsurugi, Shindou)",
+      members: [
+        "Ibuki Munemasa",
+        "Matatagi Hayato",
+        "Morimura Konoha",
+        "Minaho Kazuto",
+        "Manabe Jinichirou",
+        "Matsukaze Tenma",
+        "Tsurugi Kyousuke",
+        "Shindou Takuto"
+      ],
+      minCount: 2,
+      chemPerMatch: 12
     }
   ];
 
