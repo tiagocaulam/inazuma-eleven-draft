@@ -414,7 +414,7 @@
             </div>
           </div>
 
-          <div style="display:flex; gap:8px;">
+          <div class="drawn-team-actions">
             <button class="ui-btn" id="btn-peek-field">
               👁️ Ver Campo (${pickedCount}/11)
             </button>
@@ -456,11 +456,12 @@
       </div>
     `;
 
-    // Posiciona e anima a tira da roleta com CSS transition suave (sem piscar!)
+    // Posiciona e anima a tira da roleta com CSS transition suave (responsivo desktop & mobile!)
     const wheelBox = document.getElementById("wheel-box");
     const stripEl = document.getElementById("wheel-strip");
-    const itemWidth = 126; // 120px + 6px margin
-    const boxCenter = (wheelBox ? wheelBox.clientWidth : 600) / 2;
+    const firstItem = stripEl ? stripEl.querySelector(".wheel-item") : null;
+    const itemWidth = firstItem ? firstItem.offsetWidth + 6 : 126;
+    const boxCenter = (wheelBox ? wheelBox.clientWidth : 340) / 2;
     const finalOffset = boxCenter - targetIdx * itemWidth - itemWidth / 2;
 
     if (animateWheel && stripEl) {
@@ -1015,21 +1016,21 @@
     container.innerHTML = `
       <div class="start-menu-card">
         <div class="start-logo-bolt">⚡⚽</div>
-        <h2>INAZUMA ELEVEN — DRAFT 7x0</h2>
+        <h2>INAZUMA ELEVEN DREAM TEAM</h2>
         <p>
-          Gire a roleta de times, escolha 1 personagem de cada equipe sorteada para montar sua Seleção e tente conquistar o mata-mata do <strong>Futebol Fronteira</strong>!
+          Gire a roleta de times, escolha 1 personagem de cada equipe sorteada para montar o seu <strong>Dream Team</strong> e conquiste o mata-mata do <strong>Futebol Fronteira</strong>!
         </p>
 
         <div class="option-group">
-          <label>1. Escolha a Dificuldade do Sorteio:</label>
+          <label>1. Escolha a Dificuldade:</label>
           <div class="difficulty-grid">
-            <div class="diff-card ${state.hideOvrBeforePick ? "selected" : ""}" data-diff="hidden">
-              <strong>🔥 Modo 7x0 Raiz (Sem Overall)</strong>
-              <span>O Overall fica oculto na lista e só é revelado quando você escala o jogador no campo!</span>
-            </div>
             <div class="diff-card ${!state.hideOvrBeforePick ? "selected" : ""}" data-diff="visible">
-              <strong>🌟 Modo Normal (Com Overall)</strong>
+              <strong>🌟 Modo Fácil (Com Overall)</strong>
               <span>Mostra o Overall de todos os jogadores do time sorteado antes de você escolher.</span>
+            </div>
+            <div class="diff-card ${state.hideOvrBeforePick ? "selected" : ""}" data-diff="hidden">
+              <strong>🔥 Modo Difícil (Sem Overall)</strong>
+              <span>O Overall fica oculto na lista e só é revelado quando você escala o jogador no campo!</span>
             </div>
           </div>
         </div>
