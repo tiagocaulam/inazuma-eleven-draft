@@ -1837,6 +1837,7 @@ body {
   border: 2px solid rgba(255, 255, 255, 0.55);
   border-left: none;
   background: rgba(34, 197, 94, 0.14);
+  transition: background-color 0.25s ease, box-shadow 0.25s ease;
 }
 
 .pitch-goal-right {
@@ -1848,6 +1849,65 @@ body {
   border: 2px solid rgba(255, 255, 255, 0.55);
   border-right: none;
   background: rgba(239, 68, 68, 0.14);
+  transition: background-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+.pitch-goal-left.goal-flash,
+.pitch-goal-right.goal-flash {
+  background: rgba(250, 204, 21, 0.78);
+  box-shadow: 0 0 24px #facc15, inset 0 0 14px #ffffff;
+}
+
+.pitch-float-badge {
+  position: absolute;
+  transform: translate(-50%, -135%);
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 0.58rem;
+  font-weight: 900;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 12;
+  opacity: 0;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.75);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.pitch-float-badge.is-visible {
+  opacity: 1;
+  transform: translate(-50%, -155%);
+}
+
+.pitch-float-badge.badge-pass {
+  background: rgba(15, 23, 42, 0.92);
+  border: 1.5px solid #4ade80;
+  color: #bbf7d0;
+}
+
+.pitch-float-badge.badge-dribble {
+  background: rgba(59, 7, 100, 0.92);
+  border: 1.5px solid #c084fc;
+  color: #f3e8ff;
+}
+
+.pitch-float-badge.badge-steal {
+  background: rgba(8, 47, 73, 0.92);
+  border: 1.5px solid #38bdf8;
+  color: #e0f2fe;
+}
+
+.pitch-float-badge.badge-shot {
+  background: rgba(124, 45, 18, 0.94);
+  border: 1.5px solid #fb923c;
+  color: #ffedd5;
+}
+
+.pitch-float-badge.badge-goal {
+  background: linear-gradient(90deg, #16a34a, #eab308);
+  border: 1.5px solid #ffffff;
+  color: #052e16;
+  font-size: 0.65rem;
 }
 
 .pitch-pass-svg {
