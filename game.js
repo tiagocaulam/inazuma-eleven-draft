@@ -1829,6 +1829,10 @@
       cancelAnimationFrame(state.tournament.qteRafId);
       state.tournament.qteRafId = null;
     }
+    if (state.tournament.whistleTimerId) {
+      clearTimeout(state.tournament.whistleTimerId);
+      state.tournament.whistleTimerId = null;
+    }
     if (typeof state.tournament.qteKeyHandler === "function") {
       document.removeEventListener("keydown", state.tournament.qteKeyHandler);
       state.tournament.qteKeyHandler = null;
@@ -1839,6 +1843,14 @@
       calloutEl.innerHTML = "";
       calloutEl.style.display = "none";
       calloutEl.className = "pitch-center-callout";
+    }
+
+    if (resolvePending && typeof state.tournament.pendingWhistleFinish === "function") {
+      const wfn = state.tournament.pendingWhistleFinish;
+      state.tournament.pendingWhistleFinish = null;
+      wfn(true);
+    } else {
+      state.tournament.pendingWhistleFinish = null;
     }
 
     if (resolvePending && typeof state.tournament.pendingClashFinish === "function") {
@@ -2314,8 +2326,170 @@
     document.addEventListener("keydown", state.tournament.qteKeyHandler);
   }
 
-  function playHalftimeRefereeQTE(st, ovrDiff) {
-    openCircleTimingChallenge(st, ovrDiff, { mode: "HALFTIME" });
+  function showRefereeWhistleModal(st, type, onProceed) {
+    clearTournamentTimers(false);
+    const slotEl = document.getElementById("shot-clash-slot");
+    if (!slotEl || !st) {
+      if (typeof onProceed === "function") onProceed();
+      return;
+    }
+
+    const isHalftime = type === "HALFTIME";
+    const isExtraTime = type === "EXTRA_TIME";
+    const isPenalties = type === "PENALTIES";
+    const isFulltime = type === "FULLTIME";
+
+    const t = state.tournament;
+    const isWinnerAdvancing = st.won && t && t.stages && t.stageIndex + 1 < t.stages.length;
+    const nextStageName = isWinnerAdvancing ? t.stages[t.stageIndex + 1].stageName : "";
+
+    const headerBadge = isHalftime
+      ? "INTERVALO • FIM DO 1º TEMPO"
+      : isExtraTime
+      ? "FIM DO TEMPO NORMAL • PRORROGAÇÃO"
+      : isPenalties
+      ? "FIM DA PRORROGAÇÃO • PÊNALTIS"
+      : "APITO FINAL • FIM DE JOGO";
+
+    const minuteText = isHalftime ? "45'" : isExtraTime ? "90'" : isPenalties ? "120'" : `${st.minute}'`;
+    const soundText = isFulltime || isPenalties ? "⚡ FIIII-FIII-FIIIIII! ⚡" : "⚡ FIIII-FIIII! ⚡";
+
+    const mainTitle = isHalftime
+      ? "FIM DO PRIMEIRO TEMPO!"
+      : isExtraTime
+      ? "EMPATE NO TEMPO NORMAL!"
+      : isPenalties
+      ? "DECISÃO POR PÊNALTIS!"
+      : st.won
+      ? "VITÓRIA DO DREAM TEAM!"
+      : st.isDraw
+      ? "FIM DE JOGO • EMPATE!"
+      : `VITÓRIA DE ${st.oppTeam?.name || "ADVERSÁRIO"}!`;
+
+    const subtitleText = isHalftime
+      ? "O árbitro apita o intervalo! Ambos os times recuperam +20% de fôlego."
+      : isExtraTime
+      ? "O empate persiste aos 90'! Vamos para a Prorrogação com Gol de Ouro!"
+      : isPenalties
+      ? "O árbitro encerra a prorrogação! A vaga será decidida nos pênaltis!"
+      : isWinnerAdvancing
+      ? `Partida encerrada com classificação para ${nextStageName}!`
+      : "O árbitro apita o fim da partida! Confira os números e os destaques.";
+
+    const buttonText = isHalftime
+      ? "⚡ Iniciar 2º Tempo ▶"
+      : isExtraTime
+      ? "⚡ Iniciar Prorrogação ▶"
+      : isPenalties
+      ? "⚡ Bater Pênaltis ▶"
+      : isWinnerAdvancing
+      ? `⚡ Preparar para ${nextStageName} ▶`
+      : "🏆 Ver Resultado da Campanha ▶";
+
+    slotEl.classList.add("is-fixed-overlay");
+    slotEl.style.display = "flex";
+    slotEl.innerHTML = `
+      <div class="referee-whistle-stage">
+        <div class="referee-whistle-header">
+          <div class="referee-whistle-badge">
+            ${UI.whistleIcon ? `<img src="${UI.whistleIcon}" class="referee-whistle-icon" alt="" />` : "⚡"}
+            <span>${headerBadge}</span>
+          </div>
+          <span class="referee-time-pill">${minuteText}</span>
+        </div>
+
+        <div class="referee-hero-frame">
+          ${UI.refereeWhistle ? `<img class="referee-sprite-img" src="${UI.refereeWhistle}" alt="Árbitro Apitando" />` : ""}
+          <div class="referee-sound-wave">
+            <span class="referee-sound-text">${soundText}</span>
+          </div>
+        </div>
+
+        <div class="referee-match-card">
+          <div class="referee-title">${mainTitle}</div>
+          <div class="referee-scoreboard">
+            <span class="ref-team-name">${st.userTeamName || "Dream Team"}</span>
+            <span class="ref-score-badge">${st.userScore}  -  ${st.oppScore}</span>
+            <span class="ref-team-name">${st.oppTeam?.name || "Adversário"}</span>
+          </div>
+          <div class="referee-subtitle">${subtitleText}</div>
+        </div>
+
+        <button class="ie-cmd-btn ie-cmd-gold referee-proceed-btn" id="btn-referee-proceed">
+          <span>${buttonText}</span>
+        </button>
+        ${
+          isFulltime
+            ? `<span id="btn-peek-stats" style="font-size:0.68rem; color:#94a3b8; cursor:pointer; text-decoration:underline; margin-top:2px;">Ver estatísticas no campo</span>`
+            : ""
+        }
+      </div>
+    `;
+
+    let closed = false;
+
+    const closeAndProceed = (targetMode = null) => {
+      if (closed) return;
+      closed = true;
+      if (state.tournament.whistleTimerId) {
+        clearTimeout(state.tournament.whistleTimerId);
+        state.tournament.whistleTimerId = null;
+      }
+      state.tournament.pendingWhistleFinish = null;
+      document.removeEventListener("keydown", keyHandler);
+      slotEl.classList.remove("is-fixed-overlay");
+      slotEl.innerHTML = "";
+      slotEl.style.display = "none";
+
+      if (isHalftime) {
+        st.running = true;
+        if (st.pitch) {
+          st.pitch.minuteFloat = 45;
+          st.minute = 45;
+        }
+      }
+
+      if (isFulltime && targetMode === "DIRECT_ACTION") {
+        if (isWinnerAdvancing) {
+          openBetweenMatchPrep(t.stageIndex + 1);
+          return;
+        } else {
+          state.tournament.showRunSummary = true;
+          renderTournamentScreen();
+          return;
+        }
+      }
+
+      if (typeof onProceed === "function") {
+        onProceed();
+      }
+    };
+
+    state.tournament.pendingWhistleFinish = closeAndProceed;
+
+    const keyHandler = (e) => {
+      if (e.code === "Space" || e.code === "Enter") {
+        e.preventDefault();
+        closeAndProceed("DIRECT_ACTION");
+      }
+    };
+    document.addEventListener("keydown", keyHandler);
+
+    const btn = document.getElementById("btn-referee-proceed");
+    if (btn) {
+      btn.addEventListener("click", () => closeAndProceed("DIRECT_ACTION"));
+    }
+
+    const peekBtn = document.getElementById("btn-peek-stats");
+    if (peekBtn) {
+      peekBtn.addEventListener("click", () => closeAndProceed("PEEK"));
+    }
+
+    // Auto-avanço com tempo generoso para leitura sem pressa
+    const autoAdvanceMs = state.simSpeed === 4 ? 4500 : 7500;
+    state.tournament.whistleTimerId = setTimeout(() => {
+      closeAndProceed(isFulltime ? "DIRECT_ACTION" : null);
+    }, autoAdvanceMs);
   }
 
   function triggerVoluntaryRecoveryChallenge(st) {
@@ -2346,7 +2520,8 @@
 
     if (st.minute === 45 && !st.halftimeHandled) {
       st.halftimeHandled = true;
-      // Pausa rápida de narração do fim do 1º tempo sem minigame de recuperação forçado
+      st.running = false;
+      clearTournamentTimers(false);
       prependNarrationLine(
         st,
         "nar-pass",
@@ -2356,15 +2531,31 @@
         "FF"
       );
       if (st.pitch) {
+        st.pitch.minuteFloat = 45;
         st.pitch.ticker = `45' Fim do 1º tempo! Placar: ${st.userScore} x ${st.oppScore}`;
+        [...st.pitch.userNodes, ...st.pitch.oppNodes].forEach((n) => {
+          n.stamina = Math.min(100, n.stamina + 20);
+        });
         resetPitchForKickoff(st.pitch, "opp", true);
         syncLivePitchDOM(st);
       }
+      showRefereeWhistleModal(st, "HALFTIME", () => {
+        st.running = true;
+        if (st.pitch) {
+          st.pitch.minuteFloat = 45;
+          st.minute = 45;
+        }
+        if (!st.finished && st.running) {
+          startMatchInterval();
+        }
+      });
+      return true;
     }
 
     if (st.minute === 90 && st.userScore === st.oppScore && st.maxMinute === 90 && !st.isGroupStage) {
       st.maxMinute = 120;
       if (st.pitch) {
+        st.pitch.minuteFloat = 90;
         resetPitchForKickoff(st.pitch, "user", true);
         st.pitch.ticker = `90' Prorrogação iniciada! Bola no centro!`;
         syncLivePitchDOM(st);
@@ -2377,6 +2568,12 @@
         null,
         "FF"
       );
+      showRefereeWhistleModal(st, "EXTRA_TIME", () => {
+        if (!st.finished && st.running) {
+          startMatchInterval();
+        }
+      });
+      return true;
     }
 
     if (st.minute >= st.maxMinute) {
@@ -2397,7 +2594,9 @@
           null,
           "SH"
         );
-        renderTournamentScreen();
+        showRefereeWhistleModal(st, "PENALTIES", () => {
+          renderTournamentScreen();
+        });
         return true;
       }
 
@@ -2416,7 +2615,9 @@
         finalizeWorldGroupRound(st);
       }
 
-      renderTournamentScreen();
+      showRefereeWhistleModal(st, "FULLTIME", () => {
+        renderTournamentScreen();
+      });
       return true;
     }
     return false;
@@ -3360,13 +3561,23 @@
       const rawDt = Math.min(0.055, Math.max(0.004, (now - lastNow) / 1000));
       lastNow = now;
 
-      const isPaused = Boolean(state.tournament.pendingBeatFinish || state.tournament.pendingClashFinish);
+      const isPaused = Boolean(
+        state.tournament.pendingBeatFinish ||
+        state.tournament.pendingClashFinish ||
+        state.tournament.pendingWhistleFinish
+      );
       if (!st.finished && st.running && !isPaused) {
         const simDtTotal = rawDt * getSpeedMultiplier();
         const subSteps = Math.min(8, Math.max(1, Math.ceil(simDtTotal / 0.028)));
         const subDt = simDtTotal / subSteps;
         for (let s = 0; s < subSteps; s++) {
-          if (state.tournament.pendingBeatFinish || state.tournament.pendingClashFinish || st.finished || !st.running) {
+          if (
+            state.tournament.pendingBeatFinish ||
+            state.tournament.pendingClashFinish ||
+            state.tournament.pendingWhistleFinish ||
+            st.finished ||
+            !st.running
+          ) {
             break;
           }
           stepContinuousPhysics(st, pitch, subDt);
