@@ -1801,10 +1801,20 @@
     return roleMult * ovrFactor;
   }
 
-  function resetPitchForKickoff(pitch, kickoffSide, snapNodes = false) {
+  function resetPitchForKickoff(pitch, kickoffSide, snapNodes = false, isGoalReset = false) {
     if (!pitch) return;
     const koNodes = kickoffSide === "user" ? pitch.userNodes : pitch.oppNodes;
     const koMid = koNodes.find((n) => n.role === "MF") || koNodes[5] || koNodes[0];
+
+    // Se a reinicialização for após um gol, ambos os times recuperam ~60% da energia gasta!
+    if (isGoalReset) {
+      [...pitch.userNodes, ...pitch.oppNodes].forEach((n) => {
+        const lost = Math.max(0, 100 - n.stamina);
+        if (lost > 0) {
+          n.stamina = Math.min(100, Math.round(n.stamina + lost * 0.60));
+        }
+      });
+    }
 
     [...pitch.userNodes, ...pitch.oppNodes].forEach((n) => {
       n.vx = 0;
@@ -4822,8 +4832,8 @@
             return false;
           }
           const doKickoffReset = () => {
-            resetPitchForKickoff(pitch, concedingSide, true);
-            pitch.ticker = `${st.minute}' Saída no centro com ${concedingSide === "user" ? "Dream Team" : st.oppTeam.name}!`;
+            resetPitchForKickoff(pitch, concedingSide, true, true);
+            pitch.ticker = `${st.minute}' Saída no centro com ${concedingSide === "user" ? "Dream Team" : st.oppTeam.name}! Fôlego restaurado pós-gol (+60% de energia gasta).`;
           };
           if (skipRestart || instantMode) {
             doKickoffReset();
@@ -8060,14 +8070,6 @@
             </div>
           </div>
           <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-            ${
-              !st.finished && !st.penalties
-                ? `<button class="ie-cmd-btn ie-cmd-green" id="btn-voluntary-recover" style="padding:5px 10px; font-size:0.72rem;" ${(st.recoverCharges ?? 0) <= 0 ? "disabled" : ""} title="Abrir desafio de recuperação de energia (1 volta)">
-                    ${UI.sportsDrink ? `<img src="${UI.sportsDrink}" alt="" style="width:15px; height:15px; object-fit:contain;" />` : ""}
-                    <span>Recuperar (${st.recoverCharges ?? 0})</span>
-                  </button>`
-                : ""
-            }
             <button class="ie-cmd-btn" id="btn-toggle-speed" style="padding:5px 10px; font-size:0.72rem;">
               <span>Vel: ${state.simSpeed}x</span>
             </button>
@@ -8174,13 +8176,6 @@
 
     if (!st.finished && st.penalties) {
       attachPenaltyListeners(st);
-    }
-
-    const recoverBtn = document.getElementById("btn-voluntary-recover");
-    if (recoverBtn) {
-      recoverBtn.addEventListener("click", () => {
-        triggerVoluntaryRecoveryChallenge(st);
-      });
     }
 
     const speedBtn = document.getElementById("btn-toggle-speed");
