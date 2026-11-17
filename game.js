@@ -8284,45 +8284,35 @@
     const activeLoc = locations.find((l) => l.id === prep.locId);
     const isFirstMatchEver = prep.nextStageIdx === 0;
     const isWorldDebut = nextStage.competition === "WORLD" && nextStage.isGroupStage && nextStage.groupRoundIdx === 0;
-    const compTitle = nextStage.competition === "WORLD" ? "MUNDIAL (FFI)" : "FUTEBOL FRONTEIRA";
-    const eyebrowPhase = isFirstMatchEver || isWorldDebut ? "PRÉ-ESTREIA" : "INTERVALO DO TORNEIO";
-    const prepHeadline = isFirstMatchEver
-      ? "Prepare seu Dream Team antes da primeira partida!"
-      : isWorldDebut
-      ? "Prepare a seleção para a estreia na Fase de Grupos do Mundial!"
-      : "Escolha um local de Inazuma para preparar seu time";
-
-    const headerBanner = `
-      <div class="prep-top-banner">
-        <div>
-          <span style="font-size:0.7rem; font-weight:900; color:#facc15; text-transform:uppercase;">
-            ${compTitle} • ${eyebrowPhase} • RUMO À ${nextStage.stageName.toUpperCase()}
-          </span>
-          <h3 style="font-size:1.05rem; font-weight:900; color:#fff; margin-top:2px;">
-            ${prepHeadline}
-          </h3>
-        </div>
-        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-          ${t.prepBonuses?.permanentDoublePrep ? `
-            <span class="prep-xp-pill" style="background:rgba(234, 179, 8, 0.2); border-color:#facc15; color:#fde047;">
-              🎟️ 2 Ações por Jogo (Passiva Permanente Ativa)
-            </span>
-          ` : ""}
-          <span class="prep-xp-pill">XP Acumulado: ${t.prepBonuses?.xp || 0}</span>
-          <div class="prep-next-opp-pill">
-            <img src="${nextStage.oppTeam.emblem}" alt="" />
-            <div>
-              <div style="font-size:0.6rem; color:#94a3b8; font-weight:800; text-transform:uppercase;">${isFirstMatchEver ? "1º Adversário" : "Próximo Rival"}</div>
-              <div style="font-size:0.76rem; color:#fff; font-weight:900;">${nextStage.oppTeam.name}</div>
-              ${getStageOpponentBuff(prep.nextStageIdx).pct > 0 ? `<div style="font-size:0.62rem; color:#fca5a5; font-weight:900;">⚡ Reforço: +${getStageOpponentBuff(prep.nextStageIdx).pct}% Força</div>` : ""}
-            </div>
-          </div>
-        </div>
-      </div>
-    `;
 
     let bodyHTML = "";
+    let topBannerHTML = "";
+
     if (prep.phase === "CHOOSE_LOC") {
+      const prepHeadline = isFirstMatchEver
+        ? "Prepare seu Dream Team antes da partida de estreia!"
+        : isWorldDebut
+        ? "Prepare a seleção para a estreia na Fase de Grupos do Mundial!"
+        : "Escolha um local de Inazuma para preparar seu time:";
+
+      topBannerHTML = `
+        <div class="prep-top-banner">
+          <div>
+            <h3 style="font-size:1.02rem; font-weight:900; color:#fff; margin:0;">
+              ${prepHeadline}
+            </h3>
+          </div>
+          <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+            ${t.prepBonuses?.permanentDoublePrep ? `
+              <span class="prep-xp-pill" style="background:rgba(234, 179, 8, 0.2); border-color:#facc15; color:#fde047;">
+                🎟️ 2 Ações por Jogo
+              </span>
+            ` : ""}
+            <span class="prep-xp-pill">XP Acumulado: ${t.prepBonuses?.xp || 0}</span>
+          </div>
+        </div>
+      `;
+
       bodyHTML = `
         <div class="prep-locations-grid">
           ${locations
@@ -8373,11 +8363,22 @@
           <div class="prep-triple-header">
             ${activeLoc?.banner ? `<img class="prep-roulette-thumb" src="${activeLoc.banner}" alt="" />` : ""}
             <div style="min-width:0; flex:1;">
-              <div style="font-size:0.68rem; font-weight:900; color:#facc15; text-transform:uppercase;">${activeLoc?.sub || ""}</div>
+              <div style="font-size:0.68rem; font-weight:900; color:#facc15; text-transform:uppercase;">${activeLoc?.sub || "LOCAL DE PREPARAÇÃO"}</div>
               <div style="font-size:1.05rem; font-weight:900; color:#fff;">${activeLoc?.title || ""}</div>
               <div class="prep-triple-choose-prompt">
                 👉 Toque em uma das 3 opções para escolher:
               </div>
+            </div>
+            <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+              ${t.prepBonuses?.permanentDoublePrep ? `
+                <span class="prep-xp-pill" style="background:rgba(234, 179, 8, 0.2); border-color:#facc15; color:#fde047;">
+                  🎟️ 2 Ações
+                </span>
+              ` : ""}
+              <span class="prep-xp-pill">XP Acumulado: ${t.prepBonuses?.xp || 0}</span>
+              <button class="ie-cmd-btn" id="btn-back-choose-loc" style="padding:4px 9px; font-size:0.72rem; background:rgba(30,58,138,0.7); border-color:rgba(96,165,250,0.5);">
+                <span>← Trocar Local</span>
+              </button>
             </div>
           </div>
           <div class="prep-triple-cols-grid">
@@ -8717,7 +8718,7 @@
 
     return `
       <div class="prep-stage-card" style="position:relative;">
-        ${headerBanner}
+        ${topBannerHTML}
         ${bodyHTML}
         <div id="shot-clash-slot" class="pitch-clash-modal" style="display:none;"></div>
       </div>
@@ -8815,7 +8816,7 @@
         </div>
 
         <div class="current-stage-vs-badge">
-          <span class="current-stage-vs-label">ADVERSÁRIO:</span>
+          <span class="current-stage-vs-label">${t.prep && focusStageIdx === t.prep.nextStageIdx ? "PRÓXIMO RIVAL:" : "ADVERSÁRIO:"}</span>
           <div class="current-stage-opp-box">
             ${focusStage.oppTeam?.emblem ? `<img src="${focusStage.oppTeam.emblem}" alt="" class="current-stage-opp-emblem" />` : ""}
             <span class="current-stage-opp-name">${focusStage.oppTeam?.name || "A Definir"}</span>
@@ -8872,6 +8873,14 @@
           if (chosen) handleChoosePrepOption(chosen);
         });
       });
+
+      const backLocBtn = document.getElementById("btn-back-choose-loc");
+      if (backLocBtn) {
+        backLocBtn.addEventListener("click", () => {
+          t.prep.phase = "CHOOSE_LOC";
+          renderTournamentScreen();
+        });
+      }
 
       container.querySelectorAll("[data-recruit-replace-slot]").forEach((targetCard) => {
         targetCard.addEventListener("click", () => {
