@@ -1415,7 +1415,7 @@
     }
   }
 
-  function buildPitchHTML() {
+  function buildPitchHTML(isComplete = false) {
     const slots = getSlots();
     const sel = state.selectedPlayer;
     const adjPairs = getAdjacentSlotPairs(slots);
@@ -1512,6 +1512,14 @@
           </div>
         </div>
         <div class="soccer-pitch">
+          ${
+            isComplete
+              ? `<div class="pitch-swap-instruction-pill">
+                  <span style="color:#facc15;">⇄</span>
+                  <span>Toque em um jogador para trocar de lugar com outro</span>
+                </div>`
+              : ""
+          }
           <div class="pitch-penalty-top"></div>
           <div class="pitch-half-line"></div>
           <div class="pitch-center-circle">
@@ -7120,30 +7128,16 @@
     const openSlots = getOpenSlots();
     const openRoles = new Set(openSlots.map((s) => s.role));
 
-    // Se já escolheu os 11 jogadores -> Mostra Campo Completo + DAR GO!
+    // Se já escolheu os 11 jogadores -> Mostra Vantagens, Campo com instrução de troca e DAR GO!
     if (pickedCount >= 11) {
-      const stats = calcSquadStats();
       container.innerHTML = `
-        <div class="go-ready-banner">
-          ${UI.raimonEmblem ? `<img src="${UI.raimonEmblem}" alt="Dream Team" style="width:52px; height:52px; object-fit:contain; margin-bottom:4px;" />` : ""}
-          <h2 style="font-size:1.35rem; font-weight:900; color:#4ade80;">
-            DREAM TEAM COMPLETO!
-          </h2>
-          <div style="font-size:0.95rem; font-weight:900; color:#fed7aa; margin-top:4px;">
-            PODER FINAL: ${stats.power.toLocaleString("pt-BR")} PTS &nbsp;•&nbsp; OVR ${stats.ovr} &nbsp;•&nbsp; QUÍMICA ${stats.chem}%
-          </div>
-          <div style="font-size:0.74rem; color:#93c5fd; margin-top:2px;">
-            (Base Elenco: ${stats.basePower} + Química: +${stats.chemPower} + Duplas/Trios/Clubes: +${stats.bondsPower})
-          </div>
-          <p style="font-size:0.82rem; color:#dbeafe; max-width:560px; margin:8px auto 10px;">
-            Toque em dois jogadores no campo se quiser trocar posições ou clique em <strong>DAR GO!</strong> para preparar a estreia no Futebol Fronteira e buscar vaga no Mundial!
-          </p>
-          <button class="ie-cmd-btn ie-cmd-green" id="btn-start-go" style="padding:13px 28px; font-size:1rem;">
+        <div class="go-ready-actions" style="display:flex; justify-content:center; margin-bottom:10px;">
+          <button class="ie-cmd-btn ie-cmd-green" id="btn-start-go" style="padding:14px 34px; font-size:1.05rem; box-shadow: 0 4px 18px rgba(74, 222, 128, 0.45);">
             <span>DAR GO! — PREPARAR MODO RELÂMPAGO</span>
           </button>
         </div>
 
-        ${buildPitchHTML()}
+        ${buildPitchHTML(true)}
       `;
 
       document.getElementById("btn-start-go").addEventListener("click", () => {

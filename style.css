@@ -1033,6 +1033,28 @@ body {
   box-shadow: 0 14px 36px rgba(0, 0, 0, 0.65), inset 0 0 55px rgba(0, 0, 0, 0.35);
 }
 
+.pitch-swap-instruction-pill {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 12;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 14px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.88);
+  border: 1.5px solid rgba(250, 204, 21, 0.75);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.6), 0 0 12px rgba(250, 204, 21, 0.25);
+  color: #f8fafc;
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
 .pitch-half-line {
   position: absolute;
   top: 50%;
