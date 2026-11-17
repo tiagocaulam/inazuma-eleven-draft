@@ -6746,13 +6746,13 @@
       {
         id: "town",
         title: "Cidade de Inazuma",
-        sub: "Lojas & Rua Comercial • Equipamentos & Passivas",
+        sub: "Lojas & Comercial",
         cta: "Visitar a Cidade",
         spinMsg: "Sorteando 3 itens esportivos na Cidade de Inazuma...",
         resultEyebrow: "Escolha 1 de 3 Descobertas na Cidade",
         banner: UI.locTown || UI.stadiumBg,
         badgeIcon: UI.itemShoesLegend || UI.itemGloveLegend,
-        desc: "Explore a rua comercial de Inazuma. Sorteie 3 itens lendários e escolha 1: itens passivos de eventos duplos, resistência nos minutos finais ou equipamentos de elite.",
+        desc: "Equipamentos, passivas de 2 eventos e fôlego aos 75'+.",
         events: [
           {
             id: "coach_double_pass",
@@ -6835,13 +6835,13 @@
       {
         id: "riverbank",
         title: "Margem do Rio",
-        sub: "Campinho Clássico • Confrontos 5x5, Recrutamento & XP",
+        sub: "Campinho da Raimon",
         cta: "Ir para o Campo",
         spinMsg: "Sorteando 3 oportunidades na Margem do Rio...",
         resultEyebrow: "Escolha 1 de 3 Oportunidades na Margem",
         banner: UI.locRiverbank || UI.stadiumBg,
         badgeIcon: UI.ffLogo || UI.moveOF,
-        desc: "Visite o campinho clássico da Raimon. Sorteie 3 atividades e escolha 1: 5x5 valendo recrutamento de craque ou perda de poder, rodas de passes ou coletivos.",
+        desc: "5x5 com recrutamento de craque, XP e táticas.",
         events: [
           {
             id: "clash_5v5",
@@ -6895,13 +6895,13 @@
       {
         id: "training",
         title: "Centro Inabikari",
-        sub: "Treino Secreto • Risco/Sorte, Keshin & Técnicas",
+        sub: "Treino Secreto",
         cta: "Treinar no Inabikari",
         spinMsg: "Sorteando 3 salas de treino no Centro Inabikari...",
         resultEyebrow: "Escolha 1 de 3 Treinos no Inabikari",
         banner: UI.locTraining || UI.stadiumBg,
         badgeIcon: UI.keshinPegasus || UI.keshinIcon,
-        desc: "Sorteie 3 treinamentos e escolha 1: aprenda técnicas proibidas no Círculo de Risco/Sorte (acerto = Super Técnica, erro = perda de poder), desperte Keshins ou evolua golpes.",
+        desc: "QTE de risco/sorte (Técnica Proibida), Keshin e evolução.",
         events: [
           {
             id: "risk_secret_hissatsu",
@@ -7670,32 +7670,17 @@
             .map(
               (loc) => `
             <div class="prep-loc-card" data-prep-loc="${loc.id}">
-              <div class="prep-loc-banner" style="background-image:url('${loc.banner || ""}')">
+              <div class="prep-loc-compact-icon-wrap">
                 ${loc.badgeIcon ? `<img class="prep-loc-badge-icon" src="${loc.badgeIcon}" alt="" />` : ""}
-                <div class="prep-loc-title-wrap">
-                  <div class="prep-loc-sub">${loc.sub}</div>
-                  <div class="prep-loc-title">${loc.title}</div>
-                </div>
               </div>
-              <div class="prep-loc-body">
-                <p class="prep-loc-desc">${loc.desc}</p>
-                <div class="prep-loc-loot-row">
-                  ${loc.events
-                    .slice(0, 3)
-                    .map(
-                      (ev) => `
-                    <span class="prep-loot-chip">
-                      ${ev.icon ? `<img src="${ev.icon}" alt="" />` : ""}
-                      <span>${ev.title}</span>
-                    </span>
-                  `
-                    )
-                    .join("")}
-                </div>
-                <button class="ie-cmd-btn ie-cmd-gold" style="width:100%; justify-content:center;">
-                  <span>${loc.cta || loc.title}</span>
-                </button>
+              <div class="prep-loc-compact-content">
+                <div class="prep-loc-sub">${loc.sub || ""}</div>
+                <div class="prep-loc-title">${loc.title}</div>
+                <div class="prep-loc-desc">${loc.desc}</div>
               </div>
+              <button class="ie-cmd-btn ie-cmd-gold prep-loc-btn-action">
+                <span>${loc.cta || loc.title}</span>
+              </button>
             </div>
           `
             )
