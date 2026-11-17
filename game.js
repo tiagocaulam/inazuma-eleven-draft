@@ -7414,7 +7414,7 @@
     if (ev.kind === "PASSIVE_DOUBLE_EVENT") return "🎟️ +1 Ação por Rodada (Permanente)";
     if (ev.kind === "PASSIVE_LATE_RESIST") return "⚡ Fôlego Infinito (75'+)";
     if (ev.kind === "STREET_5V5") return "⭐ Venceu = Recruta Craque";
-    if (ev.kind === "RISK_TECHNIQUE_QTE") return "🔥 +4 OVR & Nova Hissatsu";
+    if (ev.id === "secret_hissatsu_mastery") return "🔥 +3 OVR & Golpe Supremo";
     if (ev.kind === "KESHIN_PICK") return "⚔️ +3 OVR & Keshin nos Duelos";
     if (ev.kind === "EVO_PICK") return "⚡ Evolui Técnica & +2 OVR";
     if (ev.id === "river_xp") return "✨ +1 OVR nos 11 & +130 XP";
@@ -7587,15 +7587,18 @@
         resultEyebrow: "Escolha 1 de 3 Treinos no Inabikari",
         banner: UI.locTraining || UI.stadiumBg,
         badgeIcon: UI.keshinPegasus || UI.keshinIcon,
-        desc: "QTE de risco/sorte (Técnica Proibida), Keshin e evolução.",
+        desc: "Manual Secreto, Incorporação Keshin e evolução de técnicas.",
         events: [
           {
-            id: "risk_secret_hissatsu",
-            title: "Desafio de Risco: Técnica Secreta",
+            id: "secret_hissatsu_mastery",
+            title: "Manual Secreto de Inazuma",
             icon: UI.manualInazuma || UI.manualSkill,
-            kind: "RISK_TECHNIQUE_QTE",
+            kind: "EVO_PICK",
+            ovrBoost: 3,
+            teamPower: 26,
+            xpGain: 95,
             weight: 2.6,
-            summary: "Círculo de Sorte/Timing de 1 volta! Acerto no Verde = aprende Super Técnica (+4 OVR e novo golpe); Erro no Vermelho = cansaço (-25 Poder no próximo jogo)!"
+            summary: "Escolha 1 titular para aprender a técnica suprema do Manual Secreto: +3 OVR e grande bônus de Poder!"
           },
           {
             id: "keshin_awaken",
@@ -7968,141 +7971,9 @@
       return;
     }
 
-    // 5. Desafio de Risco e Sorte: Técnica Proibida (Centro Inabikari)
-    if (choiceEvent.kind === "RISK_TECHNIQUE_QTE") {
-      prep.phase = "RISK_SELECT_PLAYER";
-      renderTournamentScreen();
-      return;
-    }
-
-    // 6. Itens ou Keshin para 1 jogador
+    // 5. Itens, Keshin ou Evolução para 1 jogador selecionado do elenco
     prep.phase = "RESULT";
     renderTournamentScreen();
-  }
-
-  function triggerRiskTechniqueQTE(targetSlotId) {
-    const t = state.tournament;
-    const prep = t.prep;
-    if (!prep) return;
-    prep.riskTargetSlotId = targetSlotId;
-    const player = state.squad[targetSlotId];
-    if (!player) return;
-
-    // Abre o minigame de timing de 1 volta rápida no modal
-    clearTournamentTimers(false);
-    const slotEl = document.getElementById("shot-clash-slot");
-    if (!slotEl) return;
-
-    const targetDeg = Math.round(-110 + Math.random() * 220);
-    const greenHalf = 32;
-    const yellowHalf = 64;
-    const speedDegPerSec = 185;
-    const startDeg = ((targetDeg + 180 + 540) % 360) - 180;
-    const yellowArc = describeSvgArc(80, 80, 56, targetDeg - yellowHalf, targetDeg + yellowHalf);
-    const greenArc = describeSvgArc(80, 80, 56, targetDeg - greenHalf, targetDeg + greenHalf);
-
-    slotEl.innerHTML = `
-      <div class="halftime-qte-stage" id="timing-qte-card" style="max-width: 480px;">
-        <div class="halftime-ref-row">
-          <img src="${UI.manualInazuma || UI.manualSkill || UI.ffLogo || ''}" alt="" class="qte-vol-img" style="border-color:#facc15;" />
-          <div style="flex:1; min-width:0;">
-            <div style="font-size:0.75rem; font-weight:900; color:#facc15; text-transform:uppercase;">TREINO PROIBIDO DE RISCO &amp; SORTE</div>
-            <div style="font-size:0.95rem; font-weight:900; color:#fff;">${player.name} tenta aprender Super Técnica!</div>
-          </div>
-          <span class="prep-xp-pill" style="font-size:0.64rem; padding:3px 8px; background:#dc2626; border-color:#f87171;">RISCO MÁXIMO</span>
-        </div>
-        <div style="font-size:0.76rem; color:#cbd5e1; text-align:center; padding:0 8px;">
-          Pressione <strong>ESPAÇO</strong> ou toque no botão na <strong>ZONA VERDE</strong>! Se falhar, o time perde 25 de poder no próximo jogo!
-        </div>
-        <div class="halftime-qte-body">
-          <div class="qte-circle-wrap" id="timing-circle-wrap" style="width:144px; height:144px;">
-            <svg class="qte-circle-svg" viewBox="0 0 160 160">
-              <circle cx="80" cy="80" r="56" fill="none" stroke="rgba(148, 163, 184, 0.25)" stroke-width="14" />
-              <path d="${yellowArc}" fill="none" stroke="#eab308" stroke-width="14" stroke-linecap="round" />
-              <path d="${greenArc}" fill="none" stroke="#22c55e" stroke-width="15" stroke-linecap="round" />
-              <g id="timing-needle-group" transform="rotate(${startDeg.toFixed(1)} 80 80)">
-                <line x1="80" y1="80" x2="80" y2="16" stroke="#ffffff" stroke-width="3.5" stroke-linecap="round" />
-                <circle cx="80" cy="24" r="6" fill="#facc15" stroke="#0f172a" stroke-width="2" />
-              </g>
-            </svg>
-            <div class="qte-center-icon" style="width:48px; height:48px;">
-              <img src="${player.sprite}" alt="" style="width:38px; height:38px; border-radius:50%; object-fit:cover; border:1.5px solid #facc15;" />
-            </div>
-          </div>
-          <div class="qte-controls-col" style="align-items:center; justify-content:center;">
-            <button class="ie-cmd-btn ie-cmd-gold" id="btn-trigger-timing" style="padding:12px 20px; font-size:0.86rem; width:100%; justify-content:center;">
-              <span>CONCENTRAR &amp; ACERTAR!</span>
-            </button>
-            <div style="font-size:0.68rem; color:#94a3b8; text-align:center;">Ou pressione a tecla [Espaço]</div>
-          </div>
-        </div>
-      </div>
-    `;
-    slotEl.style.display = "flex";
-
-    let angle = startDeg;
-    let finished = false;
-    let startTime = performance.now();
-    let qteRafId = null;
-
-    const needleGroup = document.getElementById("timing-needle-group");
-    const tick = (now) => {
-      const elapsed = (now - startTime) / 1000;
-      angle = startDeg + elapsed * speedDegPerSec;
-      if (needleGroup) needleGroup.setAttribute("transform", `rotate(${angle.toFixed(1)} 80 80)`);
-      if (elapsed >= 360 / speedDegPerSec + 0.15 && !finished) {
-        resolveRiskQte("TIMEOUT");
-        return;
-      }
-      if (!finished) qteRafId = requestAnimationFrame(tick);
-    };
-    qteRafId = requestAnimationFrame(tick);
-
-    const resolveRiskQte = (source) => {
-      if (finished) return;
-      finished = true;
-      if (qteRafId) cancelAnimationFrame(qteRafId);
-      document.removeEventListener("keydown", riskKeyHandler);
-
-      const normCur = ((angle % 360) + 360) % 360;
-      const normTgt = ((targetDeg % 360) + 360) % 360;
-      const diff = computeShortestAngleDiffDeg(normCur, normTgt);
-      const isGreen = diff <= greenHalf;
-      const isYellow = !isGreen && diff <= yellowHalf;
-      const success = isGreen || isYellow;
-
-      slotEl.innerHTML = "";
-      slotEl.style.display = "none";
-
-      if (success) {
-        player.boostOvr = (player.boostOvr || 0) + 4;
-        const newSuperMove = "【Shin Triângulo Z / Fúria do Relâmpago】";
-        if (!player.moves) player.moves = {};
-        if (!player.moves.SH) player.moves.SH = [];
-        player.moves.SH.unshift(newSuperMove);
-        player.hissatsu = newSuperMove;
-        t.prepBonuses.power += 35;
-        t.prepBonuses.log.push(`Treino Secreto Sucesso (${player.name})`);
-        prep.phase = "DONE";
-        prep.appliedMsg = `🔥 SUCESSO ABSOLUTO! ${player.name} dominou o treino secreto, aprendeu ${newSuperMove}, ganhou +4 OVR e o time somou +35 Poder!`;
-      } else {
-        t.prepBonuses.power -= 25;
-        t.prepBonuses.log.push(`Treino Secreto Falha (${player.name})`);
-        prep.phase = "DONE";
-        prep.appliedMsg = `💥 FALHA NO TREINO! O golpe saiu de controle. ${player.name} sofreu cansaço severo e o time perdeu 25 de Poder para o próximo jogo!`;
-      }
-      renderAll();
-    };
-
-    const riskKeyHandler = (e) => {
-      if (e.code === "Space" || e.key === " ") {
-        e.preventDefault();
-        resolveRiskQte("KEY");
-      }
-    };
-    document.addEventListener("keydown", riskKeyHandler);
-    const trigBtn = document.getElementById("btn-trigger-timing");
-    if (trigBtn) trigBtn.addEventListener("click", () => resolveRiskQte("CLICK"));
   }
 
   function handleRecruitStarPlayer(starRecruit, replaceSlotId) {
@@ -8442,51 +8313,6 @@
             <button class="ie-cmd-btn" id="btn-skip-recruit" style="background:#334155;">
               <span>Não quero recrutar (Manter meu time original)</span>
             </button>
-          </div>
-        </div>
-      `;
-    } else if (prep.phase === "RISK_SELECT_PLAYER") {
-      bodyHTML = `
-        <div class="prep-risk-select-container">
-          <div class="prep-reward-hero">
-            <div class="prep-reward-icon-frame">
-              ${prep.event?.icon ? `<img src="${prep.event.icon}" alt="" />` : ""}
-            </div>
-            <div style="flex:1; min-width:200px;">
-              <div style="font-size:0.7rem; font-weight:900; color:#f87171; text-transform:uppercase;">Centro Inabikari • Desafio Extremo</div>
-              <div style="font-size:1.05rem; font-weight:900; color:#fff;">Técnica Proibida &amp; Circuito Relâmpago</div>
-              <div style="font-size:0.76rem; color:#cbd5e1;">
-                Selecione qual atleta tentará o minigame de precisão na roleta do treino.
-                Se acertar a área Verde: <strong>Aprende Super Técnica +4 OVR +35 Poder</strong>.
-                Se falhar ou der timeout: <strong>-25 Poder no próximo jogo</strong>!
-              </div>
-            </div>
-          </div>
-          <div style="font-size:0.78rem; font-weight:800; color:#facc15; margin:14px 0 6px;">
-            Escolha o jogador que fará o teste:
-          </div>
-          <div class="prep-pick-grid">
-            ${getSlots().map((slot) => {
-              const p = state.squad[slot.id];
-              if (!p) return "";
-              const curOvr = getEffectiveOvr(p, slot.role);
-              return `
-                <div class="prep-pick-card" data-risk-player-slot="${slot.id}">
-                  <img class="prep-pick-sprite" src="${getPlayerFormSprite(p, slot.role)}" alt="${p.name}" />
-                  <div style="min-width:0; flex:1;">
-                    <div style="font-size:0.78rem; font-weight:900; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
-                      ${posIconHTML(slot.role, true)} ${p.name}
-                    </div>
-                    <div style="font-size:0.68rem; font-weight:800; color:#4ade80;">
-                      OVR ${curOvr} ➔ ${Math.min(99, curOvr + 4)} (se vencer)
-                    </div>
-                    <div style="font-size:0.64rem; color:#f87171;">
-                      Risco: -25 Poder se errar
-                    </div>
-                  </div>
-                </div>
-              `;
-            }).join("")}
           </div>
         </div>
       `;
@@ -8899,15 +8725,6 @@
           renderTournamentScreen();
         });
       }
-
-      container.querySelectorAll("[data-risk-player-slot]").forEach((targetCard) => {
-        targetCard.addEventListener("click", () => {
-          const slotId = targetCard.getAttribute("data-risk-player-slot");
-          if (slotId) {
-            triggerRiskTechniqueQTE(slotId);
-          }
-        });
-      });
 
       const secondEventBtn = document.getElementById("btn-prep-second-event");
       if (secondEventBtn) {
