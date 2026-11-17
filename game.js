@@ -6878,6 +6878,25 @@
     ]
   };
 
+  function getPrepBuffPill(ev) {
+    if (!ev) return "";
+    if (ev.shortDesc) return ev.shortDesc;
+    if (ev.kind === "PASSIVE_DOUBLE_EVENT") return "🎟️ +1 Ação por Rodada (Permanente)";
+    if (ev.kind === "PASSIVE_LATE_RESIST") return "⚡ Fôlego Infinito (75'+)";
+    if (ev.kind === "STREET_5V5") return "⭐ Venceu = Recruta Craque";
+    if (ev.kind === "RISK_TECHNIQUE_QTE") return "🔥 +4 OVR & Nova Hissatsu";
+    if (ev.kind === "KESHIN_PICK") return "⚔️ +3 OVR & Keshin nos Duelos";
+    if (ev.kind === "EVO_PICK") return "⚡ Evolui Técnica & +2 OVR";
+    if (ev.id === "river_xp") return "✨ +1 OVR nos 11 & +130 XP";
+    if (ev.id === "river_tactics") return "📊 +10% Quím • +45 Poder • +2 OVR";
+    if (ev.id === "river_shot") return "⚽ +2 OVR nos Atacantes & +30 Pwr";
+    if (ev.id === "tire_training") return "🛡️ +1 OVR Goleiro/Zaga & -28% Stam";
+    if (ev.ovrBoost && ev.teamPower) return `📈 +${ev.ovrBoost} OVR & +${ev.teamPower} Poder`;
+    if (ev.ovrBoost) return `📈 +${ev.ovrBoost} OVR`;
+    if (ev.teamPower) return `⚡ +${ev.teamPower} Poder`;
+    return ev.summary || "";
+  }
+
   function getPrepLocationsCatalog() {
     return [
       {
@@ -7857,6 +7876,7 @@
                   ${chosenWinner.icon ? `<img src="${chosenWinner.icon}" alt="" />` : ""}
                 </div>
                 <div class="prep-choice-name">${chosenWinner.title}</div>
+                <div class="prep-choice-buff-pill">${getPrepBuffPill(chosenWinner)}</div>
                 <div class="prep-choice-summary">${chosenWinner.summary || ""}</div>
                 <button class="ie-cmd-btn ie-cmd-gold prep-btn-pick" data-prep-choice-idx="${sIdx}">
                   <span>ESCOLHER</span>

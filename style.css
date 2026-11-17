@@ -5233,6 +5233,24 @@ body {
   line-height: 1.2;
 }
 
+.prep-choice-buff-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.64rem;
+  font-weight: 900;
+  color: #fde047;
+  background: rgba(234, 179, 8, 0.18);
+  border: 1px solid rgba(250, 204, 21, 0.45);
+  border-radius: 999px;
+  padding: 2px 7px;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-shadow: 0 0 8px rgba(250, 204, 21, 0.15);
+}
+
 .prep-choice-summary {
   font-size: 0.68rem;
   color: #cbd5e1;
@@ -5279,8 +5297,18 @@ body {
   .prep-choice-name {
     font-size: 0.72rem;
   }
+  .prep-choice-buff-pill {
+    font-size: 0.58rem;
+    padding: 2px 4px;
+    line-height: 1.15;
+    white-space: normal;
+    text-align: center;
+    border-radius: 6px;
+    word-break: break-word;
+    min-height: 28px;
+  }
   .prep-choice-summary {
-    display: none; /* Em mobile, exibe o ícone grande e título clicável, sem texto longo ocupando espaço vertical */
+    display: none; /* Em mobile, o buff-pill resumido já fornece todo o benefício sem texto longo ocupando espaço vertical */
   }
   .prep-btn-pick {
     font-size: 0.64rem;
