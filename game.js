@@ -2289,6 +2289,12 @@
 
   function spendStamina(node, cost) {
     if (!node) return;
+    // Passiva: Pingente da Resistência Final — não perde energia nos minutos finais (a partir de 75')
+    const curMinute = state.tournament?.stages?.[state.tournament.stageIndex]?.minute || 0;
+    const hasFinalResistance = node.side === "user" && state.tournament?.prepBonuses?.lateMatchNoStaminaLoss;
+    if (hasFinalResistance && curMinute >= 75) {
+      return;
+    }
     const mul = node.side === "user" ? state.tournament?.prepBonuses?.staminaMul || 1 : 1;
     node.stamina = Math.max(18, node.stamina - cost * mul);
   }
@@ -6740,14 +6746,30 @@
       {
         id: "town",
         title: "Cidade de Inazuma",
-        sub: "Lojas & Rua Comercial • Equipamentos",
+        sub: "Lojas & Rua Comercial • Equipamentos & Passivas",
         cta: "Visitar a Cidade",
-        spinMsg: "Percorrendo as lojas esportivas da Cidade de Inazuma...",
-        resultEyebrow: "Encontrado na Cidade",
+        spinMsg: "Sorteando 3 itens esportivos na Cidade de Inazuma...",
+        resultEyebrow: "Escolha 1 de 3 Descobertas na Cidade",
         banner: UI.locTown || UI.stadiumBg,
         badgeIcon: UI.itemShoesLegend || UI.itemGloveLegend,
-        desc: "Explore a rua comercial de Inazuma em busca de chuteiras, luvas, pingentes ou pulseiras para equipar um jogador do elenco.",
+        desc: "Explore a rua comercial de Inazuma. Sorteie 3 itens lendários e escolha 1: itens passivos de eventos duplos, resistência nos minutos finais ou equipamentos de elite.",
         events: [
+          {
+            id: "coach_double_pass",
+            title: "Passe Livre do Treinador",
+            icon: UI.manualInazuma || UI.ffLogo,
+            kind: "PASSIVE_DOUBLE_EVENT",
+            weight: 2.2,
+            summary: "Permite ao time realizar 2 eventos de preparação completos antes da próxima partida!"
+          },
+          {
+            id: "pendant_endurance",
+            title: "Pingente da Resistência Final",
+            icon: UI.itemPendantLightning || UI.tpPendant,
+            kind: "PASSIVE_LATE_RESIST",
+            weight: 2.0,
+            summary: "Passiva Suprema: Todos os 11 jogadores NÃO PERDEM ENERGIA a partir dos 75' de jogo!"
+          },
           {
             id: "shoes_legend",
             title: "Chuteiras Lendárias",
@@ -6755,10 +6777,22 @@
             kind: "ITEM_PICK",
             targetRoles: ["FW", "MF"],
             ovrBoost: 3,
-            teamPower: 12,
+            teamPower: 18,
             teamChem: 0,
             weight: 2.0,
-            summary: "+3 OVR para um Atacante ou Meia • +12 Poder"
+            summary: "+3 OVR para um Atacante ou Meia • +18 Poder"
+          },
+          {
+            id: "glove_legend",
+            title: "Luvas Lendárias",
+            icon: UI.itemGloveLegend || UI.itemGloveRaimon,
+            kind: "ITEM_PICK",
+            targetRoles: ["GK"],
+            ovrBoost: 3,
+            teamPower: 20,
+            teamChem: 0,
+            weight: 1.8,
+            summary: "+3 OVR para o seu Goleiro • +20 Poder"
           },
           {
             id: "shoes_thunder",
@@ -6773,40 +6807,16 @@
             summary: "+2 OVR para um jogador de linha • +15 Poder"
           },
           {
-            id: "glove_legend",
-            title: "Luvas Lendárias",
-            icon: UI.itemGloveLegend || UI.itemGloveRaimon,
-            kind: "ITEM_PICK",
-            targetRoles: ["GK"],
-            ovrBoost: 3,
-            teamPower: 15,
-            teamChem: 0,
-            weight: 1.7,
-            summary: "+3 OVR para o seu Goleiro • +15 Poder"
-          },
-          {
             id: "spike_block",
             title: "Travas de Bloqueio",
             icon: UI.itemSpikeBlock,
             kind: "ITEM_PICK",
             targetRoles: ["DF"],
             ovrBoost: 3,
-            teamPower: 12,
+            teamPower: 16,
             teamChem: 0,
             weight: 1.8,
-            summary: "+3 OVR para um Zagueiro • +12 Poder"
-          },
-          {
-            id: "pendant_lightning",
-            title: "Pingente Relâmpago",
-            icon: UI.itemPendantLightning,
-            kind: "ITEM_PICK",
-            targetRoles: ["GK", "DF", "MF", "FW"],
-            ovrBoost: 2,
-            teamPower: 20,
-            teamChem: 3,
-            weight: 1.6,
-            summary: "+2 OVR para qualquer titular • +3% Química • +20 Poder"
+            summary: "+3 OVR para um Zagueiro • +16 Poder"
           },
           {
             id: "misanga_friend",
@@ -6815,31 +6825,31 @@
             kind: "ITEM_PICK",
             targetRoles: ["GK", "DF", "MF", "FW"],
             ovrBoost: 2,
-            teamPower: 18,
-            teamChem: 7,
+            teamPower: 20,
+            teamChem: 8,
             weight: 1.6,
-            summary: "+2 OVR em um titular • +7% Química • +18 Poder"
+            summary: "+2 OVR em um titular • +8% Química • +20 Poder"
           }
         ]
       },
       {
         id: "riverbank",
         title: "Margem do Rio",
-        sub: "Campinho Clássico • Confrontos 5x5 & XP",
+        sub: "Campinho Clássico • Confrontos 5x5, Recrutamento & XP",
         cta: "Ir para o Campo",
-        spinMsg: "Chegando ao campinho da Margem do Rio...",
-        resultEyebrow: "Acontecendo na Margem do Rio",
+        spinMsg: "Sorteando 3 oportunidades na Margem do Rio...",
+        resultEyebrow: "Escolha 1 de 3 Oportunidades na Margem",
         banner: UI.locRiverbank || UI.stadiumBg,
         badgeIcon: UI.ffLogo || UI.moveOF,
-        desc: "Visite o campinho clássico da Raimon para encarar confrontos 5x5 (Gol de Ouro), ganhar XP e elevar o nível dos atletas.",
+        desc: "Visite o campinho clássico da Raimon. Sorteie 3 atividades e escolha 1: 5x5 valendo recrutamento de craque ou perda de poder, rodas de passes ou coletivos.",
         events: [
           {
             id: "clash_5v5",
-            title: "Confronto 5x5 de Rua!",
+            title: "Confronto 5x5 com Craque!",
             icon: UI.ffLogo || UI.moveSH,
             kind: "STREET_5V5",
-            weight: 3.4,
-            summary: "1 Goleiro + 4 na linha — quem fizer o 1º gol ganha! Os 5 participantes ganham XP (+120 XP na vitória, +65 XP na luta)."
+            weight: 2.8,
+            summary: "Gol de Ouro! O time rival traz um craque estrela: se vencer, você pode RECRUTAR e substituir alguém do seu time; se perder, sofre -20 de Poder!"
           },
           {
             id: "river_xp",
@@ -6848,24 +6858,24 @@
             kind: "COLLECTIVE",
             applyRoles: ["GK", "DF", "MF", "FW"],
             ovrBoost: 1,
-            teamPower: 22,
-            teamChem: 2,
-            xpGain: 120,
-            weight: 1.5,
-            summary: "+120 XP • +1 OVR em todos os 11 titulares • +2% Quím • +22 Poder"
+            teamPower: 24,
+            teamChem: 3,
+            xpGain: 130,
+            weight: 1.8,
+            summary: "+130 XP • +1 OVR em todos os 11 titulares • +3% Quím • +24 Poder"
           },
           {
             id: "river_tactics",
-            title: "Roda Tática na Margem",
+            title: "Roda Tática de Tabelas",
             icon: UI.formation || UI.moveOF,
             kind: "COLLECTIVE",
             applyRoles: ["MF"],
-            ovrBoost: 1,
-            teamPower: 40,
-            teamChem: 8,
-            xpGain: 75,
-            weight: 1.5,
-            summary: "+8% Química • +40 Poder • +1 OVR nos Meias • +75 XP"
+            ovrBoost: 2,
+            teamPower: 45,
+            teamChem: 10,
+            xpGain: 90,
+            weight: 1.8,
+            summary: "+10% Química • +45 Poder • +2 OVR nos Meias • +90 XP"
           },
           {
             id: "river_shot",
@@ -6874,45 +6884,53 @@
             kind: "COLLECTIVE",
             applyRoles: ["FW"],
             ovrBoost: 2,
-            teamPower: 25,
+            teamPower: 30,
             teamChem: 0,
-            xpGain: 65,
-            weight: 1.2,
-            summary: "+2 OVR nos Atacantes • +25 Poder • +65 XP"
+            xpGain: 80,
+            weight: 1.6,
+            summary: "+2 OVR nos Atacantes • +30 Poder • +80 XP"
           }
         ]
       },
       {
         id: "training",
         title: "Centro Inabikari",
-        sub: "Treino Secreto • Incorporação & Técnicas",
+        sub: "Treino Secreto • Risco/Sorte, Keshin & Técnicas",
         cta: "Treinar no Inabikari",
-        spinMsg: "Iniciando sessão secreta no Centro Inabikari...",
-        resultEyebrow: "Resultado do Treinamento",
+        spinMsg: "Sorteando 3 salas de treino no Centro Inabikari...",
+        resultEyebrow: "Escolha 1 de 3 Treinos no Inabikari",
         banner: UI.locTraining || UI.stadiumBg,
         badgeIcon: UI.keshinPegasus || UI.keshinIcon,
-        desc: "Desbloqueie o poder oculto da equipe despertando uma Incorporação (Keshin) ou evoluindo técnicas Hissatsu para o próximo duelo.",
+        desc: "Sorteie 3 treinamentos e escolha 1: aprenda técnicas proibidas no Círculo de Risco/Sorte (acerto = Super Técnica, erro = perda de poder), desperte Keshins ou evolua golpes.",
         events: [
+          {
+            id: "risk_secret_hissatsu",
+            title: "Desafio de Risco: Técnica Secreta",
+            icon: UI.manualInazuma || UI.manualSkill,
+            kind: "RISK_TECHNIQUE_QTE",
+            weight: 2.6,
+            summary: "Círculo de Sorte/Timing de 1 volta! Acerto no Verde = aprende Super Técnica (+4 OVR e novo golpe); Erro no Vermelho = cansaço (-25 Poder no próximo jogo)!"
+          },
           {
             id: "keshin_awaken",
             title: "Despertar Incorporação!",
             icon: UI.keshinPegasus || UI.keshinIcon,
             kind: "KESHIN_PICK",
             ovrBoost: 3,
-            teamPower: 15,
-            xpGain: 90,
-            weight: 2.5,
+            teamPower: 18,
+            xpGain: 95,
+            weight: 2.4,
             summary: "Escolha 1 titular para despertar um Espírito Guerreiro: +3 OVR e bônus nos duelos!"
           },
           {
             id: "evo_move",
             title: "Evoluir Técnica (G2/Shin)",
-            icon: UI.manualInazuma || UI.manualKeshin,
+            icon: UI.manualSkill || UI.manualKeshin,
             kind: "EVO_PICK",
             ovrBoost: 2,
-            teamPower: 15,
-            xpGain: 75,
-            weight: 2.5,
+            teamPower: 18,
+            xpGain: 85,
+            weight: 2.2,
             summary: "Fortaleça a técnica principal de 1 titular para G2/V2/Shin (+2 OVR + bônus em duelo)!"
           },
           {
@@ -6922,25 +6940,12 @@
             kind: "COLLECTIVE",
             applyRoles: ["GK", "DF"],
             ovrBoost: 1,
-            teamPower: 25,
-            teamChem: 2,
-            xpGain: 80,
-            staminaMul: 0.78,
-            weight: 1.5,
-            summary: "+1 OVR no Goleiro & Zagueiros • -22% gasto de energia • +25 Poder"
-          },
-          {
-            id: "secret_manual",
-            title: "Manual Secreto Inabikari",
-            icon: UI.manualSkill || UI.manualInazuma,
-            kind: "MANUAL_PICK",
-            targetRoles: ["GK", "DF", "MF", "FW"],
-            ovrBoost: 2,
-            teamPower: 25,
-            teamChem: 4,
-            xpGain: 70,
-            weight: 1.5,
-            summary: "Escolha 1 titular para estudar o manual: +2 OVR • +4% Química • +25 Poder"
+            teamPower: 28,
+            teamChem: 3,
+            xpGain: 85,
+            staminaMul: 0.72,
+            weight: 1.8,
+            summary: "+1 OVR no Goleiro & Zagueiros • -28% gasto de energia • +28 Poder"
           }
         ]
       }
@@ -7026,22 +7031,39 @@
       .filter(Boolean);
 
     const usedOppIds = getPickedPlayerIds();
+    // Seleciona um craque estrela (OVR 88 a 96) para liderar o time adversário de rua!
+    const starCandidates = [];
+    DB.teams.forEach((t) => {
+      t.players.forEach((p) => {
+        if (!usedOppIds.has(p.id) && p.ovr >= 87) {
+          starCandidates.push({ player: p, teamName: t.name, teamId: t.id, emblem: t.emblem, role: p.pos });
+        }
+      });
+    });
+    const starRecruit = starCandidates.length > 0
+      ? starCandidates[Math.floor(Math.random() * starCandidates.length)]
+      : null;
+    if (starRecruit) usedOppIds.add(starRecruit.player.id);
+
     const pickOppByRole = (role) => {
+      if (starRecruit && starRecruit.role === role) {
+        return starRecruit;
+      }
       const cands = [];
       DB.teams.forEach((t) => {
         t.players.forEach((p) => {
-          if (!usedOppIds.has(p.id) && p.pos === role && p.ovr >= 78 && p.ovr <= 92) {
-            cands.push({ player: p, teamName: t.name, role });
+          if (!usedOppIds.has(p.id) && p.pos === role && p.ovr >= 76 && p.ovr <= 89) {
+            cands.push({ player: p, teamName: t.name, teamId: t.id, emblem: t.emblem, role });
           }
         });
       });
-      const picked = cands[Math.floor(Math.random() * cands.length)] || { player: DB.teams[0].players[0], teamName: DB.teams[0].name, role };
+      const picked = cands[Math.floor(Math.random() * cands.length)] || { player: DB.teams[0].players[0], teamName: DB.teams[0].name, teamId: DB.teams[0].id, emblem: DB.teams[0].emblem, role };
       usedOppIds.add(picked.player.id);
       return picked;
     };
     const oppQuintet = ["GK", "DF", "MF", "MF", "FW"].map(pickOppByRole);
 
-    return { userQuintet, oppQuintet, status: "READY", miniSt: null, xpSummary: [] };
+    return { userQuintet, oppQuintet, starRecruit, status: "READY", miniSt: null, xpSummary: [] };
   }
 
   function initStreet5v5PitchState(miniSt, c5) {
@@ -7161,22 +7183,30 @@
     clearTournamentTimers(false);
     const t = state.tournament;
     if (!t.prepBonuses) {
-      t.prepBonuses = { xp: 0, chem: 0, power: 0, staminaMul: 1, log: [] };
+      t.prepBonuses = { xp: 0, chem: 0, power: 0, staminaMul: 1, lateMatchNoStaminaLoss: false, log: [] };
     }
+    // Se o time tiver créditos de eventos passivos anteriores, utiliza; senão inicia com 1
+    const allowedEvents = t.prepExtraEventCredits ? t.prepExtraEventCredits : 1;
+    t.prepExtraEventCredits = 0;
+
     t.prep = {
       nextStageIdx,
       phase: "CHOOSE_LOC",
       locId: null,
       event: null,
-      rouletteStrip: [],
-      rouletteWinnerIdx: 21,
+      choices: [], // 3 opções sorteadas para o jogador escolher 1
+      isSpinningSlots: false,
+      slotsSpun: [false, false, false],
+      eventsRemaining: allowedEvents,
       appliedMsg: null,
-      clash5v5: null
+      clash5v5: null,
+      recruitCandidate: null,
+      riskTargetSlotId: null
     };
     renderAll();
   }
 
-  function startPrepLocationRoulette(locId) {
+  function startPrepLocationTripleSlot(locId) {
     const t = state.tournament;
     if (!t.prep) return;
     const loc = getPrepLocationsCatalog().find((x) => x.id === locId);
@@ -7187,46 +7217,253 @@
       t.prepTimerId = null;
     }
 
-    const winnerEvent = pickWeightedPrepEvent(loc.events);
-    const strip = [];
-    const winnerIdx = 21;
-    for (let i = 0; i < 27; i++) {
-      if (i === winnerIdx) strip.push(winnerEvent);
-      else strip.push(loc.events[Math.floor(Math.random() * loc.events.length)]);
+    // Sorteia 3 opções DISTINTAS da lista de eventos daquele local
+    const availableEvents = [...loc.events];
+    const pickedThree = [];
+    for (let c = 0; c < 3 && availableEvents.length > 0; c++) {
+      const ev = pickWeightedPrepEvent(availableEvents);
+      pickedThree.push(ev);
+      const idx = availableEvents.indexOf(ev);
+      if (idx !== -1) availableEvents.splice(idx, 1);
+    }
+    while (pickedThree.length < 3 && loc.events.length > 0) {
+      pickedThree.push(loc.events[Math.floor(Math.random() * loc.events.length)]);
     }
 
+    // Cria as 3 tiras da roleta vertical simulando slot machine
+    const slotStrips = pickedThree.map((winnerEv) => {
+      const strip = [];
+      for (let i = 0; i < 16; i++) {
+        if (i === 12) strip.push(winnerEv);
+        else strip.push(loc.events[Math.floor(Math.random() * loc.events.length)]);
+      }
+      return { winner: winnerEv, strip, winnerIdx: 12 };
+    });
+
     t.prep.locId = locId;
-    t.prep.phase = "SPINNING";
-    t.prep.event = winnerEvent;
-    t.prep.rouletteStrip = strip;
-    t.prep.rouletteWinnerIdx = winnerIdx;
+    t.prep.phase = "SPINNING_CHOICES";
+    t.prep.choices = pickedThree;
+    t.prep.slotStrips = slotStrips;
+    t.prep.slotsSpun = [false, false, false];
     t.prep.appliedMsg = null;
-    t.prep.clash5v5 = winnerEvent.kind === "STREET_5V5" ? buildStreet5v5Matchup() : null;
 
     renderTournamentScreen();
 
-    requestAnimationFrame(() => {
-      const stripEl = document.getElementById("prep-roulette-strip");
-      const vpEl = document.getElementById("prep-roulette-viewport");
-      if (stripEl && vpEl) {
-        const slotW = 122; // 112px slot + 10px gap
-        const vpCenter = vpEl.clientWidth / 2;
-        const targetOffset = -(winnerIdx * slotW + 56 + 10 - vpCenter);
-        stripEl.style.transition = "transform 2.2s cubic-bezier(0.12, 0.85, 0.22, 1)";
-        stripEl.style.transform = `translate3d(${targetOffset}px, 0, 0)`;
-      }
+    // Anima as 3 roletas com parada em cascata (slot 1 aos 1.2s, slot 2 aos 1.7s, slot 3 aos 2.2s)
+    [0, 1, 2].forEach((slotIdx) => {
+      setTimeout(() => {
+        const stripEl = document.getElementById(`prep-slot-strip-${slotIdx}`);
+        if (stripEl) {
+          const itemH = 92;
+          const targetY = -(12 * itemH);
+          stripEl.style.transition = "transform 1.4s cubic-bezier(0.12, 0.85, 0.22, 1)";
+          stripEl.style.transform = `translate3d(0, ${targetY}px, 0)`;
+        }
+      }, slotIdx * 320);
     });
 
     t.prepTimerId = setTimeout(() => {
       t.prepTimerId = null;
-      if (!state.tournament.prep || state.tournament.prep.phase !== "SPINNING") return;
-      if (winnerEvent.kind === "COLLECTIVE") {
-        applyPrepCollectiveEvent(winnerEvent);
-      } else {
-        state.tournament.prep.phase = "RESULT";
-        renderTournamentScreen();
+      if (!state.tournament.prep || state.tournament.prep.phase !== "SPINNING_CHOICES") return;
+      state.tournament.prep.phase = "PICK_CHOICE";
+      renderTournamentScreen();
+    }, 2450);
+  }
+
+  function handleChoosePrepOption(choiceEvent) {
+    const t = state.tournament;
+    const prep = t.prep;
+    if (!prep) return;
+    prep.event = choiceEvent;
+
+    // 1. Passiva: Passe Livre do Treinador (+1 evento de preparação extra antes de ir ao jogo)
+    if (choiceEvent.kind === "PASSIVE_DOUBLE_EVENT") {
+      prep.eventsRemaining = (prep.eventsRemaining || 1) + 1;
+      t.prepExtraEventCredits = (t.prepExtraEventCredits || 0) + 1;
+      t.prepBonuses.log.push("Passe Livre do Treinador (+1 Evento)");
+      prep.phase = "DONE";
+      prep.appliedMsg = "🎟️ Passe Livre Ativado! Seu time ganhou o direito de realizar +1 EVENTO COMPLETO antes da partida!";
+      renderAll();
+      return;
+    }
+
+    // 2. Passiva: Pingente da Resistência Final (não perde stamina após 75')
+    if (choiceEvent.kind === "PASSIVE_LATE_RESIST") {
+      t.prepBonuses.lateMatchNoStaminaLoss = true;
+      t.prepBonuses.log.push("Resistência Final (Fôlego aos 75'+)");
+      prep.phase = "DONE";
+      prep.appliedMsg = "⚡ Pingente Equipado! Seus 11 jogadores agora possuem FÔLEGO INFINITO nos minutos finais (75'+)!";
+      renderAll();
+      return;
+    }
+
+    // 3. 5v5 com Estrela Desafiante
+    if (choiceEvent.kind === "STREET_5V5") {
+      prep.clash5v5 = buildStreet5v5Matchup();
+      prep.phase = "RESULT";
+      renderTournamentScreen();
+      return;
+    }
+
+    // 4. Coletivos normais
+    if (choiceEvent.kind === "COLLECTIVE") {
+      applyPrepCollectiveEvent(choiceEvent);
+      return;
+    }
+
+    // 5. Desafio de Risco e Sorte: Técnica Proibida (Centro Inabikari)
+    if (choiceEvent.kind === "RISK_TECHNIQUE_QTE") {
+      prep.phase = "RISK_SELECT_PLAYER";
+      renderTournamentScreen();
+      return;
+    }
+
+    // 6. Itens ou Keshin para 1 jogador
+    prep.phase = "RESULT";
+    renderTournamentScreen();
+  }
+
+  function triggerRiskTechniqueQTE(targetSlotId) {
+    const t = state.tournament;
+    const prep = t.prep;
+    if (!prep) return;
+    prep.riskTargetSlotId = targetSlotId;
+    const player = state.squad[targetSlotId];
+    if (!player) return;
+
+    // Abre o minigame de timing de 1 volta rápida no modal
+    clearTournamentTimers(false);
+    const slotEl = document.getElementById("shot-clash-slot");
+    if (!slotEl) return;
+
+    const targetDeg = Math.round(-110 + Math.random() * 220);
+    const greenHalf = 32;
+    const yellowHalf = 64;
+    const speedDegPerSec = 185;
+    const startDeg = ((targetDeg + 180 + 540) % 360) - 180;
+    const yellowArc = describeSvgArc(80, 80, 56, targetDeg - yellowHalf, targetDeg + yellowHalf);
+    const greenArc = describeSvgArc(80, 80, 56, targetDeg - greenHalf, targetDeg + greenHalf);
+
+    slotEl.innerHTML = `
+      <div class="halftime-qte-stage" id="timing-qte-card" style="max-width: 480px;">
+        <div class="halftime-ref-row">
+          <img src="${UI.manualInazuma || UI.manualSkill || UI.ffLogo || ''}" alt="" class="qte-vol-img" style="border-color:#facc15;" />
+          <div style="flex:1; min-width:0;">
+            <div style="font-size:0.75rem; font-weight:900; color:#facc15; text-transform:uppercase;">TREINO PROIBIDO DE RISCO &amp; SORTE</div>
+            <div style="font-size:0.95rem; font-weight:900; color:#fff;">${player.name} tenta aprender Super Técnica!</div>
+          </div>
+          <span class="prep-xp-pill" style="font-size:0.64rem; padding:3px 8px; background:#dc2626; border-color:#f87171;">RISCO MÁXIMO</span>
+        </div>
+        <div style="font-size:0.76rem; color:#cbd5e1; text-align:center; padding:0 8px;">
+          Pressione <strong>ESPAÇO</strong> ou toque no botão na <strong>ZONA VERDE</strong>! Se falhar, o time perde 25 de poder no próximo jogo!
+        </div>
+        <div class="halftime-qte-body">
+          <div class="qte-circle-wrap" id="timing-circle-wrap" style="width:144px; height:144px;">
+            <svg class="qte-circle-svg" viewBox="0 0 160 160">
+              <circle cx="80" cy="80" r="56" fill="none" stroke="rgba(148, 163, 184, 0.25)" stroke-width="14" />
+              <path d="${yellowArc}" fill="none" stroke="#eab308" stroke-width="14" stroke-linecap="round" />
+              <path d="${greenArc}" fill="none" stroke="#22c55e" stroke-width="15" stroke-linecap="round" />
+              <g id="timing-needle-group" transform="rotate(${startDeg.toFixed(1)} 80 80)">
+                <line x1="80" y1="80" x2="80" y2="16" stroke="#ffffff" stroke-width="3.5" stroke-linecap="round" />
+                <circle cx="80" cy="24" r="6" fill="#facc15" stroke="#0f172a" stroke-width="2" />
+              </g>
+            </svg>
+            <div class="qte-center-icon" style="width:48px; height:48px;">
+              <img src="${player.sprite}" alt="" style="width:38px; height:38px; border-radius:50%; object-fit:cover; border:1.5px solid #facc15;" />
+            </div>
+          </div>
+          <div class="qte-controls-col" style="align-items:center; justify-content:center;">
+            <button class="ie-cmd-btn ie-cmd-gold" id="btn-trigger-timing" style="padding:12px 20px; font-size:0.86rem; width:100%; justify-content:center;">
+              <span>CONCENTRAR &amp; ACERTAR!</span>
+            </button>
+            <div style="font-size:0.68rem; color:#94a3b8; text-align:center;">Ou pressione a tecla [Espaço]</div>
+          </div>
+        </div>
+      </div>
+    `;
+    slotEl.style.display = "flex";
+
+    let angle = startDeg;
+    let finished = false;
+    let startTime = performance.now();
+    let qteRafId = null;
+
+    const needleGroup = document.getElementById("timing-needle-group");
+    const tick = (now) => {
+      const elapsed = (now - startTime) / 1000;
+      angle = startDeg + elapsed * speedDegPerSec;
+      if (needleGroup) needleGroup.setAttribute("transform", `rotate(${angle.toFixed(1)} 80 80)`);
+      if (elapsed >= 360 / speedDegPerSec + 0.15 && !finished) {
+        resolveRiskQte("TIMEOUT");
+        return;
       }
-    }, 2350);
+      if (!finished) qteRafId = requestAnimationFrame(tick);
+    };
+    qteRafId = requestAnimationFrame(tick);
+
+    const resolveRiskQte = (source) => {
+      if (finished) return;
+      finished = true;
+      if (qteRafId) cancelAnimationFrame(qteRafId);
+      document.removeEventListener("keydown", riskKeyHandler);
+
+      const normCur = ((angle % 360) + 360) % 360;
+      const normTgt = ((targetDeg % 360) + 360) % 360;
+      const diff = computeShortestAngleDiffDeg(normCur, normTgt);
+      const isGreen = diff <= greenHalf;
+      const isYellow = !isGreen && diff <= yellowHalf;
+      const success = isGreen || isYellow;
+
+      slotEl.innerHTML = "";
+      slotEl.style.display = "none";
+
+      if (success) {
+        player.boostOvr = (player.boostOvr || 0) + 4;
+        const newSuperMove = "【Shin Triângulo Z / Fúria do Relâmpago】";
+        if (!player.moves) player.moves = {};
+        if (!player.moves.SH) player.moves.SH = [];
+        player.moves.SH.unshift(newSuperMove);
+        player.hissatsu = newSuperMove;
+        t.prepBonuses.power += 35;
+        t.prepBonuses.log.push(`Treino Secreto Sucesso (${player.name})`);
+        prep.phase = "DONE";
+        prep.appliedMsg = `🔥 SUCESSO ABSOLUTO! ${player.name} dominou o treino secreto, aprendeu ${newSuperMove}, ganhou +4 OVR e o time somou +35 Poder!`;
+      } else {
+        t.prepBonuses.power -= 25;
+        t.prepBonuses.log.push(`Treino Secreto Falha (${player.name})`);
+        prep.phase = "DONE";
+        prep.appliedMsg = `💥 FALHA NO TREINO! O golpe saiu de controle. ${player.name} sofreu cansaço severo e o time perdeu 25 de Poder para o próximo jogo!`;
+      }
+      renderAll();
+    };
+
+    const riskKeyHandler = (e) => {
+      if (e.code === "Space" || e.key === " ") {
+        e.preventDefault();
+        resolveRiskQte("KEY");
+      }
+    };
+    document.addEventListener("keydown", riskKeyHandler);
+    const trigBtn = document.getElementById("btn-trigger-timing");
+    if (trigBtn) trigBtn.addEventListener("click", () => resolveRiskQte("CLICK"));
+  }
+
+  function handleRecruitStarPlayer(starRecruit, replaceSlotId) {
+    const t = state.tournament;
+    const prep = t.prep;
+    if (!prep || !starRecruit || !replaceSlotId) return;
+
+    const oldPlayer = state.squad[replaceSlotId];
+    const newP = {
+      ...starRecruit.player,
+      teamName: starRecruit.teamName,
+      teamEmblem: starRecruit.emblem
+    };
+    state.squad[replaceSlotId] = newP;
+    prep.phase = "DONE";
+    prep.appliedMsg = `⭐ RECRUTAMENTO OFICIAL! ${newP.name} (OVR ${newP.ovr}) entrou como titular no lugar de ${oldPlayer?.name || "titular"}!`;
+    t.prepBonuses.log.push(`Recrutou ${newP.name}`);
+    renderAll();
   }
 
   function applyPrepCollectiveEvent(event) {
@@ -7335,13 +7572,13 @@
         if (!state.tournament.prep || state.tournament.prep.clash5v5 !== c5) return;
         c5.status = "DONE";
         const won = finishedSt.userScore > finishedSt.oppScore;
-        const pwr = won ? 35 : 15;
+        const pwr = won ? 35 : -20;
         let totalXpGiven = 0;
 
         c5.xpSummary = c5.userQuintet.map((entry) => {
           const p = entry.player;
           const isScorer = won && scorerName && p.name === scorerName;
-          const xpAmt = won ? (isScorer ? 160 : 120) : 65;
+          const xpAmt = won ? (isScorer ? 160 : 120) : 50;
           totalXpGiven += xpAmt;
           const res = gainPlayerXp(p, xpAmt);
           return {
@@ -7359,10 +7596,18 @@
         t.prepBonuses.xp += totalXpGiven;
         t.prepBonuses.power += pwr;
         t.prepBonuses.log.push(`5x5 Margem do Rio (${finishedSt.userScore}x${finishedSt.oppScore})`);
-        prep.phase = "DONE";
-        prep.appliedMsg = won
-          ? `Vitória por Gol de Ouro (1 x 0${scorerName ? ` · ${scorerName}` : ""})! Todos os 5 participantes ganharam XP (+${totalXpGiven} XP totais) e +${pwr} Poder!`
-          : `Os Desafiantes marcaram o 1º gol (0 x 1), mas os 5 participantes ganharam experiência (+${totalXpGiven} XP totais) e +${pwr} Poder!`;
+        
+        // Se venceu e havia um craque adversário, abre a oportunidade de RECRUTAMENTO!
+        if (won && c5.starRecruit) {
+          prep.phase = "RECRUIT_OFFER";
+          prep.recruitCandidate = c5.starRecruit;
+          prep.appliedMsg = `Vitória épica por Gol de Ouro (1 x 0${scorerName ? ` · ${scorerName}` : ""})! O craque rival ${c5.starRecruit.player.name} (OVR ${c5.starRecruit.player.ovr}) quer se juntar ao seu Dream Team!`;
+        } else {
+          prep.phase = "DONE";
+          prep.appliedMsg = won
+            ? `Vitória por Gol de Ouro (1 x 0${scorerName ? ` · ${scorerName}` : ""})! Todos os 5 participantes ganharam XP (+${totalXpGiven} XP totais) e +${pwr} Poder!`
+            : `Os Desafiantes venceram o Gol de Ouro (0 x 1). O time sentiu a pressão e perdeu 20 de Poder no próximo jogo (+${totalXpGiven} XP de aprendizado).`;
+        }
         renderAll();
       }
     };
@@ -7453,19 +7698,171 @@
             .join("")}
         </div>
       `;
-    } else {
-      const stripHTML = (prep.rouletteStrip || [])
-        .map((ev, idx) => {
-          const isWin = prep.phase !== "SPINNING" && idx === prep.rouletteWinnerIdx;
-          return `
-            <div class="prep-roulette-slot ${isWin ? "is-winner" : ""}">
-              ${ev.icon ? `<img src="${ev.icon}" alt="" />` : ""}
-              <span>${ev.title}</span>
-            </div>
-          `;
-        })
-        .join("");
+    } else if (prep.phase === "SPINNING_CHOICES" || prep.phase === "PICK_CHOICE") {
+      const isSpinning = prep.phase === "SPINNING_CHOICES";
+      const slotColsHTML = (prep.slotStrips || []).map((slotObj, sIdx) => {
+        const stripItemsHTML = (slotObj.strip || []).map((ev) => `
+          <div class="prep-slot-strip-item">
+            ${ev.icon ? `<img src="${ev.icon}" alt="" />` : ""}
+            <span class="prep-slot-strip-title">${ev.title}</span>
+          </div>
+        `).join("");
 
+        const chosenWinner = prep.choices?.[sIdx] || slotObj.winner;
+
+        return `
+          <div class="prep-slot-col">
+            <div class="prep-slot-col-header">
+              <span class="prep-slot-badge">OPÇÃO ${sIdx + 1}</span>
+            </div>
+            <div class="prep-slot-reel-box" id="prep-slot-box-${sIdx}">
+              <div class="prep-slot-marker"></div>
+              <div class="prep-slot-strip" id="prep-slot-strip-${sIdx}">
+                ${stripItemsHTML}
+              </div>
+            </div>
+            ${!isSpinning && chosenWinner ? `
+              <div class="prep-choice-card-body">
+                <div class="prep-choice-icon-wrap">
+                  ${chosenWinner.icon ? `<img src="${chosenWinner.icon}" alt="" />` : ""}
+                </div>
+                <div class="prep-choice-name">${chosenWinner.title}</div>
+                <div class="prep-choice-summary">${chosenWinner.summary || ""}</div>
+                <button class="ie-cmd-btn ie-cmd-gold prep-btn-pick" data-prep-choice-idx="${sIdx}">
+                  <span>ESCOLHER ESTA OPÇÃO</span>
+                </button>
+              </div>
+            ` : `
+              <div class="prep-choice-card-body is-spinning-wait">
+                <div class="prep-slot-spinning-pulse">⚡ Rodando...</div>
+              </div>
+            `}
+          </div>
+        `;
+      }).join("");
+
+      bodyHTML = `
+        <div class="prep-triple-slot-container">
+          <div class="prep-triple-header">
+            ${activeLoc?.banner ? `<img class="prep-roulette-thumb" src="${activeLoc.banner}" alt="" />` : ""}
+            <div>
+              <div style="font-size:0.68rem; font-weight:900; color:#facc15; text-transform:uppercase;">${activeLoc?.sub || ""}</div>
+              <div style="font-size:1.05rem; font-weight:900; color:#fff;">${activeLoc?.title || ""}</div>
+              <div style="font-size:0.75rem; color:#94a3b8; margin-top:2px;">
+                ${isSpinning ? "As 3 roletas estão sorteando opções aleatórias..." : "Escolha 1 das 3 opções sorteadas para o seu time:"}
+              </div>
+            </div>
+          </div>
+          <div class="prep-triple-cols-grid">
+            ${slotColsHTML}
+          </div>
+        </div>
+      `;
+    } else if (prep.phase === "RECRUIT_OFFER" && prep.recruitCandidate) {
+      const rec = prep.recruitCandidate;
+      const recPlayer = rec.player;
+      bodyHTML = `
+        <div class="prep-recruit-container">
+          <div class="prep-recruit-hero">
+            <div class="prep-recruit-badge">⭐ OPORTUNIDADE DE RECRUTAMENTO DE CRAQUE ⭐</div>
+            <div style="font-size:1.15rem; font-weight:900; color:#fff; margin-top:6px;">
+              ${recPlayer.name} (OVR ${recPlayer.ovr} · ${recPlayer.pos}) quer jogar no seu time!
+            </div>
+            <div style="font-size:0.78rem; color:#cbd5e1; max-width:620px; margin:4px auto 0;">
+              Após a derrota no 5x5, este craque do ${rec.teamName} reconheceu a força da sua equipe e quer uma vaga como titular.
+              Selecione quem você deseja substituir no seu time principal:
+            </div>
+          </div>
+
+          <div class="prep-recruit-card-preview">
+            <img class="prep-recruit-img" src="${recPlayer.sprite}" alt="${recPlayer.name}" />
+            <div>
+              <div style="font-size:1.05rem; font-weight:900; color:#fde047;">${recPlayer.name}</div>
+              <div style="font-size:0.78rem; font-weight:800; color:#93c5fd;">${posIconHTML(recPlayer.pos, true)} OVR ${recPlayer.ovr} • ${rec.teamName}</div>
+              <div style="font-size:0.72rem; color:#cbd5e1; margin-top:2px;">Técnica: <strong>${recPlayer.hissatsu || "Super Técnica"}</strong></div>
+            </div>
+          </div>
+
+          <div style="font-size:0.78rem; font-weight:800; color:#facc15; margin:14px 0 6px;">
+            Clique no titular que sairá para dar lugar a ${recPlayer.name}:
+          </div>
+          <div class="prep-pick-grid">
+            ${getSlots().map((slot) => {
+              const p = state.squad[slot.id];
+              if (!p) return "";
+              const curOvr = getEffectiveOvr(p, slot.role);
+              return `
+                <div class="prep-pick-card is-recruit-target" data-recruit-replace-slot="${slot.id}">
+                  <img class="prep-pick-sprite" src="${getPlayerFormSprite(p, slot.role)}" alt="${p.name}" />
+                  <div style="min-width:0; flex:1;">
+                    <div style="font-size:0.78rem; font-weight:900; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                      ${posIconHTML(slot.role, true)} ${p.name}
+                    </div>
+                    <div style="font-size:0.68rem; font-weight:800; color:#94a3b8;">
+                      OVR atual: ${curOvr}
+                    </div>
+                    <div style="font-size:0.64rem; color:#f87171; font-weight:700;">
+                      Substituir por ${recPlayer.name} (${recPlayer.ovr})
+                    </div>
+                  </div>
+                </div>
+              `;
+            }).join("")}
+          </div>
+
+          <div style="text-align:center; margin-top:14px;">
+            <button class="ie-cmd-btn" id="btn-skip-recruit" style="background:#334155;">
+              <span>Não quero recrutar (Manter meu time original)</span>
+            </button>
+          </div>
+        </div>
+      `;
+    } else if (prep.phase === "RISK_SELECT_PLAYER") {
+      bodyHTML = `
+        <div class="prep-risk-select-container">
+          <div class="prep-reward-hero">
+            <div class="prep-reward-icon-frame">
+              ${prep.event?.icon ? `<img src="${prep.event.icon}" alt="" />` : ""}
+            </div>
+            <div style="flex:1; min-width:200px;">
+              <div style="font-size:0.7rem; font-weight:900; color:#f87171; text-transform:uppercase;">Centro Inabikari • Desafio Extremo</div>
+              <div style="font-size:1.05rem; font-weight:900; color:#fff;">Técnica Proibida &amp; Circuito Relâmpago</div>
+              <div style="font-size:0.76rem; color:#cbd5e1;">
+                Selecione qual atleta tentará o minigame de precisão na roleta do treino.
+                Se acertar a área Verde: <strong>Aprende Super Técnica +4 OVR +35 Poder</strong>.
+                Se falhar ou der timeout: <strong>-25 Poder no próximo jogo</strong>!
+              </div>
+            </div>
+          </div>
+          <div style="font-size:0.78rem; font-weight:800; color:#facc15; margin:14px 0 6px;">
+            Escolha o jogador que fará o teste:
+          </div>
+          <div class="prep-pick-grid">
+            ${getSlots().map((slot) => {
+              const p = state.squad[slot.id];
+              if (!p) return "";
+              const curOvr = getEffectiveOvr(p, slot.role);
+              return `
+                <div class="prep-pick-card" data-risk-player-slot="${slot.id}">
+                  <img class="prep-pick-sprite" src="${getPlayerFormSprite(p, slot.role)}" alt="${p.name}" />
+                  <div style="min-width:0; flex:1;">
+                    <div style="font-size:0.78rem; font-weight:900; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                      ${posIconHTML(slot.role, true)} ${p.name}
+                    </div>
+                    <div style="font-size:0.68rem; font-weight:800; color:#4ade80;">
+                      OVR ${curOvr} ➔ ${Math.min(99, curOvr + 4)} (se vencer)
+                    </div>
+                    <div style="font-size:0.64rem; color:#f87171;">
+                      Risco: -25 Poder se errar
+                    </div>
+                  </div>
+                </div>
+              `;
+            }).join("")}
+          </div>
+        </div>
+      `;
+    } else {
       const is5v5Live = prep.phase === "RESULT" && prep.clash5v5?.status === "RUNNING" && prep.clash5v5?.miniSt;
 
       let outcomeHTML = "";
@@ -7666,40 +8063,36 @@
                 <div style="font-size:0.75rem; color:#cbd5e1; margin-top:4px;">
                   Time pronto com <strong>OVR ${stats.ovr}</strong> • <strong>Poder ${stats.power.toLocaleString("pt-BR")}</strong> • <strong>Química ${stats.chem}%</strong>
                 </div>
+                ${prep.eventsRemaining > 1 ? `
+                  <div style="font-size:0.76rem; font-weight:800; color:#facc15; margin-top:6px;">
+                    🎟️ Você tem direito a um 2º Evento do Treinador antes do jogo!
+                  </div>
+                ` : ""}
               </div>
-              <button class="ie-cmd-btn ie-cmd-green" id="btn-prep-proceed">
-                <span>Ir para ${nextStage.stageName} →</span>
-              </button>
+              <div style="display:flex; flex-direction:column; gap:8px;">
+                ${prep.eventsRemaining > 1 ? `
+                  <button class="ie-cmd-btn ie-cmd-gold" id="btn-prep-second-event">
+                    <span>Aproveitar 2º Evento do Treinador →</span>
+                  </button>
+                ` : ""}
+                <button class="ie-cmd-btn ie-cmd-green" id="btn-prep-proceed">
+                  <span>Ir para ${nextStage.stageName} →</span>
+                </button>
+              </div>
             </div>
             ${xpCardsHTML}
           </div>
         `;
       }
 
-      bodyHTML = is5v5Live
-        ? outcomeHTML
-        : `
-        <div class="prep-roulette-box">
-          <div class="prep-roulette-header">
-            ${activeLoc?.banner ? `<img class="prep-roulette-thumb" src="${activeLoc.banner}" alt="" />` : ""}
-            <div>
-              <div style="font-size:0.68rem; font-weight:900; color:#facc15; text-transform:uppercase;">${activeLoc?.sub || ""}</div>
-              <div style="font-size:0.95rem; font-weight:900; color:#fff;">${activeLoc?.title || ""}</div>
-            </div>
-          </div>
-          <div class="prep-roulette-viewport" id="prep-roulette-viewport">
-            <div class="prep-roulette-marker"></div>
-            <div class="prep-roulette-strip" id="prep-roulette-strip">${stripHTML}</div>
-          </div>
-          ${outcomeHTML}
-        </div>
-      `;
+      bodyHTML = outcomeHTML;
     }
 
     return `
-      <div class="prep-stage-card">
+      <div class="prep-stage-card" style="position:relative;">
         ${headerBanner}
         ${bodyHTML}
+        <div id="shot-clash-slot" class="pitch-clash-modal" style="display:none;"></div>
       </div>
     `;
   }
@@ -7881,23 +8274,73 @@
         ${buildBetweenMatchPrepHTML(t, stats)}
       `;
 
-      if (t.prep.phase !== "CHOOSE_LOC" && t.prep.phase !== "SPINNING") {
-        const stripEl = document.getElementById("prep-roulette-strip");
-        const vpEl = document.getElementById("prep-roulette-viewport");
-        if (stripEl && vpEl) {
-          const slotW = 122;
-          const vpCenter = vpEl.clientWidth / 2;
-          const targetOffset = -(t.prep.rouletteWinnerIdx * slotW + 56 + 10 - vpCenter);
-          stripEl.style.transition = "none";
-          stripEl.style.transform = `translate3d(${targetOffset}px, 0, 0)`;
-        }
+      if (t.prep.phase !== "CHOOSE_LOC" && t.prep.phase !== "SPINNING_CHOICES" && t.prep.slotStrips) {
+        [0, 1, 2].forEach((sIdx) => {
+          const stripEl = document.getElementById(`prep-slot-strip-${sIdx}`);
+          if (stripEl) {
+            const itemH = 92;
+            const targetY = -(12 * itemH);
+            stripEl.style.transition = "none";
+            stripEl.style.transform = `translate3d(0, ${targetY}px, 0)`;
+          }
+        });
       }
 
       container.querySelectorAll("[data-prep-loc]").forEach((card) => {
         card.addEventListener("click", () => {
-          startPrepLocationRoulette(card.getAttribute("data-prep-loc"));
+          startPrepLocationTripleSlot(card.getAttribute("data-prep-loc"));
         });
       });
+
+      container.querySelectorAll("[data-prep-choice-idx]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const cIdx = parseInt(btn.getAttribute("data-prep-choice-idx"), 10);
+          const chosen = t.prep.choices?.[cIdx];
+          if (chosen) handleChoosePrepOption(chosen);
+        });
+      });
+
+      container.querySelectorAll("[data-recruit-replace-slot]").forEach((targetCard) => {
+        targetCard.addEventListener("click", () => {
+          const slotId = targetCard.getAttribute("data-recruit-replace-slot");
+          if (slotId && t.prep.recruitCandidate) {
+            handleRecruitStarPlayer(t.prep.recruitCandidate, slotId);
+          }
+        });
+      });
+
+      const skipRecruitBtn = document.getElementById("btn-skip-recruit");
+      if (skipRecruitBtn) {
+        skipRecruitBtn.addEventListener("click", () => {
+          t.prep.phase = "DONE";
+          t.prep.appliedMsg = "Recrutamento dispensado. Seu elenco original segue inalterado!";
+          renderTournamentScreen();
+        });
+      }
+
+      container.querySelectorAll("[data-risk-player-slot]").forEach((targetCard) => {
+        targetCard.addEventListener("click", () => {
+          const slotId = targetCard.getAttribute("data-risk-player-slot");
+          if (slotId) {
+            triggerRiskTechniqueQTE(slotId);
+          }
+        });
+      });
+
+      const secondEventBtn = document.getElementById("btn-prep-second-event");
+      if (secondEventBtn) {
+        secondEventBtn.addEventListener("click", () => {
+          t.prep.eventsRemaining = Math.max(1, (t.prep.eventsRemaining || 2) - 1);
+          t.prep.phase = "CHOOSE_LOC";
+          t.prep.locId = null;
+          t.prep.choices = null;
+          t.prep.slotStrips = null;
+          t.prep.event = null;
+          t.prep.clash5v5 = null;
+          t.prep.appliedMsg = null;
+          renderTournamentScreen();
+        });
+      }
 
       const run5v5Btn = document.getElementById("btn-run-5v5");
       if (run5v5Btn) {
