@@ -8169,17 +8169,9 @@
       topBannerHTML = `
         <div class="prep-top-banner">
           <div>
-            <h3 style="font-size:1.02rem; font-weight:900; color:#fff; margin:0;">
+            <h3 style="font-size:1.05rem; font-weight:900; color:#fff; margin:0;">
               ${prepHeadline}
             </h3>
-          </div>
-          <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-            ${t.prepBonuses?.permanentDoublePrep ? `
-              <span class="prep-xp-pill" style="background:rgba(234, 179, 8, 0.2); border-color:#facc15; color:#fde047;">
-                🎟️ 2 Ações por Jogo
-              </span>
-            ` : ""}
-            <span class="prep-xp-pill">XP Acumulado: ${t.prepBonuses?.xp || 0}</span>
           </div>
         </div>
       `;
@@ -8235,18 +8227,10 @@
             ${activeLoc?.banner ? `<img class="prep-roulette-thumb" src="${activeLoc.banner}" alt="" />` : ""}
             <div style="min-width:0; flex:1;">
               <div style="font-size:0.68rem; font-weight:900; color:#facc15; text-transform:uppercase;">${activeLoc?.sub || "LOCAL DE PREPARAÇÃO"}</div>
-              <div style="font-size:1.05rem; font-weight:900; color:#fff;">${activeLoc?.title || ""}</div>
-              <div class="prep-triple-choose-prompt">
+              <div style="font-size:1.18rem; font-weight:900; color:#fff; line-height:1.2;">${activeLoc?.title || ""}</div>
+              <div class="prep-triple-choose-prompt" style="font-size:0.86rem; color:#fde047; font-weight:900; margin-top:4px;">
                 👉 Toque em uma das 3 opções para escolher:
               </div>
-            </div>
-            <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-              ${t.prepBonuses?.permanentDoublePrep ? `
-                <span class="prep-xp-pill" style="background:rgba(234, 179, 8, 0.2); border-color:#facc15; color:#fde047;">
-                  🎟️ 2 Ações
-                </span>
-              ` : ""}
-              <span class="prep-xp-pill">XP Acumulado: ${t.prepBonuses?.xp || 0}</span>
             </div>
           </div>
           <div class="prep-triple-cols-grid">
@@ -8633,8 +8617,20 @@
             <span style="opacity:0.4;">•</span>
             <span style="color:#93c5fd;">${roundSub}</span>
           </div>
-          <div class="current-stage-name-large">
-            ${focusStage.stageName}
+          <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+            <div class="current-stage-name-large">
+              ${focusStage.stageName}
+            </div>
+            ${t.prep ? `
+              <span class="prep-xp-pill" style="font-size:0.72rem; font-weight:900; background:rgba(15, 34, 78, 0.9); border:1px solid #38bdf8; color:#7dd3fc;">
+                ✨ XP Acumulado: ${t.prepBonuses?.xp || 0}
+              </span>
+              ${t.prepBonuses?.permanentDoublePrep ? `
+                <span class="prep-xp-pill" style="background:rgba(234, 179, 8, 0.2); border-color:#facc15; color:#fde047; font-size:0.72rem;">
+                  🎟️ 2 Ações
+                </span>
+              ` : ""}
+            ` : ""}
           </div>
         </div>
 
