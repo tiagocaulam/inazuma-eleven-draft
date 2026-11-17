@@ -8247,9 +8247,6 @@
                 </span>
               ` : ""}
               <span class="prep-xp-pill">XP Acumulado: ${t.prepBonuses?.xp || 0}</span>
-              <button class="ie-cmd-btn" id="btn-back-choose-loc" style="padding:4px 9px; font-size:0.72rem; background:rgba(30,58,138,0.7); border-color:rgba(96,165,250,0.5);">
-                <span>← Trocar Local</span>
-              </button>
             </div>
           </div>
           <div class="prep-triple-cols-grid">
@@ -8699,14 +8696,6 @@
           if (chosen) handleChoosePrepOption(chosen);
         });
       });
-
-      const backLocBtn = document.getElementById("btn-back-choose-loc");
-      if (backLocBtn) {
-        backLocBtn.addEventListener("click", () => {
-          t.prep.phase = "CHOOSE_LOC";
-          renderTournamentScreen();
-        });
-      }
 
       container.querySelectorAll("[data-recruit-replace-slot]").forEach((targetCard) => {
         targetCard.addEventListener("click", () => {
