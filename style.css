@@ -5111,9 +5111,14 @@ body {
   flex-direction: column;
   align-items: center;
   text-align: center;
-  gap: 6px;
+  gap: 8px;
   padding-top: 4px;
   flex: 1;
+}
+
+.prep-choice-card-body.is-revealed-choice {
+  padding: 8px 4px 4px;
+  animation: clashPop 0.22s ease-out;
 }
 
 .prep-choice-card-body.is-spinning-wait {

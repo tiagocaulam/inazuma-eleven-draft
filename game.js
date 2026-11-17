@@ -7746,14 +7746,18 @@
             <div class="prep-slot-col-header">
               <span class="prep-slot-badge">OPÇÃO ${sIdx + 1}</span>
             </div>
-            <div class="prep-slot-reel-box" id="prep-slot-box-${sIdx}">
-              <div class="prep-slot-marker"></div>
-              <div class="prep-slot-strip" id="prep-slot-strip-${sIdx}">
-                ${stripItemsHTML}
+            ${isSpinning ? `
+              <div class="prep-slot-reel-box" id="prep-slot-box-${sIdx}">
+                <div class="prep-slot-marker"></div>
+                <div class="prep-slot-strip" id="prep-slot-strip-${sIdx}">
+                  ${stripItemsHTML}
+                </div>
               </div>
-            </div>
-            ${!isSpinning && chosenWinner ? `
-              <div class="prep-choice-card-body">
+              <div class="prep-choice-card-body is-spinning-wait">
+                <div class="prep-slot-spinning-pulse">⚡ Rodando...</div>
+              </div>
+            ` : (chosenWinner ? `
+              <div class="prep-choice-card-body is-revealed-choice">
                 <div class="prep-choice-icon-wrap">
                   ${chosenWinner.icon ? `<img src="${chosenWinner.icon}" alt="" />` : ""}
                 </div>
@@ -7763,11 +7767,7 @@
                   <span>ESCOLHER</span>
                 </button>
               </div>
-            ` : `
-              <div class="prep-choice-card-body is-spinning-wait">
-                <div class="prep-slot-spinning-pulse">⚡ Rodando...</div>
-              </div>
-            `}
+            ` : "")}
           </div>
         `;
       }).join("");
