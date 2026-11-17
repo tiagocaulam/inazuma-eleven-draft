@@ -608,7 +608,7 @@
 
   // Cálculo unificado de Química, Poder e Sinergia de Proximidade (usado tanto no Dream Team quanto no Adversário!)
   function evaluateTeamStats(slots, getPlayerForSlot, options = {}) {
-    const { isOpponent = false, ovrAdjust = 0, clubIdHint = null, oppStageIdx = 0 } = options;
+    const { isOpponent = false, ovrAdjust = 0, clubIdHint = null, oppStageIdx = 0, oppBuffPct = 0 } = options;
     let sumOvr = 0;
     let sumBasePwr = 0;
     let count = 0;
@@ -717,7 +717,9 @@
 
       const chemPower = Math.round(chem * 0.55 * tierScale);
       const basePower = Math.round(sumBasePwr);
-      const power = count > 0 ? basePower + chemPower + bondsPower : 0;
+      const rawPower = count > 0 ? basePower + chemPower + bondsPower : 0;
+      const buffMult = oppBuffPct > 0 ? 1 + (oppBuffPct / 100) : 1;
+      const power = Math.round(rawPower * buffMult);
 
       return {
         count,
@@ -727,6 +729,7 @@
         basePower,
         chemPower,
         bondsPower,
+        buffPct: oppBuffPct,
         elemLinksCount: activeElemPairs.length,
         activeElemPairs,
         atk: atkCnt > 0 ? Math.round(atkSum / atkCnt) : 0,
@@ -927,19 +930,46 @@
     return { formSlots: best.formSlots, assignments: best.assignments };
   }
 
+  function getStageOpponentBuff(stageIdx) {
+    const idx = Math.max(0, stageIdx || 0);
+    const st = state.tournament?.stages?.[idx];
+    // Percentual incremental padrão: 5% a cada rodada avançada
+    // Rodada 0 (Oitavas FF): 0% (base pura de saída do draft)
+    // Rodada 1 (Quartas FF): +5%
+    // Rodada 2 (Semi FF): +10%
+    // Rodada 3 (Final FF): +15%
+    // Rodada 4 (Grupos Mundial R1): +20%
+    // Rodada 5 (Grupos Mundial R2): +25%
+    // Rodada 6 (Grupos Mundial R3): +30%
+    // Rodada 7 (Oitavas Mundial): +35%
+    // Rodada 8 (Quartas Mundial): +40%
+    // Rodada 9 (Semi Mundial): +45%
+    // Rodada 10 (Final Mundial FFI): +50%
+    const pct = typeof st?.oppBuffPct === "number" ? st.oppBuffPct : idx * 5;
+    const ovrBoost = typeof st?.ovrBoost === "number" && st?.oppBuffPct != null
+      ? st.ovrBoost
+      : Number((pct * 0.24).toFixed(1));
+    return {
+      pct,
+      ovrBoost,
+      powerMultiplier: 1 + (pct / 100),
+      badgeText: pct > 0 ? `+${pct}%` : "Base"
+    };
+  }
+
   function getStageOvrBoost(stageIdx) {
-    const st = state.tournament?.stages?.[stageIdx];
-    if (st && typeof st.ovrBoost === "number") return st.ovrBoost;
-    return (stageIdx || 0) * 1.5;
+    return getStageOpponentBuff(stageIdx).ovrBoost;
   }
 
   function calcOpponentStats(oppTeam, stageIdx) {
     const { formSlots, assignments } = getOpponentSlotAssignments(oppTeam);
+    const buff = getStageOpponentBuff(stageIdx);
     return evaluateTeamStats(formSlots, (s) => assignments[s.id], {
       isOpponent: true,
-      ovrAdjust: getStageOvrBoost(stageIdx),
+      ovrAdjust: buff.ovrBoost,
       clubIdHint: oppTeam.name || oppTeam.id,
-      oppStageIdx: stageIdx
+      oppStageIdx: stageIdx,
+      oppBuffPct: buff.pct
     });
   }
 
@@ -1361,6 +1391,7 @@
     oppTeam,
     competition = "FF",
     ovrBoost = 0,
+    oppBuffPct = 0,
     isGroupStage = false,
     groupRoundIdx = -1
   }) {
@@ -1369,6 +1400,7 @@
       oppTeam,
       competition,
       ovrBoost,
+      oppBuffPct,
       isGroupStage,
       groupRoundIdx,
       minute: 0,
@@ -1422,11 +1454,14 @@
     const usedOpp = new Set();
     const stages = stageNames.map((sName, idx) => {
       const opp = pickPoolTeam([tiers[idx], domestic, DB.teams], usedOpp);
+      const oppBuffPct = idx * 5; // Oitavas: 0%, Quartas: 5%, Semifinal: 10%, Final: 15%
+      const ovrBoost = Number((oppBuffPct * 0.24).toFixed(1));
       return createTournamentStage({
         stageName: sName,
         oppTeam: opp,
         competition: "FF",
-        ovrBoost: idx * 1.5
+        oppBuffPct,
+        ovrBoost
       });
     });
 
@@ -1608,49 +1643,53 @@
       lastOtherResult: ""
     };
 
-    const groupStages = groupOpps.map((opp, rIdx) =>
-      createTournamentStage({
+    const groupStages = groupOpps.map((opp, rIdx) => {
+      const idx = 4 + rIdx;
+      const oppBuffPct = idx * 5; // Grupo R1: 20%, Grupo R2: 25%, Grupo R3: 30%
+      const ovrBoost = Number((oppBuffPct * 0.24).toFixed(1));
+      return createTournamentStage({
         stageName: `Grupo A · ${rIdx + 1}ª Rodada`,
         oppTeam: opp,
         competition: "WORLD",
-        ovrBoost: 2.5 + rIdx * 0.5,
+        oppBuffPct,
+        ovrBoost,
         isGroupStage: true,
         groupRoundIdx: rIdx
-      })
-    );
+      });
+    });
 
     // 4 Fases de Mata-Mata do Mundial (Oitavas -> Quartas -> Semifinal -> Final Mundial)
     const koSpecs = [
       {
         stageName: "Oitavas do Mundial",
-        pools: [worldPool.filter((tm) => tm.baseOvr <= 88), worldPool],
-        ovrBoost: 4.0
+        pools: [worldPool.filter((tm) => tm.baseOvr <= 88), worldPool]
       },
       {
         stageName: "Quartas do Mundial",
-        pools: [worldPool.filter((tm) => tm.baseOvr >= 87 && tm.baseOvr <= 90), worldPool],
-        ovrBoost: 5.0
+        pools: [worldPool.filter((tm) => tm.baseOvr >= 87 && tm.baseOvr <= 90), worldPool]
       },
       {
         stageName: "Semifinal Mundial",
-        pools: [worldPool.filter((tm) => tm.baseOvr >= 89 && tm.baseOvr <= 91), worldPool],
-        ovrBoost: 6.0
+        pools: [worldPool.filter((tm) => tm.baseOvr >= 89 && tm.baseOvr <= 91), worldPool]
       },
       {
         stageName: "Final Mundial (FFI)",
-        pools: [worldPool.filter((tm) => tm.baseOvr >= 90), worldPool],
-        ovrBoost: 7.0
+        pools: [worldPool.filter((tm) => tm.baseOvr >= 90), worldPool]
       }
     ];
 
-    const koStages = koSpecs.map((spec) =>
-      createTournamentStage({
+    const koStages = koSpecs.map((spec, kIdx) => {
+      const idx = 7 + kIdx;
+      const oppBuffPct = idx * 5; // Oitavas: 35%, Quartas: 40%, Semi: 45%, Final: 50%
+      const ovrBoost = Number((oppBuffPct * 0.24).toFixed(1));
+      return createTournamentStage({
         stageName: spec.stageName,
         oppTeam: pickPoolTeam([...spec.pools, DB.teams], usedWorld),
         competition: "WORLD",
-        ovrBoost: spec.ovrBoost
-      })
-    );
+        oppBuffPct,
+        ovrBoost
+      });
+    });
 
     // Mantém apenas as 4 fases do Futebol Fronteira caso houvesse estado anterior e anexa as 7 do Mundial
     t.stages = [...t.stages.slice(0, 4), ...groupStages, ...koStages];
@@ -3661,8 +3700,11 @@
 
         <div class="score-team">
           <img class="score-emblem" src="${st.oppTeam.emblem}" alt="${st.oppTeam.name}" />
-          <div style="font-weight:900; font-size:0.95rem;">${st.oppTeam.name}</div>
-          <div style="font-size:0.7rem; color:#facc15; font-weight:800;">Poder ${oppStats.power.toLocaleString("pt-BR")} • OVR ${oppStats.ovr} • Quím ${oppStats.chem}%</div>
+          <div style="font-weight:900; font-size:0.95rem; display:flex; align-items:center; justify-content:center; gap:5px;">
+            <span>${st.oppTeam.name}</span>
+            ${oppStats.buffPct > 0 ? `<span class="stage-opp-buff-badge">⚡ +${oppStats.buffPct}%</span>` : ""}
+          </div>
+          <div style="font-size:0.7rem; color:#facc15; font-weight:800;">Poder ${oppStats.power.toLocaleString("pt-BR")}${oppStats.buffPct > 0 ? ` (+${oppStats.buffPct}%)` : ""} • OVR ${oppStats.ovr} • Quím ${oppStats.chem}%</div>
         </div>
       </div>
     `;
@@ -4544,13 +4586,15 @@
     const stageIdx = state.tournament.stageIndex || 0;
     const userStats = calcSquadStats();
     const oppStats = calcOpponentStats(st.oppTeam, stageIdx);
+    const buff = getStageOpponentBuff(stageIdx);
     pitch.matchSupport = {
       userTeamSupport:
         (userStats.chem / 100) * 4.4 +
         (userStats.correctPosCount === 11 ? 2.4 : userStats.correctPosCount * 0.12),
       oppTeamSupport:
         (oppStats.chem / 100) * 4.4 +
-        (oppStats.correctPosCount === 11 ? 2.4 : oppStats.correctPosCount * 0.12),
+        (oppStats.correctPosCount === 11 ? 2.4 : oppStats.correctPosCount * 0.12) +
+        (buff.pct * 0.03),
       ovrDiff: userStats.ovr - oppStats.ovr
     };
     pitch.matchSupportInitialized = true;
@@ -8302,6 +8346,7 @@
             <div>
               <div style="font-size:0.6rem; color:#94a3b8; font-weight:800; text-transform:uppercase;">${isFirstMatchEver ? "1º Adversário" : "Próximo Rival"}</div>
               <div style="font-size:0.76rem; color:#fff; font-weight:900;">${nextStage.oppTeam.name}</div>
+              ${getStageOpponentBuff(prep.nextStageIdx).pct > 0 ? `<div style="font-size:0.62rem; color:#fca5a5; font-weight:900;">⚡ Reforço: +${getStageOpponentBuff(prep.nextStageIdx).pct}% Força</div>` : ""}
             </div>
           </div>
         </div>
@@ -8828,6 +8873,7 @@
           <div class="current-stage-opp-box">
             ${focusStage.oppTeam?.emblem ? `<img src="${focusStage.oppTeam.emblem}" alt="" class="current-stage-opp-emblem" />` : ""}
             <span class="current-stage-opp-name">${focusStage.oppTeam?.name || "A Definir"}</span>
+            ${getStageOpponentBuff(focusStageIdx).pct > 0 ? `<span class="stage-opp-buff-badge" title="Reforço incremental da rodada: +${getStageOpponentBuff(focusStageIdx).pct}% de Força e OVR">⚡ +${getStageOpponentBuff(focusStageIdx).pct}%</span>` : ""}
           </div>
           <span class="current-stage-status-pill">${statusTxt}</span>
         </div>
@@ -9102,7 +9148,10 @@
               <span style="font-size:0.7rem; font-weight:900; color:#facc15; text-transform:uppercase;">
                 ${compHeaderLabel} • ${st.stageName}
               </span>
-              <h3 style="font-size:0.96rem; color:#fff;">Dream Team vs ${st.oppTeam.name}</h3>
+              <h3 style="font-size:0.96rem; color:#fff; display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                <span>Dream Team vs ${st.oppTeam.name}</span>
+                ${oppStats.buffPct > 0 ? `<span class="stage-opp-buff-badge">⚡ +${oppStats.buffPct}%</span>` : ""}
+              </h3>
             </div>
           </div>
           <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
