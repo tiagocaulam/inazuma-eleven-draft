@@ -4252,13 +4252,75 @@
     const topIconCat = "SH";
     const botPillCls = "clash-move-def";
     const botIconCat = clash.bottomIcon || "GK";
-    const runnerHTML = `
-      <div class="fireball-runner ${dirCls}">
-        <div class="fireball-trail"></div>
-        <div class="fireball-orb">${buildFireballSVG()}</div>
+
+    // Roleta circular de probabilidade e força:
+    const isGoal = Boolean(clash.isGoal);
+    const isAttUser = clash.isAttUser !== undefined ? clash.isAttUser : (dir === "ltr");
+    const goalProb = Math.max(0.06, Math.min(0.94, clash.goalProb ?? 0.5));
+    const goalPct = Math.round(goalProb * 100);
+
+    // Setor Verde (Gol da gente) vs Setor Vermelho (Gol do adversário)
+    // Se o atacante for Dream Team: setor de gol é VERDE (tamanho proporcional a goalProb).
+    // Se o atacante for Adversário: setor de gol é VERMELHO (tamanho proporcional a goalProb).
+    const sectorColor = isAttUser ? "#22c55e" : "#ef4444";
+    const remainingColor = isAttUser ? "#3b82f6" : "#3b82f6";
+    const sectorSweepDeg = Math.round(goalProb * 360);
+
+    // Ângulo inicial do setor (topo centrado em -90 deg):
+    const sectorStartDeg = -90 - Math.round(sectorSweepDeg / 2);
+    const sectorEndDeg = sectorStartDeg + sectorSweepDeg;
+    const sectorArc = describeSvgArc(70, 70, 48, sectorStartDeg, sectorEndDeg);
+
+    // Rotação: horário (CW) para ataque Dream Team, anti-horário (CCW) para ataque Adversário
+    const isClockwise = isAttUser;
+    const spinDirection = isClockwise ? 1 : -1;
+
+    // Sorteia ângulo final de parada da bola:
+    // Se foi Gol: cai dentro do setor alvo ([sectorStartDeg + 6, sectorEndDeg - 6])
+    // Se Defendeu: cai fora do setor alvo (na fatia azul restante)
+    let landingAngle = 0;
+    if (isGoal) {
+      const margin = Math.min(8, sectorSweepDeg * 0.12);
+      landingAngle = sectorStartDeg + margin + Math.random() * Math.max(4, sectorSweepDeg - margin * 2);
+    } else {
+      const remStart = sectorEndDeg;
+      const remSweep = 360 - sectorSweepDeg;
+      const margin = Math.min(8, remSweep * 0.12);
+      landingAngle = remStart + margin + Math.random() * Math.max(4, remSweep - margin * 2);
+    }
+
+    // Normaliza para [-180, 180]
+    landingAngle = ((landingAngle % 360) + 540) % 360 - 180;
+
+    // Número de voltas completas de suspense antes de parar:
+    const totalSpins = 3 + Math.floor(Math.random() * 2); // 3 ou 4 voltas
+    const startAngle = isClockwise ? -180 : 180;
+    const finalTargetAngle = startAngle + spinDirection * (totalSpins * 360 + (isClockwise ? ((landingAngle - startAngle + 720) % 360) : ((startAngle - landingAngle + 720) % 360)));
+
+    const rouletteHTML = `
+      <div class="shot-circle-roulette-wrap">
+        <svg class="shot-circle-svg" viewBox="0 0 140 140">
+          <!-- Círculo base de defesa (Azul) -->
+          <circle cx="70" cy="70" r="48" fill="none" stroke="${remainingColor}" stroke-width="13" opacity="0.45" />
+          <!-- Setor de Gol (Verde para nós, Vermelho para eles) -->
+          <path d="${sectorArc}" fill="none" stroke="${sectorColor}" stroke-width="14" stroke-linecap="round" />
+          <!-- Marcador do ponteiro de parada com bola pegando fogo -->
+          <g id="shot-roulette-ball-group" transform="rotate(${startAngle} 70 70)">
+            <line x1="70" y1="70" x2="70" y2="18" stroke="rgba(250,204,21,0.5)" stroke-width="2" stroke-dasharray="3 3" />
+            <circle cx="70" cy="22" r="14" fill="url(#fireballGradient)" filter="drop-shadow(0 0 8px #f97316)" />
+            <g transform="translate(56, 8) scale(0.78)">
+              ${buildFireballSVG()}
+            </g>
+          </g>
+        </svg>
+        <div class="shot-roulette-center">
+          <div class="shot-roulette-prob ${isAttUser ? "user-shot" : "opp-shot"}">${goalPct}%</div>
+          <div class="shot-roulette-label">${isAttUser ? "Chance Gol" : "Perigo"}</div>
+        </div>
       </div>
     `;
-    const actionMs = 1950;
+
+    const actionMs = 2150;
     const bannerMs = 850;
 
     slotEl.style.display = "flex";
@@ -4278,8 +4340,8 @@
               ${moveIconHTML(topIconCat)} <span>${clash.topMoveName}</span>
             </div>
 
-            <div class="clash-track">
-              ${runnerHTML}
+            <div class="clash-track" style="height: auto; background: transparent; border: none; justify-content: center; overflow: visible;">
+              ${rouletteHTML}
             </div>
 
             <div class="clash-move-pill ${botPillCls}">
@@ -4299,8 +4361,35 @@
 
     let impactApplied = false;
     let afterApplied = false;
+    let rouletteRafId = null;
+
+    // Animação contínua da bola pegando fogo girando no círculo
+    const ballGroup = document.getElementById("shot-roulette-ball-group");
+    const spinStartTime = performance.now();
+    const spinDuration = 1850;
+
+    const tickRoulette = (now) => {
+      const elapsed = Math.min(spinDuration, now - spinStartTime);
+      const tNorm = elapsed / spinDuration;
+      // Curva de desaceleração suave (ease-out cubic / quintic para suspense final)
+      const ease = 1 - Math.pow(1 - tNorm, 3.6);
+      const curAngle = startAngle + (finalTargetAngle - startAngle) * ease;
+
+      if (ballGroup) {
+        ballGroup.setAttribute("transform", `rotate(${curAngle.toFixed(1)} 70 70)`);
+      }
+
+      if (tNorm < 1) {
+        rouletteRafId = requestAnimationFrame(tickRoulette);
+      }
+    };
+    rouletteRafId = requestAnimationFrame(tickRoulette);
 
     const finishClash = (skipRestart = false) => {
+      if (rouletteRafId) {
+        cancelAnimationFrame(rouletteRafId);
+        rouletteRafId = null;
+      }
       state.tournament.pendingClashFinish = null;
       const mountSlot = document.getElementById("shot-clash-slot");
       if (mountSlot) {
@@ -4923,6 +5012,9 @@
         {
           kind: "SHOT",
           dir: attIsUser ? "ltr" : "rtl",
+          isAttUser: attIsUser,
+          isGoal,
+          goalProb,
           userPlayer: attIsUser
             ? { name: shooterNode.player.name, sprite: resolveDynamicNodeSprite(shooterNode, pitch), roleText: weakenedByBlocker ? "CHUTE (-FORÇA)" : "CHUTE" }
             : { name: gkNode.player.name, sprite: resolveDynamicNodeSprite(gkNode, pitch), roleText: "GOLEIRO" },
@@ -5041,6 +5133,9 @@
       {
         kind: "SHOT",
         dir: attIsUser ? "ltr" : "rtl",
+        isAttUser: attIsUser,
+        isGoal: passedBlocker,
+        goalProb: passBlockerProb,
         userPlayer: attIsUser
           ? { name: shooterNode.player.name, sprite: resolveDynamicNodeSprite(shooterNode, pitch), roleText: "CHUTE" }
           : { name: blockerNode.player.name, sprite: resolveDynamicNodeSprite(blockerNode, pitch), roleText: "ZAGA • BLOQUEIO" },
