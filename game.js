@@ -4331,9 +4331,6 @@
             <div id="live-pitch-ball" class="pitch-ball-dot" style="left:${pitch.ballX}%; top:${pitch.ballY}%;">${buildMiniBallSVG("pitch-ball-svg")}</div>
             <div id="pitch-float-badge" class="pitch-float-badge"></div>
           </div>
-          <div class="pitch-cam-hud" id="pitch-cam-hud">
-            <span class="cam-dot"></span><span>CAM • BOLA</span>
-          </div>
           <div id="pitch-center-callout" class="pitch-center-callout" style="display:none;"></div>
           <div id="shot-clash-slot" class="pitch-clash-modal" style="display:none;"></div>
         </div>
