@@ -2805,22 +2805,23 @@ body {
 .pitch-goal-burst {
   position: absolute;
   top: 50%;
-  width: 170px;
-  height: 170px;
+  width: 220px;
+  height: 200px;
   pointer-events: none;
-  z-index: 15;
+  z-index: 16;
   opacity: 0;
   display: none;
-  transform-origin: center center;
+  transform-origin: 24px 50%;
+  will-change: transform, opacity;
 }
 
 .pitch-goal-burst.side-right {
-  right: -18px;
+  right: -12px;
   transform: translateY(-50%) scaleX(-1);
 }
 
 .pitch-goal-burst.side-left {
-  left: -18px;
+  left: -12px;
   transform: translateY(-50%);
 }
 
@@ -2828,11 +2829,118 @@ body {
   display: block;
 }
 
-.pitch-goal-burst svg {
+.pitch-lightning-svg {
   width: 100%;
   height: 100%;
   overflow: visible;
-  filter: drop-shadow(0 0 8px rgba(250, 204, 21, 0.85)) drop-shadow(0 0 14px rgba(56, 189, 248, 0.5));
+  filter: drop-shadow(0 0 10px rgba(254, 240, 138, 0.95)) drop-shadow(0 0 20px rgba(56, 189, 248, 0.85));
+}
+
+.pitch-goal-burst .lightning-wave-crest {
+  filter: drop-shadow(0 0 8px #fde047);
+  animation: fluidLightningPulse 0.42s ease-in-out infinite alternate;
+}
+
+.pitch-goal-burst .lightning-wave-crest.wave-2 {
+  animation-delay: 0.08s;
+  filter: drop-shadow(0 0 8px #38bdf8);
+}
+
+.pitch-goal-burst .lightning-wave-crest.wave-3 {
+  animation-delay: 0.16s;
+  filter: drop-shadow(0 0 10px #7dd3fc);
+}
+
+.pitch-goal-burst .lightning-bolt {
+  stroke-dasharray: 200;
+  animation: boltFlow 0.48s ease-out infinite;
+}
+
+.pitch-goal-burst .lightning-bolt.bolt-top {
+  animation-delay: 0.06s;
+}
+
+.pitch-goal-burst .lightning-bolt.bolt-bot {
+  animation-delay: 0.12s;
+}
+
+.pitch-goal-burst .lightning-ring.outer-ring {
+  animation: ringSpin 1.4s linear infinite;
+  transform-origin: 24px 70px;
+}
+
+.pitch-goal-burst .lightning-ring.inner-ring {
+  animation: ringSpinRev 0.9s linear infinite;
+  transform-origin: 24px 70px;
+}
+
+.pitch-goal-burst .lightning-spark {
+  animation: sparkJitter 0.25s ease-in-out infinite alternate;
+}
+
+.pitch-goal-burst .lightning-spark.s2 {
+  animation-delay: 0.05s;
+}
+
+.pitch-goal-burst .lightning-spark.s3 {
+  animation-delay: 0.1s;
+}
+
+.pitch-goal-burst .lightning-spark.s4 {
+  animation-delay: 0.15s;
+}
+
+@keyframes fluidLightningPulse {
+  0% {
+    stroke-width: 2.4px;
+    opacity: 0.8;
+  }
+  100% {
+    stroke-width: 4.8px;
+    opacity: 1;
+    filter: drop-shadow(0 0 14px #38bdf8) drop-shadow(0 0 6px #ffffff);
+  }
+}
+
+@keyframes boltFlow {
+  0% {
+    stroke-dashoffset: 70;
+  }
+  50% {
+    stroke-dashoffset: 0;
+  }
+  100% {
+    stroke-dashoffset: -50;
+  }
+}
+
+@keyframes ringSpin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes ringSpinRev {
+  0% {
+    transform: rotate(360deg);
+  }
+  100% {
+    transform: rotate(0deg);
+  }
+}
+
+@keyframes sparkJitter {
+  0% {
+    transform: translate(0, 0) scale(0.8);
+    opacity: 0.6;
+  }
+  100% {
+    transform: translate(1.5px, -1.5px) scale(1.3);
+    opacity: 1;
+  }
 }
 
 .pitch-token-stamina {

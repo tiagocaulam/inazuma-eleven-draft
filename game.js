@@ -258,6 +258,8 @@
       clashTimer1: null,
       clashTimer2: null,
       pendingClashFinish: null,
+      shotFlightTimer: null,
+      pendingShotFlightFinish: null,
       actionBeatTimer: null,
       pendingBeatFinish: null,
       penTimerId: null,
@@ -1500,6 +1502,8 @@
       clashTimer1: null,
       clashTimer2: null,
       pendingClashFinish: null,
+      shotFlightTimer: null,
+      pendingShotFlightFinish: null,
       actionBeatTimer: null,
       pendingBeatFinish: null,
       penTimerId: null,
@@ -1843,6 +1847,18 @@
       calloutEl.innerHTML = "";
       calloutEl.style.display = "none";
       calloutEl.className = "pitch-center-callout";
+    }
+
+    if (state.tournament.shotFlightTimer) {
+      clearTimeout(state.tournament.shotFlightTimer);
+      state.tournament.shotFlightTimer = null;
+    }
+    if (resolvePending && typeof state.tournament.pendingShotFlightFinish === "function") {
+      const sfn = state.tournament.pendingShotFlightFinish;
+      state.tournament.pendingShotFlightFinish = null;
+      sfn(true);
+    } else {
+      state.tournament.pendingShotFlightFinish = null;
     }
 
     if (resolvePending && typeof state.tournament.pendingWhistleFinish === "function") {
@@ -2494,7 +2510,7 @@
 
   function triggerVoluntaryRecoveryChallenge(st) {
     if (!st || st.finished || !st.running || st.penalties || (st.recoverCharges || 0) <= 0) return;
-    if (state.tournament.pendingClashFinish || state.tournament.pendingBeatFinish) return;
+    if (state.tournament.pendingClashFinish || state.tournament.pendingBeatFinish || state.tournament.pendingShotFlightFinish) return;
     st.recoverCharges--;
     updateVoluntaryRecoverButtonDOM(st);
     const ovrDiff = st.pitch?.matchSupport?.ovrDiff || 0;
@@ -3370,12 +3386,12 @@
       const gb = pitch.goalBurstFx;
       if (gb && now - gb.start < gb.duration) {
         const t = Math.max(0, Math.min(1, (now - gb.start) / gb.duration));
-        const scale = 0.36 + (1 - Math.pow(1 - t, 2.2)) * 0.88;
-        const flicker = t < 0.38 ? (Math.sin(t * 42) > -0.25 ? 0.95 : 0.58) : Math.max(0, (1 - t) / 0.62);
+        const scale = 0.52 + Math.sin(t * Math.PI * 0.5) * 0.88;
+        const opacity = t < 0.15 ? 1 : Math.max(0, Math.pow(1 - (t - 0.15) / 0.85, 1.35));
         const dirScaleX = gb.side === "right" ? -1 : 1;
         goalBurstEl.className = `pitch-goal-burst side-${gb.side} is-active`;
-        goalBurstEl.style.transform = `translateY(-50%) scaleX(${dirScaleX}) scale(${scale.toFixed(2)})`;
-        goalBurstEl.style.opacity = flicker.toFixed(2);
+        goalBurstEl.style.transform = `translateY(-50%) scaleX(${dirScaleX}) scale(${scale.toFixed(3)})`;
+        goalBurstEl.style.opacity = opacity.toFixed(3);
       } else {
         pitch.goalBurstFx = null;
         goalBurstEl.className = "pitch-goal-burst";
@@ -3564,7 +3580,8 @@
       const isPaused = Boolean(
         state.tournament.pendingBeatFinish ||
         state.tournament.pendingClashFinish ||
-        state.tournament.pendingWhistleFinish
+        state.tournament.pendingWhistleFinish ||
+        state.tournament.pendingShotFlightFinish
       );
       if (!st.finished && st.running && !isPaused) {
         const simDtTotal = rawDt * getSpeedMultiplier();
@@ -3575,6 +3592,7 @@
             state.tournament.pendingBeatFinish ||
             state.tournament.pendingClashFinish ||
             state.tournament.pendingWhistleFinish ||
+            state.tournament.pendingShotFlightFinish ||
             st.finished ||
             !st.running
           ) {
@@ -4622,14 +4640,50 @@
             <div id="pitch-shockwave" class="pitch-shockwave"></div>
             <div id="pitch-save-ring" class="pitch-save-ring"></div>
             <div id="pitch-goal-burst" class="pitch-goal-burst">
-              <svg viewBox="0 0 120 120" fill="none">
-                <polyline points="20,60 44,50 62,32 92,16" stroke="#fde047" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
-                <polyline points="22,60 52,55 76,47 110,41" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
-                <polyline points="22,60 52,66 78,74 112,82" stroke="#fde047" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-                <polyline points="20,60 44,72 64,88 94,106" stroke="#38bdf8" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/>
-                <polyline points="20,56 38,38 50,18 68,4" stroke="#facc15" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                <polyline points="20,64 38,84 52,102 70,116" stroke="#facc15" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                <circle cx="20" cy="60" r="10" fill="rgba(254, 240, 138, 0.72)"/>
+              <svg viewBox="0 0 160 140" fill="none" class="pitch-lightning-svg">
+                <defs>
+                  <radialGradient id="plasmaGlow" cx="20%" cy="50%" r="65%">
+                    <stop offset="0%" stop-color="#ffffff" stop-opacity="1"/>
+                    <stop offset="25%" stop-color="#fef08a" stop-opacity="0.95"/>
+                    <stop offset="55%" stop-color="#38bdf8" stop-opacity="0.8"/>
+                    <stop offset="100%" stop-color="#0284c7" stop-opacity="0"/>
+                  </radialGradient>
+                  <linearGradient id="boltGradGold" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stop-color="#ffffff"/>
+                    <stop offset="40%" stop-color="#fde047"/>
+                    <stop offset="100%" stop-color="#f59e0b"/>
+                  </linearGradient>
+                  <linearGradient id="boltGradCyan" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stop-color="#ffffff"/>
+                    <stop offset="45%" stop-color="#7dd3fc"/>
+                    <stop offset="100%" stop-color="#0284c7"/>
+                  </linearGradient>
+                  <filter id="lightningGlow" x="-30%" y="-30%" width="160%" height="160%">
+                    <feGaussianBlur in="SourceGraphic" stdDeviation="2" result="blur1"/>
+                    <feGaussianBlur in="SourceGraphic" stdDeviation="5" result="blur2"/>
+                    <feMerge>
+                      <feMergeNode in="blur2"/>
+                      <feMergeNode in="blur1"/>
+                      <feMergeNode in="SourceGraphic"/>
+                    </feMerge>
+                  </filter>
+                </defs>
+                <ellipse class="lightning-ring outer-ring" cx="24" cy="70" rx="34" ry="48" stroke="rgba(56,189,248,0.7)" stroke-width="2.5" stroke-dasharray="10 8" fill="none"/>
+                <ellipse class="lightning-ring inner-ring" cx="24" cy="70" rx="20" ry="28" stroke="rgba(254,240,138,0.9)" stroke-width="3" fill="none"/>
+                <circle class="lightning-core" cx="24" cy="70" r="16" fill="url(#plasmaGlow)"/>
+                <path class="lightning-wave-crest wave-1" d="M 45,18 C 72,38 78,102 45,122" stroke="rgba(254,240,138,0.95)" stroke-width="3.6" stroke-linecap="round" fill="none"/>
+                <path class="lightning-wave-crest wave-2" d="M 68,10 C 102,32 108,108 68,130" stroke="rgba(56,189,248,0.85)" stroke-width="2.8" stroke-linecap="round" fill="none"/>
+                <path class="lightning-wave-crest wave-3" d="M 94,6 C 132,28 138,112 94,134" stroke="rgba(186,230,253,0.65)" stroke-width="2" stroke-linecap="round" stroke-dasharray="6 4" fill="none"/>
+                <path class="lightning-bolt bolt-main" d="M 24,70 L 42,60 L 52,66 L 76,52 L 90,60 L 118,44 L 140,50 L 158,40" stroke="url(#boltGradGold)" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" filter="url(#lightningGlow)"/>
+                <path class="lightning-bolt bolt-top" d="M 24,66 L 40,46 L 54,54 L 78,32 L 96,40 L 122,22 L 138,28 L 156,14" stroke="url(#boltGradCyan)" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" filter="url(#lightningGlow)"/>
+                <path class="lightning-bolt bolt-bot" d="M 24,74 L 40,92 L 56,86 L 80,108 L 98,100 L 124,118 L 142,112 L 158,126" stroke="url(#boltGradCyan)" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" filter="url(#lightningGlow)"/>
+                <path class="lightning-bolt bolt-fork-1" d="M 52,66 L 68,82 L 88,78 L 112,94" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+                <path class="lightning-bolt bolt-fork-2" d="M 76,52 L 92,36 L 114,40 L 134,26" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+                <circle class="lightning-spark s1" cx="82" cy="44" r="2.8" fill="#ffffff"/>
+                <circle class="lightning-spark s2" cx="106" cy="74" r="3.2" fill="#fde047"/>
+                <circle class="lightning-spark s3" cx="128" cy="36" r="2.5" fill="#38bdf8"/>
+                <circle class="lightning-spark s4" cx="138" cy="98" r="2.8" fill="#ffffff"/>
+                <circle class="lightning-spark s5" cx="64" cy="98" r="2.2" fill="#fde047"/>
               </svg>
             </div>
             ${tokensHTML}
@@ -4909,7 +4963,7 @@
 
   function triggerGoalLightningBurst(pitch, goalSide) {
     if (!pitch) return;
-    const dur = state.simSpeed === 4 ? 170 : state.simSpeed === 2 ? 360 : 850;
+    const dur = state.simSpeed === 4 ? 260 : state.simSpeed === 2 ? 550 : 1200;
     pitch.goalBurstFx = {
       side: goalSide === "left" ? "left" : "right",
       start: performance.now(),
@@ -5362,99 +5416,234 @@
       pitch.holdBallPos = { x: duelX, y: duelY };
       pitch.lastClashMinute = st.minute;
 
-      const flightMs = instantMode ? 75 : weakenedByBlocker ? 620 : 1650;
+      const flightMs = instantMode ? 75 : Math.round(Math.max(450, Math.min(1150, 260 + Math.hypot(duelX - fromX, duelY - fromY) * 13.5)));
       const trailCol = specialContext?.isChain ? "#facc15" : specialContext?.isCounter ? "#38bdf8" : "#f97316";
-      startBallFlight(pitch, fromX, fromY, duelX, duelY, flightMs, weakenedByBlocker ? 1.8 : 3.0, "SHOT", trailCol);
+      startBallFlight(pitch, fromX, fromY, duelX, duelY, flightMs, weakenedByBlocker ? 1.6 : 2.8, "SHOT", trailCol);
       if (!weakenedByBlocker) {
         showPitchBadge(pitch, fromX, fromY, activeShotLabel, specialContext?.isChain ? "badge-goal" : "badge-shot", instantMode ? 600 : 1750, "SH");
       }
       pitch.ticker = `${st.minute}' CHUTE! ${activeShooter.player.name} (${activeShotLabel}) vs ${curGkNode.player.name}!`;
       syncLivePitchDOM(st);
 
+      const gSide = curAttIsUser ? "right" : "left";
+      const concedingSide = curAttIsUser ? "opp" : "user";
+      let impactApplied = false;
+
+      const commitGoalOutcome = () => {
+        if (impactApplied) return;
+        impactApplied = true;
+
+        const weakNote = weakenedByBlocker ? " (mesmo após desvio da zaga)" : "";
+        const styleTag = specialContext?.isChain
+          ? " [CHAIN SHOT]"
+          : specialContext?.isCounter
+          ? " [CONTRA-CHUTE]"
+          : isLongShotPlay && !specialContext?.isCounter
+          ? " [CHUTE LONGO]"
+          : "";
+
+        if (curAttIsUser) {
+          st.userScore++;
+          recordUserPlayerStat(pitch, activeShooter, "goals", 1);
+          const assistNode = specialContext?.chainInitiator
+            ? specialContext.chainInitiator
+            : !specialContext?.isCounter && shotAssistCandidate
+            ? findPitchNode(pitch, shotAssistCandidate.passerUid)
+            : null;
+          if (assistNode && assistNode.uid !== activeShooter.uid && assistNode.side === "user") {
+            recordUserPlayerStat(pitch, assistNode, "assists", 1);
+          }
+          const assistTag =
+            assistNode && assistNode.uid !== activeShooter.uid ? ` (assist. de ${assistNode.player.name})` : "";
+          const goalObj = {
+            minute: st.minute,
+            name: activeShooter.player.name,
+            sprite: activeShooter.player.sprite,
+            shotLabel: `${activeShotLabel}${styleTag}`,
+            isHissatsu: activeIsHissatsu,
+            assistName: assistNode && assistNode.uid !== activeShooter.uid ? assistNode.player.name : null
+          };
+          st.goalsUser.push(goalObj);
+          const scoreUserEl = document.getElementById("live-score-user");
+          if (scoreUserEl) scoreUserEl.textContent = st.userScore;
+          appendGoalItemDOM("user", goalObj);
+          prependNarrationLine(
+            st,
+            "nar-goal-user",
+            activeIsHissatsu
+              ? `${st.minute}' GOOOL DO DREAM TEAM!${styleTag} ${activeShooter.player.name} disparou 【${activeShotLabel}】${assistTag}${weakNote} e furou 【${gkMoveName}】 de ${curGkNode.player.name}! (${st.userScore} x ${st.oppScore})`
+              : `${st.minute}' GOOOL DO DREAM TEAM!${styleTag} ${activeShooter.player.name} superou ${curGkNode.player.name} com um ${activeShotLabel.toLowerCase()}${assistTag}${weakNote}! (${st.userScore} x ${st.oppScore})`,
+            { name: activeShooter.player.name, sprite: activeShooter.player.sprite, side: "user" },
+            { name: curGkNode.player.name, sprite: curGkNode.player.sprite, side: "opp" },
+            "SH"
+          );
+        } else {
+          st.oppScore++;
+          const goalObj = {
+            minute: st.minute,
+            name: activeShooter.player.name,
+            sprite: activeShooter.player.sprite,
+            shotLabel: `${activeShotLabel}${styleTag}`,
+            isHissatsu: activeIsHissatsu
+          };
+          st.goalsOpp.push(goalObj);
+          const scoreOppEl = document.getElementById("live-score-opp");
+          if (scoreOppEl) scoreOppEl.textContent = st.oppScore;
+          appendGoalItemDOM("opp", goalObj);
+          prependNarrationLine(
+            st,
+            "nar-goal-opp",
+            activeIsHissatsu
+              ? `${st.minute}' GOL DE ${st.oppTeam.name.toUpperCase()}!${styleTag} ${activeShooter.player.name} usou 【${activeShotLabel}】${weakNote} e venceu 【${gkMoveName}】 de ${curGkNode.player.name}! (${st.userScore} x ${st.oppScore})`
+              : `${st.minute}' GOL DE ${st.oppTeam.name.toUpperCase()}!${styleTag} ${activeShooter.player.name} venceu ${curGkNode.player.name} com um ${activeShotLabel.toLowerCase()}${weakNote}! (${st.userScore} x ${st.oppScore})`,
+            { name: activeShooter.player.name, sprite: activeShooter.player.sprite, side: "opp" },
+            { name: curGkNode.player.name, sprite: curGkNode.player.sprite, side: "user" },
+            "SH"
+          );
+        }
+        pitch.ticker = `${st.minute}' GOOOL de ${activeShooter.player.name}! (${st.userScore} x ${st.oppScore})`;
+      };
+
+      const commitSaveOutcome = () => {
+        if (impactApplied) return;
+        impactApplied = true;
+
+        if (!curAttIsUser) {
+          pitch.stats.userSaves++;
+          recordUserPlayerStat(pitch, curGkNode, "saves", 1);
+        }
+        pitch.ticker = `${st.minute}' ${curGkNode.player.name} defendeu o chute de ${activeShooter.player.name}!`;
+        const gkAdvantageNote =
+          curGkNode.player?.element &&
+          activeShooter.player?.element &&
+          ELEMENT_ADVANTAGE[curGkNode.player.element] === activeShooter.player.element
+            ? " (Vantagem Elemental de Defesa)"
+            : "";
+        prependNarrationLine(
+          st,
+          "nar-save",
+          gkPick.move
+            ? `${st.minute}' [Defesa de Goleiro] ${curGkNode.player.name} acionou 【${gkMoveName}】${gkAdvantageNote} e espalmou ${weakenedByBlocker ? "o chute enfraquecido " : ""}【${activeShotLabel}】 de ${activeShooter.player.name}!`
+            : `${st.minute}' [Defesa de Goleiro] ${curGkNode.player.name} defendeu sem técnica${gkAdvantageNote}${gkPick.exhausted ? " (energia vermelha)" : ""} e segurou ${weakenedByBlocker ? "o chute enfraquecido " : ""}${activeShotLabel} de ${activeShooter.player.name}!`,
+          { name: curGkNode.player.name, sprite: curGkNode.player.sprite, side: curGkNode.side },
+          { name: activeShooter.player.name, sprite: activeShooter.player.sprite, side: activeShooter.side },
+          "GK"
+        );
+      };
+
       const applyShotImpact = () => {
+        if (instantMode) {
+          if (isGoal) {
+            commitGoalOutcome();
+            pitch.ballMode = "GOAL_NET";
+            pitch.carrierUid = null;
+            pitch.challengerUid = null;
+            pitch.holdBallPos = { x: curGoalX, y: goalY };
+            startBallFlight(pitch, duelX, duelY, curGoalX, goalY, 40, 0.4, "GOAL", "#facc15");
+            pitch.goalFlashSide = gSide;
+            pitch.goalFlashUntil = performance.now() + 2200;
+            triggerGoalLightningBurst(pitch, gSide);
+            showPitchBadge(pitch, curGoalX, goalY, "GOOOL!!", "badge-goal", 1400, "SH");
+            showNodeBadge(pitch, activeShooter.uid, `GOOOL! • ${activeShotLabel}`, "badge-goal", 1400, "SH");
+          } else {
+            commitSaveOutcome();
+            pitch.ballSide = curAttIsUser ? "opp" : "user";
+            pitch.ballMode = "CARRIED";
+            pitch.carrierUid = curGkNode.uid;
+            pitch.challengerUid = null;
+            pitch.holdBallPos = null;
+            curGkNode.carryTime = 0;
+            curGkNode.decisionTimer = 0.35;
+            curGkNode.duelCooldown = 1.8;
+            pitch.ballFlight = null;
+            pitch.ballX = curGkNode.x + (curGkNode.side === "user" ? 1.9 : -1.9);
+            pitch.ballY = curGkNode.y + 1.0;
+            pitch.passTrail = null;
+            triggerSaveImplosion(pitch, duelX, duelY);
+            showPitchBadge(pitch, curGkNode.x, curGkNode.y, gkMoveName, "badge-steal", 900, "GK");
+            showNodeBadge(pitch, curGkNode.uid, `Defendeu • ${gkMoveName}`, "badge-steal", 900, "GK");
+          }
+        }
+      };
+
+      const onShotModalClosed = (skipRestart = false) => {
         if (isGoal) {
+          const doKickoffReset = () => {
+            resetPitchForKickoff(pitch, concedingSide, true, true);
+            pitch.ticker = `${st.minute}' Saída no centro com ${concedingSide === "user" ? "Dream Team" : st.oppTeam.name}! Fôlego restaurado pós-gol (+60% de energia gasta).`;
+          };
+
+          if (skipRestart || instantMode) {
+            commitGoalOutcome();
+            if (st.isGoldenGoal5v5) return false;
+            doKickoffReset();
+            return false;
+          }
+
+          // Animação de GOL no campo pós-resultado do duelo:
+          // 1) Onda de choque atravessando o goleiro com empurrão
+          triggerStealShockwave(pitch, duelX, duelY, null, curGkNode.uid);
+          curGkNode.staggerTimer = 1.35;
+          curGkNode.vx = curAttIsUser ? 3.2 : -3.2;
+          showPitchBadge(pitch, duelX, duelY, "FURADA!", "badge-shot", 850, "SH");
+
+          // 2) Bola atravessa com alta velocidade em direção às redes
+          const netFlightMs = 280;
           pitch.ballMode = "GOAL_NET";
           pitch.carrierUid = null;
           pitch.challengerUid = null;
           pitch.holdBallPos = { x: curGoalX, y: goalY };
-          startBallFlight(pitch, duelX, duelY, curGoalX, goalY, instantMode ? 40 : 360, 0.8, "GOAL", "#facc15");
-          const gSide = curAttIsUser ? "right" : "left";
-          pitch.goalFlashSide = gSide;
-          pitch.goalFlashUntil = performance.now() + 2600;
-          if (instantMode) triggerGoalLightningBurst(pitch, gSide);
-          showPitchBadge(pitch, curGoalX, goalY, "GOOOL!!", "badge-goal", 1600, "SH");
-          showNodeBadge(pitch, activeShooter.uid, `GOOOL! • ${activeShotLabel}`, "badge-goal", 1650, "SH");
+          startBallFlight(pitch, duelX, duelY, curGoalX, goalY, netFlightMs, 0.35, "GOAL", "#fde047");
+          syncLivePitchDOM(st);
 
-          const weakNote = weakenedByBlocker ? " (mesmo após desvio da zaga)" : "";
-          const styleTag = specialContext?.isChain
-            ? " [CHAIN SHOT]"
-            : specialContext?.isCounter
-            ? " [CONTRA-CHUTE]"
-            : isLongShotPlay && !specialContext?.isCounter
-            ? " [CHUTE LONGO]"
-            : "";
+          // 3) Entrada nas redes com a onda de raio fluida e comemoração
+          setTimeout(() => {
+            commitGoalOutcome();
+            pitch.goalFlashSide = gSide;
+            pitch.goalFlashUntil = performance.now() + 2200;
+            triggerGoalLightningBurst(pitch, gSide);
+            showPitchBadge(pitch, curGoalX, goalY, "GOOOL!!", "badge-goal", 1600, "SH");
+            showNodeBadge(pitch, activeShooter.uid, `GOOOL! • ${activeShotLabel}`, "badge-goal", 1650, "SH");
+            syncLivePitchDOM(st);
 
-          if (curAttIsUser) {
-            st.userScore++;
-            recordUserPlayerStat(pitch, activeShooter, "goals", 1);
-            const assistNode = specialContext?.chainInitiator
-              ? specialContext.chainInitiator
-              : !specialContext?.isCounter && shotAssistCandidate
-              ? findPitchNode(pitch, shotAssistCandidate.passerUid)
-              : null;
-            if (assistNode && assistNode.uid !== activeShooter.uid && assistNode.side === "user") {
-              recordUserPlayerStat(pitch, assistNode, "assists", 1);
+            if (st.isGoldenGoal5v5) {
+              pauseForPitchBeat(
+                st,
+                `<span class="callout-tag">GOL DE OURO!</span><strong>${activeShooter.player.name}</strong><span>5x5 Encerrado · ${activeShotLabel}</span>`,
+                "callout-goal",
+                1200,
+                ovrDiff,
+                () => handleMinuteEndBoundaries(st, ovrDiff)
+              );
+            } else {
+              pauseForPitchBeat(
+                st,
+                `<span class="callout-tag">GOOOL!</span><strong>${activeShooter.player.name}</strong><span>${st.userScore} x ${st.oppScore} · ${activeShotLabel}</span>`,
+                "callout-goal",
+                1500,
+                ovrDiff,
+                doKickoffReset
+              );
             }
-            const assistTag =
-              assistNode && assistNode.uid !== activeShooter.uid ? ` (assist. de ${assistNode.player.name})` : "";
-            const goalObj = {
-              minute: st.minute,
-              name: activeShooter.player.name,
-              sprite: activeShooter.player.sprite,
-              shotLabel: `${activeShotLabel}${styleTag}`,
-              isHissatsu: activeIsHissatsu,
-              assistName: assistNode && assistNode.uid !== activeShooter.uid ? assistNode.player.name : null
-            };
-            st.goalsUser.push(goalObj);
-            const scoreUserEl = document.getElementById("live-score-user");
-            if (scoreUserEl) scoreUserEl.textContent = st.userScore;
-            appendGoalItemDOM("user", goalObj);
-            prependNarrationLine(
-              st,
-              "nar-goal-user",
-              activeIsHissatsu
-                ? `${st.minute}' GOOOL DO DREAM TEAM!${styleTag} ${activeShooter.player.name} disparou 【${activeShotLabel}】${assistTag}${weakNote} e furou 【${gkMoveName}】 de ${curGkNode.player.name}! (${st.userScore} x ${st.oppScore})`
-                : `${st.minute}' GOOOL DO DREAM TEAM!${styleTag} ${activeShooter.player.name} superou ${curGkNode.player.name} com um ${activeShotLabel.toLowerCase()}${assistTag}${weakNote}! (${st.userScore} x ${st.oppScore})`,
-              { name: activeShooter.player.name, sprite: activeShooter.player.sprite, side: "user" },
-              { name: curGkNode.player.name, sprite: curGkNode.player.sprite, side: "opp" },
-              "SH"
-            );
-          } else {
-            st.oppScore++;
-            const goalObj = {
-              minute: st.minute,
-              name: activeShooter.player.name,
-              sprite: activeShooter.player.sprite,
-              shotLabel: `${activeShotLabel}${styleTag}`,
-              isHissatsu: activeIsHissatsu
-            };
-            st.goalsOpp.push(goalObj);
-            const scoreOppEl = document.getElementById("live-score-opp");
-            if (scoreOppEl) scoreOppEl.textContent = st.oppScore;
-            appendGoalItemDOM("opp", goalObj);
-            prependNarrationLine(
-              st,
-              "nar-goal-opp",
-              activeIsHissatsu
-                ? `${st.minute}' GOL DE ${st.oppTeam.name.toUpperCase()}!${styleTag} ${activeShooter.player.name} usou 【${activeShotLabel}】${weakNote} e venceu 【${gkMoveName}】 de ${curGkNode.player.name}! (${st.userScore} x ${st.oppScore})`
-                : `${st.minute}' GOL DE ${st.oppTeam.name.toUpperCase()}!${styleTag} ${activeShooter.player.name} venceu ${curGkNode.player.name} com um ${activeShotLabel.toLowerCase()}${weakNote}! (${st.userScore} x ${st.oppScore})`,
-              { name: activeShooter.player.name, sprite: activeShooter.player.sprite, side: "opp" },
-              { name: curGkNode.player.name, sprite: curGkNode.player.sprite, side: "user" },
-              "SH"
-            );
-          }
-          pitch.ticker = `${st.minute}' GOOOL de ${activeShooter.player.name}! (${st.userScore} x ${st.oppScore})`;
-        } else {
+          }, netFlightMs);
+
+          return true;
+        }
+
+        // Cenário de DEFESA:
+        if (skipRestart || instantMode) {
+          commitSaveOutcome();
+          return false;
+        }
+
+        // A bola ainda se move um pouco antes de chegar ao goleiro, e ocorre a animação de defesa!
+        const catchFlightMs = 240;
+        pitch.ballMode = "SHOT_FLIGHT";
+        startBallFlight(pitch, duelX, duelY, curGkNode.x, curGkNode.y, catchFlightMs, 0.15, "SHOT", "#38bdf8");
+        syncLivePitchDOM(st);
+
+        setTimeout(() => {
+          commitSaveOutcome();
           pitch.ballSide = curAttIsUser ? "opp" : "user";
           pitch.ballMode = "CARRIED";
           pitch.carrierUid = curGkNode.uid;
@@ -5467,124 +5656,78 @@
           pitch.ballX = curGkNode.x + (curGkNode.side === "user" ? 1.9 : -1.9);
           pitch.ballY = curGkNode.y + 1.0;
           pitch.passTrail = null;
-          if (instantMode) triggerSaveImplosion(pitch, duelX, duelY);
-          showPitchBadge(pitch, curGkNode.x, curGkNode.y, gkMoveName, "badge-steal", 1000, "GK");
 
-          if (!curAttIsUser) {
-            pitch.stats.userSaves++;
-            recordUserPlayerStat(pitch, curGkNode, "saves", 1);
-          }
-          pitch.ticker = `${st.minute}' ${curGkNode.player.name} defendeu o chute de ${activeShooter.player.name}!`;
-          const gkAdvantageNote =
-            curGkNode.player?.element &&
-            activeShooter.player?.element &&
-            ELEMENT_ADVANTAGE[curGkNode.player.element] === activeShooter.player.element
-              ? " (Vantagem Elemental de Defesa)"
-              : "";
-          prependNarrationLine(
-            st,
-            "nar-save",
-            gkPick.move
-              ? `${st.minute}' [Defesa de Goleiro] ${curGkNode.player.name} acionou 【${gkMoveName}】${gkAdvantageNote} e espalmou ${weakenedByBlocker ? "o chute enfraquecido " : ""}【${activeShotLabel}】 de ${activeShooter.player.name}!`
-              : `${st.minute}' [Defesa de Goleiro] ${curGkNode.player.name} defendeu sem técnica${gkAdvantageNote}${gkPick.exhausted ? " (energia vermelha)" : ""} e segurou ${weakenedByBlocker ? "o chute enfraquecido " : ""}${activeShotLabel} de ${activeShooter.player.name}!`,
-            { name: curGkNode.player.name, sprite: curGkNode.player.sprite, side: curGkNode.side },
-            { name: activeShooter.player.name, sprite: activeShooter.player.sprite, side: activeShooter.side },
-            "GK"
-          );
-        }
+          triggerSaveImplosion(pitch, curGkNode.x, curGkNode.y);
+          showPitchBadge(pitch, curGkNode.x, curGkNode.y, gkMoveName, "badge-steal", 1100, "GK");
+          showNodeBadge(pitch, curGkNode.uid, `Defendeu • ${gkMoveName}`, "badge-steal", 1200, "GK");
+          syncLivePitchDOM(st);
+
+          pauseForPitchBeat(st, "", "", 780, ovrDiff, null);
+        }, catchFlightMs);
+
+        return true;
       };
 
-      const onShotModalClosed = (skipRestart = false) => {
-        if (isGoal) {
-          const gSide = curAttIsUser ? "right" : "left";
-          const concedingSide = curAttIsUser ? "opp" : "user";
-          if (st.isGoldenGoal5v5) {
-            if (!instantMode) {
-              pitch.goalFlashSide = gSide;
-              pitch.goalFlashUntil = performance.now() + 1800;
-              triggerGoalLightningBurst(pitch, gSide);
-              pauseForPitchBeat(
-                st,
-                `<span class="callout-tag">GOL DE OURO!</span><strong>${activeShooter.player.name}</strong><span>5x5 Encerrado · ${activeShotLabel}</span>`,
-                "callout-goal",
-                1100,
-                ovrDiff,
-                () => handleMinuteEndBoundaries(st, ovrDiff)
-              );
-              return true;
-            }
-            return false;
-          }
-          const doKickoffReset = () => {
-            resetPitchForKickoff(pitch, concedingSide, true, true);
-            pitch.ticker = `${st.minute}' Saída no centro com ${concedingSide === "user" ? "Dream Team" : st.oppTeam.name}! Fôlego restaurado pós-gol (+60% de energia gasta).`;
-          };
-          if (skipRestart || instantMode) {
-            doKickoffReset();
-            return false;
-          }
-          pitch.goalFlashSide = gSide;
-          pitch.goalFlashUntil = performance.now() + 1800;
-          triggerGoalLightningBurst(pitch, gSide);
-          pauseForPitchBeat(
-            st,
-            `<span class="callout-tag">GOOOL!</span><strong>${activeShooter.player.name}</strong><span>${st.userScore} x ${st.oppScore} · ${activeShotLabel}</span>`,
-            "callout-goal",
-            1500,
-            ovrDiff,
-            doKickoffReset
-          );
+      const launchClashModal = () => {
+        state.tournament.shotFlightTimer = null;
+        state.tournament.pendingShotFlightFinish = null;
+
+        if (forceInstant) {
+          applyShotImpact();
+          onShotModalClosed(true);
+          syncLivePitchDOM(st);
+          handleMinuteEndBoundaries(st, ovrDiff);
           return true;
         }
 
-        if (!instantMode) {
-          triggerSaveImplosion(pitch, pitch.ballX, pitch.ballY);
-        }
-        showNodeBadge(pitch, curGkNode.uid, `Defendeu • ${gkMoveName}`, "badge-steal", 1100, "GK");
-        if (skipRestart || instantMode) return false;
-        pauseForPitchBeat(st, "", "", 780, ovrDiff, null);
+        const roleTag = specialContext?.isChain
+          ? "CHAIN SHOT!"
+          : specialContext?.isCounter
+          ? "CONTRA-CHUTE!"
+          : isLongShotPlay
+          ? "CHUTE LONGO"
+          : weakenedByBlocker
+          ? "CHUTE (-FORÇA)"
+          : "CHUTE";
+
+        playShotClashAndContinue(
+          st,
+          {
+            kind: "SHOT",
+            dir: curAttIsUser ? "ltr" : "rtl",
+            userPlayer: curAttIsUser
+              ? { name: activeShooter.player.name, sprite: resolveDynamicNodeSprite(activeShooter, pitch), roleText: roleTag }
+              : { name: curGkNode.player.name, sprite: resolveDynamicNodeSprite(curGkNode, pitch), roleText: "GOLEIRO" },
+            oppPlayer: curAttIsUser
+              ? { name: curGkNode.player.name, sprite: resolveDynamicNodeSprite(curGkNode, pitch), roleText: "GOLEIRO" }
+              : { name: activeShooter.player.name, sprite: resolveDynamicNodeSprite(activeShooter, pitch), roleText: roleTag },
+            topMoveName: weakenedByBlocker ? `${activeShotLabel} (Enfraquecido)` : activeShotLabel,
+            bottomMoveName: gkMoveName,
+            bottomIcon: "GK",
+            outcomePositive: isGoal ? curAttIsUser : !curAttIsUser,
+            resultBannerText: isGoal ? "GOOOL!!" : "DEFENDEU!"
+          },
+          applyShotImpact,
+          ovrDiff,
+          onShotModalClosed
+        );
         return true;
       };
 
-      if (forceInstant) {
-        applyShotImpact();
-        onShotModalClosed(true);
-        syncLivePitchDOM(st);
-        handleMinuteEndBoundaries(st, ovrDiff);
-        return true;
+      if (instantMode) {
+        return launchClashModal();
       }
 
-      const roleTag = specialContext?.isChain
-        ? "CHAIN SHOT!"
-        : specialContext?.isCounter
-        ? "CONTRA-CHUTE!"
-        : isLongShotPlay
-        ? "CHUTE LONGO"
-        : weakenedByBlocker
-        ? "CHUTE (-FORÇA)"
-        : "CHUTE";
-
-      playShotClashAndContinue(
-        st,
-        {
-          kind: "SHOT",
-          dir: curAttIsUser ? "ltr" : "rtl",
-          userPlayer: curAttIsUser
-            ? { name: activeShooter.player.name, sprite: resolveDynamicNodeSprite(activeShooter, pitch), roleText: roleTag }
-            : { name: curGkNode.player.name, sprite: resolveDynamicNodeSprite(curGkNode, pitch), roleText: "GOLEIRO" },
-          oppPlayer: curAttIsUser
-            ? { name: curGkNode.player.name, sprite: resolveDynamicNodeSprite(curGkNode, pitch), roleText: "GOLEIRO" }
-            : { name: activeShooter.player.name, sprite: resolveDynamicNodeSprite(activeShooter, pitch), roleText: roleTag },
-          topMoveName: weakenedByBlocker ? `${activeShotLabel} (Enfraquecido)` : activeShotLabel,
-          bottomMoveName: gkMoveName,
-          bottomIcon: "GK",
-          outcomePositive: isGoal ? curAttIsUser : !curAttIsUser,
-          resultBannerText: isGoal ? "GOOOL!!" : "DEFENDEU!"
-        },
-        applyShotImpact,
-        ovrDiff,
-        onShotModalClosed
-      );
+      // Em velocidade normal (1x): o chute viaja visivelmente pelo campo até o goleiro!
+      // Apenas quando chega perto dele abre-se a cena/modal das técnicas e o resultado.
+      if (state.tournament.timerId) {
+        clearInterval(state.tournament.timerId);
+        state.tournament.timerId = null;
+      }
+      state.tournament.pendingShotFlightFinish = launchClashModal;
+      state.tournament.shotFlightTimer = setTimeout(() => {
+        launchClashModal();
+      }, Math.max(50, flightMs - 40));
       return true;
     };
 
@@ -9292,7 +9435,7 @@
         prep5SpeedBtn.addEventListener("click", () => {
           state.simSpeed = state.simSpeed === 1 ? 2 : state.simSpeed === 2 ? 4 : 1;
           prep5SpeedBtn.innerHTML = `<span>Vel: ${state.simSpeed}x</span>`;
-          if (state.simSpeed !== 1 && (state.tournament.pendingClashFinish || state.tournament.pendingBeatFinish)) {
+          if (state.simSpeed !== 1 && (state.tournament.pendingClashFinish || state.tournament.pendingBeatFinish || state.tournament.pendingShotFlightFinish)) {
             clearTournamentTimers(true);
           }
           startMatchInterval();
@@ -9573,7 +9716,7 @@
       speedBtn.addEventListener("click", () => {
         state.simSpeed = state.simSpeed === 1 ? 2 : state.simSpeed === 2 ? 4 : 1;
         speedBtn.innerHTML = `<span>Vel: ${state.simSpeed}x</span>`;
-        if (state.simSpeed !== 1 && (state.tournament.pendingClashFinish || state.tournament.pendingBeatFinish)) {
+        if (state.simSpeed !== 1 && (state.tournament.pendingClashFinish || state.tournament.pendingBeatFinish || state.tournament.pendingShotFlightFinish)) {
           clearTournamentTimers(true);
         }
         if (st.running && !st.finished) {
