@@ -2155,8 +2155,20 @@
 
     if (st.minute === 45 && !st.halftimeHandled) {
       st.halftimeHandled = true;
-      playHalftimeRefereeQTE(st, ovrDiff);
-      return true;
+      // Pausa rápida de narração do fim do 1º tempo sem minigame de recuperação forçado
+      prependNarrationLine(
+        st,
+        "nar-pass",
+        `45' [Intervalo] Árbitro apita o fim do 1º tempo! (${st.userScore} x ${st.oppScore})`,
+        null,
+        null,
+        "FF"
+      );
+      if (st.pitch) {
+        st.pitch.ticker = `45' Fim do 1º tempo! Placar: ${st.userScore} x ${st.oppScore}`;
+        resetPitchForKickoff(st.pitch, "opp", true);
+        syncLivePitchDOM(st);
+      }
     }
 
     if (st.minute === 90 && st.userScore === st.oppScore && st.maxMinute === 90 && !st.isGroupStage) {
@@ -5880,7 +5892,6 @@
       : `
         <button class="ie-cmd-btn export-png-btn" id="btn-export-run-png"><span>Exportar Imagem (PNG)</span></button>
         <button class="ie-cmd-btn" id="btn-back-to-match-log"><span>Ver Campo / Narração</span></button>
-        <button class="ie-cmd-btn ie-cmd-gold" id="btn-retry-stage"><span>Revanche</span></button>
         <button class="ie-cmd-btn ie-cmd-green" id="btn-new-draft-after-loss"><span>Novo Jogo</span></button>
       `;
 
