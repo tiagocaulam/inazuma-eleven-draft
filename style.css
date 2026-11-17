@@ -2952,18 +2952,17 @@ body {
   z-index: 16;
   opacity: 0;
   display: none;
+  transform: translate(-50%, -50%);
   transform-origin: 24px 50%;
   will-change: transform, opacity;
 }
 
 .pitch-goal-burst.side-right {
-  right: -12px;
-  transform: translateY(-50%) scaleX(-1);
+  right: auto;
 }
 
 .pitch-goal-burst.side-left {
-  left: -12px;
-  transform: translateY(-50%);
+  left: auto;
 }
 
 .pitch-goal-burst.is-active {

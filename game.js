@@ -3546,7 +3546,15 @@
         const opacity = t < 0.15 ? 1 : Math.max(0, Math.pow(1 - (t - 0.15) / 0.85, 1.35));
         const dirScaleX = gb.side === "right" ? -1 : 1;
         goalBurstEl.className = `pitch-goal-burst side-${gb.side} is-active`;
-        goalBurstEl.style.transform = `translateY(-50%) scaleX(${dirScaleX}) scale(${scale.toFixed(3)})`;
+        // Posicionamento exato onde a bola estufou a rede do gol
+        if (typeof gb.x === "number") {
+          goalBurstEl.style.left = `${gb.x.toFixed(1)}%`;
+          goalBurstEl.style.right = "auto";
+        }
+        if (typeof gb.y === "number") {
+          goalBurstEl.style.top = `${gb.y.toFixed(1)}%`;
+        }
+        goalBurstEl.style.transform = `translate(-50%, -50%) scaleX(${dirScaleX}) scale(${scale.toFixed(3)})`;
         goalBurstEl.style.opacity = opacity.toFixed(3);
       } else {
         pitch.goalBurstFx = null;
@@ -5140,11 +5148,16 @@
     };
   }
 
-  function triggerGoalLightningBurst(pitch, goalSide) {
+  function triggerGoalLightningBurst(pitch, goalSide, targetX = null, targetY = 50) {
     if (!pitch) return;
     const dur = state.simSpeed === 4 ? 260 : state.simSpeed === 2 ? 550 : 1200;
+    const isRight = goalSide !== "left";
+    const burstX = targetX !== null ? targetX : (isRight ? 95.8 : 4.2);
+    const burstY = targetY !== null ? targetY : 50;
     pitch.goalBurstFx = {
-      side: goalSide === "left" ? "left" : "right",
+      side: isRight ? "right" : "left",
+      x: burstX,
+      y: burstY,
       start: performance.now(),
       duration: dur
     };
@@ -5507,7 +5520,8 @@
     const origAttNodes = attNodesArg || (origAttIsUser ? pitch.userNodes : pitch.oppNodes);
     const origDefNodes = defNodes || (origAttIsUser ? pitch.oppNodes : pitch.userNodes);
     const effRole = getEffectiveCarrierRole(shooterNode);
-    const origGoalX = origAttIsUser ? 97 : 3;
+    // Linha de fundo real do campo: 4.5% (esquerda) e 95.5% (direita). O fundo da rede fica a 2.5% e 97.5%.
+    const origGoalX = origAttIsUser ? 96.8 : 3.2;
     const goalY = 50;
     const origGkNode = origDefNodes.find((n) => n.role === "GK") || origDefNodes[0];
 
@@ -5723,7 +5737,8 @@
             startBallFlight(pitch, duelX, duelY, curGoalX, goalY, 40, 0.4, "GOAL", "#facc15");
             pitch.goalFlashSide = gSide;
             pitch.goalFlashUntil = performance.now() + 2200;
-            triggerGoalLightningBurst(pitch, gSide);
+            triggerStealShockwave(pitch, curGoalX, goalY, null, null);
+            triggerGoalLightningBurst(pitch, gSide, curGoalX, goalY);
             showPitchBadge(pitch, curGoalX, goalY, "GOOOL!!", "badge-goal", 1400, "SH");
             showNodeBadge(pitch, activeShooter.uid, `GOOOL! • ${activeShotLabel}`, "badge-goal", 1400, "SH");
           } else {
@@ -5777,13 +5792,13 @@
           startBallFlight(pitch, curGkNode.x, curGkNode.y, curGoalX, goalY, netFlightMs, 0, "GOAL", "#fde047");
           syncLivePitchDOM(st);
 
-          // 3) Entrada nas redes com onda de choque no ponto exato da rede (curGoalX, goalY) e raio fluído
+          // 3) Entrada nas redes com onda de choque e raio fluído exatamente onde a bola entrou na rede (curGoalX, goalY)
           setTimeout(() => {
             commitGoalOutcome();
             pitch.goalFlashSide = gSide;
             pitch.goalFlashUntil = performance.now() + 2200;
             triggerStealShockwave(pitch, curGoalX, goalY, null, null);
-            triggerGoalLightningBurst(pitch, gSide);
+            triggerGoalLightningBurst(pitch, gSide, curGoalX, goalY);
             showPitchBadge(pitch, curGoalX, goalY, "GOOOL!!", "badge-goal", 1600, "SH");
             showNodeBadge(pitch, activeShooter.uid, `GOOOL! • ${activeShotLabel}`, "badge-goal", 1650, "SH");
             syncLivePitchDOM(st);
