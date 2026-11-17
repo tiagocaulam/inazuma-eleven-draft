@@ -2672,7 +2672,8 @@
 
     // 1) Se está recebendo um passe em voo, corre para dominar a bola!
     if (pitch.passState && pitch.passState.receiverUid === node.uid) {
-      return { tx: pitch.passState.toX, ty: pitch.passState.toY, sprint: 1.08 };
+      const isSprintPass = Boolean(pitch.passState.isThroughBall || pitch.passState.isOneTwoPass);
+      return { tx: pitch.passState.toX, ty: pitch.passState.toY, sprint: isSprintPass ? 1.38 : 1.08 };
     }
 
     // 2) Portador da bola: conduz livremente buscando espaço e desviando de marcadores!
@@ -3196,18 +3197,22 @@
     if (lineGlow && lineMain) {
       const tr = pitch.passTrail;
       if (tr && now < tr.fadeUntil) {
-        const endX = tr.curX !== undefined ? tr.curX : tr.toX;
-        const endY = tr.curY !== undefined ? tr.curY : tr.toY;
+        const fromX = Number.isFinite(tr.fromX) ? tr.fromX : 50;
+        const fromY = Number.isFinite(tr.fromY) ? tr.fromY : 50;
+        const rawEndX = tr.curX !== undefined ? tr.curX : tr.toX;
+        const rawEndY = tr.curY !== undefined ? tr.curY : tr.toY;
+        const endX = Number.isFinite(rawEndX) ? rawEndX : fromX;
+        const endY = Number.isFinite(rawEndY) ? rawEndY : fromY;
         const remain = Math.max(0, Math.min(1, (tr.fadeUntil - now) / 460));
-        lineGlow.setAttribute("x1", tr.fromX.toFixed(1));
-        lineGlow.setAttribute("y1", tr.fromY.toFixed(1));
+        lineGlow.setAttribute("x1", fromX.toFixed(1));
+        lineGlow.setAttribute("y1", fromY.toFixed(1));
         lineGlow.setAttribute("x2", endX.toFixed(1));
         lineGlow.setAttribute("y2", endY.toFixed(1));
         lineGlow.setAttribute("stroke", tr.color);
         lineGlow.style.opacity = (0.38 * remain).toFixed(2);
 
-        lineMain.setAttribute("x1", tr.fromX.toFixed(1));
-        lineMain.setAttribute("y1", tr.fromY.toFixed(1));
+        lineMain.setAttribute("x1", fromX.toFixed(1));
+        lineMain.setAttribute("y1", fromY.toFixed(1));
         lineMain.setAttribute("x2", endX.toFixed(1));
         lineMain.setAttribute("y2", endY.toFixed(1));
         lineMain.setAttribute("stroke", tr.color);
@@ -3453,7 +3458,25 @@
         }
       }
 
-      return forwardFactor * distFactor * openFactor * staminaW * antiPingPongW * wingSwitchW * skillW * elemSynergyW;
+      // Regra de impedimento: evita tocar para jogador adiantado na banheira em posição irregular
+      const oppOutfieldDefs = (defNodes || []).filter((d) => d.role !== "GK");
+      const oppDefLineX = oppOutfieldDefs.length > 0
+        ? (attIsUser ? Math.max(...oppOutfieldDefs.map((d) => d.x)) : Math.min(...oppOutfieldDefs.map((d) => d.x)))
+        : (attIsUser ? 84 : 16);
+
+      const isCandidateOffside = attIsUser
+        ? (n.x > 50 && n.x > carrier.x + 0.6 && n.x > oppDefLineX + 0.6)
+        : (n.x < 50 && n.x < carrier.x - 0.6 && n.x < oppDefLineX - 0.6);
+
+      if (isCandidateOffside) {
+        return 0.02; // Não passa para quem está impedido!
+      }
+
+      // Bônus para companheiro com corredor aberto à frente para receber passe no espaço vazio
+      const openForwardGrass = attIsUser ? (oppDefLineX - n.x) : (n.x - oppDefLineX);
+      const spaceRunBonus = (openForwardGrass >= 6 && forwardGain >= 0) ? 1.45 : 1.0;
+
+      return forwardFactor * distFactor * openFactor * staminaW * antiPingPongW * wingSwitchW * skillW * elemSynergyW * spaceRunBonus;
     });
 
     const total = weights.reduce((a, b) => a + b, 0);
@@ -4785,21 +4808,93 @@
     }
   }
 
-  function launchContinuousPass(st, pitch, carrier, attNodes, defNodes, strictForward, safeRestart, isOneTwoPass = false) {
+  function launchContinuousPass(st, pitch, carrier, attNodes, defNodes, strictForward, safeRestart, isOneTwoPass = false, passOptions = {}) {
     const attIsUser = carrier.side === "user";
     const isGkOutlet = carrier.role === "GK";
-    const isSafeProtectedPass = Boolean(safeRestart || isGkOutlet || isOneTwoPass);
-    const receiver = pickPassReceiver(attNodes, defNodes, carrier, strictForward, pitch);
+    const isSafeProtectedPass = Boolean(safeRestart || isGkOutlet || isOneTwoPass || passOptions.isReturnOneTwo);
+    const receiver = passOptions.targetReceiver || pickPassReceiver(attNodes, defNodes, carrier, strictForward, pitch);
     if (!receiver) return false;
 
-    const leadX = Math.max(8, Math.min(92, receiver.x + (receiver.vx || 0) * 0.25));
-    const leadY = Math.max(10, Math.min(90, receiver.y + (receiver.vy || 0) * 0.25));
+    const fwdDir = attIsUser ? 1 : -1;
+
+    // Linha de impedimento (penúltimo adversário, ou seja, o último jogador de linha)
+    const oppOutfieldDefs = (defNodes || []).filter((d) => d.role !== "GK");
+    const oppDefLineX = oppOutfieldDefs.length > 0
+      ? (attIsUser ? Math.max(...oppOutfieldDefs.map((d) => d.x)) : Math.min(...oppOutfieldDefs.map((d) => d.x)))
+      : (attIsUser ? 84 : 16);
+
+    // Condição legal de impedimento no instante do passe (at the moment the ball is played):
+    // 1) Em seu próprio campo, OU
+    // 2) Atrás ou na mesma linha da bola, OU
+    // 3) Atrás ou na mesma linha do penúltimo adversário
+    const isReceiverOnside = attIsUser
+      ? (receiver.x <= 50 || receiver.x <= carrier.x + 0.8 || receiver.x <= oppDefLineX + 0.8)
+      : (receiver.x >= 50 || receiver.x >= carrier.x - 0.8 || receiver.x >= oppDefLineX - 0.8);
+
+    const wasOffsideAtPassTime = !isReceiverOnside && (attIsUser ? receiver.x > 50 : receiver.x < 50);
+
+    const effRole = getEffectiveCarrierRole(carrier);
+    const forwardSpace = attIsUser ? (oppDefLineX - receiver.x) : (receiver.x - oppDefLineX);
+    const fwdDistToCarrier = attIsUser ? (receiver.x - carrier.x) : (carrier.x - receiver.x);
+
+    // Decisão tática de colocar a bola à frente no espaço vazio (Passe em Profundidade / Enfiada de Bola):
+    // Se for tabela, retorno de 1-2, opção forçada, ou jogador em posição legal com corredor livre
+    const wantsSpacePass = Boolean(
+      passOptions.forceSpacePass ||
+      isOneTwoPass ||
+      passOptions.isReturnOneTwo ||
+      (!isGkOutlet && !safeRestart && isReceiverOnside && (effRole === "MF" || effRole === "FW") && (forwardSpace >= 5 || fwdDistToCarrier >= 4) && Math.random() < 0.65)
+    );
+
+    const isThroughBall = Boolean(wantsSpacePass && !wasOffsideAtPassTime);
+
+    let leadX;
+    let leadY;
+
+    if (isThroughBall) {
+      // Projeta a bola à frente no espaço vazio para o recebedor avançar e buscar!
+      const passerSkill = Math.max(50, Math.min(99, carrier.effOvr || 75));
+      const spaceLeadDist = 8.5 + (passerSkill / 100) * 6.5; // 8.5 a 15 unidades de avanço
+
+      let projX = receiver.x + fwdDir * spaceLeadDist;
+      if (attIsUser) {
+        projX = Math.max(12, Math.min(89.5, projX));
+      } else {
+        projX = Math.max(10.5, Math.min(88, projX));
+      }
+
+      // Projeta no corredor com leve convergência para o gol ou flanco desimpedido
+      const rx = Number.isFinite(receiver.x) ? receiver.x : (attIsUser ? 45 : 55);
+      const ry = Number.isFinite(receiver.y) ? receiver.y : 50;
+      const uidHash = typeof receiver.uid === "string"
+        ? (receiver.uid.split("").reduce((acc, c) => acc + c.charCodeAt(0), 0) % 5)
+        : ((Number(receiver.uid) || 1) % 5);
+      const corridorDrift = (50 - ry) * 0.18 + (uidHash - 2) * 1.5;
+      let projY = ry + corridorDrift;
+      projY = Math.max(13, Math.min(87, projY));
+
+      leadX = Number.isFinite(projX) ? projX : (attIsUser ? 75 : 25);
+      leadY = Number.isFinite(projY) ? projY : 50;
+
+      // O recebedor dispara em arrancada física para dominar a bola no espaço vazio!
+      receiver.targetX = leadX;
+      receiver.targetY = leadY;
+      receiver.targetSprint = 1.38;
+      receiver.vx = (leadX - rx) * 1.35;
+      receiver.vy = (leadY - ry) * 1.35;
+    } else {
+      const rx = Number.isFinite(receiver.x) ? receiver.x : (attIsUser ? 45 : 55);
+      const ry = Number.isFinite(receiver.y) ? receiver.y : 50;
+      leadX = Math.max(8, Math.min(92, rx + (receiver.vx || 0) * 0.25));
+      leadY = Math.max(10, Math.min(90, ry + (receiver.vy || 0) * 0.25));
+    }
+
     const dist = Math.hypot(leadX - carrier.x, leadY - carrier.y);
-    const passSpeed = dist > 30 ? 56 : 48;
+    const passSpeed = dist > 30 ? 58 : isThroughBall ? 54 : 48;
     const duration = Math.max(0.20, Math.min(0.85, dist / passSpeed));
 
-    // Passe normal consome 4.5; reposição de goleiro 2.0; tabela com dash consome arrancada física (12 de stamina)!
-    const passStaminaCost = isOneTwoPass ? 12 : isGkOutlet ? 2.0 : safeRestart ? 2.5 : 4.5;
+    // Passe normal consome 4.5; reposição de goleiro 2.0; bola enfiada 6.5; tabela com arrancada 12 de stamina!
+    const passStaminaCost = isOneTwoPass ? 12 : isThroughBall ? 6.5 : isGkOutlet ? 2.0 : safeRestart ? 2.5 : 4.5;
     spendStamina(carrier, passStaminaCost);
     if (attIsUser) {
       if (isGkOutlet) {
@@ -4813,16 +4908,35 @@
 
     // Se for jogada combinada / tabela (1-2), o passador dá um DASH nas costas do marcador!
     if (isOneTwoPass) {
-      const fwdDir = attIsUser ? 1 : -1;
-      carrier.targetX = Math.max(8, Math.min(92, carrier.x + fwdDir * 16));
-      carrier.targetY = Math.max(12, Math.min(88, carrier.y + (Math.random() < 0.5 ? 4 : -4)));
+      carrier.targetX = Math.max(8, Math.min(92, carrier.x + fwdDir * 18));
+      carrier.targetY = Math.max(12, Math.min(88, carrier.y + (Math.random() < 0.5 ? 5 : -5)));
       carrier.vx += fwdDir * 28;
-      carrier.targetSprint = 1.35;
+      carrier.targetSprint = 1.38;
       showNodeBadge(pitch, carrier.uid, "⚡ Tabela (Dash)!", "badge-dribble", 1500);
       prependNarrationLine(
         st,
         "nar-pass",
-        `${st.minute}' [Tabela Rápida] ${carrier.player.name} tabelou de primeira com ${receiver.player.name} e arrancou em velocidade!`,
+        `${st.minute}' [Tabela Rápida] ${carrier.player.name} tabelou de primeira com ${receiver.player.name} e arrancou em velocidade nas costas da marcação!`,
+        { name: carrier.player.name, sprite: carrier.player.sprite, side: carrier.side },
+        { name: receiver.player.name, sprite: receiver.player.sprite, side: receiver.side },
+        "BALL"
+      );
+    } else if (isThroughBall && !passOptions.isReturnOneTwo) {
+      showNodeBadge(pitch, receiver.uid, "🏃 No Espaço!", "badge-dribble", 1500);
+      prependNarrationLine(
+        st,
+        "nar-pass",
+        `${st.minute}' [Passe em Profundidade] ${carrier.player.name} enfiou a bola no espaço vazio! ${receiver.player.name} disparou em posição legal para buscar!`,
+        { name: carrier.player.name, sprite: carrier.player.sprite, side: carrier.side },
+        { name: receiver.player.name, sprite: receiver.player.sprite, side: receiver.side },
+        "BALL"
+      );
+    } else if (passOptions.isReturnOneTwo) {
+      showNodeBadge(pitch, receiver.uid, "⚡ Devolveu no Espaço!", "badge-dribble", 1500);
+      prependNarrationLine(
+        st,
+        "nar-pass",
+        `${st.minute}' [Tabela no Espaço] ${carrier.player.name} colocou a bola mais à frente no espaço vazio e ${receiver.player.name} correu para pegar!`,
         { name: carrier.player.name, sprite: carrier.player.sprite, side: carrier.side },
         { name: receiver.player.name, sprite: receiver.player.sprite, side: receiver.side },
         "BALL"
@@ -4833,17 +4947,19 @@
     pitch.carrierUid = null;
     pitch.challengerUid = null;
     pitch.holdBallPos = null;
-    pitch.lastAction = isOneTwoPass ? "ONE_TWO" : "PASS";
+    pitch.lastAction = (isOneTwoPass || passOptions.isReturnOneTwo) ? "ONE_TWO" : isThroughBall ? "THROUGH_BALL" : "PASS";
     pitch.teamConsecutivePasses = (pitch.teamConsecutivePasses || 0) + 1;
 
     pitch.passState = {
       passerUid: carrier.uid,
       passerNode: carrier,
       receiverUid: receiver.uid,
-      effRole: getEffectiveCarrierRole(carrier),
+      effRole,
       isGkOutlet,
       isSafeProtectedPass,
       isOneTwoPass,
+      isThroughBall,
+      wasOffsideAtPassTime,
       fromX: pitch.ballX,
       fromY: pitch.ballY,
       toX: leadX,
@@ -4853,6 +4969,12 @@
       progress: 0
     };
 
+    const trailColor = (isOneTwoPass || passOptions.isReturnOneTwo)
+      ? "#facc15"
+      : isThroughBall
+      ? (attIsUser ? "#38bdf8" : "#f472b6")
+      : (attIsUser ? "#4ade80" : "#f87171");
+
     pitch.passTrail = {
       fromX: pitch.ballX,
       fromY: pitch.ballY,
@@ -4860,18 +4982,27 @@
       toY: leadY,
       curX: pitch.ballX,
       curY: pitch.ballY,
-      color: isOneTwoPass ? "#facc15" : (attIsUser ? "#4ade80" : "#f87171"),
+      color: trailColor,
       start: performance.now(),
       flightDuration: Math.round(duration * 1000),
       fadeUntil: performance.now() + 900
     };
 
-    const badgeTxt = isGkOutlet ? "REPOSIÇÃO" : isOneTwoPass ? "TABELA" : "PASSE";
-    showPitchBadge(pitch, leadX, leadY, badgeTxt, "badge-pass", 700, isGkOutlet ? "GK" : "BALL");
+    const badgeTxt = isGkOutlet
+      ? "REPOSIÇÃO"
+      : (isOneTwoPass || passOptions.isReturnOneTwo)
+      ? "TABELA"
+      : isThroughBall
+      ? "NO ESPAÇO"
+      : "PASSE";
+
+    showPitchBadge(pitch, leadX, leadY, badgeTxt, "badge-pass", 750, isGkOutlet ? "GK" : "BALL");
     pitch.ticker = isGkOutlet
       ? `${st.minute}' Reposição: ${carrier.player.name} ➔ ${receiver.player.name}`
-      : isOneTwoPass
-      ? `${st.minute}' Tabela: ${carrier.player.name} ➔ ${receiver.player.name} (Dash!)`
+      : (isOneTwoPass || passOptions.isReturnOneTwo)
+      ? `${st.minute}' Tabela no Espaço: ${carrier.player.name} ➔ ${receiver.player.name}!`
+      : isThroughBall
+      ? `${st.minute}' Bola Enfiada: ${carrier.player.name} ➔ espaço vazio para ${receiver.player.name}!`
       : `${st.minute}' Passe: ${carrier.player.name} ➔ ${receiver.player.name}`;
     return true;
   }
@@ -5866,6 +5997,30 @@
           return;
         }
 
+        // Procura enfiada de bola / passe no espaço vazio se houver companheiro bem desmarcado em posição legal
+        const oppOutfieldDefs = defNodes.filter((d) => d.role !== "GK");
+        const oppDefLineX = oppOutfieldDefs.length > 0
+          ? (attIsUser ? Math.max(...oppOutfieldDefs.map((d) => d.x)) : Math.min(...oppOutfieldDefs.map((d) => d.x)))
+          : (attIsUser ? 84 : 16);
+
+        const throughCandidate = attNodes.find((n) => {
+          if (n.uid === carrier.uid || n.role === "GK") return false;
+          const fwdGain = attIsUser ? (n.x - carrier.x) : (carrier.x - n.x);
+          const openGrass = attIsUser ? (oppDefLineX - n.x) : (n.x - oppDefLineX);
+          const isLegal = attIsUser
+            ? (n.x <= 50 || n.x <= carrier.x + 0.6 || n.x <= oppDefLineX + 0.6)
+            : (n.x >= 50 || n.x >= carrier.x - 0.6 || n.x >= oppDefLineX - 0.6);
+          return isLegal && fwdGain >= 3 && openGrass >= 5;
+        });
+
+        if (throughCandidate && carrier.carryTime >= 0.38 && nearestDefDist >= 3.6 && roll < 0.44) {
+          launchContinuousPass(st, pitch, carrier, attNodes, defNodes, true, false, false, {
+            targetReceiver: throughCandidate,
+            forceSpacePass: true
+          });
+          return;
+        }
+
         const tiredPass = carrier.stamina < 45 && roll < 0.65;
         const pressPass = nearestDefDist < 7.8 && roll < 0.50;
         const flowPass = carrier.carryTime >= 1.15 && roll < (carrier.role === "DF" ? 0.64 : 0.40);
@@ -5884,7 +6039,9 @@
     if (pitch.ballMode === "PASS_FLIGHT" && pitch.passState) {
       const ps = pitch.passState;
       const receiver = findPitchNode(pitch, ps.receiverUid);
-      if (receiver) {
+      // Para passes normais, a bola ajusta sutilmente aos pés do recebedor;
+      // Para passes em profundidade / no espaço / tabela, a bola vai exatamente para o ponto vazio projetado!
+      if (receiver && !ps.isThroughBall && !ps.isOneTwoPass) {
         ps.toX = ps.toX * 0.85 + receiver.x * 0.15;
         ps.toY = ps.toY * 0.85 + receiver.y * 0.15;
       }
@@ -5962,8 +6119,42 @@
         }
       }
 
-      if (ps.progress >= 1 || (receiver && ps.progress >= 0.45 && Math.hypot(receiver.x - pitch.ballX, receiver.y - pitch.ballY) <= 2.4)) {
+      const catchDist = (ps.isThroughBall || ps.isOneTwoPass) ? 3.4 : 2.4;
+      if (ps.progress >= 1 || (receiver && ps.progress >= 0.38 && Math.hypot(receiver.x - pitch.ballX, receiver.y - pitch.ballY) <= catchDist)) {
         const catcher = receiver || attNodes[0];
+
+        // Se o recebedor partiu de posição de impedimento no momento do passe, o juiz apita!
+        if (ps.wasOffsideAtPassTime) {
+          pitch.ballSide = attIsUser ? "opp" : "user";
+          pitch.ballMode = "CARRIED";
+          const restartDef = defNodes.find((d) => d.role !== "GK") || defNodes[0];
+          pitch.carrierUid = restartDef.uid;
+          pitch.challengerUid = null;
+          pitch.passState = null;
+          pitch.lastAssistCandidate = null;
+          pitch.lastPasserUid = null;
+          pitch.teamConsecutivePasses = 0;
+          restartDef.carryTime = 0;
+          restartDef.decisionTimer = 0.35;
+          pitch.ballX = restartDef.x + (restartDef.side === "user" ? 1.8 : -1.8);
+          pitch.ballY = restartDef.y + 1.0;
+
+          showNodeBadge(pitch, catcher.uid, "🚩 Impedimento!", "badge-lost", 1700);
+          showPitchBadge(pitch, pitch.ballX, pitch.ballY, "IMPEDIMENTO", "badge-lost", 1200);
+          prependNarrationLine(
+            st,
+            "nar-steal",
+            `${st.minute}' [Impedimento] O árbitro paralisa o lance! ${catcher.player.name} estava adiantado no momento do passe.`,
+            { name: catcher.player.name, sprite: catcher.player.sprite, side: catcher.side },
+            null,
+            "BALL"
+          );
+          pitch.ticker = `${st.minute}' 🚩 Impedimento assinalado contra ${catcher.player.name}!`;
+          syncLivePitchDOM(st);
+          pauseForPitchBeat(st, "", "", 1100, ovrDiff);
+          return;
+        }
+
         if (attIsUser && !ps.isGkOutlet) {
           pitch.stats.userPassesOk++;
           if (ps.passerNode) recordUserPlayerStat(pitch, ps.passerNode, "passesOk", 1);
@@ -5976,17 +6167,21 @@
         pitch.carrierUid = catcher.uid;
         pitch.passState = null;
         catcher.carryTime = 0;
-        catcher.decisionTimer = ps.isOneTwoPass ? 0.08 : 0.22;
+        catcher.decisionTimer = ps.isOneTwoPass ? 0.05 : 0.22;
         pitch.ballX = catcher.x + (catcher.side === "user" ? 1.8 : -1.8);
         pitch.ballY = catcher.y + 1.0;
 
-        // Se veio de uma tabela rápida (1-2), o receptor tem chance altíssima de devolver imediatamente no passador que deu o dash!
-        if (ps.isOneTwoPass && ps.passerNode && Math.random() < 0.68) {
+        // Se veio de uma tabela rápida (1-2), o receptor devolve DE PRIMEIRA mais à frente no espaço para o passador correr e pegar!
+        if (ps.isOneTwoPass && ps.passerNode && Math.random() < 0.78) {
           const runner = ps.passerNode;
-          const runnerFwd = attIsUser ? runner.x > catcher.x - 2 : runner.x < catcher.x + 2;
-          if (runnerFwd && Math.hypot(runner.x - catcher.x, runner.y - catcher.y) <= 28) {
+          const runnerFwd = attIsUser ? runner.x > catcher.x - 4 : runner.x < catcher.x + 4;
+          if (runnerFwd && Math.hypot(runner.x - catcher.x, runner.y - catcher.y) <= 32) {
             catcher.duelCooldown = 1.0;
-            launchContinuousPass(st, pitch, catcher, attNodes, defNodes, true, false, false);
+            launchContinuousPass(st, pitch, catcher, attNodes, defNodes, true, false, false, {
+              targetReceiver: runner,
+              forceSpacePass: true,
+              isReturnOneTwo: true
+            });
             return;
           }
         }
