@@ -8160,94 +8160,47 @@
   }
 
   function buildTournamentBracketStripHTML(t, focusStageIdx) {
-    let sliceStart = 0;
-    let sliceEnd = 4;
-    let phaseBadges = "";
+    const focusStage = t.stages[focusStageIdx] || t.stages[t.stageIndex];
+    if (!focusStage) return "";
 
-    if (t.worldUnlocked) {
-      if (focusStageIdx <= 6) {
-        sliceStart = 4;
-        sliceEnd = 8; // 3 jogos do Grupo A + card preview de Oitavas do Mundial
-        phaseBadges = `
-          <div class="world-phase-strip">
-            <span class="world-pill is-done">✓ Campeão do Futebol Fronteira</span>
-            <span class="world-pill is-active">🌍 Mundial (FFI) • Fase de Grupos (3 Rodadas)</span>
-            <span class="world-pill">Próx: Oitavas → Quartas → Semi → Final Mundial</span>
+    const compName = focusStage.competition === "WORLD" ? "MUNDIAL (FFI)" : "FUTEBOL FRONTEIRA";
+    const statusTxt = focusStage.finished
+      ? `${focusStage.userScore} x ${focusStage.oppScore} · ${focusStage.won ? "Vitória" : focusStage.isDraw ? "Empate" : "Derrota"}`
+      : t.prep && focusStageIdx === t.prep.nextStageIdx
+      ? "Fase de Preparação"
+      : "Partida ao Vivo";
+
+    const isGroup = focusStage.isGroupStage;
+    const roundSub = isGroup
+      ? `Fase de Grupos • Rodada ${focusStage.groupRoundIdx + 1}/3`
+      : focusStage.competition === "WORLD"
+      ? "Mata-Mata do Mundial"
+      : "Mata-Mata Eliminatório";
+
+    return `
+      <div class="current-stage-hero-banner">
+        <div class="current-stage-hero-left">
+          <div class="current-stage-comp-badge">
+            ${ffLogoIconHTML("inline-ui-icon")}
+            <span>${compName}</span>
+            <span style="opacity:0.4;">•</span>
+            <span style="color:#93c5fd;">${roundSub}</span>
           </div>
-        `;
-      } else {
-        sliceStart = 7;
-        sliceEnd = t.stages.length; // Oitavas, Quartas, Semi, Final Mundial
-        const rank = getUserGroupRank(t.worldGroup);
-        phaseBadges = `
-          <div class="world-phase-strip">
-            <span class="world-pill is-done">✓ Campeão do Futebol Fronteira</span>
-            <span class="world-pill is-done">✓ Grupo A (${rank}º lugar)</span>
-            <span class="world-pill is-active">🌍 Mata-Mata do Mundial (FFI)</span>
+          <div class="current-stage-name-large">
+            ${focusStage.stageName}
           </div>
-        `;
-      }
-    } else {
-      phaseBadges = `
-        <div class="world-phase-strip">
-          <span class="world-pill is-active">${ffLogoIconHTML("inline-ui-icon")} Futebol Fronteira</span>
-          <span class="world-pill">🌍 Vencendo a Final, você avança ao Mundial (FFI)!</span>
         </div>
-      `;
-    }
 
-    const slice = t.stages.slice(sliceStart, sliceEnd);
-    const cardsHTML = slice
-      .map((s, localIdx) => {
-        const idx = sliceStart + localIdx;
-        const isUnlocked = idx <= focusStageIdx;
-        let cls = "";
-        if (s.finished) cls = s.won ? "passed-stage" : s.isDraw ? "draw-stage" : "lost-stage";
-        else if (idx === focusStageIdx) cls = "active-stage";
-
-        if (!isUnlocked) {
-          return `
-            <div class="bracket-step" style="opacity: 0.55;">
-              <div style="width:32px; height:32px; border-radius:8px; background:#0f172a; border:1px dashed rgba(148,163,184,0.35); display:flex; align-items:center; justify-content:center;">
-                ${ffLogoIconHTML("inline-ui-icon")}
-              </div>
-              <div style="min-width:0;">
-                <div style="font-size:0.63rem; color:#94a3b8; font-weight:800; text-transform:uppercase;">${s.stageName}</div>
-                <div style="font-size:0.75rem; font-weight:800; color:#94a3b8;">A Definir</div>
-              </div>
-            </div>
-          `;
-        }
-
-        const statusTxt = s.finished
-          ? `${s.userScore} x ${s.oppScore} · ${s.won ? "Vitória" : s.isDraw ? "Empate" : "Derrota"}`
-          : t.prep && idx === t.prep.nextStageIdx
-          ? "Preparação"
-          : "Ao Vivo";
-        const statusColor = s.finished
-          ? s.won
-            ? "#4ade80"
-            : s.isDraw
-            ? "#fde047"
-            : "#f87171"
-          : "#facc15";
-
-        return `
-          <div class="bracket-step ${cls}">
-            <img src="${s.oppTeam.emblem}" alt="" style="width:32px; height:32px; object-fit:contain;" />
-            <div style="min-width:0;">
-              <div style="font-size:0.63rem; color:#94a3b8; font-weight:800; text-transform:uppercase;">${s.stageName}</div>
-              <div style="font-size:0.75rem; font-weight:800; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${s.oppTeam.name}</div>
-              <div style="font-size:0.7rem; font-weight:900; color:${statusColor};">
-                ${statusTxt}
-              </div>
-            </div>
+        <div class="current-stage-vs-badge">
+          <span class="current-stage-vs-label">ADVERSÁRIO:</span>
+          <div class="current-stage-opp-box">
+            ${focusStage.oppTeam?.emblem ? `<img src="${focusStage.oppTeam.emblem}" alt="" class="current-stage-opp-emblem" />` : ""}
+            <span class="current-stage-opp-name">${focusStage.oppTeam?.name || "A Definir"}</span>
           </div>
-        `;
-      })
-      .join("");
-
-    return `${phaseBadges}<div class="bracket-row">${cardsHTML}</div>`;
+          <span class="current-stage-status-pill">${statusTxt}</span>
+        </div>
+      </div>
+    `;
   }
 
   // TELA 3: TORNEIO FUTEBOL FRONTEIRA & MUNDIAL (FFI)
