@@ -5142,6 +5142,32 @@ body {
   justify-content: center;
 }
 
+.referee-sprite-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 16%;
+  display: block;
+  transform: scale(1.06);
+  filter: contrast(1.05) saturate(1.1);
+}
+
+.referee-whistle-chip {
+  position: absolute;
+  bottom: 4px;
+  right: 4px;
+  font-size: 0.6rem;
+  font-weight: 900;
+  color: #fef08a;
+  background: rgba(0, 0, 0, 0.78);
+  border: 1px solid rgba(250, 204, 21, 0.75);
+  border-radius: 4px;
+  padding: 1px 5px;
+  letter-spacing: 0.5px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
+  pointer-events: none;
+}
+
 .referee-vector-svg {
   width: 100%;
   height: 100%;

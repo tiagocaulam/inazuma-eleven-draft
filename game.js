@@ -2547,7 +2547,11 @@
       <div class="referee-whistle-stage">
         <div class="referee-left-col">
           <div class="referee-hero-frame">
-            ${buildRefereeGraphicSVG(soundText, isFulltime)}
+            <img class="referee-sprite-img" src="images/referee_anime.jpg" alt="Árbitro de Anime" onerror="this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.style.display='block';" />
+            <div class="referee-fallback-svg" style="display:none; width:100%; height:100%;">
+              ${buildRefereeGraphicSVG(soundText, isFulltime)}
+            </div>
+            <div class="referee-whistle-chip">APITO</div>
           </div>
         </div>
 
