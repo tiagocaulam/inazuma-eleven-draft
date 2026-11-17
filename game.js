@@ -606,6 +606,27 @@
     return Math.pow(Math.max(40, effOvr) / 85, 2.7) * 100;
   }
 
+  // Status de Velocidade (VEL) individual do atleta: baseado no poder/OVR geral, posição, elemento e velocistas canônicos
+  function calcPlayerSpeedStat(player, effOvr = null) {
+    if (!player) return 70;
+    const ovr = effOvr != null ? effOvr : (player.ovr || 75);
+    const pos = player.pos || "MF";
+    const posBonus = pos === "FW" ? 3 : pos === "MF" ? 2 : pos === "DF" ? 0 : -6;
+    const elem = player.element || "";
+    const elemBonus = elem === "Vento" ? 4 : elem === "Fogo" ? 2 : elem === "Trovão" ? 3 : elem === "Montanha" ? -1 : 0;
+    const speedsters = [
+      "Kazemaru", "Nathan", "Gouenji", "Axel", "Fubuki", "Shawn",
+      "Midorikawa", "Jordan", "Burn", "Torch", "Gazel", "Rococo", "Hector",
+      "Kidou", "Jude", "Hiroto", "Xavier", "Taiyou", "Sol", "Tsurugi", "Victor",
+      "Tenma", "Arion", "Fei", "Kinako", "Matatagi", "Falco", "Miyabino", "Kurama"
+    ];
+    const name = player.name || player.fullName || "";
+    const isSpeedster = speedsters.some((s) => name.includes(s));
+    const speedsterBonus = isSpeedster ? 3 : 0;
+    const calculated = Math.round(ovr * 0.94 + posBonus + elemBonus + speedsterBonus);
+    return Math.min(99, Math.max(55, calculated));
+  }
+
   // Cálculo unificado de Química, Poder e Sinergia de Proximidade (usado tanto no Dream Team quanto no Adversário!)
   function evaluateTeamStats(slots, getPlayerForSlot, options = {}) {
     const { isOpponent = false, ovrAdjust = 0, clubIdHint = null, oppStageIdx = 0, oppBuffPct = 0 } = options;
@@ -1095,6 +1116,7 @@
                       <div class="roster-badges">
                         ${posIconHTML(p.pos, true)}${altPosHTML}
                         <span class="ovr-tag">${state.hideOvrBeforePick && !alreadyPicked ? "OVR ??" : `OVR ${p.ovr}`}</span>
+                        <span class="spd-tag">${state.hideOvrBeforePick && !alreadyPicked ? "VEL ??" : `⚡VEL ${calcPlayerSpeedStat(p)}`}</span>
                         ${elemIconHTML(p.element)}
                         ${hasLink ? `<span class="affinity-badge">+Química</span>` : ""}
                         ${!hasNaturalSlot && !alreadyPicked ? `<span style="font-size:0.62rem; color:#facc15;">(Cheia)</span>` : ""}
@@ -1317,6 +1339,7 @@
         const effOvr = getEffectiveOvr(p, slot.role);
         const isImprovised = !playerMatchesRole(p, slot.role);
         const nodeSprite = getPlayerFormSprite(p, slot.role);
+        const spdStat = calcPlayerSpeedStat(p, effOvr);
 
         return `
           <div class="field-node occupied ${isSwap ? "swap-active" : ""}"
@@ -1330,6 +1353,7 @@
             <div style="display:flex; align-items:center; gap:3px; margin-top:1px;">
               ${posIconHTML(slot.role, true)}
               <span class="node-slot-label">${slot.label}${isImprovised ? " *" : ""}</span>
+              <span class="node-spd-chip" title="Velocidade individual">⚡${spdStat}</span>
             </div>
           </div>
         `;
@@ -1935,7 +1959,7 @@
     return "CM";
   }
 
-  function calcNodeBaseSpeed(tacticalRole, effOvr) {
+  function calcNodeBaseSpeed(tacticalRole, effOvr, player = null) {
     const roleMult =
       tacticalRole === "WING" || tacticalRole === "ST"
         ? 14.6
@@ -1948,8 +1972,9 @@
         : tacticalRole === "CB"
         ? 11.4
         : 9.2;
-    const ovrFactor = 0.92 + Math.max(0, effOvr - 70) * 0.0055;
-    return roleMult * ovrFactor;
+    const spdStat = calcPlayerSpeedStat(player, effOvr);
+    const spdFactor = 0.72 + (spdStat / 100) * 0.50;
+    return roleMult * spdFactor;
   }
 
   function resetPitchForKickoff(pitch, kickoffSide, snapNodes = false, isGoalReset = false) {
@@ -2467,6 +2492,7 @@
       const baseX = Math.max(7, Math.min(93, 100 - ((96 - slot.y) * 0.78 + 4)));
       const baseY = Math.max(12, Math.min(88, 100 - slot.x + (slot.role === "DF" ? 3 : -3)));
       const tacticalRole = getTacticalRole(slot.label);
+      const spd = calcPlayerSpeedStat(player, effOvr);
       return {
         uid: `o_${slot.id}`,
         side: "opp",
@@ -2476,6 +2502,7 @@
         label: slot.label,
         player,
         effOvr,
+        spd,
         stamina: 100,
         baseX,
         baseY,
@@ -2483,7 +2510,7 @@
         y: baseY,
         vx: 0,
         vy: 0,
-        maxSpeed: calcNodeBaseSpeed(tacticalRole, effOvr),
+        maxSpeed: calcNodeBaseSpeed(tacticalRole, effOvr, player),
         targetX: baseX,
         targetY: baseY,
         targetSprint: 0.9,
@@ -2504,6 +2531,7 @@
       const baseX = Math.max(7, Math.min(76, (96 - slot.y) * 0.78 + 4));
       const baseY = Math.max(12, Math.min(88, slot.x));
       const tacticalRole = getTacticalRole(slot.label);
+      const spd = calcPlayerSpeedStat(player, effOvr);
       return {
         uid: `u_${slot.id}`,
         side: "user",
@@ -2513,6 +2541,7 @@
         label: slot.label,
         player,
         effOvr,
+        spd,
         stamina: 100,
         baseX,
         baseY,
@@ -2520,7 +2549,7 @@
         y: baseY,
         vx: 0,
         vy: 0,
-        maxSpeed: calcNodeBaseSpeed(tacticalRole, effOvr),
+        maxSpeed: calcNodeBaseSpeed(tacticalRole, effOvr, player),
         targetX: baseX,
         targetY: baseY,
         targetSprint: 0.9,
@@ -4681,7 +4710,11 @@
     const attIsUser = carrier.side === "user";
     const ofPick = pickStaminaGatedMove(carrier, "OF");
     const dfPick = pickStaminaGatedMove(marker, "DF");
-    const dribScore = calcNodeDuelScore(carrier, attSupport, marker?.player?.element) + ofPick.duelBonus;
+    const carrierSpd = carrier.spd || calcPlayerSpeedStat(carrier.player, carrier.effOvr);
+    const markerSpd = marker.spd || calcPlayerSpeedStat(marker.player, marker.effOvr);
+    const spdDiff = carrierSpd - markerSpd;
+    const spdBonus = Math.max(-4.5, Math.min(4.5, spdDiff * 0.28));
+    const dribScore = calcNodeDuelScore(carrier, attSupport, marker?.player?.element) + ofPick.duelBonus + spdBonus;
     const defScore = calcNodeDuelScore(marker, defSupport, carrier?.player?.element) + dfPick.duelBonus;
     const wonDribble = Math.random() < logisticWinProb(dribScore, defScore, 4.4, 0.38, 0.86);
 
@@ -4751,6 +4784,7 @@
       marker.vx *= 0.15;
       marker.vy *= 0.15;
 
+      const spdAdvTag = spdDiff >= 5 ? ` <span style="color:#7dd3fc; font-size:0.75rem;">(⚡ +${spdDiff} VEL)</span>` : "";
       const ofBadgeText = ofPick.move ? `Avançou • ${ofMove}` : ofPick.exhausted ? "Avançou (Sem técnica)" : "Avançou";
       showNodeBadge(pitch, carrier.uid, ofBadgeText, "badge-dribble", 1500, ofPick.move ? "OF" : null);
       pitch.ticker = `${st.minute}' ${carrier.player.name} avançou com ${ofMove} sobre ${marker.player.name}!`;
@@ -4758,8 +4792,8 @@
         st,
         "nar-dribble",
         ofPick.move
-          ? `${st.minute}' [Drible] ${carrier.player.name} ativou 【${ofMove}】 e avançou por ${marker.player.name}!`
-          : `${st.minute}' [Drible] ${carrier.player.name} avançou sem técnica${ofPick.exhausted ? " (energia vermelha)" : ""} por ${marker.player.name}!`,
+          ? `${st.minute}' [Drible] ${carrier.player.name} ativou 【${ofMove}】 e avançou por ${marker.player.name}!${spdAdvTag}`
+          : `${st.minute}' [Drible] ${carrier.player.name} avançou sem técnica${ofPick.exhausted ? " (energia vermelha)" : ""} por ${marker.player.name}!${spdAdvTag}`,
         { name: carrier.player.name, sprite: carrier.player.sprite, side: carrier.side },
         { name: marker.player.name, sprite: marker.player.sprite, side: marker.side },
         "OF"
@@ -4785,6 +4819,7 @@
       pitch.ballX = marker.x + (marker.side === "user" ? 1.9 : -1.9);
       pitch.ballY = marker.y + 1.0;
 
+      const spdDefTag = spdDiff <= -5 ? ` <span style="color:#7dd3fc; font-size:0.75rem;">(⚡ +${Math.abs(spdDiff)} VEL marcador)</span>` : "";
       triggerStealShockwave(pitch, marker.x, marker.y, marker.uid, carrier.uid);
       showNodeBadge(pitch, carrier.uid, "Perdeu a bola", "badge-lost", 1500);
       showNodeBadge(pitch, marker.uid, dfPick.move ? `Roubou • ${dfMove}` : "Roubou (Sem técnica)", "badge-steal", 1500, dfPick.move ? "DF" : null);
@@ -4797,8 +4832,8 @@
         st,
         "nar-steal",
         dfPick.move
-          ? `${st.minute}' [Desarme] ${marker.player.name} usou 【${dfMove}】 e roubou a bola de ${carrier.player.name}!`
-          : `${st.minute}' [Desarme] ${marker.player.name} roubou a bola sem técnica${dfPick.exhausted ? " (energia vermelha)" : ""} de ${carrier.player.name}!`,
+          ? `${st.minute}' [Desarme] ${marker.player.name} usou 【${dfMove}】 e roubou a bola de ${carrier.player.name}!${spdDefTag}`
+          : `${st.minute}' [Desarme] ${marker.player.name} roubou a bola sem técnica${dfPick.exhausted ? " (energia vermelha)" : ""} de ${carrier.player.name}!${spdDefTag}`,
         { name: marker.player.name, sprite: marker.player.sprite, side: marker.side },
         { name: carrier.player.name, sprite: carrier.player.sprite, side: carrier.side },
         "DF"
@@ -5899,23 +5934,137 @@
           }
         });
 
-        // Quando o marcador se aproxima perigosamente (entre 3.4 e 6.2 unidades visuais),
-        // jogadores técnicos têm chance de TABELAR de primeira sem confronto!
-        if (closestDef && closestDist <= 6.2 && closestDist > 3.35 && carrier.carryTime >= 0.35) {
-          const passReceiver = pickPassReceiver(attNodes, defNodes, carrier, false, pitch);
-          const hasTeammateNear = passReceiver && Math.hypot(passReceiver.x - carrier.x, passReceiver.y - carrier.y) <= 32;
-          const skillBonus = carrier.effOvr >= 80 ? 0.36 : 0.22;
-          if (hasTeammateNear && Math.random() < skillBonus) {
-            carrier.duelCooldown = 1.4;
-            closestDef.duelCooldown = 1.4;
-            launchContinuousPass(st, pitch, carrier, attNodes, defNodes, true, false, true);
+        // Quando o marcador se aproxima, avalia diferencial de velocidade (Arranque / Recuperação Veloz), Tabela ou Duelo
+        if (closestDef && carrier.carryTime >= 0.25) {
+          const carrierSpd = carrier.spd || calcPlayerSpeedStat(carrier.player, carrier.effOvr);
+          const defSpd = closestDef.spd || calcPlayerSpeedStat(closestDef.player, closestDef.effOvr);
+          const spdDiff = carrierSpd - defSpd;
+
+          // 1. ⚡ Arranque Veloz: Atacante com vantagem de velocidade (spdDiff >= +6) deixa o marcador na poeira sem duelo físico
+          if (spdDiff >= 6 && closestDist <= 5.8 && closestDist > 3.25) {
+            const burstChance = Math.min(0.68, 0.35 + (spdDiff - 6) * 0.04);
+            if (Math.random() < burstChance) {
+              spendStamina(carrier, 4.5);
+              carrier.duelCooldown = 1.35;
+              closestDef.duelCooldown = 2.1;
+              closestDef.staggerTimer = 0.65;
+              const dir = attIsUser ? 1 : -1;
+              const startX = carrier.x;
+              const startY = carrier.y;
+              const dodgeSign = startY >= closestDef.y ? 1 : -1;
+              const dashToX = Math.max(10, Math.min(90, startX + dir * 11.5));
+              const dashToY = Math.max(12, Math.min(88, startY + dodgeSign * 4.5));
+              const dashMs = state.simSpeed === 4 ? 90 : state.simSpeed === 2 ? 180 : 360;
+              pitch.dashFx = {
+                uid: carrier.uid,
+                fromX: startX,
+                fromY: startY,
+                toX: dashToX,
+                toY: dashToY,
+                start: performance.now(),
+                duration: dashMs
+              };
+              pitch.passTrail = {
+                fromX: startX,
+                fromY: startY,
+                toX: dashToX,
+                toY: dashToY,
+                curX: startX,
+                curY: startY,
+                color: "#38bdf8",
+                start: performance.now(),
+                flightDuration: dashMs,
+                fadeUntil: performance.now() + dashMs + 450
+              };
+              carrier.x = dashToX;
+              carrier.y = dashToY;
+              pitch.ballX = dashToX;
+              pitch.ballY = dashToY;
+              carrier.carryTime = 0.1;
+              carrier.decisionTimer = 0.3;
+              showNodeBadge(pitch, carrier.uid, `⚡ Arranque (+${spdDiff} VEL)`, "badge-dribble", 1500, "OF");
+              pitch.ticker = `${st.minute}' Arranque Veloz: ${carrier.player.name} (VEL ${carrierSpd}) deixou ${closestDef.player.name} (VEL ${defSpd}) para trás!`;
+              prependNarrationLine(
+                st,
+                "nar-dribble",
+                `${st.minute}' ⚡ [Arranque Veloz] ${carrier.player.name} (VEL ${carrierSpd}) acelerou fundo e deixou ${closestDef.player.name} (VEL ${defSpd}) para trás na velocidade pura! (+${spdDiff} VEL)`,
+                { name: carrier.player.name, sprite: carrier.player.sprite, side: carrier.side },
+                { name: closestDef.player.name, sprite: closestDef.player.sprite, side: closestDef.side },
+                "OF"
+              );
+              if (attIsUser) {
+                pitch.stats.userDribblesOk++;
+                pitch.stats.userDribblesTry++;
+                recordUserPlayerStat(pitch, carrier, "dribblesOk", 1);
+                recordUserPlayerStat(pitch, carrier, "dribblesTry", 1);
+              }
+              syncLivePitchDOM(st);
+              pauseForPitchBeat(st, "", "", 750, ovrDiff);
+              return;
+            }
+          }
+
+          // 2. ⚡ Recuperação Veloz: Marcador com vantagem de velocidade (spdDiff <= -6) engole a distância na corrida
+          if (spdDiff <= -6 && closestDist <= 5.0 && closestDist > 2.8) {
+            const recoveryChance = Math.min(0.65, 0.32 + (Math.abs(spdDiff) - 6) * 0.04);
+            if (Math.random() < recoveryChance) {
+              spendStamina(closestDef, 4.5);
+              closestDef.duelCooldown = 1.35;
+              carrier.duelCooldown = 2.1;
+              carrier.staggerTimer = 0.65;
+              pitch.ballSide = closestDef.side;
+              pitch.ballMode = "CARRIED";
+              pitch.carrierUid = closestDef.uid;
+              pitch.challengerUid = null;
+              pitch.holdBallPos = null;
+              pitch.lastAssistCandidate = null;
+              pitch.lastPasserUid = null;
+              pitch.lastAction = "STEAL";
+              pitch.teamConsecutivePasses = 0;
+              closestDef.carryTime = 0.1;
+              closestDef.decisionTimer = 0.32;
+              pitch.ballX = closestDef.x + (closestDef.side === "user" ? 1.9 : -1.9);
+              pitch.ballY = closestDef.y + 1.0;
+              triggerStealShockwave(pitch, closestDef.x, closestDef.y, closestDef.uid, carrier.uid);
+              showNodeBadge(pitch, closestDef.uid, `⚡ Recuperação (+${Math.abs(spdDiff)} VEL)`, "badge-steal", 1500, "DF");
+              showNodeBadge(pitch, carrier.uid, "Alcançado!", "badge-lost", 1500);
+              pitch.ticker = `${st.minute}' Recuperação Veloz: ${closestDef.player.name} (VEL ${defSpd}) desarmou ${carrier.player.name} (VEL ${carrierSpd}) na corrida!`;
+              prependNarrationLine(
+                st,
+                "nar-steal",
+                `${st.minute}' ⚡ [Recuperação Veloz] ${closestDef.player.name} (VEL ${defSpd}) engoliu a distância na corrida e desarmou ${carrier.player.name} (VEL ${carrierSpd}) com velocidade pura! (+${Math.abs(spdDiff)} VEL)`,
+                { name: closestDef.player.name, sprite: closestDef.player.sprite, side: closestDef.side },
+                { name: carrier.player.name, sprite: carrier.player.sprite, side: carrier.side },
+                "DF"
+              );
+              if (closestDef.side === "user") {
+                pitch.stats.userSteals++;
+                recordUserPlayerStat(pitch, closestDef, "steals", 1);
+              }
+              syncLivePitchDOM(st);
+              pauseForPitchBeat(st, "", "", 750, ovrDiff);
+              return;
+            }
+          }
+
+          // 3) Quando o marcador se aproxima perigosamente (entre 3.4 e 6.2 unidades visuais),
+          // jogadores técnicos têm chance de TABELAR de primeira sem confronto!
+          if (closestDist <= 6.2 && closestDist > 3.35 && carrier.carryTime >= 0.35) {
+            const passReceiver = pickPassReceiver(attNodes, defNodes, carrier, false, pitch);
+            const hasTeammateNear = passReceiver && Math.hypot(passReceiver.x - carrier.x, passReceiver.y - carrier.y) <= 32;
+            const skillBonus = carrier.effOvr >= 80 ? 0.36 : 0.22;
+            if (hasTeammateNear && Math.random() < skillBonus) {
+              carrier.duelCooldown = 1.4;
+              closestDef.duelCooldown = 1.4;
+              launchContinuousPass(st, pitch, carrier, attNodes, defNodes, true, false, true);
+              return;
+            }
+          }
+
+          if (closestDist <= 3.35) {
+            resolvePhysicalDribbleClash(st, pitch, carrier, closestDef, attSupport, defSupport, ovrDiff);
             return;
           }
-        }
-
-        if (closestDef && closestDist <= 3.35) {
-          resolvePhysicalDribbleClash(st, pitch, carrier, closestDef, attSupport, defSupport, ovrDiff);
-          return;
         }
       }
 
@@ -6506,7 +6655,7 @@
                       POSICIONANDO NO CAMPO (${pickedCount + 1} DE 11)
                     </div>
                     <div style="font-size:1.05rem; font-weight:900; color:#fff; display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
-                      <span>#${sel.number} ${sel.name}</span> ${posIconHTML(sel.pos, true)} ${elemIconHTML(sel.element)}
+                      <span>#${sel.number} ${sel.name}</span> ${posIconHTML(sel.pos, true)} ${elemIconHTML(sel.element)} <span class="spd-tag">⚡VEL ${calcPlayerSpeedStat(sel)}</span>
                     </div>
                     <div style="font-size:0.74rem; color:#dbeafe; margin-top:2px;">
                       ${
@@ -7978,6 +8127,7 @@
         label: coords.label,
         player: p,
         effOvr,
+        spd: calcPlayerSpeedStat(p, effOvr),
         stamina: 100,
         baseX: coords.x,
         baseY: coords.y,
@@ -7985,7 +8135,7 @@
         y: coords.y,
         vx: 0,
         vy: 0,
-        maxSpeed: calcNodeBaseSpeed(coords.tacticalRole, effOvr) * 1.12,
+        maxSpeed: calcNodeBaseSpeed(coords.tacticalRole, effOvr, p) * 1.12,
         targetX: coords.x,
         targetY: coords.y,
         targetSprint: 0.95,
