@@ -47,6 +47,148 @@
     return `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10.2" fill="#f8fafc" stroke="#0f172a" stroke-width="1.8"/><polygon points="12,7.2 15.8,10 14.3,14.5 9.7,14.5 8.2,10" fill="#0f172a"/><line x1="12" y1="7.2" x2="12" y2="2" stroke="#0f172a" stroke-width="1.4"/><line x1="15.8" y1="10" x2="21.2" y2="8.2" stroke="#0f172a" stroke-width="1.4"/><line x1="8.2" y1="10" x2="2.8" y2="8.2" stroke="#0f172a" stroke-width="1.4"/><line x1="14.3" y1="14.5" x2="18.2" y2="20" stroke="#0f172a" stroke-width="1.4"/><line x1="9.7" y1="14.5" x2="5.8" y2="20" stroke="#0f172a" stroke-width="1.4"/></svg>`;
   }
 
+  function buildGoalTopDownSVG(side = "left") {
+    const isLeft = side === "left";
+    const netPatternId = isLeft ? "netMeshPatternLeft" : "netMeshPatternRight";
+    const postGradId = isLeft ? "postCylinderLeft" : "postCylinderRight";
+
+    // O gol é visto meio de cima (perspectiva 2.5D de transmissão):
+    // side === 'left': o travessão e postes frontais ficam alinhados à linha de gol (lado direito do box, x=44),
+    // enquanto a profundidade da rede se estende para trás (x=6).
+    // side === 'right': o travessão e postes frontais ficam no lado esquerdo do box (x=6),
+    // e a rede se estende para trás (x=44).
+    const frontX = isLeft ? 45 : 5;
+    const backX = isLeft ? 7 : 43;
+    const topPostY = 12;
+    const botPostY = 88;
+    const rearTopY = 18;
+    const rearBotY = 82;
+
+    const netPoints = isLeft
+      ? `${backX},${rearTopY} ${frontX},${topPostY} ${frontX},${botPostY} ${backX},${rearBotY}`
+      : `${frontX},${topPostY} ${backX},${rearTopY} ${backX},${rearBotY} ${frontX},${botPostY}`;
+
+    const shadowPoints = isLeft
+      ? `${backX - 2},${rearTopY + 2} ${frontX},${topPostY} ${frontX},${botPostY} ${backX - 2},${rearBotY + 2}`
+      : `${frontX},${topPostY} ${backX + 2},${rearTopY + 2} ${backX + 2},${rearBotY + 2} ${frontX},${botPostY}`;
+
+    const strutTop = `M ${frontX},${topPostY} L ${backX},${rearTopY}`;
+    const strutBot = `M ${frontX},${botPostY} L ${backX},${rearBotY}`;
+    const rearBaseBar = `M ${backX},${rearTopY} L ${backX},${rearBotY}`;
+
+    return `
+      <svg class="goal-topdown-svg side-${side}" viewBox="0 0 50 100" preserveAspectRatio="none">
+        <defs>
+          <linearGradient id="${postGradId}" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stop-color="#cbd5e1"/>
+            <stop offset="30%" stop-color="#ffffff"/>
+            <stop offset="65%" stop-color="#f1f5f9"/>
+            <stop offset="100%" stop-color="#64748b"/>
+          </linearGradient>
+          <pattern id="${netPatternId}" width="6" height="6" patternUnits="userSpaceOnUse">
+            <path d="M 0 3 L 3 0 L 6 3 L 3 6 Z" fill="none" stroke="rgba(255,255,255,0.48)" stroke-width="0.75"/>
+          </pattern>
+        </defs>
+
+        <!-- Sombra da trave e da rede no gramado -->
+        <polygon points="${shadowPoints}" fill="rgba(0, 10, 4, 0.42)" />
+
+        <!-- Malha tridimensional da rede vista de cima -->
+        <polygon points="${netPoints}" class="goal-net-mesh" fill="url(#${netPatternId})" stroke="rgba(255,255,255,0.55)" stroke-width="0.9" />
+
+        <!-- Estrutura metálica traseira de suporte (hastes no chão e inclinadas) -->
+        <path d="${rearBaseBar}" stroke="#94a3b8" stroke-width="2.2" stroke-linecap="round" fill="none" opacity="0.85"/>
+        <path d="${strutTop}" stroke="#94a3b8" stroke-width="2.4" stroke-linecap="round" fill="none"/>
+        <path d="${strutBot}" stroke="#94a3b8" stroke-width="2.4" stroke-linecap="round" fill="none"/>
+
+        <!-- Travessão principal frontal e postes cilíndricos brancos com brilho metálico -->
+        <line x1="${frontX}" y1="${topPostY}" x2="${frontX}" y2="${botPostY}" stroke="url(#${postGradId})" stroke-width="4.2" stroke-linecap="round"/>
+        <circle cx="${frontX}" cy="${topPostY}" r="3.2" fill="#ffffff" stroke="#64748b" stroke-width="0.9"/>
+        <circle cx="${frontX}" cy="${botPostY}" r="3.2" fill="#ffffff" stroke="#64748b" stroke-width="0.9"/>
+      </svg>
+    `;
+  }
+
+  function buildRefereeGraphicSVG(soundText, isFulltime) {
+    return `
+      <svg class="referee-vector-svg" viewBox="0 0 120 120" preserveAspectRatio="xMidYMid meet">
+        <defs>
+          <radialGradient id="refGlow" cx="50%" cy="40%" r="60%">
+            <stop offset="0%" stop-color="#1e3a8a"/>
+            <stop offset="60%" stop-color="#0f172a"/>
+            <stop offset="100%" stop-color="#020617"/>
+          </radialGradient>
+          <linearGradient id="refJerseyGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stop-color="#ffffff"/>
+            <stop offset="50%" stop-color="#f8fafc"/>
+            <stop offset="100%" stop-color="#e2e8f0"/>
+          </linearGradient>
+          <linearGradient id="refGoldWhistle" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#fef08a"/>
+            <stop offset="50%" stop-color="#facc15"/>
+            <stop offset="100%" stop-color="#ca8a04"/>
+          </linearGradient>
+        </defs>
+
+        <!-- Fundo de estádio noturno com holofote -->
+        <rect width="120" height="120" rx="8" fill="url(#refGlow)"/>
+
+        <!-- Feixes de luz anime ao fundo -->
+        <path d="M 0,0 L 50,120 L 70,120 L 120,0 Z" fill="rgba(56, 189, 248, 0.08)"/>
+        <path d="M 60,0 L 40,120 L 80,120 Z" fill="rgba(250, 204, 21, 0.09)"/>
+
+        <!-- Uniforme oficial de árbitro (Camisa listrada preta e branca) -->
+        <path d="M 28,76 L 16,120 L 104,120 L 92,76 Z" fill="url(#refJerseyGrad)"/>
+        <!-- Listras verticais pretas -->
+        <path d="M 38,76 L 30,120 L 40,120 L 46,76 Z" fill="#0f172a"/>
+        <path d="M 56,76 L 53,120 L 63,120 L 64,76 Z" fill="#0f172a"/>
+        <path d="M 74,76 L 76,120 L 86,120 L 82,76 Z" fill="#0f172a"/>
+
+        <!-- Bolso com cartões (Amarelo e Vermelho) visíveis -->
+        <rect x="76" y="86" width="7" height="13" rx="1.2" fill="#facc15" stroke="#ca8a04" stroke-width="0.5" transform="rotate(6 76 86)"/>
+        <rect x="80" y="87" width="7" height="13" rx="1.2" fill="#ef4444" stroke="#991b1b" stroke-width="0.5" transform="rotate(18 80 87)"/>
+
+        <!-- Gola da camisa -->
+        <polygon points="50,76 60,88 70,76" fill="#0f172a"/>
+
+        <!-- Pescoço -->
+        <rect x="53" y="62" width="14" height="16" rx="2" fill="#fed7aa"/>
+
+        <!-- Cabeça / Rosto estilo anime -->
+        <polygon points="46,42 60,70 74,42" fill="#ffedd5"/>
+        <circle cx="45" cy="48" r="4" fill="#fed7aa"/>
+        <circle cx="75" cy="48" r="4" fill="#fed7aa"/>
+
+        <!-- Cabelo preto espetado estilo anime -->
+        <path d="M 40,42 Q 60,16 80,42 Q 88,30 76,20 Q 60,12 44,20 Q 32,30 40,42 Z" fill="#1e293b"/>
+        <path d="M 46,24 L 52,14 L 56,22 L 64,12 L 68,22 L 76,16 L 74,26" stroke="#0f172a" stroke-width="2" stroke-linecap="round" fill="#1e293b"/>
+
+        <!-- Olhos focados e determinados -->
+        <path d="M 48,45 L 56,47" stroke="#0f172a" stroke-width="2.4" stroke-linecap="round"/>
+        <path d="M 72,45 L 64,47" stroke="#0f172a" stroke-width="2.4" stroke-linecap="round"/>
+        <!-- Sobrancelhas inclinadas -->
+        <path d="M 46,42 L 56,44" stroke="#020617" stroke-width="2.2" stroke-linecap="round"/>
+        <path d="M 74,42 L 64,44" stroke="#020617" stroke-width="2.2" stroke-linecap="round"/>
+
+        <!-- Cordão do apito no pescoço -->
+        <path d="M 52,70 Q 60,78 68,70" stroke="#475569" stroke-width="1.4" fill="none"/>
+
+        <!-- Apito dourado na boca do árbitro -->
+        <path d="M 58,56 L 66,56 L 68,53 L 73,53 L 73,59 L 68,59 L 66,62 L 58,60 Z" fill="url(#refGoldWhistle)" stroke="#854d0e" stroke-width="0.8"/>
+        <circle cx="71" cy="56" r="3.2" fill="#fef08a" stroke="#ca8a04" stroke-width="0.6"/>
+
+        <!-- Ondas sonoras radiantes do apito (pulsantes via CSS) -->
+        <path class="ref-whistle-wave wave-a" d="M 77,50 A 8 8 0 0 1 77,62" stroke="#facc15" stroke-width="2.4" stroke-linecap="round" fill="none"/>
+        <path class="ref-whistle-wave wave-b" d="M 83,45 A 15 15 0 0 1 83,67" stroke="#fde047" stroke-width="2.2" stroke-linecap="round" fill="none"/>
+        <path class="ref-whistle-wave wave-c" d="M 89,40 A 22 22 0 0 1 89,72" stroke="#fef08a" stroke-width="1.8" stroke-dasharray="3 2" stroke-linecap="round" fill="none"/>
+
+        <!-- Balão do som do apito na base -->
+        <rect x="8" y="96" width="104" height="18" rx="9" fill="rgba(15, 23, 42, 0.94)" stroke="#facc15" stroke-width="1.2"/>
+        <text x="60" y="109" text-anchor="middle" font-size="8.5" font-weight="900" fill="#fde047" letter-spacing="0.5">${soundText}</text>
+      </svg>
+    `;
+  }
+
   function renderPitchIconTag(iconCat, extraCls = "badge-move-icon") {
     if (!iconCat) return "";
     if (iconCat === "BALL") return buildMiniBallSVG(extraCls);
@@ -2402,26 +2544,26 @@
       ? `⚡ Preparar para ${nextStageName} ▶`
       : "🏆 Ver Resultado da Campanha ▶";
 
-    slotEl.classList.add("is-fixed-overlay");
+    // O modal do árbitro aparece EXCLUSIVAMENTE sobre a área do campo (sem fullscreen overlay)
+    slotEl.classList.remove("is-fixed-overlay");
     slotEl.style.display = "flex";
     slotEl.innerHTML = `
       <div class="referee-whistle-stage">
-        <div class="referee-whistle-header">
-          <div class="referee-whistle-badge">
-            ${UI.whistleIcon ? `<img src="${UI.whistleIcon}" class="referee-whistle-icon" alt="" />` : "⚡"}
-            <span>${headerBadge}</span>
-          </div>
-          <span class="referee-time-pill">${minuteText}</span>
-        </div>
-
-        <div class="referee-hero-frame">
-          ${UI.refereeWhistle ? `<img class="referee-sprite-img" src="${UI.refereeWhistle}" alt="Árbitro Apitando" />` : ""}
-          <div class="referee-sound-wave">
-            <span class="referee-sound-text">${soundText}</span>
+        <div class="referee-left-col">
+          <div class="referee-hero-frame">
+            ${buildRefereeGraphicSVG(soundText, isFulltime)}
           </div>
         </div>
 
-        <div class="referee-match-card">
+        <div class="referee-center-col">
+          <div class="referee-whistle-header">
+            <div class="referee-whistle-badge">
+              <span class="referee-badge-bolt">⚡</span>
+              <span>${headerBadge}</span>
+            </div>
+            <span class="referee-time-pill">${minuteText}</span>
+          </div>
+
           <div class="referee-title">${mainTitle}</div>
           <div class="referee-scoreboard">
             <span class="ref-team-name">${st.userTeamName || "Dream Team"}</span>
@@ -2431,14 +2573,16 @@
           <div class="referee-subtitle">${subtitleText}</div>
         </div>
 
-        <button class="ie-cmd-btn ie-cmd-gold referee-proceed-btn" id="btn-referee-proceed">
-          <span>${buttonText}</span>
-        </button>
-        ${
-          isFulltime
-            ? `<span id="btn-peek-stats" style="font-size:0.68rem; color:#94a3b8; cursor:pointer; text-decoration:underline; margin-top:2px;">Ver estatísticas no campo</span>`
-            : ""
-        }
+        <div class="referee-right-col">
+          <button class="ie-cmd-btn ie-cmd-gold referee-proceed-btn" id="btn-referee-proceed">
+            <span>${buttonText}</span>
+          </button>
+          ${
+            isFulltime
+              ? `<span id="btn-peek-stats" style="font-size:0.65rem; color:#94a3b8; cursor:pointer; text-decoration:underline; margin-top:2px;">Ver estatísticas</span>`
+              : ""
+          }
+        </div>
       </div>
     `;
 
@@ -3238,6 +3382,9 @@
     if (!pitch) return;
     const now = performance.now();
     const dur = Math.max(55, durationMs);
+    const isShot = kind === "SHOT" || kind === "GOAL";
+    // Disparo direto reto sem arco para chutes a gol
+    const actualArc = isShot ? 0 : arcHeight;
     pitch.ballFlight = {
       fromX,
       fromY,
@@ -3245,7 +3392,7 @@
       toY,
       start: now,
       duration: dur,
-      arcHeight,
+      arcHeight: actualArc,
       kind
     };
     pitch.passTrail = {
@@ -3400,13 +3547,29 @@
     }
 
     let ballScale = 1;
+    let ballTransform = "translate(-50%, -50%)";
     if (pitch.ballFlight) {
       const f = pitch.ballFlight;
       const t = Math.min(1, Math.max(0, (now - f.start) / f.duration));
-      const eased = 1 - Math.pow(1 - t, 2.1);
+      const isShot = f.kind === "SHOT" || f.kind === "GOAL";
+      const eased = isShot ? Math.pow(t, 1.18) : (1 - Math.pow(1 - t, 2.1));
       pitch.ballX = f.fromX + (f.toX - f.fromX) * eased;
-      pitch.ballY = f.fromY + (f.toY - f.fromY) * eased - Math.sin(t * Math.PI) * f.arcHeight;
-      ballScale = 1 + Math.sin(t * Math.PI) * 0.28;
+      const verticalArc = isShot ? 0 : Math.sin(t * Math.PI) * (f.arcHeight || 0);
+      pitch.ballY = f.fromY + (f.toY - f.fromY) * eased - verticalArc;
+
+      if (isShot) {
+        // Disparo direto reto: distorção de movimento (squash & stretch alinhado à trajetória)
+        const dx = f.toX - f.fromX;
+        const dy = (f.toY - f.fromY) * 0.55;
+        const angleDeg = Math.atan2(dy, dx) * (180 / Math.PI);
+        const flightIntensity = Math.sin(t * Math.PI);
+        const stretch = 1.0 + flightIntensity * 0.72;
+        const squash = Math.max(0.62, 1.0 - flightIntensity * 0.32);
+        ballTransform = `translate(-50%, -50%) rotate(${angleDeg.toFixed(1)}deg) scale(${stretch.toFixed(2)}, ${squash.toFixed(2)})`;
+      } else {
+        ballScale = 1 + Math.sin(t * Math.PI) * 0.28;
+        ballTransform = `translate(-50%, -50%) scale(${ballScale.toFixed(2)})`;
+      }
       if (pitch.passTrail) {
         pitch.passTrail.curX = pitch.ballX;
         pitch.passTrail.curY = pitch.ballY;
@@ -3421,6 +3584,7 @@
       }
     } else if (pitch.passState && pitch.ballMode === "PASS_FLIGHT") {
       ballScale = 1 + Math.sin(pitch.passState.progress * Math.PI) * 0.22;
+      ballTransform = `translate(-50%, -50%) scale(${ballScale.toFixed(2)})`;
       if (pitch.passTrail) {
         pitch.passTrail.curX = pitch.ballX;
         pitch.passTrail.curY = pitch.ballY;
@@ -3435,7 +3599,7 @@
     if (ballEl) {
       ballEl.style.left = `${pitch.ballX.toFixed(2)}%`;
       ballEl.style.top = `${pitch.ballY.toFixed(2)}%`;
-      ballEl.style.transform = `translate(-50%, -50%) scale(${ballScale.toFixed(2)})`;
+      ballEl.style.transform = ballTransform;
     }
 
     const lineGlow = document.getElementById("pitch-pass-glow");
@@ -4629,8 +4793,8 @@
             <div class="pitch-center-circle"></div>
             <div class="pitch-box-left"></div>
             <div class="pitch-box-right"></div>
-            <div class="pitch-goal-left" id="pitch-goal-left"></div>
-            <div class="pitch-goal-right" id="pitch-goal-right"></div>
+            <div class="pitch-goal-left" id="pitch-goal-left">${buildGoalTopDownSVG("left")}</div>
+            <div class="pitch-goal-right" id="pitch-goal-right">${buildGoalTopDownSVG("right")}</div>
 
             <svg class="pitch-pass-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
               <line id="pitch-pass-glow" x1="50" y1="50" x2="50" y2="50" stroke="#facc15" stroke-width="2.2" stroke-linecap="round" style="opacity:0;" />
@@ -5581,26 +5745,27 @@
           }
 
           // Animação de GOL no campo pós-resultado do duelo:
-          // 1) Onda de choque atravessando o goleiro com empurrão
-          triggerStealShockwave(pitch, duelX, duelY, null, curGkNode.uid);
+          // 1) Onda de choque atravessando o goleiro EXATAMENTE no corpo dele (curGkNode.x, curGkNode.y)
+          triggerStealShockwave(pitch, curGkNode.x, curGkNode.y, null, curGkNode.uid);
           curGkNode.staggerTimer = 1.35;
           curGkNode.vx = curAttIsUser ? 3.2 : -3.2;
-          showPitchBadge(pitch, duelX, duelY, "FURADA!", "badge-shot", 850, "SH");
+          showPitchBadge(pitch, curGkNode.x, curGkNode.y, "FURADA!", "badge-shot", 850, "SH");
 
-          // 2) Bola atravessa com alta velocidade em direção às redes
-          const netFlightMs = 280;
+          // 2) Bola atravessa em tiro direto e reto em direção às redes (arcHeight = 0)
+          const netFlightMs = 240;
           pitch.ballMode = "GOAL_NET";
           pitch.carrierUid = null;
           pitch.challengerUid = null;
           pitch.holdBallPos = { x: curGoalX, y: goalY };
-          startBallFlight(pitch, duelX, duelY, curGoalX, goalY, netFlightMs, 0.35, "GOAL", "#fde047");
+          startBallFlight(pitch, curGkNode.x, curGkNode.y, curGoalX, goalY, netFlightMs, 0, "GOAL", "#fde047");
           syncLivePitchDOM(st);
 
-          // 3) Entrada nas redes com a onda de raio fluida e comemoração
+          // 3) Entrada nas redes com onda de choque no ponto exato da rede (curGoalX, goalY) e raio fluído
           setTimeout(() => {
             commitGoalOutcome();
             pitch.goalFlashSide = gSide;
             pitch.goalFlashUntil = performance.now() + 2200;
+            triggerStealShockwave(pitch, curGoalX, goalY, null, null);
             triggerGoalLightningBurst(pitch, gSide);
             showPitchBadge(pitch, curGoalX, goalY, "GOOOL!!", "badge-goal", 1600, "SH");
             showNodeBadge(pitch, activeShooter.uid, `GOOOL! • ${activeShotLabel}`, "badge-goal", 1650, "SH");
@@ -5636,35 +5801,27 @@
           return false;
         }
 
-        // A bola ainda se move um pouco antes de chegar ao goleiro, e ocorre a animação de defesa!
-        const catchFlightMs = 240;
-        pitch.ballMode = "SHOT_FLIGHT";
-        startBallFlight(pitch, duelX, duelY, curGkNode.x, curGkNode.y, catchFlightMs, 0.15, "SHOT", "#38bdf8");
+        // A bola já viajou até o goleiro antes do modal; ao fechar, a animação de defesa aparece INSTANTANEAMENTE (0ms delay)
+        commitSaveOutcome();
+        pitch.ballSide = curAttIsUser ? "opp" : "user";
+        pitch.ballMode = "CARRIED";
+        pitch.carrierUid = curGkNode.uid;
+        pitch.challengerUid = null;
+        pitch.holdBallPos = null;
+        curGkNode.carryTime = 0;
+        curGkNode.decisionTimer = 0.4;
+        curGkNode.duelCooldown = 1.8;
+        pitch.ballFlight = null;
+        pitch.ballX = curGkNode.x + (curGkNode.side === "user" ? 1.9 : -1.9);
+        pitch.ballY = curGkNode.y + 0.8;
+        pitch.passTrail = null;
+
+        triggerSaveImplosion(pitch, curGkNode.x, curGkNode.y);
+        showPitchBadge(pitch, curGkNode.x, curGkNode.y, `DEFESA! • ${gkMoveName}`, "badge-steal", 1100, "GK");
+        showNodeBadge(pitch, curGkNode.uid, `Defendeu • ${gkMoveName}`, "badge-steal", 1200, "GK");
         syncLivePitchDOM(st);
 
-        setTimeout(() => {
-          commitSaveOutcome();
-          pitch.ballSide = curAttIsUser ? "opp" : "user";
-          pitch.ballMode = "CARRIED";
-          pitch.carrierUid = curGkNode.uid;
-          pitch.challengerUid = null;
-          pitch.holdBallPos = null;
-          curGkNode.carryTime = 0;
-          curGkNode.decisionTimer = 0.35;
-          curGkNode.duelCooldown = 1.8;
-          pitch.ballFlight = null;
-          pitch.ballX = curGkNode.x + (curGkNode.side === "user" ? 1.9 : -1.9);
-          pitch.ballY = curGkNode.y + 1.0;
-          pitch.passTrail = null;
-
-          triggerSaveImplosion(pitch, curGkNode.x, curGkNode.y);
-          showPitchBadge(pitch, curGkNode.x, curGkNode.y, gkMoveName, "badge-steal", 1100, "GK");
-          showNodeBadge(pitch, curGkNode.uid, `Defendeu • ${gkMoveName}`, "badge-steal", 1200, "GK");
-          syncLivePitchDOM(st);
-
-          pauseForPitchBeat(st, "", "", 780, ovrDiff, null);
-        }, catchFlightMs);
-
+        pauseForPitchBeat(st, "", "", 750, ovrDiff, null);
         return true;
       };
 
