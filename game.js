@@ -213,8 +213,29 @@
     }
   ];
 
+  const WORLD_TEAM_IDS = new Set([
+    "star_unicorn",
+    "navy_invader",
+    "knights_of_queen",
+    "muteki_no_giant",
+    "the_empire",
+    "perfect_spark",
+    "unicorn",
+    "earth_eleven",
+    "fire_dragon",
+    "ixal_fleet",
+    "orpheus",
+    "the_kingdom",
+    "inazuma_japan__orion_",
+    "shadow_of_orion",
+    "inazuma_japan",
+    "little_gigant"
+  ]);
+
   const state = {
     phase: "menu", // "menu" | "draft" | "tournament"
+    gameMode: "relampago",
+    storyLockNotice: false,
     formation: "4-3-3",
     hideOvrBeforePick: true, // Dificuldade: true = Sem Overall no sorteio, false = Com Overall visível
     squad: {}, // slotId -> player
@@ -230,6 +251,8 @@
     tournament: {
       stageIndex: 0,
       stages: [],
+      worldUnlocked: false,
+      worldGroup: null,
       timerId: null,
       pitchRafId: null,
       clashTimer1: null,
@@ -790,11 +813,17 @@
     return { formSlots: best.formSlots, assignments: best.assignments };
   }
 
+  function getStageOvrBoost(stageIdx) {
+    const st = state.tournament?.stages?.[stageIdx];
+    if (st && typeof st.ovrBoost === "number") return st.ovrBoost;
+    return (stageIdx || 0) * 1.5;
+  }
+
   function calcOpponentStats(oppTeam, stageIdx) {
     const { formSlots, assignments } = getOpponentSlotAssignments(oppTeam);
     return evaluateTeamStats(formSlots, (s) => assignments[s.id], {
       isOpponent: true,
-      ovrAdjust: stageIdx * 1.5,
+      ovrAdjust: getStageOvrBoost(stageIdx),
       clubIdHint: oppTeam.name || oppTeam.id,
       oppStageIdx: stageIdx
     });
@@ -1193,15 +1222,60 @@
     });
   }
 
+  function createTournamentStage({
+    stageName,
+    oppTeam,
+    competition = "FF",
+    ovrBoost = 0,
+    isGroupStage = false,
+    groupRoundIdx = -1
+  }) {
+    return {
+      stageName,
+      oppTeam,
+      competition,
+      ovrBoost,
+      isGroupStage,
+      groupRoundIdx,
+      minute: 0,
+      maxMinute: 90,
+      userScore: 0,
+      oppScore: 0,
+      goalsUser: [],
+      goalsOpp: [],
+      narration: [],
+      running: false,
+      finished: false,
+      won: null,
+      isDraw: false,
+      penaltiesText: null
+    };
+  }
+
+  function pickPoolTeam(pools, usedIds) {
+    for (const pool of pools) {
+      const candidates = pool.filter((t) => !usedIds.has(t.id));
+      if (candidates.length > 0) {
+        const picked = candidates[Math.floor(Math.random() * candidates.length)];
+        usedIds.add(picked.id);
+        return picked;
+      }
+    }
+    const fallback = DB.teams.find((t) => !usedIds.has(t.id)) || DB.teams[0];
+    usedIds.add(fallback.id);
+    return fallback;
+  }
+
   function startTournamentGo() {
     clearTournamentTimers(false);
     resetSquadPrepBonuses();
 
+    const domestic = DB.teams.filter((t) => !WORLD_TEAM_IDS.has(t.id));
     const tiers = [
-      DB.teams.filter((t) => t.baseOvr <= 81),
-      DB.teams.filter((t) => t.baseOvr >= 82 && t.baseOvr <= 86),
-      DB.teams.filter((t) => t.baseOvr >= 87 && t.baseOvr <= 90),
-      DB.teams.filter((t) => t.baseOvr >= 90)
+      domestic.filter((t) => t.baseOvr <= 81),
+      domestic.filter((t) => t.baseOvr >= 82 && t.baseOvr <= 85),
+      domestic.filter((t) => t.baseOvr >= 86 && t.baseOvr <= 89),
+      domestic.filter((t) => t.baseOvr >= 89)
     ];
 
     const stageNames = [
@@ -1213,30 +1287,21 @@
 
     const usedOpp = new Set();
     const stages = stageNames.map((sName, idx) => {
-      const pool = tiers[idx].filter((t) => !usedOpp.has(t.id));
-      const opp = pool[Math.floor(Math.random() * pool.length)] || DB.teams[idx * 5];
-      usedOpp.add(opp.id);
-      return {
+      const opp = pickPoolTeam([tiers[idx], domestic, DB.teams], usedOpp);
+      return createTournamentStage({
         stageName: sName,
         oppTeam: opp,
-        minute: 0,
-        maxMinute: 90,
-        userScore: 0,
-        oppScore: 0,
-        goalsUser: [],
-        goalsOpp: [],
-        narration: [],
-        running: false,
-        finished: false,
-        won: null,
-        penaltiesText: null
-      };
+        competition: "FF",
+        ovrBoost: idx * 1.5
+      });
     });
 
     state.phase = "tournament";
     state.tournament = {
       stageIndex: 0,
       stages,
+      worldUnlocked: false,
+      worldGroup: null,
       timerId: null,
       pitchRafId: null,
       clashTimer1: null,
@@ -1252,7 +1317,214 @@
       showRunSummary: false
     };
 
-    runLiveMatchSimulation(0);
+    // Preparação em Inazuma também antes da 1ª partida!
+    openBetweenMatchPrep(0);
+  }
+
+  function sortWorldGroupStandings(standings) {
+    if (!Array.isArray(standings)) return [];
+    return standings.sort(
+      (a, b) =>
+        b.pts - a.pts ||
+        b.w - a.w ||
+        b.gd - a.gd ||
+        b.gf - a.gf ||
+        (b.isUser ? 1 : 0) - (a.isUser ? 1 : 0)
+    );
+  }
+
+  function getUserGroupRank(worldGroup) {
+    if (!worldGroup?.standings) return 1;
+    const idx = worldGroup.standings.findIndex((row) => row.isUser);
+    return idx >= 0 ? idx + 1 : 1;
+  }
+
+  function simulateParallelGroupMatch(teamA, teamB) {
+    const diff = (teamA.baseOvr || 86) - (teamB.baseOvr || 86);
+    const sampleGoals = (edge) => {
+      const r = Math.random();
+      const baseMean = Math.max(0.45, Math.min(2.6, 1.25 + edge * 0.11));
+      if (r < Math.exp(-baseMean)) return 0;
+      if (r < Math.exp(-baseMean) * (1 + baseMean)) return 1;
+      if (r < 0.86) return 2;
+      return Math.random() < 0.72 ? 3 : 4;
+    };
+    const gA = sampleGoals(diff);
+    const gB = sampleGoals(-diff);
+    return { gA, gB };
+  }
+
+  function recordStandingResult(row, gf, ga) {
+    if (!row) return;
+    row.p += 1;
+    row.gf += gf;
+    row.ga += ga;
+    row.gd = row.gf - row.ga;
+    if (gf > ga) {
+      row.w += 1;
+      row.pts += 3;
+    } else if (gf === ga) {
+      row.d += 1;
+      row.pts += 1;
+    } else {
+      row.l += 1;
+    }
+  }
+
+  function finalizeWorldGroupRound(st) {
+    const t = state.tournament;
+    const wg = t?.worldGroup;
+    if (!wg || !st || !st.isGroupStage || st._groupRecorded) return;
+    st._groupRecorded = true;
+
+    const userRow = wg.standings.find((r) => r.isUser);
+    const oppRow = wg.standings.find((r) => r.id === st.oppTeam.id);
+    recordStandingResult(userRow, st.userScore || 0, st.oppScore || 0);
+    recordStandingResult(oppRow, st.oppScore || 0, st.userScore || 0);
+
+    const rIdx = st.groupRoundIdx;
+    const otherPair = wg.otherPairs?.[rIdx];
+    if (otherPair && wg.opponents?.[otherPair[0]] && wg.opponents?.[otherPair[1]]) {
+      const teamA = wg.opponents[otherPair[0]];
+      const teamB = wg.opponents[otherPair[1]];
+      const { gA, gB } = simulateParallelGroupMatch(teamA, teamB);
+      recordStandingResult(wg.standings.find((r) => r.id === teamA.id), gA, gB);
+      recordStandingResult(wg.standings.find((r) => r.id === teamB.id), gB, gA);
+      const resText = `${teamA.name} ${gA} x ${gB} ${teamB.name}`;
+      wg.lastOtherResult = resText;
+      prependNarrationLine(
+        st,
+        "nar-dribble",
+        `[Grupo A · Outro Jogo] ${resText}`,
+        null,
+        null,
+        "FF"
+      );
+    }
+
+    sortWorldGroupStandings(wg.standings);
+  }
+
+  function advanceToWorldCup() {
+    const t = state.tournament;
+    if (!t) return;
+    clearTournamentTimers(false);
+
+    const worldPool = DB.teams.filter((tm) => WORLD_TEAM_IDS.has(tm.id));
+    const usedWorld = new Set();
+
+    // 3 Seleções para o Grupo A do Mundial (FFI)
+    const grpOpp1 = pickPoolTeam(
+      [worldPool.filter((tm) => tm.baseOvr <= 87), worldPool],
+      usedWorld
+    );
+    const grpOpp2 = pickPoolTeam(
+      [worldPool.filter((tm) => tm.baseOvr >= 86 && tm.baseOvr <= 89), worldPool],
+      usedWorld
+    );
+    const grpOpp3 = pickPoolTeam(
+      [worldPool.filter((tm) => tm.baseOvr >= 88 && tm.baseOvr <= 90), worldPool],
+      usedWorld
+    );
+    const groupOpps = [grpOpp1, grpOpp2, grpOpp3];
+
+    const stats = calcSquadStats();
+    const standings = [
+      {
+        id: "user_dream",
+        name: "Dream Team",
+        emblem: UI.raimonEmblem || "",
+        isUser: true,
+        baseOvr: stats.ovr,
+        p: 0,
+        w: 0,
+        d: 0,
+        l: 0,
+        gf: 0,
+        ga: 0,
+        gd: 0,
+        pts: 0
+      },
+      ...groupOpps.map((tm) => ({
+        id: tm.id,
+        name: tm.name,
+        emblem: tm.emblem,
+        isUser: false,
+        baseOvr: tm.baseOvr,
+        p: 0,
+        w: 0,
+        d: 0,
+        l: 0,
+        gf: 0,
+        ga: 0,
+        gd: 0,
+        pts: 0
+      }))
+    ];
+
+    t.worldGroup = {
+      groupName: "Grupo A",
+      opponents: groupOpps,
+      otherPairs: [
+        [1, 2],
+        [0, 2],
+        [0, 1]
+      ],
+      standings,
+      lastOtherResult: ""
+    };
+
+    const groupStages = groupOpps.map((opp, rIdx) =>
+      createTournamentStage({
+        stageName: `Grupo A · ${rIdx + 1}ª Rodada`,
+        oppTeam: opp,
+        competition: "WORLD",
+        ovrBoost: 2.5 + rIdx * 0.5,
+        isGroupStage: true,
+        groupRoundIdx: rIdx
+      })
+    );
+
+    // 4 Fases de Mata-Mata do Mundial (Oitavas -> Quartas -> Semifinal -> Final Mundial)
+    const koSpecs = [
+      {
+        stageName: "Oitavas do Mundial",
+        pools: [worldPool.filter((tm) => tm.baseOvr <= 88), worldPool],
+        ovrBoost: 4.0
+      },
+      {
+        stageName: "Quartas do Mundial",
+        pools: [worldPool.filter((tm) => tm.baseOvr >= 87 && tm.baseOvr <= 90), worldPool],
+        ovrBoost: 5.0
+      },
+      {
+        stageName: "Semifinal Mundial",
+        pools: [worldPool.filter((tm) => tm.baseOvr >= 89 && tm.baseOvr <= 91), worldPool],
+        ovrBoost: 6.0
+      },
+      {
+        stageName: "Final Mundial (FFI)",
+        pools: [worldPool.filter((tm) => tm.baseOvr >= 90), worldPool],
+        ovrBoost: 7.0
+      }
+    ];
+
+    const koStages = koSpecs.map((spec) =>
+      createTournamentStage({
+        stageName: spec.stageName,
+        oppTeam: pickPoolTeam([...spec.pools, DB.teams], usedWorld),
+        competition: "WORLD",
+        ovrBoost: spec.ovrBoost
+      })
+    );
+
+    // Mantém apenas as 4 fases do Futebol Fronteira caso houvesse estado anterior e anexa as 7 do Mundial
+    t.stages = [...t.stages.slice(0, 4), ...groupStages, ...koStages];
+    t.worldUnlocked = true;
+    t.stageIndex = 4;
+    t.showRunSummary = false;
+
+    openBetweenMatchPrep(4);
   }
 
   function buildGoalShotLabel(scorer) {
@@ -1867,7 +2139,7 @@
       return true;
     }
 
-    if (st.minute === 90 && st.userScore === st.oppScore && st.maxMinute === 90) {
+    if (st.minute === 90 && st.userScore === st.oppScore && st.maxMinute === 90 && !st.isGroupStage) {
       st.maxMinute = 120;
       if (st.pitch) {
         resetPitchForKickoff(st.pitch, "user", true);
@@ -1888,7 +2160,7 @@
       clearTournamentTimers(false);
       st.running = false;
 
-      if (st.userScore === st.oppScore && !st.penalties) {
+      if (!st.isGroupStage && st.userScore === st.oppScore && !st.penalties) {
         st.finished = false;
         st.penalties = createPenaltyShootoutState(st);
         if (st.pitch) {
@@ -1907,16 +2179,18 @@
       }
 
       st.finished = true;
-      if (st.userScore !== st.oppScore) {
-        st.won = st.userScore > st.oppScore;
-        prependNarrationLine(
-          st,
-          st.won ? "nar-goal-user" : "nar-goal-opp",
-          `${st.minute}' APITO FINAL! Dream Team ${st.userScore} x ${st.oppScore} ${st.oppTeam.name}!`,
-          null,
-          null,
-          "FF"
-        );
+      st.isDraw = st.userScore === st.oppScore;
+      st.won = st.userScore > st.oppScore;
+      prependNarrationLine(
+        st,
+        st.won ? "nar-goal-user" : st.isDraw ? "nar-save" : "nar-goal-opp",
+        `${st.minute}' APITO FINAL! Dream Team ${st.userScore} x ${st.oppScore} ${st.oppTeam.name}${st.isDraw ? " (Empate)" : ""}!`,
+        null,
+        null,
+        "FF"
+      );
+      if (st.isGroupStage) {
+        finalizeWorldGroupRound(st);
       }
 
       renderTournamentScreen();
@@ -1977,10 +2251,11 @@
 
   function buildOpponentLineup(oppTeam, stageIdx) {
     const { formSlots, assignments } = getOpponentSlotAssignments(oppTeam);
+    const boost = getStageOvrBoost(stageIdx);
     return formSlots.map((slot, idx) => {
       const player = assignments[slot.id];
       const rawPosMatch = playerMatchesRole(player, slot.role) ? 0 : -4;
-      const effOvr = Math.min(99, Math.max(58, Math.round(player.ovr + stageIdx * 1.5 + rawPosMatch)));
+      const effOvr = Math.min(99, Math.max(58, Math.round(player.ovr + boost + rawPosMatch)));
       const baseX = Math.max(7, Math.min(93, 100 - ((96 - slot.y) * 0.78 + 4)));
       const baseY = Math.max(12, Math.min(88, 100 - slot.x + (slot.role === "DF" ? 3 : -3)));
       const tacticalRole = getTacticalRole(slot.label);
@@ -4957,6 +5232,15 @@
     state.tournament.showRunSummary = false;
 
     const st = state.tournament.stages[stageIdx];
+    if (st.isGroupStage && state.tournament.worldGroup) {
+      if (st._groupSnapshotBefore) {
+        state.tournament.worldGroup = JSON.parse(JSON.stringify(st._groupSnapshotBefore));
+      } else {
+        st._groupSnapshotBefore = JSON.parse(JSON.stringify(state.tournament.worldGroup));
+      }
+      st._groupRecorded = false;
+    }
+    const compLabel = st.competition === "WORLD" ? "Mundial (FFI)" : "Futebol Fronteira";
     st.minute = 0;
     st.maxMinute = 90;
     st.userScore = 0;
@@ -4967,7 +5251,7 @@
       {
         cls: "",
         iconCat: "FF",
-        text: `0' Apito inicial pela ${st.stageName} do Futebol Fronteira: Sua Seleção enfrenta ${st.oppTeam.name}!`
+        text: `0' Apito inicial pela ${st.stageName} do ${compLabel}: Sua Seleção enfrenta ${st.oppTeam.name}!`
       }
     ];
     st.running = true;
@@ -4975,6 +5259,7 @@
     st.halftimeHandled = false;
     st.recoverCharges = 2;
     st.won = null;
+    st.isDraw = false;
     st.penalties = null;
     st.penaltiesText = null;
     st.pitch = initMatchPitchState(st, stageIdx);
@@ -4989,6 +5274,19 @@
   // ============================================================================
   function renderHeaderAndBonds() {
     document.body.classList.toggle("phase-tournament", state.phase === "tournament");
+    const subEl = document.getElementById("topbar-brand-sub");
+    if (subEl) {
+      if (state.phase === "tournament") {
+        const curSt = state.tournament?.stages?.[state.tournament.stageIndex];
+        const comp = state.tournament?.prep
+          ? state.tournament.stages?.[state.tournament.prep.nextStageIdx]?.competition
+          : curSt?.competition;
+        subEl.textContent =
+          comp === "WORLD" ? "MODO RELÂMPAGO • MUNDIAL (FFI)" : "MODO RELÂMPAGO • FUTEBOL FRONTEIRA";
+      } else {
+        subEl.textContent = "DREAM TEAM • MODO RELÂMPAGO";
+      }
+    }
     const headerWrap = document.getElementById("hud-bars-wrap");
     if (!headerWrap) return;
 
@@ -5037,15 +5335,51 @@
           <div class="start-hero-overlay"></div>
           <div class="start-hero-content">
             ${UI.ieLogo ? `<img class="start-ie-logo" src="${UI.ieLogo}" alt="Inazuma Eleven" />` : `<h2>INAZUMA ELEVEN</h2>`}
-            <div class="start-title-ribbon">DREAM TEAM • FUTEBOL FRONTEIRA</div>
+            <div class="start-title-ribbon">DREAM TEAM • MODO RELÂMPAGO</div>
           </div>
         </div>
 
         <div class="start-body">
-          <p>
-            Gire a roleta entre <strong>57 times</strong> de todas as sagas, escale 1 jogador por clube sorteado e conquiste o <strong>Futebol Fronteira</strong>!
-          </p>
-          <div style="background:rgba(37,99,235,0.16); border:1px solid rgba(96,165,250,0.3); border-radius:8px; padding:9px 12px; margin-top:10px; font-size:0.74rem; color:#dbeafe; line-height:1.45; text-align:left;">
+          <div class="option-group" style="margin-top:0;">
+            <label>${ffLogoIconHTML("inline-ui-icon")} 1. Escolha o Modo de Jogo:</label>
+            <div class="mode-select-grid">
+              <div class="mode-card selected" data-game-mode="relampago">
+                <div class="mode-card-head">
+                  <div class="mode-card-title">
+                    ${elemIconHTML("Vento")}
+                    <strong>Modo Relâmpago</strong>
+                  </div>
+                  <span class="mode-badge is-active">LIBERADO</span>
+                </div>
+                <span class="mode-card-desc">
+                  Roleta entre <strong>57 times</strong>, preparação em Inazuma antes de cada jogo, <strong>Futebol Fronteira</strong> e <strong>Mundial (FFI)</strong>!
+                </span>
+              </div>
+
+              <div class="mode-card is-locked" data-game-mode="historia" aria-disabled="true">
+                <div class="mode-card-head">
+                  <div class="mode-card-title">
+                    ${UI.raimonEmblem ? `<img class="mode-emblem-mini" src="${UI.raimonEmblem}" alt="Raimon" />` : ""}
+                    <strong>Modo História</strong>
+                  </div>
+                  <span class="mode-badge is-locked">
+                    <svg viewBox="0 0 16 16" width="11" height="11" fill="currentColor" aria-hidden="true"><path d="M5 7V5a3 3 0 0 1 6 0v2h1a1.5 1.5 0 0 1 1.5 1.5v5A1.5 1.5 0 0 1 12 15H4a1.5 1.5 0 0 1-1.5-1.5v-5A1.5 1.5 0 0 1 4 7h1Zm1.5 0h3V5a1.5 1.5 0 0 0-3 0v2Z"/></svg>
+                    EM BREVE
+                  </span>
+                </div>
+                <span class="mode-card-desc">
+                  Reviva a jornada da Raimon capítulo por capítulo. Modo bloqueado — chegará em breve!
+                </span>
+              </div>
+            </div>
+            ${
+              state.storyLockNotice
+                ? `<div class="mode-locked-toast">🔒 O <strong>Modo História</strong> ainda está em desenvolvimento e chegará em breve! Por enquanto, jogue o <strong>Modo Relâmpago</strong>.</div>`
+                : ""
+            }
+          </div>
+
+          <div style="background:rgba(37,99,235,0.16); border:1px solid rgba(96,165,250,0.3); border-radius:8px; padding:9px 12px; margin-top:12px; font-size:0.74rem; color:#dbeafe; line-height:1.45; text-align:left;">
             <div style="display:flex; align-items:center; gap:5px; margin-bottom:3px;">
               ${ffLogoIconHTML("inline-ui-icon")} <strong style="color:#facc15;">Como somar Poder Final &amp; Química (para você e os adversários):</strong>
             </div>
@@ -5055,7 +5389,7 @@
           </div>
 
           <div class="option-group">
-            <label>${captainIconHTML()} 1. Escolha a Dificuldade:</label>
+            <label>${captainIconHTML()} 2. Escolha a Dificuldade:</label>
             <div class="difficulty-grid">
               <div class="diff-card ${!state.hideOvrBeforePick ? "selected" : ""}" data-diff="visible">
                 <strong>${elemIconHTML("Vento")} Modo Fácil (Com Overall)</strong>
@@ -5069,7 +5403,7 @@
           </div>
 
           <div class="option-group">
-            <label>${formationIconHTML()} 2. Escolha a Formação Tática:</label>
+            <label>${formationIconHTML()} 3. Escolha a Formação Tática:</label>
             <div class="formation-pills">
               ${["4-3-3", "4-4-2", "3-4-3", "3-5-2"]
                 .map(
@@ -5084,11 +5418,25 @@
           </div>
 
           <button class="start-big-btn" id="btn-start-game-now">
-            COMEÇAR JOGO E GIRAR ROLETA!
+            COMEÇAR MODO RELÂMPAGO E GIRAR ROLETA!
           </button>
         </div>
       </div>
     `;
+
+    container.querySelectorAll("[data-game-mode]").forEach((el) => {
+      el.addEventListener("click", () => {
+        const mode = el.getAttribute("data-game-mode");
+        if (mode === "historia") {
+          state.storyLockNotice = true;
+          renderStartMenuScreen();
+          return;
+        }
+        state.gameMode = "relampago";
+        state.storyLockNotice = false;
+        renderStartMenuScreen();
+      });
+    });
 
     container.querySelectorAll("[data-diff]").forEach((el) => {
       el.addEventListener("click", () => {
@@ -5105,6 +5453,7 @@
     });
 
     document.getElementById("btn-start-game-now").addEventListener("click", () => {
+      state.storyLockNotice = false;
       state.phase = "draft";
       state.squad = {};
       state.rerollsLeft = 3;
@@ -5138,10 +5487,10 @@
             (Base Elenco: ${stats.basePower} + Química: +${stats.chemPower} + Duplas/Trios/Clubes: +${stats.bondsPower})
           </div>
           <p style="font-size:0.82rem; color:#dbeafe; max-width:560px; margin:8px auto 10px;">
-            Toque em dois jogadores no campo se quiser trocar posições ou clique em <strong>DAR GO!</strong> para o Futebol Fronteira!
+            Toque em dois jogadores no campo se quiser trocar posições ou clique em <strong>DAR GO!</strong> para preparar a estreia no Futebol Fronteira e buscar vaga no Mundial!
           </p>
           <button class="ie-cmd-btn ie-cmd-green" id="btn-start-go" style="padding:13px 28px; font-size:1rem;">
-            <span>DAR GO! — INICIAR FUTEBOL FRONTEIRA</span>
+            <span>DAR GO! — PREPARAR MODO RELÂMPAGO</span>
           </button>
         </div>
 
@@ -5230,7 +5579,15 @@
     if (!t || !Array.isArray(t.stages)) return null;
     const finishedStages = t.stages.filter((s, idx) => idx <= t.stageIndex && s.finished);
     const currentStage = t.stages[t.stageIndex];
-    const isChampion = Boolean(currentStage && currentStage.finished && currentStage.won && t.stageIndex === 3);
+    const isFFChampion = Boolean(t.stages[3]?.finished && t.stages[3]?.won);
+    const isWorldChampion = Boolean(
+      t.worldUnlocked &&
+      currentStage &&
+      currentStage.finished &&
+      currentStage.won &&
+      t.stageIndex === t.stages.length - 1
+    );
+    const isChampion = isWorldChampion || (isFFChampion && !t.worldUnlocked);
 
     const playerTotals = {};
     getSlots().forEach((slot) => {
@@ -5279,6 +5636,7 @@
     let userTicksSum = 0;
     let totalTicksSum = 0;
     let wins = 0;
+    let draws = 0;
     let losses = 0;
     let cleanSheets = 0;
 
@@ -5289,6 +5647,7 @@
       goalsAgainst += s.oppScore || 0;
       if ((s.oppScore || 0) === 0) cleanSheets++;
       if (s.won) wins++;
+      else if (s.isDraw) draws++;
       else losses++;
 
       const ps = s.pitch?.stats;
@@ -5404,12 +5763,30 @@
       .slice()
       .sort((a, b) => b.mvpScore - a.mvpScore || b.goals - a.goals || b.assists - a.assists || b.passesOk - a.passesOk);
 
+    const elimInGroup = Boolean(
+      !isChampion &&
+      currentStage?.isGroupStage &&
+      currentStage.groupRoundIdx === 2 &&
+      getUserGroupRank(t.worldGroup) > 2
+    );
+    const groupRank = t.worldGroup ? getUserGroupRank(t.worldGroup) : 0;
+
     return {
       isChampion,
+      isFFChampion,
+      isWorldChampion,
+      elimInGroup,
+      groupRank,
+      worldUnlocked: Boolean(t.worldUnlocked),
       stageName: currentStage?.stageName || "Torneio",
-      eliminatedBy: !isChampion && currentStage && !currentStage.won ? currentStage.oppTeam?.name || "" : "",
+      eliminatedBy: elimInGroup
+        ? `Grupo A (${groupRank}º lugar)`
+        : !isChampion && currentStage && !currentStage.won
+        ? currentStage.oppTeam?.name || ""
+        : "",
       matchesPlayed: finishedStages.length,
       wins,
+      draws,
       losses,
       cleanSheets,
       goalsFor,
@@ -5444,12 +5821,19 @@
   function buildRunSummaryCardHTML(summary, stats, t) {
     if (!summary) return "";
     const rank = stats.power >= 1650 ? "S+" : stats.power >= 1450 ? "S" : stats.power >= 1250 ? "A" : "B";
-    const statusTitle = summary.isChampion
+    const statusTitle = summary.isWorldChampion
+      ? `${ffLogoIconHTML("inline-trophy-icon")} CAMPEÃO DO FUTEBOL FRONTEIRA & MUNDIAL (FFI)`
+      : summary.isChampion
       ? `${ffLogoIconHTML("inline-trophy-icon")} CAMPEÃO DO FUTEBOL FRONTEIRA`
+      : summary.isFFChampion
+      ? `CAMPEÃO DO FF • ELIMINADO NA ${summary.stageName.toUpperCase()}`
       : `FIM DA CAMPANHA — ${summary.stageName.toUpperCase()}`;
+    const recordTxt = summary.draws > 0
+      ? `${summary.wins}V/${summary.draws}E/${summary.losses}D`
+      : `${summary.wins}V/${summary.losses}D`;
     const statusSub = summary.isChampion
-      ? `${pluralPt(summary.wins, "vitória", "vitórias")} em ${pluralPt(summary.matchesPlayed, "jogo", "jogos")} · Poder ${stats.power.toLocaleString("pt-BR")} (Rank ${rank}) · OVR ${stats.ovr}`
-      : `Eliminado por ${summary.eliminatedBy || "Adversário"} · ${summary.wins}V/${summary.losses}D em ${pluralPt(summary.matchesPlayed, "jogo", "jogos")} · Poder ${stats.power.toLocaleString("pt-BR")} (Rank ${rank})`;
+      ? `${pluralPt(summary.wins, "vitória", "vitórias")} em ${pluralPt(summary.matchesPlayed, "jogo", "jogos")} (${recordTxt}) · Poder ${stats.power.toLocaleString("pt-BR")} (Rank ${rank}) · OVR ${stats.ovr}`
+      : `${summary.elimInGroup ? "Eliminado na Fase de Grupos" : `Eliminado por ${summary.eliminatedBy || "Adversário"}`} · ${recordTxt} em ${pluralPt(summary.matchesPlayed, "jogo", "jogos")} · Poder ${stats.power.toLocaleString("pt-BR")} (Rank ${rank})`;
 
     const renderAwardCard = (cls, tag, player, statMain, statSub) => {
       if (!player) return "";
@@ -5468,10 +5852,12 @@
 
     const mvp = summary.mvp;
     const goalDiffStr = summary.goalDiff >= 0 ? `+${summary.goalDiff}` : `${summary.goalDiff}`;
+    const canAdvanceWorldBtn = summary.isFFChampion && !summary.worldUnlocked;
     const actionButtons = summary.isChampion
       ? `
         <button class="ie-cmd-btn export-png-btn" id="btn-export-run-png"><span>Exportar Imagem (PNG)</span></button>
         <button class="ie-cmd-btn" id="btn-back-to-match-log"><span>Ver Campo / Narração</span></button>
+        ${canAdvanceWorldBtn ? `<button class="ie-cmd-btn ie-cmd-gold" id="btn-advance-world-from-summary"><span>Disputar Mundial (FFI) →</span></button>` : ""}
         <button class="ie-cmd-btn ie-cmd-green" id="btn-play-again-draft"><span>Novo Jogo</span></button>
         <button class="ie-cmd-btn ie-cmd-gold" id="btn-rematch-cup"><span>Outro Torneio</span></button>
       `
@@ -5615,14 +6001,15 @@
           ${(summary.allStages || [])
             .map((s, idx) => {
               const played = idx <= t.stageIndex && s.finished;
-              const cls = played ? (s.won ? "match-win" : "match-loss") : "match-locked";
+              const cls = played ? (s.won ? "match-win" : s.isDraw ? "match-draw" : "match-loss") : "match-locked";
+              const resLabel = s.won ? "Vitória" : s.isDraw ? "Empate" : "Derrota";
               return `
                 <div class="run-match-chip ${cls}">
                   ${played && s.oppTeam?.emblem ? `<img src="${s.oppTeam.emblem}" alt="" />` : ""}
                   <div style="min-width:0;">
                     <div class="run-match-stage">${s.stageName}</div>
                     <div class="run-match-opp">${idx <= t.stageIndex ? s.oppTeam?.name || "Adversário" : "Não disputado"}</div>
-                    <div class="run-match-score">${played ? `${s.userScore} x ${s.oppScore} · ${s.won ? "Vitória" : "Derrota"}` : "—"}</div>
+                    <div class="run-match-score">${played ? `${s.userScore} x ${s.oppScore} · ${resLabel}` : "—"}</div>
                   </div>
                 </div>
               `;
@@ -5782,8 +6169,11 @@
       })
     );
 
+    const stageCount = (summary.allStages || []).length || 4;
+    const stageRows = Math.max(1, Math.ceil(stageCount / 4));
+    const extraStageH = (stageRows - 1) * 120;
     const W = 1200;
-    const H = 1480;
+    const H = 1480 + extraStageH;
     const canvas = document.createElement("canvas");
     canvas.width = W;
     canvas.height = H;
@@ -5830,25 +6220,35 @@
     ctx.textBaseline = "top";
     ctx.fillStyle = "#93c5fd";
     ctx.font = `900 18px ${fontFamily}`;
-    ctx.fillText("INAZUMA ELEVEN • DREAM TEAM • FUTEBOL FRONTEIRA", 170, 44);
+    ctx.fillText(
+      summary.worldUnlocked
+        ? "INAZUMA ELEVEN • MODO RELÂMPAGO • FUTEBOL FRONTEIRA & MUNDIAL (FFI)"
+        : "INAZUMA ELEVEN • MODO RELÂMPAGO • FUTEBOL FRONTEIRA",
+      170,
+      44
+    );
 
     const gamesWord = summary.matchesPlayed === 1 ? "jogo" : "jogos";
+    const pngTitle = summary.isWorldChampion
+      ? "CAMPEÃO DO MUNDO (FFI)!"
+      : summary.isChampion
+      ? "CAMPEÃO DO FUTEBOL FRONTEIRA!"
+      : summary.isFFChampion
+      ? `CAMPEÃO DO FF • ${summary.stageName.toUpperCase()}`
+      : `FIM DA RUN — ${summary.stageName.toUpperCase()}`;
+    const pngRec = summary.draws > 0
+      ? `${summary.wins}V / ${summary.draws}E / ${summary.losses}D`
+      : `${summary.wins}V / ${summary.losses}D`;
     ctx.fillStyle = summary.isChampion ? "#facc15" : "#fca5a5";
     ctx.font = `900 30px ${fontFamily}`;
-    drawClippedText(
-      ctx,
-      summary.isChampion ? "CAMPEÃO DO FUTEBOL FRONTEIRA!" : `FIM DA RUN — ${summary.stageName.toUpperCase()}`,
-      170,
-      76,
-      748
-    );
+    drawClippedText(ctx, pngTitle, 170, 76, 748);
 
     const rank = stats.power >= 1650 ? "S+" : stats.power >= 1450 ? "S" : stats.power >= 1250 ? "A" : "B";
     ctx.fillStyle = "#e2e8f0";
     ctx.font = `700 19px ${fontFamily}`;
     drawClippedText(
       ctx,
-      `${summary.wins}V / ${summary.losses}D em ${pluralPt(summary.matchesPlayed, "jogo", "jogos")} · OVR ${stats.ovr} · Química ${stats.chem}% · Laços +${stats.bondsPower}`,
+      `${pngRec} em ${pluralPt(summary.matchesPlayed, "jogo", "jogos")} · OVR ${stats.ovr} · Química ${stats.chem}% · Laços +${stats.bondsPower}`,
       170,
       122,
       748
@@ -6041,16 +6441,26 @@
     const stGap = 14;
     const stW = (W - 64 - stGap * 3) / 4;
     (summary.allStages || []).forEach((s, idx) => {
-      const sx = 32 + idx * (stW + stGap);
-      const sy = 818;
+      const col = idx % 4;
+      const row = Math.floor(idx / 4);
+      const sx = 32 + col * (stW + stGap);
+      const sy = 818 + row * 120;
       const reached = idx <= t.stageIndex && s.finished;
       ctx.fillStyle = reached
         ? s.won
           ? "rgba(20, 83, 45, 0.55)"
+          : s.isDraw
+          ? "rgba(113, 63, 18, 0.52)"
           : "rgba(127, 29, 29, 0.55)"
         : "rgba(15, 23, 42, 0.65)";
       fillRoundRect(ctx, sx, sy, stW, 108, 12);
-      ctx.strokeStyle = reached ? (s.won ? "#4ade80" : "#f87171") : "rgba(148, 163, 184, 0.25)";
+      ctx.strokeStyle = reached
+        ? s.won
+          ? "#4ade80"
+          : s.isDraw
+          ? "#facc15"
+          : "#f87171"
+        : "rgba(148, 163, 184, 0.25)";
       ctx.lineWidth = 1.5;
       strokeRoundRect(ctx, sx, sy, stW, 108, 12);
 
@@ -6061,27 +6471,28 @@
 
       ctx.fillStyle = "#93c5fd";
       ctx.font = `900 12px ${fontFamily}`;
-      ctx.fillText((s.stageName || "").toUpperCase(), sx + 70, sy + 16);
+      drawClippedText(ctx, (s.stageName || "").toUpperCase(), sx + 70, sy + 16, stW - 82);
 
       ctx.fillStyle = "#ffffff";
       ctx.font = `800 16px ${fontFamily}`;
       drawClippedText(ctx, idx <= t.stageIndex ? s.oppTeam?.name || "Adversário" : "Não enfrentado", sx + 70, sy + 38, stW - 82);
 
-      ctx.fillStyle = reached ? (s.won ? "#4ade80" : "#f87171") : "#64748b";
+      ctx.fillStyle = reached ? (s.won ? "#4ade80" : s.isDraw ? "#fde047" : "#f87171") : "#64748b";
       ctx.font = `900 22px ${fontFamily}`;
+      const resTxt = s.won ? "VITÓRIA" : s.isDraw ? "EMPATE" : "DERROTA";
       ctx.fillText(
-        reached ? `${s.userScore} x ${s.oppScore} ${s.won ? "VITÓRIA" : "DERROTA"}` : "—",
+        reached ? `${s.userScore} x ${s.oppScore} ${resTxt}` : "—",
         sx + 70,
         sy + 68
       );
     });
 
-    // ROSTER TABLE (y: 944..1416)
+    // ROSTER TABLE
     ctx.fillStyle = "#93c5fd";
     ctx.font = `900 16px ${fontFamily}`;
-    ctx.fillText("DESEMPENHO COMPLETO DO ELENCO NA RUN", 32, 944);
+    ctx.fillText("DESEMPENHO COMPLETO DO ELENCO NA RUN", 32, 944 + extraStageH);
 
-    const tblY = 970;
+    const tblY = 970 + extraStageH;
     ctx.fillStyle = "rgba(8, 19, 46, 0.94)";
     fillRoundRect(ctx, 32, tblY, W - 64, 442, 12);
     ctx.strokeStyle = "rgba(148, 163, 184, 0.3)";
@@ -6155,7 +6566,7 @@
     ctx.textAlign = "center";
     ctx.fillStyle = "#64748b";
     ctx.font = `700 14px ${fontFamily}`;
-    ctx.fillText("Inazuma Eleven Dream Team • Resumo Oficial da Campanha no Futebol Fronteira", W / 2, 1434);
+    ctx.fillText("Inazuma Eleven Dream Team • Resumo Oficial da Campanha (Modo Relâmpago)", W / 2, 1434 + extraStageH);
     ctx.textAlign = "left";
 
     const dataUrl = canvas.toDataURL("image/png");
@@ -6855,15 +7266,24 @@
     const nextStage = t.stages[prep.nextStageIdx];
     const locations = getPrepLocationsCatalog();
     const activeLoc = locations.find((l) => l.id === prep.locId);
+    const isFirstMatchEver = prep.nextStageIdx === 0;
+    const isWorldDebut = nextStage.competition === "WORLD" && nextStage.isGroupStage && nextStage.groupRoundIdx === 0;
+    const compTitle = nextStage.competition === "WORLD" ? "MUNDIAL (FFI)" : "FUTEBOL FRONTEIRA";
+    const eyebrowPhase = isFirstMatchEver || isWorldDebut ? "PRÉ-ESTREIA" : "INTERVALO DO TORNEIO";
+    const prepHeadline = isFirstMatchEver
+      ? "Prepare seu Dream Team antes da primeira partida!"
+      : isWorldDebut
+      ? "Prepare a seleção para a estreia na Fase de Grupos do Mundial!"
+      : "Escolha um local de Inazuma para preparar seu time";
 
     const headerBanner = `
       <div class="prep-top-banner">
         <div>
           <span style="font-size:0.7rem; font-weight:900; color:#facc15; text-transform:uppercase;">
-            INTERVALO DO TORNEIO • RUMO À ${nextStage.stageName.toUpperCase()}
+            ${compTitle} • ${eyebrowPhase} • RUMO À ${nextStage.stageName.toUpperCase()}
           </span>
           <h3 style="font-size:1.05rem; font-weight:900; color:#fff; margin-top:2px;">
-            Escolha um local de Inazuma para preparar seu time
+            ${prepHeadline}
           </h3>
         </div>
         <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
@@ -6871,7 +7291,7 @@
           <div class="prep-next-opp-pill">
             <img src="${nextStage.oppTeam.emblem}" alt="" />
             <div>
-              <div style="font-size:0.6rem; color:#94a3b8; font-weight:800; text-transform:uppercase;">Próximo Rival</div>
+              <div style="font-size:0.6rem; color:#94a3b8; font-weight:800; text-transform:uppercase;">${isFirstMatchEver ? "1º Adversário" : "Próximo Rival"}</div>
               <div style="font-size:0.76rem; color:#fff; font-weight:900;">${nextStage.oppTeam.name}</div>
             </div>
           </div>
@@ -7170,21 +7590,109 @@
     `;
   }
 
-  // TELA 3: TORNEIO FUTEBOL FRONTEIRA
-  function renderTournamentScreen() {
-    const container = document.getElementById("main-screen-container");
-    if (!container) return;
+  function buildWorldGroupTableHTML(wg, t) {
+    if (!wg || !Array.isArray(wg.standings)) return "";
+    return `
+      <div class="world-group-card">
+        <div class="world-group-head">
+          <div style="display:flex; align-items:center; gap:6px;">
+            ${ffLogoIconHTML("inline-ui-icon")}
+            <strong>MUNDIAL (FFI) • ${wg.groupName} (Top 2 classificam às Oitavas)</strong>
+          </div>
+          ${wg.lastOtherResult ? `<span class="world-group-other">Outro jogo: ${wg.lastOtherResult}</span>` : ""}
+        </div>
+        <table class="world-group-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Seleção</th>
+              <th class="num">P</th>
+              <th class="num">J</th>
+              <th class="num">V</th>
+              <th class="num">E</th>
+              <th class="num">D</th>
+              <th class="num">SG</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${wg.standings
+              .map((row, idx) => {
+                const rank = idx + 1;
+                const rowCls = [
+                  row.isUser ? "is-user-row" : "",
+                  rank <= 2 ? "is-qualifies" : "is-elim"
+                ]
+                  .filter(Boolean)
+                  .join(" ");
+                const gdStr = row.gd > 0 ? `+${row.gd}` : String(row.gd);
+                return `
+                  <tr class="${rowCls}">
+                    <td class="pos-col">${rank}º</td>
+                    <td class="team-col">
+                      ${row.emblem ? `<img src="${row.emblem}" alt="" />` : ""}
+                      <span>${row.name}</span>
+                    </td>
+                    <td class="num pts-col">${row.pts}</td>
+                    <td class="num">${row.p}</td>
+                    <td class="num">${row.w}</td>
+                    <td class="num">${row.d}</td>
+                    <td class="num">${row.l}</td>
+                    <td class="num">${gdStr}</td>
+                  </tr>
+                `;
+              })
+              .join("")}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
 
-    const t = state.tournament;
-    const st = t.stages[t.stageIndex];
-    const stats = calcSquadStats();
+  function buildTournamentBracketStripHTML(t, focusStageIdx) {
+    let sliceStart = 0;
+    let sliceEnd = 4;
+    let phaseBadges = "";
 
-    const bracketHTML = t.stages
-      .map((s, idx) => {
-        const isUnlocked = idx <= t.stageIndex;
+    if (t.worldUnlocked) {
+      if (focusStageIdx <= 6) {
+        sliceStart = 4;
+        sliceEnd = 8; // 3 jogos do Grupo A + card preview de Oitavas do Mundial
+        phaseBadges = `
+          <div class="world-phase-strip">
+            <span class="world-pill is-done">✓ Campeão do Futebol Fronteira</span>
+            <span class="world-pill is-active">🌍 Mundial (FFI) • Fase de Grupos (3 Rodadas)</span>
+            <span class="world-pill">Próx: Oitavas → Quartas → Semi → Final Mundial</span>
+          </div>
+        `;
+      } else {
+        sliceStart = 7;
+        sliceEnd = t.stages.length; // Oitavas, Quartas, Semi, Final Mundial
+        const rank = getUserGroupRank(t.worldGroup);
+        phaseBadges = `
+          <div class="world-phase-strip">
+            <span class="world-pill is-done">✓ Campeão do Futebol Fronteira</span>
+            <span class="world-pill is-done">✓ Grupo A (${rank}º lugar)</span>
+            <span class="world-pill is-active">🌍 Mata-Mata do Mundial (FFI)</span>
+          </div>
+        `;
+      }
+    } else {
+      phaseBadges = `
+        <div class="world-phase-strip">
+          <span class="world-pill is-active">${ffLogoIconHTML("inline-ui-icon")} Futebol Fronteira</span>
+          <span class="world-pill">🌍 Vencendo a Final, você avança ao Mundial (FFI)!</span>
+        </div>
+      `;
+    }
+
+    const slice = t.stages.slice(sliceStart, sliceEnd);
+    const cardsHTML = slice
+      .map((s, localIdx) => {
+        const idx = sliceStart + localIdx;
+        const isUnlocked = idx <= focusStageIdx;
         let cls = "";
-        if (s.finished) cls = s.won ? "passed-stage" : "lost-stage";
-        else if (idx === t.stageIndex) cls = "active-stage";
+        if (s.finished) cls = s.won ? "passed-stage" : s.isDraw ? "draw-stage" : "lost-stage";
+        else if (idx === focusStageIdx) cls = "active-stage";
 
         if (!isUnlocked) {
           return `
@@ -7200,14 +7708,27 @@
           `;
         }
 
+        const statusTxt = s.finished
+          ? `${s.userScore} x ${s.oppScore} · ${s.won ? "Vitória" : s.isDraw ? "Empate" : "Derrota"}`
+          : t.prep && idx === t.prep.nextStageIdx
+          ? "Preparação"
+          : "Ao Vivo";
+        const statusColor = s.finished
+          ? s.won
+            ? "#4ade80"
+            : s.isDraw
+            ? "#fde047"
+            : "#f87171"
+          : "#facc15";
+
         return `
           <div class="bracket-step ${cls}">
             <img src="${s.oppTeam.emblem}" alt="" style="width:32px; height:32px; object-fit:contain;" />
             <div style="min-width:0;">
               <div style="font-size:0.63rem; color:#94a3b8; font-weight:800; text-transform:uppercase;">${s.stageName}</div>
               <div style="font-size:0.75rem; font-weight:800; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${s.oppTeam.name}</div>
-              <div style="font-size:0.7rem; font-weight:900; color:${s.finished ? (s.won ? "#4ade80" : "#f87171") : "#facc15"};">
-                ${s.finished ? `${s.userScore} x ${s.oppScore} · ${s.won ? "Vitória" : "Derrota"}` : "Ao Vivo"}
+              <div style="font-size:0.7rem; font-weight:900; color:${statusColor};">
+                ${statusTxt}
               </div>
             </div>
           </div>
@@ -7215,13 +7736,34 @@
       })
       .join("");
 
+    return `${phaseBadges}<div class="bracket-row">${cardsHTML}</div>`;
+  }
+
+  // TELA 3: TORNEIO FUTEBOL FRONTEIRA & MUNDIAL (FFI)
+  function renderTournamentScreen() {
+    const container = document.getElementById("main-screen-container");
+    if (!container) return;
+
+    const t = state.tournament;
+    const st = t.stages[t.stageIndex];
+    const stats = calcSquadStats();
+    const focusIdx = t.prep ? t.prep.nextStageIdx : t.stageIndex;
+    const bracketHTML = buildTournamentBracketStripHTML(t, focusIdx);
+    const showGroupTable = Boolean(t.worldUnlocked && t.worldGroup && focusIdx <= 6);
+    const groupTableHTML = showGroupTable ? buildWorldGroupTableHTML(t.worldGroup, t) : "";
+
     const pct = Math.min(100, Math.round((st.minute / st.maxMinute) * 100));
 
-    const isRunEnded = st.finished && ((st.won && t.stageIndex === 3) || !st.won);
+    const isFFFinalWin = Boolean(st.finished && st.won && st.competition === "FF" && t.stageIndex === 3 && !t.worldUnlocked);
+    const isWorldFinalWin = Boolean(st.finished && st.won && t.worldUnlocked && t.stageIndex === t.stages.length - 1);
+    const isGroupElim = Boolean(st.finished && st.isGroupStage && st.groupRoundIdx === 2 && getUserGroupRank(t.worldGroup) > 2);
+    const isKnockoutLoss = Boolean(st.finished && !st.isGroupStage && !st.won);
+    const isRunEnded = isWorldFinalWin || isGroupElim || isKnockoutLoss || (isFFFinalWin && t.showRunSummary);
 
     if (t.prep) {
       container.innerHTML = `
-        <div class="bracket-row">${bracketHTML}</div>
+        ${bracketHTML}
+        ${groupTableHTML}
         ${buildBetweenMatchPrepHTML(t, stats)}
       `;
 
@@ -7280,7 +7822,8 @@
     if (isRunEnded && t.showRunSummary) {
       const runSummaryObj = computeTournamentRunSummary(t);
       container.innerHTML = `
-        <div class="bracket-row">${bracketHTML}</div>
+        ${bracketHTML}
+        ${groupTableHTML}
         ${buildRunSummaryCardHTML(runSummaryObj, stats, t)}
       `;
 
@@ -7290,6 +7833,11 @@
           state.tournament.showRunSummary = false;
           renderTournamentScreen();
         });
+      }
+
+      const advanceFromSummaryBtn = document.getElementById("btn-advance-world-from-summary");
+      if (advanceFromSummaryBtn) {
+        advanceFromSummaryBtn.addEventListener("click", () => advanceToWorldCup());
       }
 
       const retryBtn = document.getElementById("btn-retry-stage");
@@ -7323,12 +7871,34 @@
 
     let postMatchBarHTML = "";
     if (st.finished) {
-      if (isRunEnded) {
-        const isChamp = st.won && t.stageIndex === 3;
+      if (isFFFinalWin) {
+        postMatchBarHTML = `
+          <div class="match-finish-bar is-win">
+            <div>
+              <strong>Campeão do Futebol Fronteira!</strong>
+              <span>Você conquistou o Japão! Avance agora para a Fase de Grupos do Mundial (FFI) ou exporte o resumo.</span>
+            </div>
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+              <button class="ie-cmd-btn ie-cmd-gold" id="btn-advance-world-cup">
+                <span>Avançar para o Mundial (FFI) →</span>
+              </button>
+              <button class="ie-cmd-btn" id="btn-view-run-results">
+                <span>Resumo / Exportar PNG</span>
+              </button>
+            </div>
+          </div>
+        `;
+      } else if (isRunEnded) {
+        const isChamp = isWorldFinalWin;
+        const endTitle = isChamp
+          ? "Campeão Mundial (FFI)!"
+          : isGroupElim
+          ? `Eliminado no Grupo A (${getUserGroupRank(t.worldGroup)}º lugar)`
+          : `Fim de jogo · ${st.oppTeam.name} venceu`;
         postMatchBarHTML = `
           <div class="match-finish-bar ${isChamp ? "is-win" : "is-loss"}">
             <div>
-              <strong>${isChamp ? "Campeão do Futebol Fronteira!" : `Fim de jogo · ${st.oppTeam.name} venceu`}</strong>
+              <strong>${endTitle}</strong>
               <span>Clique para abrir o resumo completo da campanha, MVP e exportar imagem.</span>
             </div>
             <button class="ie-cmd-btn ${isChamp ? "ie-cmd-gold" : "ie-cmd-green"}" id="btn-view-run-results">
@@ -7338,11 +7908,25 @@
         `;
       } else {
         const nextStage = t.stages[t.stageIndex + 1];
+        let barTitle = `Classificado para a ${nextStage.stageName}!`;
+        let barSub = "Visite a cidade, vá ao campo ou treine no Inabikari antes do próximo jogo.";
+        if (st.isGroupStage) {
+          const rank = getUserGroupRank(t.worldGroup);
+          const pts = t.worldGroup?.standings?.find((r) => r.isUser)?.pts || 0;
+          if (st.groupRoundIdx < 2) {
+            const resTxt = st.won ? "Vitória" : st.isDraw ? "Empate" : "Derrota";
+            barTitle = `${resTxt} na ${st.stageName}! Dream Team em ${rank}º no Grupo A (${pts} pts)`;
+            barSub = `Restam ${2 - st.groupRoundIdx} rodada(s) no grupo. Prepare o elenco para o próximo duelo!`;
+          } else {
+            barTitle = `Classificado em ${rank}º no Grupo A (${pts} pts)! Rumo às ${nextStage.stageName}!`;
+            barSub = "Você garantiu vaga no Mata-Mata do Mundial! Escolha um local de preparação.";
+          }
+        }
         postMatchBarHTML = `
           <div class="match-finish-bar is-win">
             <div>
-              <strong>Classificado para a ${nextStage.stageName}!</strong>
-              <span>Visite a cidade, vá ao campo ou treine no Inabikari antes do próximo jogo.</span>
+              <strong>${barTitle}</strong>
+              <span>${barSub}</span>
             </div>
             <button class="ie-cmd-btn ie-cmd-green" id="btn-next-round">
               <span>Preparar para ${nextStage.stageName} →</span>
@@ -7354,9 +7938,11 @@
 
     if (!st.pitch) st.pitch = initMatchPitchState(st, t.stageIndex);
     const oppStats = calcOpponentStats(st.oppTeam, t.stageIndex);
+    const compHeaderLabel = st.competition === "WORLD" ? "MUNDIAL (FFI)" : "FUTEBOL FRONTEIRA";
 
     container.innerHTML = `
-      <div class="bracket-row">${bracketHTML}</div>
+      ${bracketHTML}
+      ${groupTableHTML}
 
       <div class="broadcast-card">
         <div class="broadcast-header">
@@ -7364,7 +7950,7 @@
             ${UI.raimonEmblem ? `<img src="${UI.raimonEmblem}" alt="" style="height:28px; width:28px; object-fit:contain;" />` : ""}
             <div>
               <span style="font-size:0.7rem; font-weight:900; color:#facc15; text-transform:uppercase;">
-                FUTEBOL FRONTEIRA • ${st.stageName}
+                ${compHeaderLabel} • ${st.stageName}
               </span>
               <h3 style="font-size:0.96rem; color:#fff;">Dream Team vs ${st.oppTeam.name}</h3>
             </div>
@@ -7507,6 +8093,13 @@
       });
     }
 
+    const advanceWorldBtn = document.getElementById("btn-advance-world-cup");
+    if (advanceWorldBtn) {
+      advanceWorldBtn.addEventListener("click", () => {
+        advanceToWorldCup();
+      });
+    }
+
     const viewResultsBtn = document.getElementById("btn-view-run-results");
     if (viewResultsBtn) {
       viewResultsBtn.addEventListener("click", () => {
@@ -7545,6 +8138,7 @@
       state.spinTimerId = null;
     }
     state.isSpinning = false;
+    state.storyLockNotice = false;
     state.phase = "menu";
     state.squad = {};
     state.selectedPlayer = null;
