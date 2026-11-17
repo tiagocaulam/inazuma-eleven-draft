@@ -1113,12 +1113,21 @@
     const slots = getSlots();
     const sel = state.selectedPlayer;
     const adjPairs = getAdjacentSlotPairs(slots);
+    const squadStats = calcSquadStats();
     const elemColors = {
       Fogo: "#ef4444",
       Floresta: "#22c55e",
       Vento: "#38bdf8",
       Montanha: "#f59e0b"
     };
+
+    // Barra de Vantagens e Porcentagens no Canto Superior da Escalação
+    const synergiesChips = squadStats.activeBonds && squadStats.activeBonds.length > 0
+      ? squadStats.activeBonds.map((b) => {
+          let icon = b.type === "perfect-formation" ? "🌱" : b.type === "friendship" ? "⭐" : b.type === "element" ? "⚡" : "🛡️";
+          return `<span class="pitch-synergy-chip chip-${b.type}">${b.label}</span>`;
+        }).join("")
+      : `<span class="pitch-synergy-chip chip-empty">${formationIconHTML("inline-ui-icon")} Escale na posição certa (+20% Quím / +2 OVR) e conecte mesmo elemento colado!</span>`;
 
     const linksSVG = adjPairs
       .map(([a, b]) => {
@@ -1184,15 +1193,26 @@
       .join("");
 
     return `
-      <div class="soccer-pitch">
-        <div class="pitch-penalty-top"></div>
-        <div class="pitch-half-line"></div>
-        <div class="pitch-center-circle">
-          ${UI.raimonEmblem ? `<img class="pitch-center-emblem" src="${UI.raimonEmblem}" alt="" />` : "⚡"}
+      <div class="pitch-formation-wrapper">
+        <div class="pitch-synergies-header" id="pitch-synergies-header">
+          <div class="pitch-synergies-title">
+            <span class="pitch-synergies-icon">🌱</span>
+            <span>VANTAGENS &amp; SINERGIAS DA ESCALAÇÃO</span>
+          </div>
+          <div class="pitch-synergies-list">
+            ${synergiesChips}
+          </div>
         </div>
-        <div class="pitch-penalty-bottom"></div>
-        <svg class="draft-links-svg" viewBox="0 0 100 100" preserveAspectRatio="none">${linksSVG}</svg>
-        <div id="pitch-nodes-container">${nodesHTML}</div>
+        <div class="soccer-pitch">
+          <div class="pitch-penalty-top"></div>
+          <div class="pitch-half-line"></div>
+          <div class="pitch-center-circle">
+            ${UI.raimonEmblem ? `<img class="pitch-center-emblem" src="${UI.raimonEmblem}" alt="" />` : "⚡"}
+          </div>
+          <div class="pitch-penalty-bottom"></div>
+          <svg class="draft-links-svg" viewBox="0 0 100 100" preserveAspectRatio="none">${linksSVG}</svg>
+          <div id="pitch-nodes-container">${nodesHTML}</div>
+        </div>
       </div>
     `;
   }
@@ -5307,17 +5327,23 @@
 
     const bondsBar = document.getElementById("bonds-bar");
     if (bondsBar) {
-      if (stats.activeBonds.length === 0) {
-        bondsBar.innerHTML = `<span style="color:#93c5fd; display:inline-flex; align-items:center; gap:5px; flex-wrap:wrap;">${formationIconHTML("inline-ui-icon")} <strong>Dica Tática:</strong> Escale todos os <strong>11 na posição correta</strong> (+20% Quím / +2 OVR) e conecte jogadores do <strong>mesmo elemento colados</strong> para ativar links elementais!</span>`;
+      if (state.phase === "draft") {
+        // Na montagem do time (draft), as porcentagens e vantagens ficam diretamente no topo da escalação/campo!
+        bondsBar.style.display = "none";
       } else {
-        bondsBar.innerHTML =
-          `<strong style="color:#38bdf8; margin-right:4px; display:inline-flex; align-items:center; gap:4px;">${captainIconHTML("inline-ui-icon")} Laços:</strong>` +
-          stats.activeBonds
-            .map(
-              (b) =>
-                `<span class="bond-tag ${b.type === "friendship" ? "friendship" : b.type === "perfect-formation" ? "perfect-formation" : b.type === "warn-pos" ? "warn-pos" : ""}">${b.label}</span>`
-            )
-            .join("");
+        bondsBar.style.display = "flex";
+        if (stats.activeBonds.length === 0) {
+          bondsBar.innerHTML = `<span style="color:#93c5fd; display:inline-flex; align-items:center; gap:5px; flex-wrap:wrap;">${formationIconHTML("inline-ui-icon")} <strong>Dica Tática:</strong> Escale todos os <strong>11 na posição correta</strong> (+20% Quím / +2 OVR) e conecte jogadores do <strong>mesmo elemento colados</strong> para ativar links elementais!</span>`;
+        } else {
+          bondsBar.innerHTML =
+            `<strong style="color:#38bdf8; margin-right:4px; display:inline-flex; align-items:center; gap:4px;">${captainIconHTML("inline-ui-icon")} Laços:</strong>` +
+            stats.activeBonds
+              .map(
+                (b) =>
+                  `<span class="bond-tag ${b.type === "friendship" ? "friendship" : b.type === "perfect-formation" ? "perfect-formation" : b.type === "warn-pos" ? "warn-pos" : ""}">${b.label}</span>`
+              )
+              .join("");
+        }
       }
     }
   }
@@ -5376,15 +5402,6 @@
                 ? `<div class="mode-locked-toast">🔒 O <strong>Modo História</strong> ainda está em desenvolvimento e chegará em breve! Por enquanto, jogue o <strong>Modo Relâmpago</strong>.</div>`
                 : ""
             }
-          </div>
-
-          <div style="background:rgba(37,99,235,0.16); border:1px solid rgba(96,165,250,0.3); border-radius:8px; padding:9px 12px; margin-top:12px; font-size:0.74rem; color:#dbeafe; line-height:1.45; text-align:left;">
-            <div style="display:flex; align-items:center; gap:5px; margin-bottom:3px;">
-              ${ffLogoIconHTML("inline-ui-icon")} <strong style="color:#facc15;">Como somar Poder Final &amp; Química (para você e os adversários):</strong>
-            </div>
-            • <strong>Posição Certa:</strong> <strong style="color:#86efac;">+20% Quím / +2 OVR</strong> e bônus de Poder ao escalar os 11 na posição natural.<br/>
-            • <strong>Sinergia Elemental Próxima:</strong> Colocar jogadores do <strong>mesmo elemento colados</strong> (ao lado, acima ou abaixo) acende um link no campo e dá +Química e +Poder.<br/>
-            • <strong>Duplas/Trios &amp; Mesmo Clube:</strong> Laços do anime e colegas de equipe também somam força!
           </div>
 
           <div class="option-group">
