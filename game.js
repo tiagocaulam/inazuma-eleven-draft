@@ -2260,8 +2260,12 @@
 
   function getElementEdge(atkElem, defElem) {
     if (!atkElem || !defElem) return 0;
-    if (ELEMENT_ADVANTAGE[atkElem] === defElem) return 1.5;
-    if (ELEMENT_ADVANTAGE[defElem] === atkElem) return -1.0;
+    // Sistema Elemental canônico de Inazuma Eleven:
+    // Fogo > Floresta > Vento > Montanha > Fogo
+    // Vantagem elemental: +4.8 pontos de duelo (impacto decisivo)
+    // Desvantagem elemental: -4.8 pontos de duelo
+    if (ELEMENT_ADVANTAGE[atkElem] === defElem) return 4.8;
+    if (ELEMENT_ADVANTAGE[defElem] === atkElem) return -4.8;
     return 0;
   }
 
@@ -3223,7 +3227,20 @@
       const antiPingPongW = pitch && pitch.lastPasserUid === n.uid ? 0.40 : 1.0;
       const wingSwitchW = Math.abs(n.targetY - carrier.y) >= 18 && forwardGain >= 0 && minDefDist >= 8 ? 1.45 : 1.0;
       const skillW = Math.pow(Math.max(55, n.effOvr) / 80, 0.85);
-      return forwardFactor * distFactor * openFactor * staminaW * antiPingPongW * wingSwitchW * skillW;
+
+      // Inteligência de passe por elemento: se o goleiro adversário tem elemento desfavorável pro portador,
+      // prioriza passar para companheiros que tenham vantagem elemental sobre o goleiro
+      const oppGk = defNodes?.find((d) => d.role === "GK");
+      let elemSynergyW = 1.0;
+      if (oppGk?.player?.element && n.player?.element) {
+        if (ELEMENT_ADVANTAGE[n.player.element] === oppGk.player.element) {
+          elemSynergyW = 1.65; // Vantagem contra o goleiro: procura muito esse companheiro!
+        } else if (ELEMENT_ADVANTAGE[oppGk.player.element] === n.player.element) {
+          elemSynergyW = 0.75; // Também desfavorecido contra o GK
+        }
+      }
+
+      return forwardFactor * distFactor * openFactor * staminaW * antiPingPongW * wingSwitchW * skillW * elemSynergyW;
     });
 
     const total = weights.reduce((a, b) => a + b, 0);
@@ -3243,6 +3260,11 @@
 
     const effRole = getEffectiveCarrierRole(carrier);
     if (effRole === "GK") return { action: "PASS", strictForward: true, safeRestart: true };
+
+    const oppGk = defNodes.find((d) => d.role === "GK");
+    const oppGkElem = oppGk?.player?.element;
+    const carrierElem = carrier.player?.element;
+    const isCarrierDisadvantagedVsGk = carrierElem && oppGkElem && ELEMENT_ADVANTAGE[oppGkElem] === carrierElem;
 
     const oppGoalX = attIsUser ? 96 : 4;
     const goalDist = Math.hypot(carrier.x - oppGoalX, carrier.y - 50);
@@ -3269,6 +3291,16 @@
       return insideBox && closerToGoal;
     });
 
+    // Inteligência tática elemental: atacante em desvantagem contra o goleiro procura companheiro com vantagem ou neutro
+    const hasBetterElementalTeammateInBox = attNodes.some((n) => {
+      if (n.uid === carrier.uid || n.role === "GK") return false;
+      const forwardPos = attIsUser ? n.x >= 65 : n.x <= 35;
+      const elem = n.player?.element;
+      const hasElemEdge = elem && oppGkElem && ELEMENT_ADVANTAGE[elem] === oppGkElem;
+      const isNotDisadvantaged = elem && oppGkElem && ELEMENT_ADVANTAGE[oppGkElem] !== elem;
+      return forwardPos && (hasElemEdge || isNotDisadvantaged);
+    });
+
     const isTired = carrier.stamina < 45;
     const underClosePress = nearestDefDist < 9.5;
     const tooManyDribbles = pitch.lastAction === "DRIBBLE" && (pitch.sameActionStreak || 0) >= 2;
@@ -3278,19 +3310,20 @@
     // 1) Cara a cara ou dentro da área central -> finaliza com inteligência ou rola pro colega livre
     if ((inPenaltyX && centralLane) || goalDist <= 22) {
       if (blockingDefs <= 1 || goalDist <= 18) {
-        if (hasOpenBoxTarget && (blockingDefs >= 1 && roll < 0.24)) {
+        // Se estiver em desvantagem elemental contra o goleiro e tiver companheiro melhor posicionado/elemental, passa a bola!
+        if (hasOpenBoxTarget && (isCarrierDisadvantagedVsGk ? roll < 0.65 : (blockingDefs >= 1 && roll < 0.24))) {
           return { action: "PASS", strictForward: true };
         }
         return { action: "SHOT", strictForward: true };
       }
-      if (hasOpenBoxTarget && roll < 0.36) return { action: "PASS", strictForward: true };
-      if (roll < 0.78) return { action: "SHOT", strictForward: true };
+      if (hasOpenBoxTarget && roll < (isCarrierDisadvantagedVsGk ? 0.70 : 0.36)) return { action: "PASS", strictForward: true };
+      if (roll < (isCarrierDisadvantagedVsGk ? 0.45 : 0.78)) return { action: "SHOT", strictForward: true };
       return isTired ? { action: "SHOT", strictForward: true } : { action: "DRIBBLE", strictForward: true };
     }
 
     // 2) Ponta / linha de fundo na área -> cruza quando há opção livre, corta pra dentro se tiver espaço
     if (inPenaltyX && !centralLane) {
-      if (hasOpenBoxTarget && roll < (isTired || tooManyDribbles ? 0.72 : 0.60)) {
+      if (hasOpenBoxTarget && roll < (isTired || tooManyDribbles || isCarrierDisadvantagedVsGk ? 0.85 : 0.60)) {
         return { action: "PASS", strictForward: true };
       }
       if (!isTired && !tooManyDribbles && roll < 0.85) return { action: "DRIBBLE", strictForward: true };
@@ -3299,8 +3332,12 @@
 
     // 3) Terço final / entrada da área
     if (inFinalThird || effRole === "FW") {
+      // Se o atacante sabe que o goleiro anula seu elemento, prioriza rolar para outros atacantes/meias
+      if (isCarrierDisadvantagedVsGk && hasBetterElementalTeammateInBox && roll < 0.68) {
+        return { action: "PASS", strictForward: true };
+      }
       if (blockingDefs === 0) {
-        if (roll < 0.58) return { action: "SHOT", strictForward: true };
+        if (roll < (isCarrierDisadvantagedVsGk ? 0.35 : 0.58)) return { action: "SHOT", strictForward: true };
         if (!isTired && !tooManyDribbles && roll < 0.82) return { action: "DRIBBLE", strictForward: true };
         return { action: "PASS", strictForward: true };
       }
@@ -4651,8 +4688,9 @@
 
     const isLongShot = effRole === "MF" || Math.hypot(shooterNode.x - goalX, shooterNode.y - 50) > 25;
     const shotInfo = buildShotInfoForNode(shooterNode);
+    // Vantagem elemental contra o goleiro (calculada diretamente para o chute contra o GK)
     const baseShotScore =
-      calcNodeDuelScore(shooterNode, attSupport, (blockerNode || gkNode)?.player?.element) -
+      calcNodeDuelScore(shooterNode, attSupport, gkNode?.player?.element) -
       (isLongShot ? 3.5 : 0) +
       (shotInfo.duelBonus || 0);
 
@@ -4803,12 +4841,16 @@
             recordUserPlayerStat(pitch, gkNode, "saves", 1);
           }
           pitch.ticker = `${st.minute}' ${gkNode.player.name} defendeu o chute de ${shooterNode.player.name}!`;
+          const gkAdvantageNote =
+            gkNode.player?.element && shooterNode.player?.element && ELEMENT_ADVANTAGE[gkNode.player.element] === shooterNode.player.element
+              ? " (Vantagem Elemental de Defesa)"
+              : "";
           prependNarrationLine(
             st,
             "nar-save",
             gkPick.move
-              ? `${st.minute}' [Defesa de Goleiro] ${gkNode.player.name} acionou 【${gkMoveName}】 e espalmou ${weakenedByBlocker ? "o chute enfraquecido " : ""}【${shotInfo.label}】 de ${shooterNode.player.name}!`
-              : `${st.minute}' [Defesa de Goleiro] ${gkNode.player.name} defendeu sem técnica${gkPick.exhausted ? " (energia vermelha)" : ""} e segurou ${weakenedByBlocker ? "o chute enfraquecido " : ""}${shotInfo.label} de ${shooterNode.player.name}!`,
+              ? `${st.minute}' [Defesa de Goleiro] ${gkNode.player.name} acionou 【${gkMoveName}】${gkAdvantageNote} e espalmou ${weakenedByBlocker ? "o chute enfraquecido " : ""}【${shotInfo.label}】 de ${shooterNode.player.name}!`
+              : `${st.minute}' [Defesa de Goleiro] ${gkNode.player.name} defendeu sem técnica${gkAdvantageNote}${gkPick.exhausted ? " (energia vermelha)" : ""} e segurou ${weakenedByBlocker ? "o chute enfraquecido " : ""}${shotInfo.label} de ${shooterNode.player.name}!`,
             { name: gkNode.player.name, sprite: gkNode.player.sprite, side: gkNode.side },
             { name: shooterNode.player.name, sprite: shooterNode.player.sprite, side: shooterNode.side },
             "GK"
