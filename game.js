@@ -7715,7 +7715,7 @@
         const chosenWinner = prep.choices?.[sIdx] || slotObj.winner;
 
         return `
-          <div class="prep-slot-col">
+          <div class="prep-slot-col ${!isSpinning && chosenWinner ? "is-clickable-choice" : ""}" data-prep-choice-idx="${sIdx}">
             <div class="prep-slot-col-header">
               <span class="prep-slot-badge">OPÇÃO ${sIdx + 1}</span>
             </div>
@@ -7733,7 +7733,7 @@
                 <div class="prep-choice-name">${chosenWinner.title}</div>
                 <div class="prep-choice-summary">${chosenWinner.summary || ""}</div>
                 <button class="ie-cmd-btn ie-cmd-gold prep-btn-pick" data-prep-choice-idx="${sIdx}">
-                  <span>ESCOLHER ESTA OPÇÃO</span>
+                  <span>ESCOLHER</span>
                 </button>
               </div>
             ` : `
@@ -7749,11 +7749,11 @@
         <div class="prep-triple-slot-container">
           <div class="prep-triple-header">
             ${activeLoc?.banner ? `<img class="prep-roulette-thumb" src="${activeLoc.banner}" alt="" />` : ""}
-            <div>
+            <div style="min-width:0; flex:1;">
               <div style="font-size:0.68rem; font-weight:900; color:#facc15; text-transform:uppercase;">${activeLoc?.sub || ""}</div>
               <div style="font-size:1.05rem; font-weight:900; color:#fff;">${activeLoc?.title || ""}</div>
-              <div style="font-size:0.75rem; color:#94a3b8; margin-top:2px;">
-                ${isSpinning ? "As 3 roletas estão sorteando opções aleatórias..." : "Escolha 1 das 3 opções sorteadas para o seu time:"}
+              <div class="prep-triple-choose-prompt">
+                ${isSpinning ? "⚡ Sorteando 3 opções..." : "👉 Toque em uma das 3 opções para escolher:"}
               </div>
             </div>
           </div>
