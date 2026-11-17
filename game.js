@@ -5207,20 +5207,32 @@
 
       // Interceptação física apenas se um marcador realmente cruzar a trajetória!
       if (!ps.isSafeProtectedPass && ps.progress >= 0.18 && ps.progress <= 0.88) {
+        // Interceptação física: exige proximidade real no trajeto e depende da força do passe vs defensor!
         const interceptor = defNodes.find(
           (d) =>
             d.role !== "GK" &&
             d.staggerTimer <= 0 &&
             d.duelCooldown <= 0 &&
-            Math.hypot(d.x - pitch.ballX, d.y - pitch.ballY) <= 3.0
+            Math.hypot(d.x - pitch.ballX, d.y - pitch.ballY) <= 2.2
         );
         if (interceptor) {
-          interceptor.duelCooldown = 1.8;
+          interceptor.duelCooldown = 2.0;
           const passScore = calcNodeDuelScore(ps.passerNode, attSupport, interceptor?.player?.element);
           const defScore = calcNodeDuelScore(interceptor, defSupport, ps.passerNode?.player?.element);
-          const sectorShift = ps.effRole === "DF" ? 7.5 : ps.effRole === "MF" ? 5.5 : 4.0;
-          const interceptProb = 1 - logisticWinProb(passScore, defScore, sectorShift, 0.56, 0.88);
-          if (Math.random() < interceptProb) {
+          
+          // Se o passador for muito superior ao defensor em OVR/Passe, a bola passa com força e o defensor fura!
+          const passerOvr = ps.passerNode?.effOvr || 75;
+          const defOvr = interceptor.effOvr || 75;
+          const ovrAdvantage = passerOvr - defOvr;
+
+          // Se o passe vem de um craque contra um cara mais fraco (ex: 88 vs 76), a interceptação falha quase sempre
+          const powerWhiffChance = ovrAdvantage >= 6 ? Math.min(0.72, 0.35 + (ovrAdvantage - 6) * 0.04) : 0.08;
+          
+          // Probabilidade base de interceptação com teto mais baixo (máximo 42%, caindo se passador for superior)
+          const rawSuccessProb = Math.max(0.06, Math.min(0.42, 0.28 + (defScore - passScore) * 0.022));
+          const finalInterceptProb = Math.random() < powerWhiffChance ? 0 : rawSuccessProb;
+
+          if (Math.random() < finalInterceptProb) {
             spendStamina(interceptor, 4);
 
             pitch.ballSide = attIsUser ? "opp" : "user";
@@ -5255,6 +5267,9 @@
             syncLivePitchDOM(st);
             pauseForPitchBeat(st, "", "", 950, ovrDiff);
             return;
+          } else {
+            // Defensor tentou esticar o pé mas o passe forte passou direto!
+            showNodeBadge(pitch, interceptor.uid, "Passe Forte!", "badge-lost", 1000);
           }
         }
       }
