@@ -2242,8 +2242,8 @@
   };
 
   function compressOvr(effOvr) {
-    // Teto suave acima de 85: impede que um único craque OVR 98 atropele um time inteiro sozinho
-    return effOvr <= 85 ? effOvr : 85 + (effOvr - 85) * 0.5;
+    // Escala mais justa e valorizada para craques: OVRs 85 a 99 mantêm 80% do seu peso real
+    return effOvr <= 84 ? effOvr : 84 + (effOvr - 84) * 0.82;
   }
 
   function getElementEdge(atkElem, defElem) {
@@ -2269,9 +2269,9 @@
     );
   }
 
-  function logisticWinProb(atkScore, defScore, baseShift = 0, minP = 0.10, maxP = 0.85) {
-    const diff = Math.max(-14, Math.min(14, atkScore - defScore)) + baseShift;
-    const p = 1 / (1 + Math.exp(-diff * 0.088));
+  function logisticWinProb(atkScore, defScore, baseShift = 0, minP = 0.08, maxP = 0.88) {
+    const diff = Math.max(-18, Math.min(18, atkScore - defScore)) + baseShift;
+    const p = 1 / (1 + Math.exp(-diff * 0.115));
     return Math.max(minP, Math.min(maxP, p));
   }
 
@@ -2541,19 +2541,29 @@
       return { tx: gx, ty: gy, sprint: 0.9 };
     }
 
-    // 4) Defendendo: marcador principal persegue o portador, segundo marcador faz cobertura!
+    // 4) Defendendo: marcador principal fecha o portador e o 2º marcador faz dobra de marcação no terço final!
     if (!inPossession) {
       const targetAnchorX = carrier ? carrier.x + (carrier.vx || 0) * 0.22 : ballX;
       const targetAnchorY = carrier ? carrier.y + (carrier.vy || 0) * 0.22 : ballY;
+      const dangerousZone = isUser ? ballX <= 42 : ballX >= 58;
 
       if (chaserUid === node.uid && node.staggerTimer <= 0) {
         return {
           tx: Math.max(8, Math.min(92, targetAnchorX)),
           ty: Math.max(10, Math.min(90, targetAnchorY)),
-          sprint: 1.06
+          sprint: 1.08
         };
       }
       if (coverUid === node.uid && node.staggerTimer <= 0) {
+        // Se o adversário estiver perigoso próximo à área, o segundo zagueiro fecha junto em dobra de marcação!
+        if (dangerousZone) {
+          const flankOffset = carrier && carrier.y < 50 ? 3.5 : -3.5;
+          return {
+            tx: Math.max(8, Math.min(92, targetAnchorX + (isUser ? -1.5 : 1.5))),
+            ty: Math.max(12, Math.min(88, targetAnchorY + flankOffset)),
+            sprint: 1.04
+          };
+        }
         return {
           tx: Math.max(8, Math.min(92, targetAnchorX * 0.78 + ownGoalX * 0.22)),
           ty: Math.max(12, Math.min(88, targetAnchorY * 0.76 + 50 * 0.24)),
@@ -3189,12 +3199,12 @@
         });
       }
       const openFactor =
-        (minDefDist >= 11 ? 1.55 : minDefDist >= 6.5 ? 1.05 : 0.52) *
-        (laneDefDist >= 9 ? 1.2 : laneDefDist < 4.5 ? 0.55 : 0.9);
-      const staminaW = n.stamina >= 45 ? 1.15 : 0.45;
-      const antiPingPongW = pitch && pitch.lastPasserUid === n.uid ? 0.28 : 1.0;
-      const wingSwitchW = Math.abs(n.targetY - carrier.y) >= 18 && forwardGain >= 0 && minDefDist >= 9 ? 1.25 : 1.0;
-      const skillW = Math.pow(Math.max(55, n.effOvr) / 80, 0.65);
+        (minDefDist >= 12 ? 2.4 : minDefDist >= 8 ? 1.75 : minDefDist >= 5.5 ? 1.0 : 0.42) *
+        (laneDefDist >= 8 ? 1.35 : laneDefDist < 4.0 ? 0.45 : 0.95);
+      const staminaW = n.stamina >= 45 ? 1.15 : 0.55;
+      const antiPingPongW = pitch && pitch.lastPasserUid === n.uid ? 0.40 : 1.0;
+      const wingSwitchW = Math.abs(n.targetY - carrier.y) >= 18 && forwardGain >= 0 && minDefDist >= 8 ? 1.45 : 1.0;
+      const skillW = Math.pow(Math.max(55, n.effOvr) / 80, 0.85);
       return forwardFactor * distFactor * openFactor * staminaW * antiPingPongW * wingSwitchW * skillW;
     });
 
@@ -4500,20 +4510,20 @@
     }
   }
 
-  function launchContinuousPass(st, pitch, carrier, attNodes, defNodes, strictForward, safeRestart) {
+  function launchContinuousPass(st, pitch, carrier, attNodes, defNodes, strictForward, safeRestart, isOneTwoPass = false) {
     const attIsUser = carrier.side === "user";
     const isGkOutlet = carrier.role === "GK";
-    const isSafeProtectedPass = Boolean(safeRestart || isGkOutlet);
+    const isSafeProtectedPass = Boolean(safeRestart || isGkOutlet || isOneTwoPass);
     const receiver = pickPassReceiver(attNodes, defNodes, carrier, strictForward, pitch);
     if (!receiver) return false;
 
     const leadX = Math.max(8, Math.min(92, receiver.x + (receiver.vx || 0) * 0.25));
     const leadY = Math.max(10, Math.min(90, receiver.y + (receiver.vy || 0) * 0.25));
     const dist = Math.hypot(leadX - carrier.x, leadY - carrier.y);
-    const passSpeed = dist > 30 ? 54 : 45;
-    const duration = Math.max(0.24, Math.min(0.92, dist / passSpeed));
+    const passSpeed = dist > 30 ? 56 : 48;
+    const duration = Math.max(0.20, Math.min(0.85, dist / passSpeed));
 
-    spendStamina(carrier, isSafeProtectedPass ? 1.5 : 4);
+    spendStamina(carrier, isSafeProtectedPass ? 1.5 : 3.5);
     if (attIsUser) {
       if (isGkOutlet) {
         pitch.stats.userGkReleases = (pitch.stats.userGkReleases || 0) + 1;
@@ -4524,11 +4534,29 @@
       }
     }
 
+    // Se for jogada combinada / tabela (1-2), o passador dá um DASH nas costas do marcador!
+    if (isOneTwoPass) {
+      const fwdDir = attIsUser ? 1 : -1;
+      carrier.targetX = Math.max(8, Math.min(92, carrier.x + fwdDir * 16));
+      carrier.targetY = Math.max(12, Math.min(88, carrier.y + (Math.random() < 0.5 ? 4 : -4)));
+      carrier.vx += fwdDir * 28;
+      carrier.targetSprint = 1.35;
+      showNodeBadge(pitch, carrier.uid, "⚡ Tabela (Dash)!", "badge-dribble", 1500);
+      prependNarrationLine(
+        st,
+        "nar-pass",
+        `${st.minute}' [Tabela Rápida] ${carrier.player.name} tabelou de primeira com ${receiver.player.name} e arrancou em velocidade!`,
+        { name: carrier.player.name, sprite: carrier.player.sprite, side: carrier.side },
+        { name: receiver.player.name, sprite: receiver.player.sprite, side: receiver.side },
+        "BALL"
+      );
+    }
+
     pitch.ballMode = "PASS_FLIGHT";
     pitch.carrierUid = null;
     pitch.challengerUid = null;
     pitch.holdBallPos = null;
-    pitch.lastAction = "PASS";
+    pitch.lastAction = isOneTwoPass ? "ONE_TWO" : "PASS";
     pitch.teamConsecutivePasses = (pitch.teamConsecutivePasses || 0) + 1;
 
     pitch.passState = {
@@ -4538,6 +4566,7 @@
       effRole: getEffectiveCarrierRole(carrier),
       isGkOutlet,
       isSafeProtectedPass,
+      isOneTwoPass,
       fromX: pitch.ballX,
       fromY: pitch.ballY,
       toX: leadX,
@@ -4554,16 +4583,18 @@
       toY: leadY,
       curX: pitch.ballX,
       curY: pitch.ballY,
-      color: attIsUser ? "#4ade80" : "#f87171",
+      color: isOneTwoPass ? "#facc15" : (attIsUser ? "#4ade80" : "#f87171"),
       start: performance.now(),
       flightDuration: Math.round(duration * 1000),
       fadeUntil: performance.now() + 900
     };
 
-    const badgeTxt = isGkOutlet ? "REPOSIÇÃO" : "PASSE";
+    const badgeTxt = isGkOutlet ? "REPOSIÇÃO" : isOneTwoPass ? "TABELA" : "PASSE";
     showPitchBadge(pitch, leadX, leadY, badgeTxt, "badge-pass", 700, isGkOutlet ? "GK" : "BALL");
     pitch.ticker = isGkOutlet
       ? `${st.minute}' Reposição: ${carrier.player.name} ➔ ${receiver.player.name}`
+      : isOneTwoPass
+      ? `${st.minute}' Tabela: ${carrier.player.name} ➔ ${receiver.player.name} (Dash!)`
       : `${st.minute}' Passe: ${carrier.player.name} ➔ ${receiver.player.name}`;
     return true;
   }
@@ -5069,7 +5100,7 @@
       pitch.ballX = carrier.x + (attIsUser ? 1.8 : -1.8);
       pitch.ballY = carrier.y + 0.9 + weave;
 
-      // 1) Checa contato físico real para embate Drible (OF) vs Desarme (DF)!
+      // 1) Checa contato físico real para embate Drible (OF) vs Desarme (DF) ou Tabela de Escape!
       if (carrier.role !== "GK" && !pitch.justKickedOff && carrier.duelCooldown <= 0) {
         let closestDef = null;
         let closestDist = 999;
@@ -5081,6 +5112,21 @@
             closestDef = d;
           }
         });
+
+        // Quando o marcador se aproxima perigosamente (entre 4.0 e 7.2 unidades),
+        // jogadores técnicos ou entrosados têm grande chance de TABELAR de primeira sem confronto!
+        if (closestDef && closestDist <= 7.2 && closestDist > 3.8 && carrier.carryTime >= 0.3) {
+          const passReceiver = pickPassReceiver(attNodes, defNodes, carrier, false, pitch);
+          const hasTeammateNear = passReceiver && Math.hypot(passReceiver.x - carrier.x, passReceiver.y - carrier.y) <= 28;
+          const skillBonus = (carrier.effOvr >= 80 ? 0.38 : 0.22);
+          if (hasTeammateNear && Math.random() < skillBonus) {
+            carrier.duelCooldown = 1.4;
+            closestDef.duelCooldown = 1.4;
+            launchContinuousPass(st, pitch, carrier, attNodes, defNodes, true, false, true);
+            return;
+          }
+        }
+
         if (closestDef && closestDist <= 4.1) {
           resolvePhysicalDribbleClash(st, pitch, carrier, closestDef, attSupport, defSupport, ovrDiff);
           return;
@@ -5227,9 +5273,20 @@
         pitch.carrierUid = catcher.uid;
         pitch.passState = null;
         catcher.carryTime = 0;
-        catcher.decisionTimer = 0.22;
+        catcher.decisionTimer = ps.isOneTwoPass ? 0.08 : 0.22;
         pitch.ballX = catcher.x + (catcher.side === "user" ? 1.8 : -1.8);
         pitch.ballY = catcher.y + 1.0;
+
+        // Se veio de uma tabela rápida (1-2), o receptor tem chance altíssima de devolver imediatamente no passador que deu o dash!
+        if (ps.isOneTwoPass && ps.passerNode && Math.random() < 0.68) {
+          const runner = ps.passerNode;
+          const runnerFwd = attIsUser ? runner.x > catcher.x - 2 : runner.x < catcher.x + 2;
+          if (runnerFwd && Math.hypot(runner.x - catcher.x, runner.y - catcher.y) <= 28) {
+            catcher.duelCooldown = 1.0;
+            launchContinuousPass(st, pitch, catcher, attNodes, defNodes, true, false, false);
+            return;
+          }
+        }
         syncLivePitchDOM(st);
       }
     }
