@@ -9737,8 +9737,9 @@
     const oppStats = calcOpponentStats(st.oppTeam, t.stageIndex);
     const compHeaderLabel = st.competition === "WORLD" ? "MUNDIAL (FFI)" : "FUTEBOL FRONTEIRA";
 
+    // Na tela de partida ao vivo / transmissão, o banner de topo (bracketHTML) é omitido
+    // para evitar redundâncias (adversário, status e competição já aparecem no cabeçalho e placar da partida).
     container.innerHTML = `
-      ${bracketHTML}
       ${groupTableHTML}
 
       <div class="broadcast-card">
