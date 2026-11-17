@@ -7906,7 +7906,7 @@
       t.prepTimerId = null;
     }
 
-    // Sorteia 3 opções DISTINTAS da lista de eventos daquele local
+    // Sorteia 3 opções DISTINTAS da lista de eventos daquele local e exibe diretamente (sem roleta/delay)
     const availableEvents = [...loc.events];
     const pickedThree = [];
     for (let c = 0; c < 3 && availableEvents.length > 0; c++) {
@@ -7919,44 +7919,12 @@
       pickedThree.push(loc.events[Math.floor(Math.random() * loc.events.length)]);
     }
 
-    // Cria as 3 tiras da roleta vertical simulando slot machine
-    const slotStrips = pickedThree.map((winnerEv) => {
-      const strip = [];
-      for (let i = 0; i < 16; i++) {
-        if (i === 12) strip.push(winnerEv);
-        else strip.push(loc.events[Math.floor(Math.random() * loc.events.length)]);
-      }
-      return { winner: winnerEv, strip, winnerIdx: 12 };
-    });
-
     t.prep.locId = locId;
-    t.prep.phase = "SPINNING_CHOICES";
+    t.prep.phase = "PICK_CHOICE";
     t.prep.choices = pickedThree;
-    t.prep.slotStrips = slotStrips;
-    t.prep.slotsSpun = [false, false, false];
     t.prep.appliedMsg = null;
 
     renderTournamentScreen();
-
-    // Anima as 3 roletas com parada em cascata (slot 1 aos 1.2s, slot 2 aos 1.7s, slot 3 aos 2.2s)
-    [0, 1, 2].forEach((slotIdx) => {
-      setTimeout(() => {
-        const stripEl = document.getElementById(`prep-slot-strip-${slotIdx}`);
-        if (stripEl) {
-          const itemH = 92;
-          const targetY = -(12 * itemH);
-          stripEl.style.transition = "transform 1.4s cubic-bezier(0.12, 0.85, 0.22, 1)";
-          stripEl.style.transform = `translate3d(0, ${targetY}px, 0)`;
-        }
-      }, slotIdx * 320);
-    });
-
-    t.prepTimerId = setTimeout(() => {
-      t.prepTimerId = null;
-      if (!state.tournament.prep || state.tournament.prep.phase !== "SPINNING_CHOICES") return;
-      state.tournament.prep.phase = "PICK_CHOICE";
-      renderTournamentScreen();
-    }, 2450);
   }
 
   function handleChoosePrepOption(choiceEvent) {
@@ -8378,46 +8346,24 @@
             .join("")}
         </div>
       `;
-    } else if (prep.phase === "SPINNING_CHOICES" || prep.phase === "PICK_CHOICE") {
-      const isSpinning = prep.phase === "SPINNING_CHOICES";
-      const slotColsHTML = (prep.slotStrips || []).map((slotObj, sIdx) => {
-        const stripItemsHTML = (slotObj.strip || []).map((ev) => `
-          <div class="prep-slot-strip-item">
-            ${ev.icon ? `<img src="${ev.icon}" alt="" />` : ""}
-            <span class="prep-slot-strip-title">${ev.title}</span>
-          </div>
-        `).join("");
-
-        const chosenWinner = prep.choices?.[sIdx] || slotObj.winner;
-
+    } else if (prep.phase === "PICK_CHOICE" || prep.phase === "SPINNING_CHOICES") {
+      const slotColsHTML = (prep.choices || []).map((chosenWinner, sIdx) => {
         return `
-          <div class="prep-slot-col ${!isSpinning && chosenWinner ? "is-clickable-choice" : ""}" data-prep-choice-idx="${sIdx}">
+          <div class="prep-slot-col is-clickable-choice" data-prep-choice-idx="${sIdx}">
             <div class="prep-slot-col-header">
               <span class="prep-slot-badge">OPÇÃO ${sIdx + 1}</span>
             </div>
-            ${isSpinning ? `
-              <div class="prep-slot-reel-box" id="prep-slot-box-${sIdx}">
-                <div class="prep-slot-marker"></div>
-                <div class="prep-slot-strip" id="prep-slot-strip-${sIdx}">
-                  ${stripItemsHTML}
-                </div>
+            <div class="prep-choice-card-body is-revealed-choice">
+              <div class="prep-choice-icon-wrap">
+                ${chosenWinner.icon ? `<img src="${chosenWinner.icon}" alt="" />` : ""}
               </div>
-              <div class="prep-choice-card-body is-spinning-wait">
-                <div class="prep-slot-spinning-pulse">⚡ Rodando...</div>
-              </div>
-            ` : (chosenWinner ? `
-              <div class="prep-choice-card-body is-revealed-choice">
-                <div class="prep-choice-icon-wrap">
-                  ${chosenWinner.icon ? `<img src="${chosenWinner.icon}" alt="" />` : ""}
-                </div>
-                <div class="prep-choice-name">${chosenWinner.title}</div>
-                <div class="prep-choice-buff-pill">${getPrepBuffPill(chosenWinner)}</div>
-                <div class="prep-choice-summary">${chosenWinner.summary || ""}</div>
-                <button class="ie-cmd-btn ie-cmd-gold prep-btn-pick" data-prep-choice-idx="${sIdx}">
-                  <span>ESCOLHER</span>
-                </button>
-              </div>
-            ` : "")}
+              <div class="prep-choice-name">${chosenWinner.title}</div>
+              <div class="prep-choice-buff-pill">${getPrepBuffPill(chosenWinner)}</div>
+              <div class="prep-choice-summary">${chosenWinner.summary || ""}</div>
+              <button class="ie-cmd-btn ie-cmd-gold prep-btn-pick" data-prep-choice-idx="${sIdx}">
+                <span>ESCOLHER</span>
+              </button>
+            </div>
           </div>
         `;
       }).join("");
@@ -8430,7 +8376,7 @@
               <div style="font-size:0.68rem; font-weight:900; color:#facc15; text-transform:uppercase;">${activeLoc?.sub || ""}</div>
               <div style="font-size:1.05rem; font-weight:900; color:#fff;">${activeLoc?.title || ""}</div>
               <div class="prep-triple-choose-prompt">
-                ${isSpinning ? "⚡ Sorteando 3 opções..." : "👉 Toque em uma das 3 opções para escolher:"}
+                👉 Toque em uma das 3 opções para escolher:
               </div>
             </div>
           </div>
@@ -8908,18 +8854,6 @@
         ${groupTableHTML}
         ${buildBetweenMatchPrepHTML(t, stats)}
       `;
-
-      if (t.prep.phase !== "CHOOSE_LOC" && t.prep.phase !== "SPINNING_CHOICES" && t.prep.slotStrips) {
-        [0, 1, 2].forEach((sIdx) => {
-          const stripEl = document.getElementById(`prep-slot-strip-${sIdx}`);
-          if (stripEl) {
-            const itemH = 92;
-            const targetY = -(12 * itemH);
-            stripEl.style.transition = "none";
-            stripEl.style.transform = `translate3d(0, ${targetY}px, 0)`;
-          }
-        });
-      }
 
       if (t.prep.clash5v5?.miniSt?.pitch) {
         updatePitchCameraTransform(t.prep.clash5v5.miniSt.pitch, performance.now(), true);
