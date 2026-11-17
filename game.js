@@ -2548,49 +2548,30 @@
       ? `⚡ Preparar para ${nextStageName} ▶`
       : "🏆 Ver Resultado da Campanha ▶";
 
-    // O modal do árbitro aparece EXCLUSIVAMENTE sobre a área do campo (sem fullscreen overlay)
-    slotEl.classList.remove("is-fixed-overlay");
+    // Modal do árbitro limpo e direto: Imagem do árbitro, Fim do 1º Tempo / Fim de Jogo, Placar e Botão abaixo
+    slotEl.classList.add("is-referee-overlay");
     slotEl.style.display = "flex";
     slotEl.innerHTML = `
       <div class="referee-whistle-stage">
-        <div class="referee-left-col">
-          <div class="referee-hero-frame">
-            <img class="referee-sprite-img" src="images/referee_anime.jpg" alt="Árbitro de Anime" onerror="this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.style.display='block';" />
-            <div class="referee-fallback-svg" style="display:none; width:100%; height:100%;">
-              ${buildRefereeGraphicSVG(soundText, isFulltime)}
-            </div>
-            <div class="referee-whistle-chip">APITO</div>
+        <div class="referee-hero-frame">
+          <img class="referee-sprite-img" src="images/referee_anime.jpg" alt="Árbitro de Anime" onerror="this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.style.display='block';" />
+          <div class="referee-fallback-svg" style="display:none; width:100%; height:100%;">
+            ${buildRefereeGraphicSVG(soundText, isFulltime)}
           </div>
+          <div class="referee-whistle-chip">APITO</div>
         </div>
 
-        <div class="referee-center-col">
-          <div class="referee-whistle-header">
-            <div class="referee-whistle-badge">
-              <span class="referee-badge-bolt">⚡</span>
-              <span>${headerBadge}</span>
-            </div>
-            <span class="referee-time-pill">${minuteText}</span>
-          </div>
+        <div class="referee-title">${mainTitle}</div>
 
-          <div class="referee-title">${mainTitle}</div>
-          <div class="referee-scoreboard">
-            <span class="ref-team-name">${st.userTeamName || "Dream Team"}</span>
-            <span class="ref-score-badge">${st.userScore}  -  ${st.oppScore}</span>
-            <span class="ref-team-name">${st.oppTeam?.name || "Adversário"}</span>
-          </div>
-          <div class="referee-subtitle">${subtitleText}</div>
+        <div class="referee-scoreboard">
+          <span class="ref-team-name">${st.userTeamName || "Dream Team"}</span>
+          <span class="ref-score-badge">${st.userScore} - ${st.oppScore}</span>
+          <span class="ref-team-name">${st.oppTeam?.name || "Adversário"}</span>
         </div>
 
-        <div class="referee-right-col">
-          <button class="ie-cmd-btn ie-cmd-gold referee-proceed-btn" id="btn-referee-proceed">
-            <span>${buttonText}</span>
-          </button>
-          ${
-            isFulltime
-              ? `<span id="btn-peek-stats" style="font-size:0.65rem; color:#94a3b8; cursor:pointer; text-decoration:underline; margin-top:2px;">Ver estatísticas</span>`
-              : ""
-          }
-        </div>
+        <button class="ie-cmd-btn ie-cmd-gold referee-proceed-btn" id="btn-referee-proceed">
+          <span>${buttonText}</span>
+        </button>
       </div>
     `;
 
@@ -2606,6 +2587,7 @@
       state.tournament.pendingWhistleFinish = null;
       document.removeEventListener("keydown", keyHandler);
       slotEl.classList.remove("is-fixed-overlay");
+      slotEl.classList.remove("is-referee-overlay");
       slotEl.innerHTML = "";
       slotEl.style.display = "none";
 
