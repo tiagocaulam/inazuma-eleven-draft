@@ -5359,16 +5359,15 @@
               <div class="mode-card is-locked" data-game-mode="historia" aria-disabled="true">
                 <div class="mode-card-head">
                   <div class="mode-card-title">
-                    ${UI.raimonEmblem ? `<img class="mode-emblem-mini" src="${UI.raimonEmblem}" alt="Raimon" />` : ""}
+                    <span class="mode-title-lock" aria-hidden="true">
+                      <svg viewBox="0 0 20 20" width="16" height="16" fill="currentColor"><path fill-rule="evenodd" d="M10 2a4 4 0 0 0-4 4v2H5a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2h-1V6a4 4 0 0 0-4-4Zm2 6V6a2 2 0 1 0-4 0v2h4Zm-2 3.25a1.25 1.25 0 0 1 .75 2.25V15a.75.75 0 0 1-1.5 0v-1.5a1.25 1.25 0 0 1 .75-2.25Z" clip-rule="evenodd"/></svg>
+                    </span>
                     <strong>Modo História</strong>
                   </div>
-                  <span class="mode-badge is-locked">
-                    <svg viewBox="0 0 16 16" width="11" height="11" fill="currentColor" aria-hidden="true"><path d="M5 7V5a3 3 0 0 1 6 0v2h1a1.5 1.5 0 0 1 1.5 1.5v5A1.5 1.5 0 0 1 12 15H4a1.5 1.5 0 0 1-1.5-1.5v-5A1.5 1.5 0 0 1 4 7h1Zm1.5 0h3V5a1.5 1.5 0 0 0-3 0v2Z"/></svg>
-                    EM BREVE
-                  </span>
+                  <span class="mode-badge is-locked">EM BREVE</span>
                 </div>
                 <span class="mode-card-desc">
-                  Reviva a jornada da Raimon capítulo por capítulo. Modo bloqueado — chegará em breve!
+                  Faça a história do seu time crescendo a partir do começo — evolua seus jogadores passo a passo até conquistar tudo!
                 </span>
               </div>
             </div>

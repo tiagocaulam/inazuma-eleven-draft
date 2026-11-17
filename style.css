@@ -361,6 +361,19 @@ body {
   filter: grayscale(0.45);
 }
 
+.mode-title-lock {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  background: rgba(250, 204, 21, 0.14);
+  border: 1px solid rgba(250, 204, 21, 0.45);
+  color: #facc15;
+  flex-shrink: 0;
+}
+
 .mode-badge {
   display: inline-flex;
   align-items: center;
