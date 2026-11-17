@@ -6756,11 +6756,11 @@
         events: [
           {
             id: "coach_double_pass",
-            title: "Passe Livre do Treinador",
+            title: "Passe Livre Permanente do Treinador",
             icon: UI.manualInazuma || UI.ffLogo,
             kind: "PASSIVE_DOUBLE_EVENT",
             weight: 2.2,
-            summary: "Permite ao time realizar 2 eventos de preparação completos antes da próxima partida!"
+            summary: "Passiva Permanente: Seu time ganha +1 ação de evento extra em TODAS as preparações de jogo até o fim do torneio!"
           },
           {
             id: "pendant_endurance",
@@ -7183,11 +7183,10 @@
     clearTournamentTimers(false);
     const t = state.tournament;
     if (!t.prepBonuses) {
-      t.prepBonuses = { xp: 0, chem: 0, power: 0, staminaMul: 1, lateMatchNoStaminaLoss: false, log: [] };
+      t.prepBonuses = { xp: 0, chem: 0, power: 0, staminaMul: 1, lateMatchNoStaminaLoss: false, permanentDoublePrep: false, log: [] };
     }
-    // Se o time tiver créditos de eventos passivos anteriores, utiliza; senão inicia com 1
-    const allowedEvents = t.prepExtraEventCredits ? t.prepExtraEventCredits : 1;
-    t.prepExtraEventCredits = 0;
+    // Se o time tiver a passiva permanente do treinador, cada preparação começa com 2 eventos!
+    const allowedEvents = t.prepBonuses.permanentDoublePrep ? 2 : 1;
 
     t.prep = {
       nextStageIdx,
@@ -7276,13 +7275,13 @@
     if (!prep) return;
     prep.event = choiceEvent;
 
-    // 1. Passiva: Passe Livre do Treinador (+1 evento de preparação extra antes de ir ao jogo)
+    // 1. Passiva Permanente: Passe Livre do Treinador (+1 evento de preparação extra em TODAS as rodadas)
     if (choiceEvent.kind === "PASSIVE_DOUBLE_EVENT") {
+      t.prepBonuses.permanentDoublePrep = true;
       prep.eventsRemaining = (prep.eventsRemaining || 1) + 1;
-      t.prepExtraEventCredits = (t.prepExtraEventCredits || 0) + 1;
-      t.prepBonuses.log.push("Passe Livre do Treinador (+1 Evento)");
+      t.prepBonuses.log.push("Passe Livre do Treinador (Passiva Permanente: 2 Eventos por Jogo)");
       prep.phase = "DONE";
-      prep.appliedMsg = "🎟️ Passe Livre Ativado! Seu time ganhou o direito de realizar +1 EVENTO COMPLETO antes da partida!";
+      prep.appliedMsg = "🎟️ Passiva Permanente Ativada! A partir de agora e para TODAS as partidas do torneio, seu time pode realizar 2 EVENTOS de preparação a cada rodada!";
       renderAll();
       return;
     }
@@ -7646,6 +7645,11 @@
           </h3>
         </div>
         <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+          ${t.prepBonuses?.permanentDoublePrep ? `
+            <span class="prep-xp-pill" style="background:rgba(234, 179, 8, 0.2); border-color:#facc15; color:#fde047;">
+              🎟️ 2 Ações por Jogo (Passiva Permanente Ativa)
+            </span>
+          ` : ""}
           <span class="prep-xp-pill">XP Acumulado: ${t.prepBonuses?.xp || 0}</span>
           <div class="prep-next-opp-pill">
             <img src="${nextStage.oppTeam.emblem}" alt="" />
