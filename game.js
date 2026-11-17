@@ -7458,7 +7458,7 @@
       : `${summary.wins}V/${summary.losses}D`;
     const statusSub = summary.isChampion
       ? `${pluralPt(summary.wins, "vitória", "vitórias")} em ${pluralPt(summary.matchesPlayed, "jogo", "jogos")} (${recordTxt}) · Poder ${stats.power.toLocaleString("pt-BR")} (Rank ${rank}) · OVR ${stats.ovr}`
-      : `${summary.elimInGroup ? "Eliminado na Fase de Grupos" : `Eliminado por ${summary.eliminatedBy || "Adversário"}`} · ${recordTxt} em ${pluralPt(summary.matchesPlayed, "jogo", "jogos")} · Poder ${stats.power.toLocaleString("pt-BR")} (Rank ${rank})`;
+      : `${recordTxt} em ${pluralPt(summary.matchesPlayed, "jogo", "jogos")} · Poder ${stats.power.toLocaleString("pt-BR")} (Rank ${rank})`;
 
     const renderAwardCard = (cls, tag, player, statMain, statSub) => {
       if (!player) return "";
@@ -7478,19 +7478,27 @@
     const mvp = summary.mvp;
     const goalDiffStr = summary.goalDiff >= 0 ? `+${summary.goalDiff}` : `${summary.goalDiff}`;
     const canAdvanceWorldBtn = summary.isFFChampion && !summary.worldUnlocked;
-    const actionButtons = summary.isChampion
-      ? `
+    let actionButtons = "";
+    if (canAdvanceWorldBtn) {
+      // Ao ser campeão do FF, foco total em continuar para o Mundial
+      actionButtons = `
         <button class="ie-cmd-btn export-png-btn" id="btn-export-run-png"><span>Exportar Imagem (PNG)</span></button>
-        <button class="ie-cmd-btn" id="btn-back-to-match-log"><span>Ver Campo / Narração</span></button>
-        ${canAdvanceWorldBtn ? `<button class="ie-cmd-btn ie-cmd-gold" id="btn-advance-world-from-summary"><span>Disputar Mundial (FFI) →</span></button>` : ""}
+        <button class="ie-cmd-btn ie-cmd-gold" id="btn-advance-world-from-summary"><span>Continuar para o Mundial (FFI) →</span></button>
+      `;
+    } else if (summary.isChampion) {
+      // Campeão Mundial final
+      actionButtons = `
+        <button class="ie-cmd-btn export-png-btn" id="btn-export-run-png"><span>Exportar Imagem (PNG)</span></button>
         <button class="ie-cmd-btn ie-cmd-green" id="btn-play-again-draft"><span>Novo Jogo</span></button>
         <button class="ie-cmd-btn ie-cmd-gold" id="btn-rematch-cup"><span>Outro Torneio</span></button>
-      `
-      : `
+      `;
+    } else {
+      // Eliminação / Derrota
+      actionButtons = `
         <button class="ie-cmd-btn export-png-btn" id="btn-export-run-png"><span>Exportar Imagem (PNG)</span></button>
-        <button class="ie-cmd-btn" id="btn-back-to-match-log"><span>Ver Campo / Narração</span></button>
         <button class="ie-cmd-btn ie-cmd-green" id="btn-new-draft-after-loss"><span>Novo Jogo</span></button>
       `;
+    }
 
     return `
       <div class="run-summary-card ${summary.isChampion ? "is-champion" : ""}" id="run-summary-card">
@@ -9600,19 +9608,11 @@
 
     if (isRunEnded && t.showRunSummary) {
       const runSummaryObj = computeTournamentRunSummary(t);
+      // No relatório final, não repete cards de chaveamento/topo nem de fases anteriores
       container.innerHTML = `
-        ${bracketHTML}
         ${groupTableHTML}
         ${buildRunSummaryCardHTML(runSummaryObj, stats, t)}
       `;
-
-      const backLogBtn = document.getElementById("btn-back-to-match-log");
-      if (backLogBtn) {
-        backLogBtn.addEventListener("click", () => {
-          state.tournament.showRunSummary = false;
-          renderTournamentScreen();
-        });
-      }
 
       const advanceFromSummaryBtn = document.getElementById("btn-advance-world-from-summary");
       if (advanceFromSummaryBtn) {
