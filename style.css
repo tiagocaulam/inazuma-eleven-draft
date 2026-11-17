@@ -5183,6 +5183,8 @@ body {
   color: #facc15;
   letter-spacing: 2px;
   text-shadow: 0 0 10px rgba(250, 204, 21, 0.5);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .referee-proceed-btn {
