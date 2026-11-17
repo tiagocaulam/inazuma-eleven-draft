@@ -5109,9 +5109,9 @@ body {
   height: 96px;
   border-radius: 14px;
   overflow: hidden;
-  border: 2px solid #38bdf8;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.75), inset 0 0 20px rgba(14, 165, 233, 0.35);
-  background: #020617;
+  border: 2px solid #facc15;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.75), inset 0 0 20px rgba(250, 204, 21, 0.25);
+  background: radial-gradient(circle at center, rgba(30, 58, 138, 0.8), rgba(2, 6, 23, 0.95));
   display: flex;
   align-items: center;
   justify-content: center;
@@ -5126,6 +5126,15 @@ body {
   display: block;
   transform: scale(1.06);
   filter: contrast(1.05) saturate(1.1);
+}
+
+.referee-sprite-img.whistle-png-img {
+  width: 82%;
+  height: 82%;
+  object-fit: contain;
+  object-position: center;
+  transform: scale(1.02);
+  filter: drop-shadow(0 4px 12px rgba(250, 204, 21, 0.55));
 }
 
 .referee-whistle-chip {

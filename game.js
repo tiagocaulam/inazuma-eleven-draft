@@ -2548,17 +2548,16 @@
       ? `⚡ Preparar para ${nextStageName} ▶`
       : "🏆 Ver Resultado da Campanha ▶";
 
-    // Modal do árbitro limpo e direto: Imagem do árbitro, Fim do 1º Tempo / Fim de Jogo, Placar e Botão abaixo
+    // Modal do árbitro/apito limpo e direto: Ícone/PNG do Apito, Fim do 1º Tempo / Fim de Jogo, Placar e Botão abaixo
     slotEl.classList.add("is-referee-overlay");
     slotEl.style.display = "flex";
     slotEl.innerHTML = `
       <div class="referee-whistle-stage">
         <div class="referee-hero-frame">
-          <img class="referee-sprite-img" src="images/referee_anime.jpg" alt="Árbitro de Anime" onerror="this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.style.display='block';" />
-          <div class="referee-fallback-svg" style="display:none; width:100%; height:100%;">
-            ${buildRefereeGraphicSVG(soundText, isFulltime)}
+          <img class="referee-sprite-img whistle-png-img" src="images/whistle.png" alt="Apito do Árbitro" onerror="this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.style.display='flex';" />
+          <div class="referee-whistle-emoji-fallback" style="display:none; width:100%; height:100%; align-items:center; justify-content:center; font-size:3.2rem; filter:drop-shadow(0 4px 10px rgba(250,204,21,0.5));">
+            📢
           </div>
-          <div class="referee-whistle-chip">APITO</div>
         </div>
 
         <div class="referee-title">${mainTitle}</div>
