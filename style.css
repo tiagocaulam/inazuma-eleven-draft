@@ -5323,46 +5323,19 @@ body {
   }
   .referee-proceed-btn {
     min-width: 0;
-    max-width: 110px;
-    padding: 5px 8px;
-    font-size: 0.68rem;
+    max-width: 120px;
+    padding: 6px 10px;
+    font-size: 0.72rem;
+    white-space: normal;
+    text-align: center;
   }
-}
-  margin-top: 2px;
 }
 
 .referee-autotimer {
   font-size: 0.62rem;
   color: #64748b;
   font-weight: 700;
-}
-
-@media (max-width: 640px) {
-  .referee-whistle-stage {
-    max-width: 320px;
-    padding: 10px 12px;
-    gap: 8px;
-  }
-  .referee-hero-frame {
-    height: 110px;
-  }
-  .referee-title {
-    font-size: 0.92rem;
-  }
-  .ref-score-badge {
-    font-size: 1.1rem;
-  }
-  .ref-team-name {
-    font-size: 0.72rem;
-    max-width: 95px;
-  }
-  .referee-subtitle {
-    font-size: 0.68rem;
-  }
-  .referee-proceed-btn {
-    padding: 7px 12px;
-    font-size: 0.78rem;
-  }
+  margin-top: 2px;
 }
 
 .halftime-qte-stage {
