@@ -341,8 +341,10 @@
   function pickStaminaGatedMove(node, category) {
     const stamina = node ? node.stamina : 100;
     const list = node?.player?.moves?.[category] || [];
-    const heavyCost = category === "GK" || category === "SH" ? 28 : 22;
-    const stdCost = category === "GK" || category === "SH" ? 19 : 15;
+    // Técnicas pesadas (super técnicas de grau alto) gastam bem mais energia!
+    const heavyCost = category === "GK" || category === "SH" ? 38 : 32;
+    // Técnicas padrão/médias também têm gasto relevante
+    const stdCost = category === "GK" || category === "SH" ? 26 : 22;
 
     if (stamina < 45) {
       return {
@@ -350,7 +352,7 @@
         isHeavy: false,
         exhausted: true,
         gatedReason: "RED",
-        cost: 6,
+        cost: 10,
         duelBonus: -2.2
       };
     }
@@ -361,7 +363,7 @@
         isHeavy: false,
         exhausted: false,
         gatedReason: null,
-        cost: 7,
+        cost: 12,
         duelBonus: -0.6
       };
     }
@@ -385,7 +387,7 @@
         exhausted: false,
         gatedReason: null,
         cost: isHeavy ? heavyCost : stdCost,
-        duelBonus: isHeavy ? 1.15 : 0
+        duelBonus: isHeavy ? 1.4 : 0
       };
     }
 
@@ -408,7 +410,7 @@
       isHeavy: false,
       exhausted: false,
       gatedReason: "YELLOW_ONLY_HEAVY",
-      cost: 7,
+      cost: 12,
       duelBonus: -1.4
     };
   }
@@ -4523,7 +4525,9 @@
     const passSpeed = dist > 30 ? 56 : 48;
     const duration = Math.max(0.20, Math.min(0.85, dist / passSpeed));
 
-    spendStamina(carrier, isSafeProtectedPass ? 1.5 : 3.5);
+    // Passe normal consome 4.5; reposição de goleiro 2.0; tabela com dash consome arrancada física (12 de stamina)!
+    const passStaminaCost = isOneTwoPass ? 12 : isGkOutlet ? 2.0 : safeRestart ? 2.5 : 4.5;
+    spendStamina(carrier, passStaminaCost);
     if (attIsUser) {
       if (isGkOutlet) {
         pitch.stats.userGkReleases = (pitch.stats.userGkReleases || 0) + 1;
@@ -5025,7 +5029,8 @@
         }
         allNodes.forEach((n) => {
           if (n.uid !== pitch.carrierUid) {
-            const regen = n.role === "GK" ? 2.4 : 1.9;
+            // Regeneração passiva mais moderada por minuto para que o cansaço acumulado importe!
+            const regen = n.role === "GK" ? 1.4 : 1.1;
             n.stamina = Math.min(100, n.stamina + regen);
           }
         });
