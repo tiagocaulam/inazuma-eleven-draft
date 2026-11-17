@@ -2923,6 +2923,7 @@
     }
 
     const pitch = {
+      is5v5: false,
       userNodes,
       oppNodes,
       oppTeamName: st.oppTeam.name,
@@ -3231,9 +3232,13 @@
     if (tr === "WING") {
       const ballOnOppositeFlank = (node.baseY < 50 && ballY > 56) || (node.baseY >= 50 && ballY < 44);
       if (inPossession) {
+        // No 11x11 com impedimento, pontas não estouram a linha de impedimento; buscam ficar no limite legal (onside)
+        const maxLegalPushX = pitch.is5v5
+          ? (isUser ? 89 : 11)
+          : (isUser ? Math.min(88, Math.max(52, deepestOppDefX - 0.5)) : Math.max(12, Math.min(48, deepestOppDefX + 0.5)));
         const pushX = isUser
-          ? Math.min(89, Math.max(66, deepestOppDefX + 1))
-          : Math.max(11, Math.min(34, deepestOppDefX - 1));
+          ? Math.min(maxLegalPushX, Math.max(66, deepestOppDefX - 0.5))
+          : Math.max(maxLegalPushX, Math.min(34, deepestOppDefX + 0.5));
         const targetY = ballOnOppositeFlank
           ? node.baseY < 50
             ? 34
@@ -3252,10 +3257,25 @@
     }
 
     // ST (CA / ATA): espeta na última linha defensiva e faz desmarcações!
+    // Inteligência tática: no 11x11, atacantes aprendem a NÃO ficar impedidos e recuam para posição legal se estiverem adiantados.
     if (inPossession) {
-      const lineX = isUser
-        ? Math.min(90, Math.max(66, deepestOppDefX + 1.2))
-        : Math.max(10, Math.min(34, deepestOppDefX - 1.2));
+      let lineX;
+      if (pitch.is5v5) {
+        // No 5x5 NÃO existe impedimento, atacante pode espetar e infiltrar livremente!
+        lineX = isUser
+          ? Math.min(90, Math.max(66, deepestOppDefX + 1.2))
+          : Math.max(10, Math.min(34, deepestOppDefX - 1.2));
+      } else {
+        // No 11x11: monitora a linha defensiva adversária (deepestOppDefX).
+        // Se o atacante estiver adiantado além da linha de impedimento (ou na iminência),
+        // ele recua ativamente 0.8 a 1.5m para sair do impedimento e dar opção de passe limpa.
+        const isPastDefLine = isUser ? node.x >= deepestOppDefX - 0.2 : node.x <= deepestOppDefX + 0.2;
+        const legalHoldX = isUser
+          ? Math.min(87, Math.max(52, deepestOppDefX - 0.8))
+          : Math.max(13, Math.min(48, deepestOppDefX + 0.8));
+
+        lineX = isPastDefLine ? legalHoldX : (isUser ? Math.min(legalHoldX, node.baseX + 16) : Math.max(legalHoldX, node.baseX - 16));
+      }
       const runY = node.baseY + Math.sin(t * 1.55 + node.wanderPhase) * 12;
       return { tx: lineX, ty: Math.max(24, Math.min(76, runY)), sprint: 1.0 };
     } else {
@@ -3869,18 +3889,18 @@
         }
       }
 
-      // Regra de impedimento: evita tocar para jogador adiantado na banheira em posição irregular
+      // Regra de impedimento: no 5x5 NÃO há impedimento. No 11x11, evita tocar para jogador adiantado na banheira em posição irregular
       const oppOutfieldDefs = (defNodes || []).filter((d) => d.role !== "GK");
       const oppDefLineX = oppOutfieldDefs.length > 0
         ? (attIsUser ? Math.max(...oppOutfieldDefs.map((d) => d.x)) : Math.min(...oppOutfieldDefs.map((d) => d.x)))
         : (attIsUser ? 84 : 16);
 
-      const isCandidateOffside = attIsUser
+      const isCandidateOffside = !pitch.is5v5 && (attIsUser
         ? (n.x > 50 && n.x > carrier.x + 0.6 && n.x > oppDefLineX + 0.6)
-        : (n.x < 50 && n.x < carrier.x - 0.6 && n.x < oppDefLineX - 0.6);
+        : (n.x < 50 && n.x < carrier.x - 0.6 && n.x < oppDefLineX - 0.6));
 
       if (isCandidateOffside) {
-        return 0.02; // Não passa para quem está impedido!
+        return 0.001; // Inteligência tática: recusa passar para companheiro em posição de impedimento!
       }
 
       // Bônus para companheiro com corredor aberto à frente para receber passe no espaço vazio
@@ -5277,6 +5297,7 @@
     const fwdDir = attIsUser ? 1 : -1;
 
     // Linha de impedimento (penúltimo adversário, ou seja, o último jogador de linha)
+    // No 5x5 NÃO há regra de impedimento
     const oppOutfieldDefs = (defNodes || []).filter((d) => d.role !== "GK");
     const oppDefLineX = oppOutfieldDefs.length > 0
       ? (attIsUser ? Math.max(...oppOutfieldDefs.map((d) => d.x)) : Math.min(...oppOutfieldDefs.map((d) => d.x)))
@@ -5286,11 +5307,12 @@
     // 1) Em seu próprio campo, OU
     // 2) Atrás ou na mesma linha da bola, OU
     // 3) Atrás ou na mesma linha do penúltimo adversário
-    const isReceiverOnside = attIsUser
+    // OBS: No 5x5, jogador está SEMPRE em condição legal (isReceiverOnside = true)
+    const isReceiverOnside = pitch.is5v5 || (attIsUser
       ? (receiver.x <= 50 || receiver.x <= carrier.x + 0.8 || receiver.x <= oppDefLineX + 0.8)
-      : (receiver.x >= 50 || receiver.x >= carrier.x - 0.8 || receiver.x >= oppDefLineX - 0.8);
+      : (receiver.x >= 50 || receiver.x >= carrier.x - 0.8 || receiver.x >= oppDefLineX - 0.8));
 
-    const wasOffsideAtPassTime = !isReceiverOnside && (attIsUser ? receiver.x > 50 : receiver.x < 50);
+    const wasOffsideAtPassTime = !pitch.is5v5 && !isReceiverOnside && (attIsUser ? receiver.x > 50 : receiver.x < 50);
 
     const effRole = getEffectiveCarrierRole(carrier);
     const forwardSpace = attIsUser ? (oppDefLineX - receiver.x) : (receiver.x - oppDefLineX);
@@ -6778,8 +6800,8 @@
       if (ps.progress >= 1 || (receiver && ps.progress >= 0.38 && Math.hypot(receiver.x - pitch.ballX, receiver.y - pitch.ballY) <= catchDist)) {
         const catcher = receiver || attNodes[0];
 
-        // Se o recebedor partiu de posição de impedimento no momento do passe, o juiz apita!
-        if (ps.wasOffsideAtPassTime) {
+        // Se o recebedor partiu de posição de impedimento no momento do passe, o juiz apita! (Apenas no 11x11, nunca no 5x5)
+        if (ps.wasOffsideAtPassTime && !pitch.is5v5) {
           pitch.ballSide = attIsUser ? "opp" : "user";
           pitch.ballMode = "CARRIED";
           const restartDef = defNodes.find((d) => d.role !== "GK") || defNodes[0];
@@ -6790,23 +6812,54 @@
           pitch.lastPasserUid = null;
           pitch.teamConsecutivePasses = 0;
           restartDef.carryTime = 0;
-          restartDef.decisionTimer = 0.35;
-          pitch.ballX = restartDef.x + (restartDef.side === "user" ? 1.8 : -1.8);
-          pitch.ballY = restartDef.y + 1.0;
+          restartDef.decisionTimer = 0.65;
+
+          // Posição da falta por impedimento
+          pitch.ballX = Math.max(14, Math.min(86, catcher.x));
+          pitch.ballY = Math.max(16, Math.min(84, catcher.y));
+          restartDef.x = pitch.ballX;
+          restartDef.y = pitch.ballY;
+          restartDef.targetX = pitch.ballX;
+          restartDef.targetY = pitch.ballY;
+          restartDef.vx = 0;
+          restartDef.vy = 0;
+
+          // Reestruturação tática: todo o time se reorganiza e recompõe suas posições antes da cobrança
+          [...pitch.userNodes, ...pitch.oppNodes].forEach((n) => {
+            n.vx = 0;
+            n.vy = 0;
+            n.duelCooldown = 0.8;
+            n.staggerTimer = 0;
+            if (n.uid !== restartDef.uid) {
+              const defSideIsUser = restartDef.side === "user";
+              // Time que cobra adianta suas linhas táticas; time infrator recompõe para trás da linha da bola
+              if (n.side === restartDef.side) {
+                n.targetX = defSideIsUser
+                  ? Math.min(82, Math.max(12, n.baseX + 6))
+                  : Math.max(18, Math.min(88, n.baseX - 6));
+              } else {
+                n.targetX = defSideIsUser
+                  ? Math.max(28, Math.min(85, n.baseX - 8))
+                  : Math.min(72, Math.max(15, n.baseX + 8));
+              }
+              n.targetY = n.baseY;
+              n.targetSprint = 1.15; // Correm para se reestruturar rapidamente
+            }
+          });
 
           showNodeBadge(pitch, catcher.uid, "🚩 Impedimento!", "badge-lost", 1700);
-          showPitchBadge(pitch, pitch.ballX, pitch.ballY, "IMPEDIMENTO", "badge-lost", 1200);
+          showPitchBadge(pitch, pitch.ballX, pitch.ballY, "IMPEDIMENTO", "badge-lost", 1300);
           prependNarrationLine(
             st,
             "nar-steal",
-            `${st.minute}' [Impedimento] O árbitro paralisa o lance! ${catcher.player.name} estava adiantado no momento do passe.`,
+            `${st.minute}' [Impedimento] O árbitro paralisa o lance! ${catcher.player.name} estava adiantado. Os times se reestruturam para o tiro livre indireto.`,
             { name: catcher.player.name, sprite: catcher.player.sprite, side: catcher.side },
             null,
             "BALL"
           );
-          pitch.ticker = `${st.minute}' 🚩 Impedimento assinalado contra ${catcher.player.name}!`;
+          pitch.ticker = `${st.minute}' 🚩 Impedimento contra ${catcher.player.name}! Cobrança armada.`;
           syncLivePitchDOM(st);
-          pauseForPitchBeat(st, "", "", 1100, ovrDiff);
+          pauseForPitchBeat(st, "", "", 1400, ovrDiff);
           return;
         }
 
@@ -8661,6 +8714,7 @@
     }
 
     const pitch = {
+      is5v5: true,
       userNodes,
       oppNodes,
       oppTeamName: miniSt.oppTeam.name,
