@@ -49,62 +49,58 @@
 
   function buildGoalTopDownSVG(side = "left") {
     const isLeft = side === "left";
-    const netPatternId = isLeft ? "netMeshPatternLeft" : "netMeshPatternRight";
-    const postGradId = isLeft ? "postCylinderLeft" : "postCylinderRight";
+    const netPatternId = isLeft ? "netGridLeft" : "netGridRight";
+    const postGradId = isLeft ? "postGradLeft" : "postGradRight";
 
-    // O gol é visto meio de cima (perspectiva 2.5D de transmissão):
-    // side === 'left': o travessão e postes frontais ficam alinhados à linha de gol (lado direito do box, x=44),
-    // enquanto a profundidade da rede se estende para trás (x=6).
-    // side === 'right': o travessão e postes frontais ficam no lado esquerdo do box (x=6),
-    // e a rede se estende para trás (x=44).
-    const frontX = isLeft ? 45 : 5;
-    const backX = isLeft ? 7 : 43;
-    const topPostY = 12;
-    const botPostY = 88;
-    const rearTopY = 18;
-    const rearBotY = 82;
-
-    const netPoints = isLeft
-      ? `${backX},${rearTopY} ${frontX},${topPostY} ${frontX},${botPostY} ${backX},${rearBotY}`
-      : `${frontX},${topPostY} ${backX},${rearTopY} ${backX},${rearBotY} ${frontX},${botPostY}`;
-
-    const shadowPoints = isLeft
-      ? `${backX - 2},${rearTopY + 2} ${frontX},${topPostY} ${frontX},${botPostY} ${backX - 2},${rearBotY + 2}`
-      : `${frontX},${topPostY} ${backX + 2},${rearTopY + 2} ${backX + 2},${rearBotY + 2} ${frontX},${botPostY}`;
-
-    const strutTop = `M ${frontX},${topPostY} L ${backX},${rearTopY}`;
-    const strutBot = `M ${frontX},${botPostY} L ${backX},${rearBotY}`;
-    const rearBaseBar = `M ${backX},${rearTopY} L ${backX},${rearBotY}`;
+    // Vista de cima totalmente (planta baixa pura a 90°):
+    // side === 'left': o travessão e postes ficam exatamente no limite direito do box (x=35),
+    // apoiados sobre a linha de fundo (4.5%), enquanto a rede se estende para trás na grama externa (x=2).
+    // side === 'right': o travessão e postes ficam no limite esquerdo do box (x=2),
+    // apoiados sobre a linha de fundo (95.5%), enquanto a rede se estende para trás na grama externa (x=35).
+    const frontX = isLeft ? 35 : 2;
+    const backX = isLeft ? 2 : 35;
+    const topY = 6;
+    const botY = 94;
+    const rectX = Math.min(frontX, backX);
+    const width = Math.abs(frontX - backX);
+    const height = botY - topY;
 
     return `
-      <svg class="goal-topdown-svg side-${side}" viewBox="0 0 50 100" preserveAspectRatio="none">
+      <svg class="goal-topdown-svg side-${side}" viewBox="0 0 37 100" preserveAspectRatio="none">
         <defs>
           <linearGradient id="${postGradId}" x1="0%" y1="0%" x2="100%" y2="0%">
             <stop offset="0%" stop-color="#cbd5e1"/>
             <stop offset="30%" stop-color="#ffffff"/>
-            <stop offset="65%" stop-color="#f1f5f9"/>
+            <stop offset="70%" stop-color="#f8fafc"/>
             <stop offset="100%" stop-color="#64748b"/>
           </linearGradient>
-          <pattern id="${netPatternId}" width="6" height="6" patternUnits="userSpaceOnUse">
-            <path d="M 0 3 L 3 0 L 6 3 L 3 6 Z" fill="none" stroke="rgba(255,255,255,0.48)" stroke-width="0.75"/>
+          <pattern id="${netPatternId}" width="5" height="5" patternUnits="userSpaceOnUse">
+            <path d="M 5 0 L 0 0 0 5" fill="none" stroke="rgba(255,255,255,0.68)" stroke-width="0.8"/>
           </pattern>
         </defs>
 
-        <!-- Sombra da trave e da rede no gramado -->
-        <polygon points="${shadowPoints}" fill="rgba(0, 10, 4, 0.42)" />
+        <!-- Sombra da rede e da armação no gramado atrás da linha de fundo -->
+        <rect x="${rectX}" y="${topY}" width="${width}" height="${height}" rx="1" fill="rgba(0, 15, 6, 0.45)" />
 
-        <!-- Malha tridimensional da rede vista de cima -->
-        <polygon points="${netPoints}" class="goal-net-mesh" fill="url(#${netPatternId})" stroke="rgba(255,255,255,0.55)" stroke-width="0.9" />
+        <!-- Malha quadriculada da rede vista de cima totalmente -->
+        <rect x="${rectX}" y="${topY}" width="${width}" height="${height}" class="goal-net-mesh" fill="url(#${netPatternId})" stroke="rgba(255,255,255,0.72)" stroke-width="1.2" />
 
-        <!-- Estrutura metálica traseira de suporte (hastes no chão e inclinadas) -->
-        <path d="${rearBaseBar}" stroke="#94a3b8" stroke-width="2.2" stroke-linecap="round" fill="none" opacity="0.85"/>
-        <path d="${strutTop}" stroke="#94a3b8" stroke-width="2.4" stroke-linecap="round" fill="none"/>
-        <path d="${strutBot}" stroke="#94a3b8" stroke-width="2.4" stroke-linecap="round" fill="none"/>
+        <!-- Estrutura metálica de sustentação (barras horizontais e barra de fundo no chão) -->
+        <line x1="${frontX}" y1="${topY}" x2="${backX}" y2="${topY}" stroke="#94a3b8" stroke-width="2.2" stroke-linecap="round"/>
+        <line x1="${frontX}" y1="${botY}" x2="${backX}" y2="${botY}" stroke="#94a3b8" stroke-width="2.2" stroke-linecap="round"/>
+        <line x1="${backX}" y1="${topY}" x2="${backX}" y2="${botY}" stroke="#94a3b8" stroke-width="2.2" stroke-linecap="round"/>
+        <circle cx="${backX}" cy="${topY}" r="2" fill="#64748b"/>
+        <circle cx="${backX}" cy="${botY}" r="2" fill="#64748b"/>
 
-        <!-- Travessão principal frontal e postes cilíndricos brancos com brilho metálico -->
-        <line x1="${frontX}" y1="${topPostY}" x2="${frontX}" y2="${botPostY}" stroke="url(#${postGradId})" stroke-width="4.2" stroke-linecap="round"/>
-        <circle cx="${frontX}" cy="${topPostY}" r="3.2" fill="#ffffff" stroke="#64748b" stroke-width="0.9"/>
-        <circle cx="${frontX}" cy="${botPostY}" r="3.2" fill="#ffffff" stroke="#64748b" stroke-width="0.9"/>
+        <!-- Travessão branco cilíndrico visto de cima conectando os dois postes sobre a linha de fundo -->
+        <line x1="${frontX}" y1="${topY}" x2="${frontX}" y2="${botY}" stroke="url(#${postGradId})" stroke-width="4.4" stroke-linecap="round"/>
+        <line x1="${frontX}" y1="${topY}" x2="${frontX}" y2="${botY}" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round"/>
+
+        <!-- Postes verticais cilíndricos (vistos de cima como círculos brancos sobre a linha de fundo) -->
+        <circle cx="${frontX}" cy="${topY}" r="3.2" fill="#ffffff" stroke="#1e293b" stroke-width="1.2"/>
+        <circle cx="${frontX}" cy="${topY}" r="1.4" fill="#f8fafc"/>
+        <circle cx="${frontX}" cy="${botY}" r="3.2" fill="#ffffff" stroke="#1e293b" stroke-width="1.2"/>
+        <circle cx="${frontX}" cy="${botY}" r="1.4" fill="#f8fafc"/>
       </svg>
     `;
   }
@@ -4789,10 +4785,16 @@
 
         <div class="live-tactical-pitch ${st.isGoldenGoal5v5 ? "is-5v5-pitch" : ""}" id="live-tactical-pitch-viewport">
           <div class="pitch-world" id="live-pitch-world">
+            <div class="pitch-field-outline"></div>
             <div class="pitch-line-mid"></div>
             <div class="pitch-center-circle"></div>
+            <div class="pitch-center-dot"></div>
             <div class="pitch-box-left"></div>
             <div class="pitch-box-right"></div>
+            <div class="pitch-small-box-left"></div>
+            <div class="pitch-small-box-right"></div>
+            <div class="pitch-arc-left"></div>
+            <div class="pitch-arc-right"></div>
             <div class="pitch-goal-left" id="pitch-goal-left">${buildGoalTopDownSVG("left")}</div>
             <div class="pitch-goal-right" id="pitch-goal-right">${buildGoalTopDownSVG("right")}</div>
 

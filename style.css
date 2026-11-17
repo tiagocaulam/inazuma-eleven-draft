@@ -2565,53 +2565,144 @@ body {
   height: 155%;
 }
 
+/* Quatro linhas do campo (retângulo oficial mostrando as linhas de fundo e laterais com grama externa) */
+.pitch-field-outline {
+  position: absolute;
+  left: 4.5%;
+  right: 4.5%;
+  top: 6%;
+  bottom: 6%;
+  border: 2px solid rgba(255, 255, 255, 0.52);
+  pointer-events: none;
+  z-index: 2;
+  box-sizing: border-box;
+}
+
 .pitch-line-mid {
   position: absolute;
   left: 50%;
-  top: 0;
-  bottom: 0;
+  top: 6%;
+  bottom: 6%;
   width: 2px;
   background: rgba(255, 255, 255, 0.42);
   transform: translateX(-50%);
+  pointer-events: none;
+  z-index: 2;
 }
 
 .pitch-center-circle {
   position: absolute;
   left: 50%;
   top: 50%;
-  width: 116px;
-  height: 116px;
+  width: 112px;
+  height: 112px;
   border: 2px solid rgba(255, 255, 255, 0.42);
   border-radius: 50%;
   transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 2;
 }
 
+.pitch-center-dot {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.72);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* Grande área (Penalty Box) */
 .pitch-box-left {
   position: absolute;
-  left: 0;
-  top: 21%;
-  bottom: 21%;
-  width: 13%;
-  border: 2px solid rgba(255, 255, 255, 0.42);
+  left: 4.5%;
+  top: 22%;
+  bottom: 22%;
+  width: 13.5%;
+  border: 2px solid rgba(255, 255, 255, 0.45);
   border-left: none;
+  pointer-events: none;
+  z-index: 2;
 }
 
 .pitch-box-right {
   position: absolute;
-  right: 0;
-  top: 21%;
-  bottom: 21%;
-  width: 13%;
-  border: 2px solid rgba(255, 255, 255, 0.42);
+  right: 4.5%;
+  top: 22%;
+  bottom: 22%;
+  width: 13.5%;
+  border: 2px solid rgba(255, 255, 255, 0.45);
   border-right: none;
+  pointer-events: none;
+  z-index: 2;
 }
 
+/* Pequena área (Goal Area / 6-yard box) */
+.pitch-small-box-left {
+  position: absolute;
+  left: 4.5%;
+  top: 35%;
+  bottom: 35%;
+  width: 4.8%;
+  border: 2px solid rgba(255, 255, 255, 0.40);
+  border-left: none;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.pitch-small-box-right {
+  position: absolute;
+  right: 4.5%;
+  top: 35%;
+  bottom: 35%;
+  width: 4.8%;
+  border: 2px solid rgba(255, 255, 255, 0.40);
+  border-right: none;
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* Meia-lua da grande área (D-arc) */
+.pitch-arc-left {
+  position: absolute;
+  left: 18%;
+  top: 50%;
+  width: 40px;
+  height: 56px;
+  border: 2px solid rgba(255, 255, 255, 0.38);
+  border-left: none;
+  border-radius: 0 40px 40px 0;
+  transform: translateY(-50%);
+  pointer-events: none;
+  z-index: 2;
+}
+
+.pitch-arc-right {
+  position: absolute;
+  right: 18%;
+  top: 50%;
+  width: 40px;
+  height: 56px;
+  border: 2px solid rgba(255, 255, 255, 0.38);
+  border-right: none;
+  border-radius: 40px 0 0 40px;
+  transform: translateY(-50%);
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* Trave do gol posicionada no local exato:
+   Apoiada diretamente sobre a linha de fundo (4.5% e 95.5%) e projetada para trás na grama externa */
 .pitch-goal-left {
   position: absolute;
-  left: 0;
-  top: 35.5%;
-  bottom: 35.5%;
-  width: 5.5%;
+  left: 0.8%;
+  top: 36.5%;
+  bottom: 36.5%;
+  width: 3.7%;
   background: transparent;
   border: none;
   pointer-events: none;
@@ -2622,10 +2713,10 @@ body {
 
 .pitch-goal-right {
   position: absolute;
-  right: 0;
-  top: 35.5%;
-  bottom: 35.5%;
-  width: 5.5%;
+  right: 0.8%;
+  top: 36.5%;
+  bottom: 36.5%;
+  width: 3.7%;
   background: transparent;
   border: none;
   pointer-events: none;
