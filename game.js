@@ -466,7 +466,7 @@
 
   function getEffectiveOvr(player, slotRole) {
     if (!player) return 0;
-    // OVR é 100% FIXO! Define o talento base e quanto Poder o jogador ganha a cada Nível.
+    // OVR é a média dos status base do jogador no Nv. 1 (fixo).
     // Apenas improvisar fora da posição reduz o OVR tático naquela vaga.
     if (!slotRole || playerMatchesRole(player, slotRole)) return player.ovr;
     const validPos = getPlayerPositionsList(player);
@@ -484,8 +484,208 @@
     return Math.max(1, Math.min(30, Math.round(player.level || 1)));
   }
 
-  // Quanto maior o OVR fixo do jogador, MAIS PODER ele recebe a cada Nível!
-  // Ex: OVR 72 = +8/nv | OVR 82 = +13/nv | OVR 88 = +18/nv | OVR 92 = +21/nv | OVR 95 = +24/nv | OVR 97 = +27/nv
+  // Perfis de Status Base inspirados na Wiki/Jogos de Inazuma Eleven:
+  // FOR (Força/Chute), TEC (Técnica/Controle), DEF (Defesa/Guarda), VEL (Velocidade), FIS (Físico/Vigor)
+  // A soma dos desvios é 0 para que a média exata dos 5 atributos no Nv. 1 seja igual ao OVERALL (OVR)!
+  const CANONICAL_PLAYER_ARCHETYPES = [
+    { rx: /endou|satoru endo/i, d: [0, -1, 4, -5, 2] },
+    { rx: /gouenji|goenji/i, d: [4, 0, -6, 1, 1] },
+    { rx: /kidou|yuto kido/i, d: [-1, 5, -2, 0, -2] },
+    { rx: /kazemaru/i, d: [-3, 1, 0, 7, -5] },
+    { rx: /kabeyama/i, d: [-4, -4, 8, -8, 8] },
+    { rx: /someoka/i, d: [5, -2, -5, -1, 3] },
+    { rx: /fubuki|shirou/i, d: [3, 1, 1, 4, -9] },
+    { rx: /hiroto|kiyama|gran/i, d: [4, 2, -6, 1, -1] },
+    { rx: /toramaru/i, d: [3, 3, -7, 3, -2] },
+    { rx: /tobitaka/i, d: [1, -6, 7, 0, -2] },
+    { rx: /tsunami/i, d: [4, -4, 2, -1, -1] },
+    { rx: /fudou|caleb/i, d: [1, 5, -1, 1, -6] },
+    { rx: /sakuma/i, d: [2, 3, -4, 1, -2] },
+    { rx: /genda/i, d: [-2, -2, 6, -4, 2] },
+    { rx: /ichinose/i, d: [0, 6, -3, 2, -5] },
+    { rx: /domon/i, d: [-4, 0, 5, 0, -1] },
+    { rx: /aphrodi|afuro|byron/i, d: [3, 4, -6, 1, -2] },
+    { rx: /burn|nagumo/i, d: [4, 0, -6, 3, -1] },
+    { rx: /gazel|suzuno/i, d: [2, 3, -4, 2, -3] },
+    { rx: /desarm|saginuma/i, d: [3, 0, 3, -5, -1] },
+    { rx: /midorikawa|reize/i, d: [0, 3, -4, 4, -3] },
+    { rx: /rococo|hector/i, d: [3, -1, 4, -5, -1] },
+    { rx: /fideo|paolo/i, d: [3, 4, -5, 1, -3] },
+    { rx: /teres|thiago/i, d: [-2, -2, 7, -7, 4] },
+    { rx: /edgar/i, d: [5, 1, -5, -1, 0] },
+    { rx: /roniejo|robinson/i, d: [4, 3, -6, 2, -3] },
+    { rx: /tenma|arion/i, d: [-1, 4, 0, 3, -6] },
+    { rx: /tsurugi|victor/i, d: [5, 1, -6, 2, -2] },
+    { rx: /shindou|riccardo/i, d: [-1, 6, -1, -1, -3] },
+    { rx: /kirino|gabriel/i, d: [-5, 2, 6, 1, -4] },
+    { rx: /shinsuke|jp/i, d: [-4, 0, 5, 3, -4] },
+    { rx: /kariya|aitor/i, d: [-5, 1, 6, 2, -4] },
+    { rx: /sangoku|sam/i, d: [-3, -2, 6, -5, 4] },
+    { rx: /nishiki|roma/i, d: [3, 1, -3, 1, -2] },
+    { rx: /hakuryuu|bailong/i, d: [5, 0, -7, 3, -1] },
+    { rx: /taiyou|sol/i, d: [2, 5, -6, 2, -3] },
+    { rx: /yukimura/i, d: [3, 1, -6, 4, -2] },
+    { rx: /alpha/i, d: [4, 2, -6, 2, -2] },
+    { rx: /beta/i, d: [5, 2, -6, 2, -3] },
+    { rx: /gamma/i, d: [4, 3, -6, 1, -2] },
+    { rx: /zanark/i, d: [6, -2, -6, 0, 2] },
+    { rx: /saru|simeon/i, d: [4, 2, -6, 2, -2] },
+    { rx: /fei/i, d: [2, 3, -5, 4, -4] },
+    { rx: /kinako|goldie/i, d: [0, 0, 6, -2, -4] },
+    { rx: /matatagi|falco/i, d: [2, 0, -7, 8, -3] },
+    { rx: /ibuki|terry/i, d: [0, -3, 5, -3, 1] },
+    { rx: /ozrock/i, d: [5, 0, -6, 0, 1] },
+    { rx: /baddap|bash/i, d: [5, 0, -6, 1, 0] }
+  ];
+
+  function calcPlayerAttributes(player, slotRole = null, forcedLevel = null) {
+    if (!player) {
+      return { for: 75, tec: 75, def: 75, vel: 75, fis: 75, baseAvg: 75, primaryKey: "tec" };
+    }
+    const role = slotRole || player.pos || "MF";
+    const effOvr = getEffectiveOvr(player, slotRole);
+    const lvl = forcedLevel != null ? Math.max(1, forcedLevel) : getPlayerLevel(player);
+    const fullNameStr = `${player.name || ""} ${player.fullName || ""}`;
+
+    // 1. Perfil Base por Posição + Elemento (ou Arquétipo Canônico da Wiki)
+    let dFor = 0, dTec = 0, dDef = 0, dVel = 0, dFis = 0;
+    const matchedArch = CANONICAL_PLAYER_ARCHETYPES.find((a) => a.rx.test(fullNameStr));
+    if (matchedArch) {
+      [dFor, dTec, dDef, dVel, dFis] = matchedArch.d;
+    } else {
+      const natPos = player.pos || role;
+      if (natPos === "FW") {
+        dFor = 6; dTec = 1; dDef = -8; dVel = 2; dFis = -1;
+      } else if (natPos === "MF") {
+        dFor = 0; dTec = 5; dDef = -2; dVel = 2; dFis = -5;
+      } else if (natPos === "DF") {
+        dFor = -5; dTec = -2; dDef = 6; dVel = -1; dFis = 2;
+      } else {
+        // GK
+        dFor = -4; dTec = -2; dDef = 7; dVel = -4; dFis = 3;
+      }
+
+      // Ajuste Elemental
+      const elem = player.element || "";
+      if (elem === "Fogo") { dFor += 2; dDef -= 1; dTec -= 1; }
+      else if (elem === "Vento") { dVel += 3; dFis -= 2; dFor -= 1; }
+      else if (elem === "Floresta") { dTec += 2; dVel += 1; dFor -= 2; dFis -= 1; }
+      else if (elem === "Montanha") { dDef += 2; dFis += 2; dVel -= 3; dTec -= 1; }
+
+      // Variação determinística leve por ID do jogador mantendo soma zero
+      const idStr = String(player.id || player.name || "p");
+      let hash = 0;
+      for (let i = 0; i < idStr.length; i++) hash = (hash * 31 + idStr.charCodeAt(i)) & 0xffff;
+      if (hash % 3 === 0) { dFor += 1; dFis -= 1; }
+      else if (hash % 3 === 1) { dTec += 1; dDef -= 1; }
+    }
+
+    // Garante que no Nv. 1 os 5 status base tenham média exata = effOvr
+    let bFor = Math.max(40, Math.min(99, effOvr + dFor));
+    let bTec = Math.max(40, Math.min(99, effOvr + dTec));
+    let bDef = Math.max(40, Math.min(99, effOvr + dDef));
+    let bVel = Math.max(40, Math.min(99, effOvr + dVel));
+    let bFis = Math.max(40, Math.min(99, effOvr + dFis));
+
+    const targetSum = effOvr * 5;
+    let curSum = bFor + bTec + bDef + bVel + bFis;
+    let diff = targetSum - curSum;
+    // Ajusta o resíduo de clamping nos atributos secundários para que round(soma/5) === effOvr
+    const adjustOrder =
+      (player.pos || role) === "FW"
+        ? ["fis", "tec", "vel", "for", "def"]
+        : (player.pos || role) === "MF"
+        ? ["for", "fis", "def", "vel", "tec"]
+        : ["tec", "for", "vel", "fis", "def"];
+    const baseMap = { for: bFor, tec: bTec, def: bDef, vel: bVel, fis: bFis };
+    let guard = 0;
+    while (diff !== 0 && guard < 25) {
+      guard++;
+      for (const k of adjustOrder) {
+        if (diff === 0) break;
+        if (diff > 0 && baseMap[k] < 99) { baseMap[k]++; diff--; }
+        else if (diff < 0 && baseMap[k] > 40) { baseMap[k]--; diff++; }
+      }
+    }
+
+    // 2. Crescimento por Nível (escala pelo OVR base e pela função do atleta!)
+    // Jogadores de OVR maior ganham mais pontos de atributo a cada nível!
+    const lvlSteps = Math.max(0, lvl - 1);
+    const ovrGrowthScale = 1.15 + Math.pow(Math.max(0, effOvr - 60) / 16, 1.45);
+    const roleWeights =
+      role === "FW"
+        ? { for: 1.35, tec: 1.05, def: 0.65, vel: 1.15, fis: 0.95 }
+        : role === "MF"
+        ? { for: 0.95, tec: 1.35, def: 0.85, vel: 1.15, fis: 0.95 }
+        : role === "DF"
+        ? { for: 0.70, tec: 0.90, def: 1.35, vel: 0.95, fis: 1.20 }
+        : { for: 0.75, tec: 0.95, def: 1.40, vel: 0.75, fis: 1.25 };
+
+    const bStats = player.bonusStats || {};
+    const keshinBonus = player.keshin ? 4 : 0;
+    const evoBonus = (player.moveEvoCount || 0) * 2;
+    const manualBonus = player.learnedSecretManual ? 3 : 0;
+
+    const finalFor = Math.round(
+      baseMap.for + lvlSteps * ovrGrowthScale * roleWeights.for + (bStats.for || 0) + (role === "FW" ? keshinBonus + evoBonus + manualBonus : Math.floor(keshinBonus / 2))
+    );
+    const finalTec = Math.round(
+      baseMap.tec + lvlSteps * ovrGrowthScale * roleWeights.tec + (bStats.tec || 0) + (role === "MF" ? keshinBonus + evoBonus + manualBonus : Math.floor(keshinBonus / 2))
+    );
+    const finalDef = Math.round(
+      baseMap.def + lvlSteps * ovrGrowthScale * roleWeights.def + (bStats.def || 0) + (role === "DF" || role === "GK" ? keshinBonus + evoBonus + manualBonus : Math.floor(keshinBonus / 2))
+    );
+    const finalVel = Math.round(
+      baseMap.vel + lvlSteps * ovrGrowthScale * roleWeights.vel + (bStats.vel || 0) + (player.bonusSpd || 0)
+    );
+    const finalFis = Math.round(
+      baseMap.fis + lvlSteps * ovrGrowthScale * roleWeights.fis + (bStats.fis || 0) + Math.floor((keshinBonus + evoBonus) / 2)
+    );
+
+    const primaryKey = role === "FW" ? "for" : role === "MF" ? "tec" : "def";
+
+    return {
+      for: finalFor,
+      tec: finalTec,
+      def: finalDef,
+      vel: finalVel,
+      fis: finalFis,
+      baseFor: baseMap.for,
+      baseTec: baseMap.tec,
+      baseDef: baseMap.def,
+      baseVel: baseMap.vel,
+      baseFis: baseMap.fis,
+      baseAvg: effOvr,
+      primaryKey
+    };
+  }
+
+  function formatPlayerStatsStripHTML(player, slotRole = null, forcedLevel = null, maskStats = false) {
+    if (maskStats) {
+      return `
+        <div class="roster-stats-strip">
+          <span class="stat-mini-chip">FOR <strong>??</strong></span>
+          <span class="stat-mini-chip">TEC <strong>??</strong></span>
+          <span class="stat-mini-chip">DEF <strong>??</strong></span>
+          <span class="stat-mini-chip">VEL <strong>??</strong></span>
+          <span class="stat-mini-chip">FIS <strong>??</strong></span>
+        </div>
+      `;
+    }
+    const st = calcPlayerAttributes(player, slotRole, forcedLevel);
+    const pKey = st.primaryKey;
+    return `
+      <div class="roster-stats-strip" title="Status do Atleta (Média Base = OVR ${st.baseAvg} • Crescem a cada Nível!)">
+        <span class="stat-mini-chip ${pKey === "for" ? "is-primary" : ""}">FOR <strong>${st.for}</strong></span>
+        <span class="stat-mini-chip ${pKey === "tec" ? "is-primary" : ""}">TEC <strong>${st.tec}</strong></span>
+        <span class="stat-mini-chip ${pKey === "def" ? "is-primary" : ""}">DEF <strong>${st.def}</strong></span>
+        <span class="stat-mini-chip ${pKey === "vel" ? "is-primary" : ""}">VEL <strong>${st.vel}</strong></span>
+        <span class="stat-mini-chip ${pKey === "fis" ? "is-primary" : ""}">FIS <strong>${st.fis}</strong></span>
+      </div>
+    `;
+  }
+
+  // Quanto maior o OVR do jogador, MAIS PODER ele recebe a cada Nível!
   function calcPowerPerLevel(effOvr) {
     const clamped = Math.max(55, Math.min(99, effOvr || 75));
     return Math.max(6, Math.round(6 + Math.pow((clamped - 60) / 10, 2.25)));
@@ -793,28 +993,11 @@
     return calcBasePlayerPowerAtLevel1(effOvr) + Math.max(0, level - 1) * calcPowerPerLevel(effOvr);
   }
 
-  // Status de Velocidade (VEL) individual do atleta: baseado no OVR fixo, Nível de treino, posição, elemento e itens de velocidade
+  // Status de Velocidade (VEL) individual do atleta: vem diretamente dos Status Base do jogador (que crescem com o Nível!)
   function calcPlayerSpeedStat(player, effOvr = null) {
     if (!player) return 70;
-    const ovr = effOvr != null ? effOvr : (player.ovr || 75);
-    const lvl = getPlayerLevel(player);
-    const lvlSpdBonus = Math.min(8, Math.floor((lvl - 1) * 0.65));
-    const itemSpdBonus = player.bonusSpd || 0;
-    const pos = player.pos || "MF";
-    const posBonus = pos === "FW" ? 3 : pos === "MF" ? 2 : pos === "DF" ? 0 : -6;
-    const elem = player.element || "";
-    const elemBonus = elem === "Vento" ? 4 : elem === "Fogo" ? 2 : elem === "Trovão" ? 3 : elem === "Montanha" ? -1 : 0;
-    const speedsters = [
-      "Kazemaru", "Nathan", "Gouenji", "Axel", "Fubuki", "Shawn",
-      "Midorikawa", "Jordan", "Burn", "Torch", "Gazel", "Rococo", "Hector",
-      "Kidou", "Jude", "Hiroto", "Xavier", "Taiyou", "Sol", "Tsurugi", "Victor",
-      "Tenma", "Arion", "Fei", "Kinako", "Matatagi", "Falco", "Miyabino", "Kurama"
-    ];
-    const name = player.name || player.fullName || "";
-    const isSpeedster = speedsters.some((s) => name.includes(s));
-    const speedsterBonus = isSpeedster ? 3 : 0;
-    const calculated = Math.round(ovr * 0.92 + posBonus + elemBonus + speedsterBonus + lvlSpdBonus + itemSpdBonus);
-    return Math.min(99, Math.max(55, calculated));
+    const attrs = calcPlayerAttributes(player);
+    return Math.min(125, Math.max(50, attrs.vel || effOvr || player.ovr || 75));
   }
 
   // Cálculo unificado de OVR Fixo, Nível, Poder Escalar por OVR, Combos de Itens e Sinergias (Dream Team & Adversário)
@@ -1345,9 +1528,14 @@
                     ? `<span class="dual-pos-chip" title="Também joga sem penalidade em ${p.altPositions.join("/")}">/${p.altPositions.map((r) => posIconHTML(r, true)).join("")}</span>`
                     : "";
 
+                const basePwr = calcIndividualPlayerPower(p, p.pos, 1);
+                const stBase = calcPlayerAttributes(p, p.pos, 1);
+                const statsTooltip = `Status Base (Nv.1): FOR ${stBase.for} • TEC ${stBase.tec} • DEF ${stBase.def} • VEL ${stBase.vel} • FIS ${stBase.fis}`;
+
                 return `
                   <div class="roster-player-card ${alreadyPicked ? "disabled-card" : ""} ${!hasNaturalSlot && !alreadyPicked ? "pos-full-card" : ""}"
-                       data-player-id="${p.id}">
+                       data-player-id="${p.id}"
+                       title="${state.hideOvrBeforePick && !alreadyPicked ? p.name : statsTooltip}">
                     <img class="roster-sprite" src="${p.sprite}" alt="${p.name}" />
                     <div class="roster-meta">
                       <div class="roster-name">${p.isCaptain ? captainIconHTML() : ""} <span>#${p.number} ${p.name}</span></div>
@@ -1355,8 +1543,7 @@
                       <div class="roster-badges">
                         ${posIconHTML(p.pos, true)}${altPosHTML}
                         <span class="ovr-tag">${state.hideOvrBeforePick && !alreadyPicked ? "OVR ??" : `OVR ${p.ovr}`}</span>
-                        <span class="lvl-growth-tag" title="Poder ganho a cada Nível (escala pelo OVR fixo!)">${state.hideOvrBeforePick && !alreadyPicked ? "+?? Pwr/Nv" : `+${calcPowerPerLevel(p.ovr)} Pwr/Nv`}</span>
-                        <span class="spd-tag">${state.hideOvrBeforePick && !alreadyPicked ? "VEL ??" : `⚡VEL ${calcPlayerSpeedStat(p)}`}</span>
+                        <span class="pwr-base-tag" title="Poder Base do jogador no Nv. 1">${state.hideOvrBeforePick && !alreadyPicked ? "⚔️ Poder ??" : `⚔️ Poder ${basePwr}`}</span>
                         ${elemIconHTML(p.element)}
                         ${hasLink ? `<span class="affinity-badge">+Química</span>` : ""}
                         ${!hasNaturalSlot && !alreadyPicked ? `<span style="font-size:0.62rem; color:#facc15;">(Cheia)</span>` : ""}
@@ -1579,26 +1766,26 @@
         const effOvr = getEffectiveOvr(p, slot.role);
         const pLvl = getPlayerLevel(p);
         const pPwr = calcIndividualPlayerPower(p, slot.role, pLvl);
-        const pwrPerLvl = calcPowerPerLevel(effOvr);
+        const attrs = calcPlayerAttributes(p, slot.role, pLvl);
         const isImprovised = !playerMatchesRole(p, slot.role);
         const nodeSprite = getPlayerFormSprite(p, slot.role);
-        const spdStat = calcPlayerSpeedStat(p, effOvr);
+        const nodeTooltip = `OVR ${effOvr} • Nv.${pLvl} • Poder ${pPwr} | FOR ${attrs.for} · TEC ${attrs.tec} · DEF ${attrs.def} · VEL ${attrs.vel} · FIS ${attrs.fis}`;
 
         return `
           <div class="field-node occupied ${isSwap ? "swap-active" : ""}"
                style="left:${slot.x}%; top:${slot.y}%;"
-               data-slot="${slot.id}">
+               data-slot="${slot.id}"
+               title="${nodeTooltip}">
             ${p.teamEmblem ? `<img class="node-team-emblem" src="${p.teamEmblem}" alt="" />` : ""}
-            <div class="node-ovr" title="OVR Fixo ${effOvr} (+${pwrPerLvl} Poder/Nível)">${effOvr}</div>
-            <span class="node-lvl-chip" title="Nível ${pLvl} • Poder Individual: ${pPwr}">Nv.${pLvl}</span>
+            <div class="node-ovr" title="${nodeTooltip}">${effOvr}</div>
+            <span class="node-lvl-chip" title="${nodeTooltip}">Nv.${pLvl}</span>
             ${elemIconHTML(p.element, "node-elem-mini")}
             <img class="node-avatar" src="${nodeSprite}" alt="${p.name}" />
             <div class="node-name">${p.name}</div>
             <div style="display:flex; align-items:center; gap:3px; margin-top:1px;">
               ${posIconHTML(slot.role, true)}
               <span class="node-slot-label">${slot.label}${isImprovised ? " *" : ""}</span>
-              <span class="node-pwr-chip" title="Poder Individual (${pPwr}) • Ganha +${pwrPerLvl}/Nv">⚔️${pPwr}</span>
-              <span class="node-spd-chip" title="Velocidade individual">⚡${spdStat}</span>
+              <span class="node-pwr-chip" title="${nodeTooltip}">⚔️${pPwr}</span>
             </div>
           </div>
         `;
@@ -1656,6 +1843,7 @@
       delete p.boostOvr;
       delete p.bonusPower;
       delete p.bonusSpd;
+      delete p.bonusStats;
       delete p.equippedItems;
       delete p.keshin;
       delete p.moveEvoCount;
@@ -2986,25 +3174,36 @@
     return 0;
   }
 
-  function calcNodeDuelScore(node, teamSupportBonus, opponentElem = null) {
+  function calcNodeDuelScore(node, teamSupportBonus, opponentElem = null, actionKind = null) {
     if (!node) return 75;
     // Penalidade de cansaço quando a energia cai na zona vermelha (< 45%)
     const fatiguePenalty = node.stamina < 45 ? Math.min(4.2, 1.5 + (45 - node.stamina) * 0.09) : 0;
     const keshinBonus = node.player?.keshin ? 2.4 : 0;
     const evoBonus = node.player?.moveEvoCount ? Math.min(2.2, node.player.moveEvoCount * 1.1) : 0;
 
-    // Poder individual do jogador (OVR fixo + Nível × Poder/Nível + Itens + Keshin)
+    // Poder individual e Status Base crescentes com o Nível (FOR, TEC, DEF, VEL, FIS)
     const pLvl = node.level || getPlayerLevel(node.player);
     const indivPwr =
       node.indivPower ||
       calcIndividualPlayerPower(node.player, node.role, pLvl);
+    const attrs =
+      node.attrs ||
+      calcPlayerAttributes(node.player, node.role, pLvl);
 
-    // Converte o Poder Individual em escala de combate direta:
-    // - OVR 75 Nv.1 (~76 Pwr) -> ~73.5
-    // - OVR 88 Nv.1 (~109 Pwr) -> ~84.3
-    // - OVR 95 Nv.10 (~341 Pwr) -> ~127.0
-    // Assim, um jogador de OVR alto e bem treinado domina claramente duelos contra níveis/OVRs inferiores!
-    const powerScore = 54 + (indivPwr - 75) * 0.22 + (node.effOvr - 80) * 0.45;
+    // Bônus específico dos Status Base do jogador conforme a ação em campo
+    const roleOrAction = actionKind || node.role || "MF";
+    let statSpecBonus = 0;
+    if (roleOrAction === "SH" || roleOrAction === "FW") {
+      statSpecBonus = (attrs.for - 82) * 0.14 + (attrs.tec - 82) * 0.05;
+    } else if (roleOrAction === "OF" || roleOrAction === "MF") {
+      statSpecBonus = (attrs.tec - 82) * 0.13 + (attrs.vel - 82) * 0.07;
+    } else if (roleOrAction === "DF") {
+      statSpecBonus = (attrs.def - 82) * 0.14 + (attrs.fis - 82) * 0.06;
+    } else if (roleOrAction === "GK") {
+      statSpecBonus = (attrs.def - 82) * 0.15 + (attrs.fis - 82) * 0.06;
+    }
+
+    const powerScore = 54 + (indivPwr - 75) * 0.21 + (node.effOvr - 80) * 0.42 + statSpecBonus;
 
     return (
       powerScore +
@@ -3018,7 +3217,7 @@
 
   function logisticWinProb(atkScore, defScore, baseShift = 0, minP = 0.04, maxP = 0.94) {
     // Curva logística mais íngreme (0.165) e faixa ampliada (-32..+32):
-    // Quando um time/jogador tem muito mais Poder e OVR, vence com consistência esmagadora!
+    // Quando um time/jogador tem muito mais Poder e Status, vence com consistência esmagadora!
     const diff = Math.max(-32, Math.min(32, atkScore - defScore)) + baseShift;
     const p = 1 / (1 + Math.exp(-diff * 0.165));
     return Math.max(minP, Math.min(maxP, p));
@@ -3036,7 +3235,9 @@
     if (hasFinalResistance && curMinute >= 75) {
       return;
     }
-    const mul = node.side === "user" ? state.tournament?.prepBonuses?.staminaMul || 1 : 1;
+    const fisStat = node.attrs?.fis || 80;
+    const fisMul = Math.max(0.76, Math.min(1.12, 1 - (fisStat - 82) * 0.004));
+    const mul = (node.side === "user" ? state.tournament?.prepBonuses?.staminaMul || 1 : 1) * fisMul;
     node.stamina = Math.max(18, node.stamina - cost * mul);
   }
 
@@ -3050,10 +3251,11 @@
       const rawPosMatch = playerMatchesRole(player, slot.role) ? 0 : -4;
       const effOvr = Math.min(99, Math.max(58, Math.round(player.ovr + rawPosMatch)));
       const indivPower = calcIndividualPlayerPower(player, slot.role, oppLevel);
+      const attrs = calcPlayerAttributes(player, slot.role, oppLevel);
       const baseX = Math.max(7, Math.min(93, 100 - ((96 - slot.y) * 0.78 + 4)));
       const baseY = Math.max(12, Math.min(88, 100 - slot.x + (slot.role === "DF" ? 3 : -3)));
       const tacticalRole = getTacticalRole(slot.label);
-      const spd = calcPlayerSpeedStat(player, effOvr);
+      const spd = attrs.vel;
       return {
         uid: `o_${slot.id}`,
         side: "opp",
@@ -3065,6 +3267,7 @@
         effOvr,
         level: oppLevel,
         indivPower,
+        attrs,
         spd,
         stamina: 100,
         baseX,
@@ -3093,10 +3296,11 @@
       const effOvr = getEffectiveOvr(player, slot.role);
       const pLvl = getPlayerLevel(player);
       const indivPower = calcIndividualPlayerPower(player, slot.role, pLvl);
+      const attrs = calcPlayerAttributes(player, slot.role, pLvl);
       const baseX = Math.max(7, Math.min(76, (96 - slot.y) * 0.78 + 4));
       const baseY = Math.max(12, Math.min(88, slot.x));
       const tacticalRole = getTacticalRole(slot.label);
-      const spd = calcPlayerSpeedStat(player, effOvr);
+      const spd = attrs.vel;
       return {
         uid: `u_${slot.id}`,
         side: "user",
@@ -3108,6 +3312,7 @@
         effOvr,
         level: pLvl,
         indivPower,
+        attrs,
         spd,
         stamina: 100,
         baseX,
@@ -4374,7 +4579,7 @@
             <span>Dream Team</span>
             <span class="stage-opp-buff-badge" style="border-color:#4ade80; color:#86efac; background:rgba(21,128,61,0.35);">Nv. ${stats.avgLevel || 1}</span>
           </div>
-          <div style="font-size:0.7rem; color:#fed7aa; font-weight:800;">Poder ${stats.power.toLocaleString("pt-BR")} • OVR Fixo ${stats.ovr} • Quím ${stats.chem}%</div>
+          <div style="font-size:0.7rem; color:#fed7aa; font-weight:800;">Poder ${stats.power.toLocaleString("pt-BR")} • OVR ${stats.ovr} • Quím ${stats.chem}%</div>
         </div>
 
         <div class="score-digits">
@@ -4389,7 +4594,7 @@
             <span>${st.oppTeam.name}</span>
             <span class="stage-opp-buff-badge">⚡ Nv. ${oppLvl}</span>
           </div>
-          <div style="font-size:0.7rem; color:#facc15; font-weight:800;">Poder ${oppStats.power.toLocaleString("pt-BR")} • Nv. ${oppLvl} • OVR Fixo ${oppStats.ovr}</div>
+          <div style="font-size:0.7rem; color:#facc15; font-weight:800;">Poder ${oppStats.power.toLocaleString("pt-BR")} • Nv. ${oppLvl} • OVR ${oppStats.ovr}</div>
         </div>
       </div>
     `;
@@ -7677,7 +7882,7 @@
                       POSICIONANDO NO CAMPO (${pickedCount + 1} DE 11)
                     </div>
                     <div style="font-size:1.05rem; font-weight:900; color:#fff; display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
-                      <span>#${sel.number} ${sel.name}</span> ${posIconHTML(sel.pos, true)} ${elemIconHTML(sel.element)} <span class="spd-tag">⚡VEL ${calcPlayerSpeedStat(sel)}</span>
+                      <span>#${sel.number} ${sel.name}</span> ${posIconHTML(sel.pos, true)} ${elemIconHTML(sel.element)} <span class="ovr-tag">OVR ${sel.ovr}</span> <span class="pwr-base-tag">⚔️ Poder ${calcIndividualPlayerPower(sel, sel.pos, 1)}</span>
                     </div>
                     <div style="font-size:0.74rem; color:#dbeafe; margin-top:2px;">
                       ${
@@ -8960,7 +9165,7 @@
             teamChem: 4,
             xpGain: 130,
             weight: 2.1,
-            summary: "TODOS os 11 titulares sobem +1 Nível (ganhando Poder proporcional ao OVR fixo de cada um) • +4% Quím • +45 Poder!"
+            summary: "TODOS os 11 titulares sobem +1 Nível (evoluindo Status e Poder proporcionalmente ao OVR de cada um) • +4% Quím • +45 Poder!"
           },
           {
             id: "river_tactics",
@@ -9591,7 +9796,7 @@
     state.squad[replaceSlotId] = newP;
     const newPwr = calcIndividualPlayerPower(newP, starRecruit.role || newP.pos, recruitLvl);
     prep.phase = "DONE";
-    prep.appliedMsg = `⭐ RECRUTAMENTO OFICIAL! ${newP.name} (OVR Fixo ${newP.ovr} • Nv. ${recruitLvl} • Poder ${newPwr}) entrou como titular no lugar de ${oldPlayer?.name || "titular"}!`;
+    prep.appliedMsg = `⭐ RECRUTAMENTO OFICIAL! ${newP.name} (OVR ${newP.ovr} • Nv. ${recruitLvl} • Poder ${newPwr}) entrou como titular no lugar de ${oldPlayer?.name || "titular"}!`;
     t.prepBonuses.log.push(`Recrutou ${newP.name} (Nv.${recruitLvl})`);
     renderAll();
   }
@@ -9681,11 +9886,19 @@
         if (event.spdBoost) {
           player.bonusSpd = (player.bonusSpd || 0) + event.spdBoost;
         }
+        if (!player.bonusStats) player.bonusStats = { for: 0, tec: 0, def: 0, vel: 0, fis: 0 };
+        if (event.id === "shoes_legend") { player.bonusStats.for += 5; player.bonusStats.vel += 4; }
+        else if (event.id === "shoes_thunder") { player.bonusStats.vel += 6; player.bonusStats.tec += 3; }
+        else if (event.id === "glove_legend") { player.bonusStats.def += 6; player.bonusStats.fis += 3; }
+        else if (event.id === "spike_block") { player.bonusStats.def += 5; player.bonusStats.fis += 4; }
+        else if (event.id === "bracelet_friendship" || event.id === "captain_armband") {
+          player.bonusStats.tec += 4; player.bonusStats.for += 3; player.bonusStats.fis += 3;
+        }
         player.equippedItems.push({ id: event.id, title: event.title, icon: event.icon });
       }
       const afterPwr = calcIndividualPlayerPower(player, slot.role);
       const pwrDelta = Math.max(0, afterPwr - beforePwr);
-      msg = `${player.name} (OVR Fixo ${player.ovr}) equipou ${event.title}, subiu para o Nível ${getPlayerLevel(player)} e ganhou +${pwrDelta} Poder Individual (agora ${afterPwr} Poder)!`;
+      msg = `${player.name} (OVR ${player.ovr}) equipou ${event.title}, subiu para o Nível ${getPlayerLevel(player)} e ganhou +${pwrDelta} Poder Individual (agora ${afterPwr} Poder)!`;
     } else if (event.kind === "KESHIN_PICK") {
       if (!player.keshin) {
         const pool = CANONICAL_KESHINS[slot.role] || CANONICAL_KESHINS.MF;
@@ -9801,7 +10014,7 @@
         if (won && c5.starRecruit) {
           prep.phase = "RECRUIT_OFFER";
           prep.recruitCandidate = c5.starRecruit;
-          prep.appliedMsg = `Vitória épica por Gol de Ouro (1 x 0${scorerName ? ` · ${scorerName}` : ""})! Os 5 participantes subiram +2 Níveis e o craque rival ${c5.starRecruit.player.name} (OVR Fixo ${c5.starRecruit.player.ovr}) quer se juntar ao seu Dream Team!`;
+          prep.appliedMsg = `Vitória épica por Gol de Ouro (1 x 0${scorerName ? ` · ${scorerName}` : ""})! Os 5 participantes subiram +2 Níveis e o craque rival ${c5.starRecruit.player.name} (OVR ${c5.starRecruit.player.ovr}) quer se juntar ao seu Dream Team!`;
         } else {
           prep.phase = "DONE";
           prep.appliedMsg = won
@@ -9956,7 +10169,7 @@
                       ${posIconHTML(slot.role, true)} ${p.name} <span style="color:#86efac;">(Nv.${curLvl})</span>
                     </div>
                     <div style="font-size:0.68rem; font-weight:800; color:#94a3b8;">
-                      OVR Fixo ${curOvr} • Poder ${curPwr}
+                      OVR ${curOvr} • Poder ${curPwr}
                     </div>
                     <div style="font-size:0.64rem; color:#fde047; font-weight:700;">
                       Entra ${recPlayer.name} (OVR ${recPlayer.ovr} • Nv.${recLvl} • Poder ${recPwr})
@@ -10120,9 +10333,10 @@
                             ${posIconHTML(slot.role, true)} ${p.name} <span style="color:#fde047;">(OVR ${curOvr})</span>
                           </div>
                           <div style="font-size:0.68rem; font-weight:800; color:#4ade80; margin-top:2px;">
-                            Nv. ${curLvl} ➔ Nv. ${nextLvl} • Poder ${curPwr} ➔ ${nextPwr} (+${pwrPerLvl}/Nv)
+                            Nv. ${curLvl} ➔ Nv. ${nextLvl} • Poder ${curPwr} ➔ ${nextPwr}
                           </div>
-                          <div style="font-size:0.64rem; color:#94a3b8; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                          ${formatPlayerStatsStripHTML(p, slot.role, curLvl)}
+                          <div style="font-size:0.64rem; color:#94a3b8; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:2px;">
                             ${extraInfo || ""}
                           </div>
                         </div>
@@ -10174,7 +10388,7 @@
                 <div style="font-size:0.7rem; font-weight:900; color:#4ade80; text-transform:uppercase;">Preparação Concluída!</div>
                 <div style="font-size:0.96rem; font-weight:900; color:#fff; margin-top:2px;">${prep.appliedMsg || "Bônus aplicado com sucesso!"}</div>
                 <div style="font-size:0.75rem; color:#cbd5e1; margin-top:4px;">
-                  Time pronto com <strong>Nível Médio ${stats.avgLevel || 1}</strong> • <strong>Poder ${stats.power.toLocaleString("pt-BR")}</strong> • <strong>OVR Fixo ${stats.ovr}</strong> • <strong>Química ${stats.chem}%</strong>
+                  Time pronto com <strong>Nível Médio ${stats.avgLevel || 1}</strong> • <strong>Poder ${stats.power.toLocaleString("pt-BR")}</strong> • <strong>OVR ${stats.ovr}</strong> • <strong>Química ${stats.chem}%</strong>
                 </div>
                 ${prep.eventsRemaining > 1 ? `
                   <div style="font-size:0.76rem; font-weight:800; color:#facc15; margin-top:6px;">
@@ -10319,7 +10533,7 @@
           <div class="current-stage-opp-box">
             ${focusStage.oppTeam?.emblem ? `<img src="${focusStage.oppTeam.emblem}" alt="" class="current-stage-opp-emblem" />` : ""}
             <span class="current-stage-opp-name">${focusStage.oppTeam?.name || "A Definir"}</span>
-            <span class="stage-opp-buff-badge" title="Nível do time adversário nesta fase (OVR fixo ${focusStage.oppTeam?.baseOvr || 82})">⚡ Nv. ${getStageOpponentBuff(focusStageIdx).oppLevel} • Poder ${calcOpponentStats(focusStage.oppTeam, focusStageIdx).power.toLocaleString("pt-BR")}</span>
+            <span class="stage-opp-buff-badge" title="Nível do time adversário nesta fase (OVR ${focusStage.oppTeam?.baseOvr || 82})">⚡ Nv. ${getStageOpponentBuff(focusStageIdx).oppLevel} • Poder ${calcOpponentStats(focusStage.oppTeam, focusStageIdx).power.toLocaleString("pt-BR")}</span>
           </div>
           <span class="current-stage-status-pill">${statusTxt}</span>
         </div>
