@@ -1259,14 +1259,11 @@
     });
 
     if (isOpponent) {
-      if (count > 0) {
-        const posChem = Math.round(correctPosCount * 2.0);
-        const posPwr = Math.round(correctPosCount * 7.2 * tierScale);
-        chem += posChem;
-        bondsPower += posPwr;
+      if (count > 0 && correctPosCount < count) {
+        const improvisedOpp = count - correctPosCount;
         activeBonds.push({
-          type: correctPosCount === 11 ? "perfect-formation" : "team",
-          label: `${formationIconHTML("inline-ui-icon")} Formação Tática ${correctPosCount}/11 (+${posChem}% Quím • +${posPwr} Poder)`
+          type: "warn-pos",
+          label: `${formationIconHTML("inline-ui-icon")} Posições: ${improvisedOpp} improvisado(s) (-OVR)`
         });
       }
 
@@ -1330,30 +1327,13 @@
       };
     }
 
-    // 0. Química & Poder por Posições Corretas (Dream Team)
-    if (count > 0) {
-      if (correctPosCount === 11) {
-        const pwr = Math.round(105 * tierScale);
-        chem += 20;
-        bondsPower += pwr;
-        activeBonds.push({
-          type: "perfect-formation",
-          label: `${formationIconHTML("inline-ui-icon")} Formação Perfeita 11/11 (+20% Quím • +${pwr} Poder)`
-        });
-      } else {
-        const posChem = Math.round(correctPosCount * 1.4);
-        const posPwr = Math.round(correctPosCount * 5.5 * tierScale);
-        const improvised = count - correctPosCount;
-        chem += posChem;
-        bondsPower += posPwr;
-        activeBonds.push({
-          type: improvised > 0 ? "warn-pos" : "team",
-          label:
-            improvised > 0
-              ? `${formationIconHTML("inline-ui-icon")} Posições: ${correctPosCount}/${count} (${improvised} improvisado = -OVR)`
-              : `${formationIconHTML("inline-ui-icon")} Posições: ${correctPosCount}/11 (+${posChem}% Quím • 11/11 = +20%)`
-        });
-      }
+    // 0. Debuff apenas quando há jogador fora de posição (11/11 é o padrão sem bônus extra!)
+    if (count > 0 && correctPosCount < count) {
+      const improvised = count - correctPosCount;
+      activeBonds.push({
+        type: "warn-pos",
+        label: `${formationIconHTML("inline-ui-icon")} ${improvised} fora de posição (-OVR no atleta)`
+      });
     }
 
     // 1. Química & Poder por Sinergia Elemental em PROXIMIDADE (Dream Team)
@@ -2063,7 +2043,7 @@
           let icon = b.type === "perfect-formation" ? "🌱" : b.type === "friendship" ? "⭐" : b.type === "element" ? "⚡" : "🛡️";
           return `<span class="pitch-synergy-chip chip-${b.type}">${b.label}</span>`;
         }).join("")
-      : `<span class="pitch-synergy-chip chip-empty">${formationIconHTML("inline-ui-icon")} Escale na posição certa (+20% Quím / +2 OVR) e conecte mesmo elemento colado!</span>`;
+      : `<span class="pitch-synergy-chip chip-empty">${formationIconHTML("inline-ui-icon")} Escale na posição certa (improvisar aplica -OVR) e conecte mesmo elemento colado!</span>`;
 
     const linksSVG = adjPairs
       .map(([a, b]) => {
@@ -3648,8 +3628,7 @@
     const { formSlots, assignments, oppLevel } = getEvolvedOpponentRoster(oppTeam, stageIdx);
     return formSlots.map((slot, idx) => {
       const player = assignments[slot.id];
-      const rawPosMatch = playerMatchesRole(player, slot.role) ? 0 : -4;
-      const effOvr = Math.min(99, Math.max(58, Math.round(player.ovr + rawPosMatch)));
+      const effOvr = getEffectiveOvr(player, slot.role);
       const indivPower = calcIndividualPlayerPower(player, slot.role, oppLevel);
       const attrs = calcPlayerAttributes(player, slot.role, oppLevel);
       const baseX = Math.max(7, Math.min(93, 100 - ((96 - slot.y) * 0.78 + 4)));
@@ -6042,11 +6021,9 @@
     pitch.matchSupport = {
       userTeamSupport:
         (userStats.chem / 100) * 4.2 +
-        (userStats.correctPosCount === 11 ? 2.4 : userStats.correctPosCount * 0.12) +
         userPwrBonus,
       oppTeamSupport:
         (oppStats.chem / 100) * 4.2 +
-        (oppStats.correctPosCount === 11 ? 2.4 : oppStats.correctPosCount * 0.12) +
         oppPwrBonus,
       powerDiff,
       ovrDiff: userStats.ovr - oppStats.ovr
@@ -8207,7 +8184,7 @@
       } else {
         bondsBar.style.display = "flex";
         if (stats.activeBonds.length === 0) {
-          bondsBar.innerHTML = `<span style="color:#93c5fd; display:inline-flex; align-items:center; gap:5px; flex-wrap:wrap;">${formationIconHTML("inline-ui-icon")} <strong>Dica Tática:</strong> Escale todos os <strong>11 na posição correta</strong> (+20% Quím / +2 OVR) e conecte jogadores do <strong>mesmo elemento colados</strong> para ativar links elementais!</span>`;
+          bondsBar.innerHTML = `<span style="color:#93c5fd; display:inline-flex; align-items:center; gap:5px; flex-wrap:wrap;">${formationIconHTML("inline-ui-icon")} <strong>Dica Tática:</strong> Escale jogadores na <strong>posição correta</strong> (improvisar aplica -OVR no atleta) e conecte o <strong>mesmo elemento colado</strong> para ativar links elementais!</span>`;
         } else {
           bondsBar.innerHTML =
             `<strong style="color:#38bdf8; margin-right:4px; display:inline-flex; align-items:center; gap:4px;">${captainIconHTML("inline-ui-icon")} Laços:</strong>` +
