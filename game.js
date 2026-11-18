@@ -398,13 +398,25 @@
       pendingClashFinish: null,
       shotFlightTimer: null,
       pendingShotFlightFinish: null,
+      netFlightTimer: null,
+      pendingNetFlightFinish: null,
       actionBeatTimer: null,
       pendingBeatFinish: null,
+      whistleKeyHandler: null,
       penTimerId: null,
       prepTimerId: null,
       prepMatchTimerId: null,
       prep: null,
-      prepBonuses: { xp: 0, chem: 0, power: 0, staminaMul: 1, log: [] },
+      prepBonuses: {
+        xp: 0,
+        chem: 0,
+        power: 0,
+        staminaMul: 1,
+        lateMatchNoStaminaLoss: false,
+        permanentDoublePrep: false,
+        tireTrainingDone: false,
+        log: []
+      },
       showRunSummary: false
     }
   };
@@ -1551,6 +1563,7 @@
       delete p.equippedItems;
       delete p.keshin;
       delete p.moveEvoCount;
+      delete p.learnedSecretManual;
       if (p._baseMovesSnapshot) {
         p.moves = JSON.parse(JSON.stringify(p._baseMovesSnapshot));
         delete p._baseMovesSnapshot;
@@ -1650,13 +1663,25 @@
       pendingClashFinish: null,
       shotFlightTimer: null,
       pendingShotFlightFinish: null,
+      netFlightTimer: null,
+      pendingNetFlightFinish: null,
       actionBeatTimer: null,
       pendingBeatFinish: null,
+      whistleKeyHandler: null,
       penTimerId: null,
       prepTimerId: null,
       prepMatchTimerId: null,
       prep: null,
-      prepBonuses: { xp: 0, chem: 0, power: 0, staminaMul: 1, log: [] },
+      prepBonuses: {
+        xp: 0,
+        chem: 0,
+        power: 0,
+        staminaMul: 1,
+        lateMatchNoStaminaLoss: false,
+        permanentDoublePrep: false,
+        tireTrainingDone: false,
+        log: []
+      },
       showRunSummary: false
     };
 
@@ -1987,6 +2012,10 @@
       document.removeEventListener("keydown", state.tournament.qteKeyHandler);
       state.tournament.qteKeyHandler = null;
     }
+    if (typeof state.tournament.whistleKeyHandler === "function") {
+      document.removeEventListener("keydown", state.tournament.whistleKeyHandler);
+      state.tournament.whistleKeyHandler = null;
+    }
 
     const calloutEl = document.getElementById("pitch-center-callout");
     if (calloutEl) {
@@ -2007,6 +2036,18 @@
       state.tournament.pendingShotFlightFinish = null;
     }
 
+    if (state.tournament.netFlightTimer) {
+      clearTimeout(state.tournament.netFlightTimer);
+      state.tournament.netFlightTimer = null;
+    }
+    if (resolvePending && typeof state.tournament.pendingNetFlightFinish === "function") {
+      const nfn = state.tournament.pendingNetFlightFinish;
+      state.tournament.pendingNetFlightFinish = null;
+      nfn(true);
+    } else {
+      state.tournament.pendingNetFlightFinish = null;
+    }
+
     if (resolvePending && typeof state.tournament.pendingWhistleFinish === "function") {
       const wfn = state.tournament.pendingWhistleFinish;
       state.tournament.pendingWhistleFinish = null;
@@ -2020,6 +2061,7 @@
       state.tournament.pendingClashFinish = null;
       const slot = document.getElementById("shot-clash-slot");
       if (slot) {
+        slot.classList.remove("is-fixed-overlay", "is-referee-overlay");
         slot.innerHTML = "";
         slot.style.display = "none";
       }
@@ -2028,6 +2070,7 @@
       state.tournament.pendingClashFinish = null;
       const slot = document.getElementById("shot-clash-slot");
       if (slot) {
+        slot.classList.remove("is-fixed-overlay", "is-referee-overlay");
         slot.innerHTML = "";
         slot.style.display = "none";
       }
@@ -2502,8 +2545,15 @@
     const isFulltime = type === "FULLTIME";
 
     const t = state.tournament;
-    const isWinnerAdvancing = st.won && t && t.stages && t.stageIndex + 1 < t.stages.length;
-    const nextStageName = isWinnerAdvancing ? t.stages[t.stageIndex + 1].stageName : "";
+    const isAdvancingToNextStage = Boolean(
+      t &&
+      t.stages &&
+      t.stageIndex + 1 < t.stages.length &&
+      (st.isGroupStage
+        ? st.groupRoundIdx < 2 || getUserGroupRank(t.worldGroup) <= 2
+        : st.won)
+    );
+    const nextStageName = isAdvancingToNextStage ? t.stages[t.stageIndex + 1].stageName : "";
 
     const headerBadge = isHalftime
       ? "INTERVALO • FIM DO 1º TEMPO"
@@ -2534,8 +2584,8 @@
       ? "O empate persiste aos 90'! Vamos para a Prorrogação com Gol de Ouro!"
       : isPenalties
       ? "O árbitro encerra a prorrogação! A vaga será decidida nos pênaltis!"
-      : isWinnerAdvancing
-      ? `Partida encerrada com classificação para ${nextStageName}!`
+      : isAdvancingToNextStage
+      ? `Partida encerrada com avanço para ${nextStageName}!`
       : "O árbitro apita o fim da partida! Confira os números e os destaques.";
 
     const buttonText = isHalftime
@@ -2544,7 +2594,7 @@
       ? "⚡ Iniciar Prorrogação ▶"
       : isPenalties
       ? "⚡ Bater Pênaltis ▶"
-      : isWinnerAdvancing
+      : isAdvancingToNextStage
       ? `⚡ Preparar para ${nextStageName} ▶`
       : "🏆 Ver Resultado da Campanha ▶";
 
@@ -2584,7 +2634,10 @@
         state.tournament.whistleTimerId = null;
       }
       state.tournament.pendingWhistleFinish = null;
-      document.removeEventListener("keydown", keyHandler);
+      if (state.tournament.whistleKeyHandler) {
+        document.removeEventListener("keydown", state.tournament.whistleKeyHandler);
+        state.tournament.whistleKeyHandler = null;
+      }
       slotEl.classList.remove("is-fixed-overlay");
       slotEl.classList.remove("is-referee-overlay");
       slotEl.innerHTML = "";
@@ -2596,10 +2649,16 @@
           st.pitch.minuteFloat = 45;
           st.minute = 45;
         }
+      } else if (isExtraTime) {
+        st.running = true;
+        if (st.pitch) {
+          st.pitch.minuteFloat = 90;
+          st.minute = 90;
+        }
       }
 
       if (isFulltime && targetMode === "DIRECT_ACTION") {
-        if (isWinnerAdvancing) {
+        if (isAdvancingToNextStage) {
           openBetweenMatchPrep(t.stageIndex + 1);
           return;
         } else {
@@ -2622,6 +2681,7 @@
         closeAndProceed("DIRECT_ACTION");
       }
     };
+    state.tournament.whistleKeyHandler = keyHandler;
     document.addEventListener("keydown", keyHandler);
 
     const btn = document.getElementById("btn-referee-proceed");
@@ -2643,7 +2703,15 @@
 
   function triggerVoluntaryRecoveryChallenge(st) {
     if (!st || st.finished || !st.running || st.penalties || (st.recoverCharges || 0) <= 0) return;
-    if (state.tournament.pendingClashFinish || state.tournament.pendingBeatFinish || state.tournament.pendingShotFlightFinish) return;
+    if (
+      state.tournament.pendingClashFinish ||
+      state.tournament.pendingBeatFinish ||
+      state.tournament.pendingShotFlightFinish ||
+      state.tournament.pendingNetFlightFinish ||
+      state.tournament.pendingWhistleFinish
+    ) {
+      return;
+    }
     st.recoverCharges--;
     updateVoluntaryRecoverButtonDOM(st);
     const ovrDiff = st.pitch?.matchSupport?.ovrDiff || 0;
@@ -2653,14 +2721,22 @@
   function handleMinuteEndBoundaries(st, ovrDiff) {
     if (st.isGoldenGoal5v5) {
       if (st.userScore > 0 || st.oppScore > 0) {
+        if (st._goldenHandled) return true;
+        st._goldenHandled = true;
         clearTournamentTimers(false);
         st.running = false;
         st.finished = true;
         st.won = st.userScore > st.oppScore;
-        if (typeof st.onGoldenGoalDone === "function" && !st._goldenHandled) {
-          st._goldenHandled = true;
+        if (typeof st.onGoldenGoalDone === "function") {
           const scorerName = st.userScore > 0 ? st.goalsUser[0]?.name : st.goalsOpp[0]?.name;
-          setTimeout(() => st.onGoldenGoalDone(st, scorerName), state.simSpeed === 1 ? 900 : 280);
+          if (state.simSpeed === 1) {
+            st.onGoldenGoalDone(st, scorerName);
+          } else {
+            state.tournament.prepMatchTimerId = setTimeout(() => {
+              state.tournament.prepMatchTimerId = null;
+              st.onGoldenGoalDone(st, scorerName);
+            }, 220);
+          }
         }
         return true;
       }
@@ -2685,7 +2761,8 @@
         [...st.pitch.userNodes, ...st.pitch.oppNodes].forEach((n) => {
           n.stamina = Math.min(100, n.stamina + 20);
         });
-        resetPitchForKickoff(st.pitch, "opp", true);
+        const secondHalfSide = st.pitch.initialSide === "user" ? "opp" : "user";
+        resetPitchForKickoff(st.pitch, secondHalfSide, true);
         syncLivePitchDOM(st);
       }
       showRefereeWhistleModal(st, "HALFTIME", () => {
@@ -2703,6 +2780,8 @@
 
     if (st.minute === 90 && st.userScore === st.oppScore && st.maxMinute === 90 && !st.isGroupStage) {
       st.maxMinute = 120;
+      st.running = false;
+      clearTournamentTimers(false);
       if (st.pitch) {
         st.pitch.minuteFloat = 90;
         resetPitchForKickoff(st.pitch, "user", true);
@@ -2718,6 +2797,11 @@
         "FF"
       );
       showRefereeWhistleModal(st, "EXTRA_TIME", () => {
+        st.running = true;
+        if (st.pitch) {
+          st.pitch.minuteFloat = 90;
+          st.minute = 90;
+        }
         if (!st.finished && st.running) {
           startMatchInterval();
         }
@@ -2822,9 +2906,13 @@
 
   function spendStamina(node, cost) {
     if (!node) return;
-    // Passiva: Pingente da Resistência Final — não perde energia nos minutos finais (a partir de 75')
-    const curMinute = state.tournament?.stages?.[state.tournament.stageIndex]?.minute || 0;
-    const hasFinalResistance = node.side === "user" && state.tournament?.prepBonuses?.lateMatchNoStaminaLoss;
+    // Passiva: Pingente da Resistência Final — não perde energia nos minutos finais (a partir de 75' em partidas 11x11)
+    const active5v5 = state.tournament?.prep?.clash5v5?.miniSt;
+    const isIn5v5 = Boolean(active5v5 && active5v5.running && !active5v5.finished);
+    const curMinute = isIn5v5
+      ? 0
+      : state.tournament?.stages?.[state.tournament.stageIndex]?.minute || 0;
+    const hasFinalResistance = !isIn5v5 && node.side === "user" && state.tournament?.prepBonuses?.lateMatchNoStaminaLoss;
     if (hasFinalResistance && curMinute >= 75) {
       return;
     }
@@ -3546,7 +3634,7 @@
         const opacity = t < 0.15 ? 1 : Math.max(0, Math.pow(1 - (t - 0.15) / 0.85, 1.35));
         const dirScaleX = gb.side === "right" ? -1 : 1;
         goalBurstEl.className = `pitch-goal-burst side-${gb.side} is-active`;
-        // Posicionamento exato onde a bola estufou a rede do gol
+        // Posicionamento exato onde a bola estufou a rede do gol (núcleo do SVG está em cx=24/160 = 15%, cy=70/140 = 50%)
         if (typeof gb.x === "number") {
           goalBurstEl.style.left = `${gb.x.toFixed(1)}%`;
           goalBurstEl.style.right = "auto";
@@ -3554,7 +3642,7 @@
         if (typeof gb.y === "number") {
           goalBurstEl.style.top = `${gb.y.toFixed(1)}%`;
         }
-        goalBurstEl.style.transform = `translate(-50%, -50%) scaleX(${dirScaleX}) scale(${scale.toFixed(3)})`;
+        goalBurstEl.style.transform = `translate(-15%, -50%) scaleX(${dirScaleX}) scale(${scale.toFixed(3)})`;
         goalBurstEl.style.opacity = opacity.toFixed(3);
       } else {
         pitch.goalBurstFx = null;
@@ -3762,7 +3850,8 @@
         state.tournament.pendingBeatFinish ||
         state.tournament.pendingClashFinish ||
         state.tournament.pendingWhistleFinish ||
-        state.tournament.pendingShotFlightFinish
+        state.tournament.pendingShotFlightFinish ||
+        state.tournament.pendingNetFlightFinish
       );
       if (!st.finished && st.running && !isPaused) {
         const simDtTotal = rawDt * getSpeedMultiplier();
@@ -3774,6 +3863,7 @@
             state.tournament.pendingClashFinish ||
             state.tournament.pendingWhistleFinish ||
             state.tournament.pendingShotFlightFinish ||
+            state.tournament.pendingNetFlightFinish ||
             st.finished ||
             !st.running
           ) {
@@ -4200,13 +4290,17 @@
         : "Derrota nos Pênaltis"
       : st.won
       ? "Vitória do Dream Team"
+      : st.isDraw
+      ? "Empate"
       : `Vitória de ${oppTeam.name}`;
+    const recapCardCls = st.won ? "recap-win" : st.isDraw ? "recap-draw" : "recap-loss";
+    const recapPillCls = st.won ? "is-win" : st.isDraw ? "is-draw" : "is-loss";
 
     return `
-      <div id="live-match-recap-box" class="live-pitch-card match-recap-card ${st.won ? "recap-win" : "recap-loss"}">
+      <div id="live-match-recap-box" class="live-pitch-card match-recap-card ${recapCardCls}">
         <div class="recap-top-bar">
           <span class="recap-phase-tag">Placar &amp; Estatísticas · ${st.stageName}</span>
-          <span class="recap-verdict-pill ${st.won ? "is-win" : "is-loss"}">${verdictText}</span>
+          <span class="recap-verdict-pill ${recapPillCls}">${verdictText}</span>
         </div>
 
         ${buildLiveScoreboardHTML(st, stats, oppStats)}
@@ -4322,6 +4416,10 @@
   function finishPenaltyShootout(st) {
     const pen = st.penalties;
     if (!pen || st.finished) return;
+    if (state.tournament.penTimerId) {
+      clearTimeout(state.tournament.penTimerId);
+      state.tournament.penTimerId = null;
+    }
     pen.phase = "DONE";
     st.won = pen.userGoals > pen.oppGoals;
     st.finished = true;
@@ -4481,12 +4579,25 @@
   function autoResolveRemainingPenalties(st) {
     const pen = st.penalties;
     if (!pen || st.finished) return;
+    if (state.tournament.penTimerId) {
+      clearTimeout(state.tournament.penTimerId);
+      state.tournament.penTimerId = null;
+    }
     if (pen.phase === "ORDER") {
       pen.activeSide = pen.firstSide;
       pen.phase = pen.activeSide === "user" ? "USER_KICK" : "USER_SAVE";
+    } else if (pen.phase === "RESULT_BEAT") {
+      if (isPenaltyShootoutDecided(pen)) {
+        finishPenaltyShootout(st);
+        return;
+      }
+      const wasUserKicking = pen.lastAnim ? pen.lastAnim.isUserKicking : pen.activeSide === "user";
+      pen.lastAnim = null;
+      pen.activeSide = wasUserKicking ? "opp" : "user";
+      pen.phase = pen.activeSide === "user" ? "USER_KICK" : "USER_SAVE";
     }
     let guard = 0;
-    while (!st.finished && guard < 30) {
+    while (!st.finished && guard < 40) {
       guard++;
       const z = Math.floor(Math.random() * 6);
       resolvePenaltyTurn(st, z, true);
@@ -4894,7 +5005,7 @@
 
   function pauseForPitchBeat(st, calloutHTML, calloutCls, durationMs, ovrDiff, onBeatDone = null) {
     if (state.simSpeed !== 1) {
-      if (onBeatDone) onBeatDone();
+      if (onBeatDone) onBeatDone(true);
       syncLivePitchDOM(st);
       handleMinuteEndBoundaries(st, ovrDiff);
       return;
@@ -4929,7 +5040,7 @@
         cEl.className = "pitch-center-callout";
       }
 
-      if (onBeatDone) onBeatDone();
+      if (onBeatDone) onBeatDone(skipRestart);
       syncLivePitchDOM(st);
       const matchEnded = handleMinuteEndBoundaries(st, ovrDiff);
       if (!matchEnded && !skipRestart && st.running && !st.finished && !state.tournament.pendingClashFinish) {
@@ -5233,6 +5344,12 @@
         flightDuration: dashMs,
         fadeUntil: performance.now() + dashMs + 520
       };
+      if (state.simSpeed !== 1) {
+        carrier.x = dashToX;
+        carrier.y = dashToY;
+        pitch.ballX = dashToX;
+        pitch.ballY = dashToY;
+      }
       carrier.vx = dir * carrier.maxSpeed * 1.15;
       carrier.vy = dodgeSign * 6.5;
       carrier.carryTime = 0.35;
@@ -5592,7 +5709,9 @@
 
       const gkStopScore = calcNodeDuelScore(curGkNode, curDefSupport, activeShooter?.player?.element) + gkPick.duelBonus;
       const goldenBias = st.isGoldenGoal5v5
-        ? st.minute >= 8
+        ? st.minute >= 30
+          ? Math.min(14, 7.5 + (st.minute - 30) * 0.25)
+          : st.minute >= 8
           ? Math.min(7.5, 1.5 + (st.minute - 7) * 0.7)
           : 1.5
         : 0;
@@ -5603,6 +5722,7 @@
 
       const duelX = curAttIsUser ? 91.5 : 8.5;
       const duelY = Math.max(41, Math.min(59, 50 + (fromY - 50) * 0.22));
+      const shotGoalY = Math.max(41.5, Math.min(58.5, duelY));
       const instantMode = forceInstant || state.simSpeed !== 1;
 
       pitch.ballMode = "SHOT_FLIGHT";
@@ -5727,19 +5847,20 @@
       };
 
       const applyShotImpact = () => {
-        if (instantMode) {
+        const nowInstant = forceInstant || state.simSpeed !== 1;
+        if (nowInstant) {
           if (isGoal) {
             commitGoalOutcome();
             pitch.ballMode = "GOAL_NET";
             pitch.carrierUid = null;
             pitch.challengerUid = null;
-            pitch.holdBallPos = { x: curGoalX, y: goalY };
-            startBallFlight(pitch, duelX, duelY, curGoalX, goalY, 40, 0.4, "GOAL", "#facc15");
+            pitch.holdBallPos = { x: curGoalX, y: shotGoalY };
+            startBallFlight(pitch, duelX, duelY, curGoalX, shotGoalY, 40, 0.4, "GOAL", "#facc15");
             pitch.goalFlashSide = gSide;
             pitch.goalFlashUntil = performance.now() + 2200;
-            triggerStealShockwave(pitch, curGoalX, goalY, null, null);
-            triggerGoalLightningBurst(pitch, gSide, curGoalX, goalY);
-            showPitchBadge(pitch, curGoalX, goalY, "GOOOL!!", "badge-goal", 1400, "SH");
+            triggerStealShockwave(pitch, curGoalX, shotGoalY, null, null);
+            triggerGoalLightningBurst(pitch, gSide, curGoalX, shotGoalY);
+            showPitchBadge(pitch, curGoalX, shotGoalY, "GOOOL!!", "badge-goal", 1400, "SH");
             showNodeBadge(pitch, activeShooter.uid, `GOOOL! • ${activeShotLabel}`, "badge-goal", 1400, "SH");
           } else {
             commitSaveOutcome();
@@ -5763,14 +5884,21 @@
       };
 
       const onShotModalClosed = (skipRestart = false) => {
+        const nowInstant = forceInstant || state.simSpeed !== 1;
         if (isGoal) {
           const doKickoffReset = () => {
             resetPitchForKickoff(pitch, concedingSide, true, true);
             pitch.ticker = `${st.minute}' Saída no centro com ${concedingSide === "user" ? "Dream Team" : st.oppTeam.name}! Fôlego restaurado pós-gol (+60% de energia gasta).`;
           };
 
-          if (skipRestart || instantMode) {
+          if (skipRestart || nowInstant) {
             commitGoalOutcome();
+            pitch.goalFlashSide = gSide;
+            pitch.goalFlashUntil = performance.now() + (state.simSpeed === 4 ? 700 : 1400);
+            triggerStealShockwave(pitch, curGoalX, shotGoalY, null, null);
+            triggerGoalLightningBurst(pitch, gSide, curGoalX, shotGoalY);
+            showPitchBadge(pitch, curGoalX, shotGoalY, "GOOOL!!", "badge-goal", 1100, "SH");
+            showNodeBadge(pitch, activeShooter.uid, `GOOOL! • ${activeShotLabel}`, "badge-goal", 1100, "SH");
             if (st.isGoldenGoal5v5) return false;
             doKickoffReset();
             return false;
@@ -5788,20 +5916,35 @@
           pitch.ballMode = "GOAL_NET";
           pitch.carrierUid = null;
           pitch.challengerUid = null;
-          pitch.holdBallPos = { x: curGoalX, y: goalY };
-          startBallFlight(pitch, curGkNode.x, curGkNode.y, curGoalX, goalY, netFlightMs, 0, "GOAL", "#fde047");
+          pitch.holdBallPos = { x: curGoalX, y: shotGoalY };
+          startBallFlight(pitch, curGkNode.x, curGkNode.y, curGoalX, shotGoalY, netFlightMs, 0, "GOAL", "#fde047");
           syncLivePitchDOM(st);
 
-          // 3) Entrada nas redes com onda de choque e raio fluído exatamente onde a bola entrou na rede (curGoalX, goalY)
-          setTimeout(() => {
+          // 3) Entrada nas redes com onda de choque e raio fluído exatamente onde a bola entrou na rede (curGoalX, shotGoalY)
+          let netResolved = false;
+          const finishGoalNetEntry = (skipBeat = false) => {
+            if (netResolved) return;
+            netResolved = true;
+            state.tournament.pendingNetFlightFinish = null;
+            if (state.tournament.netFlightTimer) {
+              clearTimeout(state.tournament.netFlightTimer);
+              state.tournament.netFlightTimer = null;
+            }
             commitGoalOutcome();
             pitch.goalFlashSide = gSide;
             pitch.goalFlashUntil = performance.now() + 2200;
-            triggerStealShockwave(pitch, curGoalX, goalY, null, null);
-            triggerGoalLightningBurst(pitch, gSide, curGoalX, goalY);
-            showPitchBadge(pitch, curGoalX, goalY, "GOOOL!!", "badge-goal", 1600, "SH");
+            triggerStealShockwave(pitch, curGoalX, shotGoalY, null, null);
+            triggerGoalLightningBurst(pitch, gSide, curGoalX, shotGoalY);
+            showPitchBadge(pitch, curGoalX, shotGoalY, "GOOOL!!", "badge-goal", 1600, "SH");
             showNodeBadge(pitch, activeShooter.uid, `GOOOL! • ${activeShotLabel}`, "badge-goal", 1650, "SH");
             syncLivePitchDOM(st);
+
+            if (skipBeat || state.simSpeed !== 1) {
+              if (!st.isGoldenGoal5v5) doKickoffReset();
+              syncLivePitchDOM(st);
+              handleMinuteEndBoundaries(st, ovrDiff);
+              return;
+            }
 
             if (st.isGoldenGoal5v5) {
               pauseForPitchBeat(
@@ -5810,7 +5953,7 @@
                 "callout-goal",
                 1200,
                 ovrDiff,
-                () => handleMinuteEndBoundaries(st, ovrDiff)
+                null
               );
             } else {
               pauseForPitchBeat(
@@ -5822,18 +5965,17 @@
                 doKickoffReset
               );
             }
+          };
+
+          state.tournament.pendingNetFlightFinish = finishGoalNetEntry;
+          state.tournament.netFlightTimer = setTimeout(() => {
+            finishGoalNetEntry(false);
           }, netFlightMs);
 
           return true;
         }
 
-        // Cenário de DEFESA:
-        if (skipRestart || instantMode) {
-          commitSaveOutcome();
-          return false;
-        }
-
-        // A bola já viajou até o goleiro antes do modal; ao fechar, a animação de defesa aparece INSTANTANEAMENTE (0ms delay)
+        // Cenário de DEFESA: transfere sempre a posse limpa para o goleiro (mesmo se mudou para 2x/4x durante o duelo!)
         commitSaveOutcome();
         pitch.ballSide = curAttIsUser ? "opp" : "user";
         pitch.ballMode = "CARRIED";
@@ -5853,15 +5995,19 @@
         showNodeBadge(pitch, curGkNode.uid, `Defendeu • ${gkMoveName}`, "badge-steal", 1200, "GK");
         syncLivePitchDOM(st);
 
+        if (skipRestart || nowInstant) {
+          return false;
+        }
+
         pauseForPitchBeat(st, "", "", 750, ovrDiff, null);
         return true;
       };
 
-      const launchClashModal = () => {
+      const launchClashModal = (skipModal = false) => {
         state.tournament.shotFlightTimer = null;
         state.tournament.pendingShotFlightFinish = null;
 
-        if (forceInstant) {
+        if (skipModal || forceInstant || state.simSpeed !== 1) {
           applyShotImpact();
           onShotModalClosed(true);
           syncLivePitchDOM(st);
@@ -6025,7 +6171,7 @@
             );
           }
 
-          pauseForPitchBeat(st, "", "", leg1Ms, ovrDiff, () => {
+          pauseForPitchBeat(st, "", "", leg1Ms, ovrDiff, (skipRestart) => {
             resolveAgainstGk(
               chainNode,
               combinedMove,
@@ -6039,7 +6185,7 @@
               curGoalX,
               weakenedByBlocker,
               nextCtx,
-              false
+              Boolean(skipRestart || state.simSpeed !== 1)
             );
           });
           return true;
@@ -6098,7 +6244,9 @@
       pitch.holdBallPos = { x: duelX, y: duelY };
       pitch.lastClashMinute = st.minute;
 
-      const cFlightMs = state.simSpeed === 1 ? 1250 : 65;
+      const cFlightMs = state.simSpeed === 1
+        ? Math.round(Math.max(260, Math.min(680, 170 + Math.hypot(duelX - shooterNode.x, duelY - shooterNode.y) * 13)))
+        : 65;
       startBallFlight(pitch, shooterNode.x, shooterNode.y, duelX, duelY, cFlightMs, 2.5, "SHOT", "#38bdf8");
       showNodeBadge(pitch, counterNode.uid, `🔄 Contra-Chute!`, "badge-counter", 1400, cPick.isShCounter ? "SH" : "DF");
       pitch.ticker = `${st.minute}' CONTRA-CHUTE! ${counterNode.player.name} tenta rebater ${shotInfo.label} com ${cPick.move}!`;
@@ -6145,7 +6293,7 @@
           const retAttNodes = retAttIsUser ? pitch.userNodes : pitch.oppNodes;
           const retDefNodes = retAttIsUser ? pitch.oppNodes : pitch.userNodes;
           const retGkNode = retDefNodes.find((n) => n.role === "GK") || retDefNodes[0];
-          const retGoalX = retAttIsUser ? 97 : 3;
+          const retGoalX = retAttIsUser ? 96.8 : 3.2;
           const returnScore = Math.max(baseShotScore, counterDuelScore) + 3.2;
 
           return maybeChainAndResolveGk(
@@ -6185,27 +6333,51 @@
         );
       };
 
-      playShotClashAndContinue(
-        st,
-        {
-          kind: "SHOT",
-          dir: origAttIsUser ? "ltr" : "rtl",
-          userPlayer: origAttIsUser
-            ? { name: shooterNode.player.name, sprite: resolveDynamicNodeSprite(shooterNode, pitch), roleText: "CHUTE" }
-            : { name: counterNode.player.name, sprite: resolveDynamicNodeSprite(counterNode, pitch), roleText: "CONTRA-CHUTE" },
-          oppPlayer: origAttIsUser
-            ? { name: counterNode.player.name, sprite: resolveDynamicNodeSprite(counterNode, pitch), roleText: "CONTRA-CHUTE" }
-            : { name: shooterNode.player.name, sprite: resolveDynamicNodeSprite(shooterNode, pitch), roleText: "CHUTE" },
-          topMoveName: shotInfo.label,
-          bottomMoveName: `Contra-Chute: ${cPick.move}`,
-          bottomIcon: cPick.isShCounter ? "SH" : "DF",
-          outcomePositive: counterSuccess ? !origAttIsUser : origAttIsUser,
-          resultBannerText: counterSuccess ? "CONTRA-CHUTE!!" : "FUROU O CONTRA-CHUTE!"
-        },
-        applyCounterImpact,
-        ovrDiff,
-        onCounterModalClosed
-      );
+      const launchCounterModal = (skipModal = false) => {
+        state.tournament.shotFlightTimer = null;
+        state.tournament.pendingShotFlightFinish = null;
+        if (skipModal || state.simSpeed !== 1) {
+          applyCounterImpact();
+          const beatOwned = onCounterModalClosed(true);
+          syncLivePitchDOM(st);
+          if (!beatOwned) handleMinuteEndBoundaries(st, ovrDiff);
+          return;
+        }
+        playShotClashAndContinue(
+          st,
+          {
+            kind: "SHOT",
+            dir: origAttIsUser ? "ltr" : "rtl",
+            userPlayer: origAttIsUser
+              ? { name: shooterNode.player.name, sprite: resolveDynamicNodeSprite(shooterNode, pitch), roleText: "CHUTE" }
+              : { name: counterNode.player.name, sprite: resolveDynamicNodeSprite(counterNode, pitch), roleText: "CONTRA-CHUTE" },
+            oppPlayer: origAttIsUser
+              ? { name: counterNode.player.name, sprite: resolveDynamicNodeSprite(counterNode, pitch), roleText: "CONTRA-CHUTE" }
+              : { name: shooterNode.player.name, sprite: resolveDynamicNodeSprite(shooterNode, pitch), roleText: "CHUTE" },
+            topMoveName: shotInfo.label,
+            bottomMoveName: `Contra-Chute: ${cPick.move}`,
+            bottomIcon: cPick.isShCounter ? "SH" : "DF",
+            outcomePositive: counterSuccess ? !origAttIsUser : origAttIsUser,
+            resultBannerText: counterSuccess ? "CONTRA-CHUTE!!" : "FUROU O CONTRA-CHUTE!"
+          },
+          applyCounterImpact,
+          ovrDiff,
+          onCounterModalClosed
+        );
+      };
+
+      if (state.simSpeed !== 1) {
+        launchCounterModal(true);
+        return;
+      }
+      if (state.tournament.timerId) {
+        clearInterval(state.tournament.timerId);
+        state.tournament.timerId = null;
+      }
+      state.tournament.pendingShotFlightFinish = launchCounterModal;
+      state.tournament.shotFlightTimer = setTimeout(() => {
+        launchCounterModal(false);
+      }, Math.max(50, cFlightMs - 30));
       return;
     }
 
@@ -6252,7 +6424,9 @@
     pitch.holdBallPos = { x: duelX, y: duelY };
     pitch.lastClashMinute = st.minute;
 
-    const blockFlightMs = state.simSpeed === 1 ? 1400 : 65;
+    const blockFlightMs = state.simSpeed === 1
+      ? Math.round(Math.max(260, Math.min(680, 170 + Math.hypot(duelX - shooterNode.x, duelY - shooterNode.y) * 13)))
+      : 65;
     startBallFlight(pitch, shooterNode.x, shooterNode.y, duelX, duelY, blockFlightMs, 2.6, "SHOT", "#f97316");
     showPitchBadge(pitch, shooterNode.x, shooterNode.y, shotInfo.label, "badge-shot", state.simSpeed === 1 ? 1600 : 600, "SH");
     pitch.ticker = `${st.minute}' CHUTE! ${shooterNode.player.name} (${shotInfo.label}) enfrenta bloqueio de ${blockerNode.player.name}!`;
@@ -6337,27 +6511,51 @@
       );
     };
 
-    playShotClashAndContinue(
-      st,
-      {
-        kind: "SHOT",
-        dir: origAttIsUser ? "ltr" : "rtl",
-        userPlayer: origAttIsUser
-          ? { name: shooterNode.player.name, sprite: resolveDynamicNodeSprite(shooterNode, pitch), roleText: "CHUTE" }
-          : { name: blockerNode.player.name, sprite: resolveDynamicNodeSprite(blockerNode, pitch), roleText: "ZAGA • BLOQUEIO" },
-        oppPlayer: origAttIsUser
-          ? { name: blockerNode.player.name, sprite: resolveDynamicNodeSprite(blockerNode, pitch), roleText: "ZAGA • BLOQUEIO" }
-          : { name: shooterNode.player.name, sprite: resolveDynamicNodeSprite(shooterNode, pitch), roleText: "CHUTE" },
-        topMoveName: shotInfo.label,
-        bottomMoveName: blockMoveName,
-        bottomIcon: "DF",
-        outcomePositive: passedBlocker ? origAttIsUser : !origAttIsUser,
-        resultBannerText: passedBlocker ? "PASSOU • PERDEU FORÇA!" : "BLOQUEADO PELA ZAGA!"
-      },
-      applyBlockerImpact,
-      ovrDiff,
-      onBlockerModalClosed
-    );
+    const launchBlockerModal = (skipModal = false) => {
+      state.tournament.shotFlightTimer = null;
+      state.tournament.pendingShotFlightFinish = null;
+      if (skipModal || state.simSpeed !== 1) {
+        applyBlockerImpact();
+        const beatOwned = onBlockerModalClosed(true);
+        syncLivePitchDOM(st);
+        if (!beatOwned) handleMinuteEndBoundaries(st, ovrDiff);
+        return;
+      }
+      playShotClashAndContinue(
+        st,
+        {
+          kind: "SHOT",
+          dir: origAttIsUser ? "ltr" : "rtl",
+          userPlayer: origAttIsUser
+            ? { name: shooterNode.player.name, sprite: resolveDynamicNodeSprite(shooterNode, pitch), roleText: "CHUTE" }
+            : { name: blockerNode.player.name, sprite: resolveDynamicNodeSprite(blockerNode, pitch), roleText: "ZAGA • BLOQUEIO" },
+          oppPlayer: origAttIsUser
+            ? { name: blockerNode.player.name, sprite: resolveDynamicNodeSprite(blockerNode, pitch), roleText: "ZAGA • BLOQUEIO" }
+            : { name: shooterNode.player.name, sprite: resolveDynamicNodeSprite(shooterNode, pitch), roleText: "CHUTE" },
+          topMoveName: shotInfo.label,
+          bottomMoveName: blockMoveName,
+          bottomIcon: "DF",
+          outcomePositive: passedBlocker ? origAttIsUser : !origAttIsUser,
+          resultBannerText: passedBlocker ? "PASSOU • PERDEU FORÇA!" : "BLOQUEADO PELA ZAGA!"
+        },
+        applyBlockerImpact,
+        ovrDiff,
+        onBlockerModalClosed
+      );
+    };
+
+    if (state.simSpeed !== 1) {
+      launchBlockerModal(true);
+      return;
+    }
+    if (state.tournament.timerId) {
+      clearInterval(state.tournament.timerId);
+      state.tournament.timerId = null;
+    }
+    state.tournament.pendingShotFlightFinish = launchBlockerModal;
+    state.tournament.shotFlightTimer = setTimeout(() => {
+      launchBlockerModal(false);
+    }, Math.max(50, blockFlightMs - 30));
   }
 
   function stepContinuousPhysics(st, pitch, dt) {
@@ -6451,6 +6649,30 @@
     const defNodes = attIsUser ? pitch.oppNodes : pitch.userNodes;
     const attSupport = attIsUser ? userTeamSupport : oppTeamSupport;
     const defSupport = attIsUser ? oppTeamSupport : userTeamSupport;
+
+    // Watchdog anti-travamento: se a física rodar sem modal ativo e a bola ficar fora de CARRIED/PASS_FLIGHT, devolve posse ao goleiro defensor
+    if (pitch.ballMode !== "CARRIED" && pitch.ballMode !== "PASS_FLIGHT") {
+      pitch._stuckBallTime = (pitch._stuckBallTime || 0) + dt;
+      if (pitch._stuckBallTime > 0.85) {
+        pitch._stuckBallTime = 0;
+        const recoveryGk = defNodes.find((n) => n.role === "GK") || defNodes[0];
+        if (recoveryGk) {
+          pitch.ballSide = recoveryGk.side;
+          pitch.ballMode = "CARRIED";
+          pitch.carrierUid = recoveryGk.uid;
+          pitch.challengerUid = null;
+          pitch.holdBallPos = null;
+          pitch.ballFlight = null;
+          pitch.passState = null;
+          recoveryGk.carryTime = 0;
+          recoveryGk.decisionTimer = 0.35;
+          pitch.ballX = recoveryGk.x + (recoveryGk.side === "user" ? 1.8 : -1.8);
+          pitch.ballY = recoveryGk.y;
+        }
+      }
+      return;
+    }
+    pitch._stuckBallTime = 0;
 
     // FASE A: BOLA NO PÉ DE UM PORTADOR EM MOVIMENTO CONTÍNUO
     if (pitch.ballMode === "CARRIED") {
@@ -6817,64 +7039,111 @@
 
         // Se o recebedor partiu de posição de impedimento no momento do passe, o juiz apita! (Apenas no 11x11, nunca no 5x5)
         if (ps.wasOffsideAtPassTime && !pitch.is5v5) {
+          const foulX = Math.max(14, Math.min(86, catcher.x));
+          const foulY = Math.max(16, Math.min(84, catcher.y));
+          const nonGkDefs = defNodes.filter((d) => d.role !== "GK");
+          const restartDef =
+            nonGkDefs.length > 0
+              ? nonGkDefs.slice().sort((a, b) => Math.hypot(a.x - foulX, a.y - foulY) - Math.hypot(b.x - foulX, b.y - foulY))[0]
+              : defNodes[0];
+
           pitch.ballSide = attIsUser ? "opp" : "user";
           pitch.ballMode = "CARRIED";
-          const restartDef = defNodes.find((d) => d.role !== "GK") || defNodes[0];
           pitch.carrierUid = restartDef.uid;
           pitch.challengerUid = null;
+          pitch.holdBallPos = null;
+          pitch.ballFlight = null;
+          pitch.passTrail = null;
           pitch.passState = null;
           pitch.lastAssistCandidate = null;
           pitch.lastPasserUid = null;
           pitch.teamConsecutivePasses = 0;
+          pitch.justKickedOff = true;
           restartDef.carryTime = 0;
-          restartDef.decisionTimer = 0.65;
+          restartDef.decisionTimer = 0.35;
 
-          // Posição da falta por impedimento
-          pitch.ballX = Math.max(14, Math.min(86, catcher.x));
-          pitch.ballY = Math.max(16, Math.min(84, catcher.y));
-          restartDef.x = pitch.ballX;
-          restartDef.y = pitch.ballY;
-          restartDef.targetX = pitch.ballX;
-          restartDef.targetY = pitch.ballY;
-          restartDef.vx = 0;
-          restartDef.vy = 0;
+          pitch.ballX = foulX;
+          pitch.ballY = foulY;
 
-          // Reestruturação tática: todo o time se reorganiza e recompõe suas posições antes da cobrança
+          // Reestruturação tática animada: ambos os times se reorganizam em campo antes de bater o tiro livre indireto!
+          const now = performance.now();
+          const tweenDur = state.simSpeed === 1 ? 950 : 180;
+          const defSideIsUser = restartDef.side === "user";
+          const reorganizeMoves = [];
+          pitch.pushTweens = [];
+
           [...pitch.userNodes, ...pitch.oppNodes].forEach((n) => {
             n.vx = 0;
             n.vy = 0;
-            n.duelCooldown = 0.8;
+            n.duelCooldown = 0.9;
             n.staggerTimer = 0;
-            if (n.uid !== restartDef.uid) {
-              const defSideIsUser = restartDef.side === "user";
-              // Time que cobra adianta suas linhas táticas; time infrator recompõe para trás da linha da bola
-              if (n.side === restartDef.side) {
-                n.targetX = defSideIsUser
-                  ? Math.min(82, Math.max(12, n.baseX + 6))
-                  : Math.max(18, Math.min(88, n.baseX - 6));
-              } else {
-                n.targetX = defSideIsUser
-                  ? Math.max(28, Math.min(85, n.baseX - 8))
-                  : Math.min(72, Math.max(15, n.baseX + 8));
-              }
-              n.targetY = n.baseY;
-              n.targetSprint = 1.15; // Correm para se reestruturar rapidamente
+            let toX = n.x;
+            let toY = n.y;
+
+            if (n.uid === restartDef.uid) {
+              toX = foulX;
+              toY = foulY;
+            } else if (n.role === "GK") {
+              toX = n.baseX;
+              toY = 50;
+            } else if (n.side === restartDef.side) {
+              toX = defSideIsUser
+                ? Math.min(80, Math.max(14, n.baseX + 5))
+                : Math.max(20, Math.min(86, n.baseX - 5));
+              toY = n.baseY;
+            } else {
+              // Time infrator recompõe inteiro para o seu campo / atrás da linha da bola
+              toX = defSideIsUser
+                ? Math.max(Math.min(88, foulX + 8), Math.min(88, n.baseX + 4))
+                : Math.min(Math.max(12, foulX - 8), Math.max(12, n.baseX - 4));
+              toY = n.baseY;
+            }
+
+            reorganizeMoves.push({ node: n, toX, toY });
+            if (state.simSpeed === 1) {
+              pitch.pushTweens.push({
+                node: n,
+                fromX: n.x,
+                fromY: n.y,
+                toX,
+                toY,
+                start: now,
+                duration: tweenDur
+              });
+            } else {
+              n.x = toX;
+              n.y = toY;
+              n.targetX = toX;
+              n.targetY = toY;
             }
           });
 
+          const applyReorganizedCoords = () => {
+            reorganizeMoves.forEach(({ node, toX, toY }) => {
+              node.x = toX;
+              node.y = toY;
+              node.targetX = toX;
+              node.targetY = toY;
+              node.vx = 0;
+              node.vy = 0;
+            });
+            pitch.ballX = foulX + (defSideIsUser ? 1.6 : -1.6);
+            pitch.ballY = foulY;
+          };
+
           showNodeBadge(pitch, catcher.uid, "🚩 Impedimento!", "badge-lost", 1700);
-          showPitchBadge(pitch, pitch.ballX, pitch.ballY, "IMPEDIMENTO", "badge-lost", 1300);
+          showPitchBadge(pitch, foulX, foulY, "IMPEDIMENTO", "badge-lost", 1350);
           prependNarrationLine(
             st,
             "nar-steal",
-            `${st.minute}' [Impedimento] O árbitro paralisa o lance! ${catcher.player.name} estava adiantado. Os times se reestruturam para o tiro livre indireto.`,
+            `${st.minute}' [Impedimento] O árbitro paralisa o lance! ${catcher.player.name} estava adiantado. Os times se reestruturam antes da cobrança.`,
             { name: catcher.player.name, sprite: catcher.player.sprite, side: catcher.side },
-            null,
+            { name: restartDef.player.name, sprite: restartDef.player.sprite, side: restartDef.side },
             "BALL"
           );
-          pitch.ticker = `${st.minute}' 🚩 Impedimento contra ${catcher.player.name}! Cobrança armada.`;
+          pitch.ticker = `${st.minute}' 🚩 Impedimento contra ${catcher.player.name}! Times se reestruturando para a cobrança...`;
           syncLivePitchDOM(st);
-          pauseForPitchBeat(st, "", "", 1400, ovrDiff);
+          pauseForPitchBeat(st, "", "", 1250, ovrDiff, applyReorganizedCoords);
           return;
         }
 
@@ -7286,7 +7555,8 @@
       const p = state.squad[slot.id];
       if (!p) return;
       const uid = `u_${slot.id}`;
-      playerTotals[uid] = {
+      const pKey = String(p.id || uid);
+      playerTotals[pKey] = {
         uid,
         slotId: slot.id,
         role: slot.role,
@@ -7298,7 +7568,7 @@
         teamEmblem: p.teamEmblem,
         teamName: p.teamName,
         ovr: getEffectiveOvr(p, slot.role),
-        matches: finishedStages.length,
+        matches: 0,
         goals: 0,
         assists: 0,
         passesOk: 0,
@@ -7360,10 +7630,12 @@
         if (ps.playerStats) {
           Object.keys(ps.playerStats).forEach((uid) => {
             const mp = ps.playerStats[uid];
-            if (!playerTotals[uid]) {
-              playerTotals[uid] = { ...mp, matches: finishedStages.length };
+            const pKey = String(mp.id || uid);
+            if (!playerTotals[pKey]) {
+              playerTotals[pKey] = { ...mp, matches: 1 };
             } else {
-              const target = playerTotals[uid];
+              const target = playerTotals[pKey];
+              target.matches = (target.matches || 0) + 1;
               target.goals += mp.goals || 0;
               target.assists += mp.assists || 0;
               target.passesOk += mp.passesOk || 0;
@@ -8563,6 +8835,14 @@
     return events[events.length - 1];
   }
 
+  function canPlayerEvolveAnyMove(player) {
+    if (!player || !player.moves) return false;
+    return ["SH", "OF", "DF", "GK"].some((cat) => {
+      const arr = player.moves[cat];
+      return Array.isArray(arr) && arr.length > 0 && !arr[0].includes("★");
+    });
+  }
+
   function evolvePlayerPrimaryMove(player, slotRole) {
     if (!player || !player.moves) return null;
     if (!player._baseMovesSnapshot) {
@@ -8581,6 +8861,7 @@
       const arr = player.moves[cat];
       if (Array.isArray(arr) && arr.length > 0) {
         const oldName = arr[0];
+        if (oldName.includes("★")) continue;
         let nextName = oldName;
         if (cat === "GK") {
           nextName = oldName.includes("Shin") ? `${oldName} ★` : oldName.includes("Kai") ? oldName.replace("Kai", "Shin") : `${oldName} Shin`;
@@ -8601,6 +8882,113 @@
       }
     }
     return null;
+  }
+
+  function applySecretManualMastery(player, slotRole) {
+    if (!player) return null;
+    if (!player.moves) player.moves = { SH: [], OF: [], DF: [], GK: [] };
+    if (!player._baseMovesSnapshot) {
+      player._baseMovesSnapshot = JSON.parse(JSON.stringify(player.moves));
+    }
+    player.learnedSecretManual = true;
+    player.moveEvoCount = (player.moveEvoCount || 0) + 1;
+    const secretCatalog = {
+      GK: { cat: "GK", move: "Mão Ômega ★" },
+      DF: { cat: "DF", move: "A Montanha ★" },
+      MF: { cat: "OF", move: "Campo Relâmpago ★" },
+      FW: { cat: "SH", move: "A Terra ★" }
+    };
+    const spec = secretCatalog[slotRole] || secretCatalog.FW;
+    if (!Array.isArray(player.moves[spec.cat])) player.moves[spec.cat] = [];
+    if (!player.moves[spec.cat].includes(spec.move)) {
+      player.moves[spec.cat].unshift(spec.move);
+    }
+    const order =
+      slotRole === "GK"
+        ? ["GK", "DF", "SH", "OF"]
+        : slotRole === "DF"
+        ? ["DF", "OF", "SH", "GK"]
+        : slotRole === "MF"
+        ? ["OF", "SH", "DF", "GK"]
+        : ["SH", "OF", "DF", "GK"];
+    player.hissatsu = [
+      ...(player.moves[order[0]] || []),
+      ...(player.moves[order[1]] || [])
+    ]
+      .slice(0, 2)
+      .join(" / ");
+    return spec.move;
+  }
+
+  function getEligibleSlotsForPrepEvent(ev) {
+    if (!ev) return [];
+    return getSlots().filter((slot) => {
+      const p = state.squad[slot.id];
+      if (!p) return false;
+      if (ev.targetRoles && ev.targetRoles.length > 0 && !ev.targetRoles.includes(slot.role)) {
+        return false;
+      }
+      if (ev.kind === "ITEM_PICK" || ev.kind === "MANUAL_PICK") {
+        const alreadyHas =
+          Array.isArray(p.equippedItems) &&
+          p.equippedItems.some((it) => it.id === ev.id || it.title === ev.title);
+        if (alreadyHas) return false;
+      } else if (ev.kind === "KESHIN_PICK") {
+        if (p.keshin) return false;
+      } else if (ev.kind === "EVO_PICK") {
+        if (ev.id === "secret_hissatsu_mastery") {
+          if (p.learnedSecretManual) return false;
+        } else if (!canPlayerEvolveAnyMove(p)) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }
+
+  function getEligiblePrepEventsForLocation(loc, t) {
+    if (!loc || !Array.isArray(loc.events)) return [];
+    const bonuses = t?.prepBonuses || {};
+    const baseEligible = loc.events.filter((ev) => {
+      if (ev.kind === "PASSIVE_DOUBLE_EVENT" && bonuses.permanentDoublePrep) return false;
+      if (ev.kind === "PASSIVE_LATE_RESIST" && bonuses.lateMatchNoStaminaLoss) return false;
+      if (ev.id === "tire_training" && (bonuses.tireTrainingDone || (bonuses.staminaMul || 1) <= 0.72)) return false;
+      if (
+        ev.kind === "ITEM_PICK" ||
+        ev.kind === "MANUAL_PICK" ||
+        ev.kind === "KESHIN_PICK" ||
+        ev.kind === "EVO_PICK"
+      ) {
+        return getEligibleSlotsForPrepEvent(ev).length > 0;
+      }
+      return true;
+    });
+
+    const usedThisRound = new Set(t?.prep?.usedEventIdsThisRound || []);
+    if (usedThisRound.size > 0) {
+      const withoutUsedThisRound = baseEligible.filter((ev) => !usedThisRound.has(ev.id));
+      if (withoutUsedThisRound.length >= Math.min(3, baseEligible.length) && withoutUsedThisRound.length > 0) {
+        return withoutUsedThisRound;
+      }
+    }
+
+    if (baseEligible.length > 0) return baseEligible;
+
+    return [
+      {
+        id: `fallback_${loc.id}`,
+        title: loc.id === "town" ? "Suplemento Relâmpago" : "Treino Intensivo Relâmpago",
+        icon: UI.tpWater || UI.manualSkill || UI.ffLogo,
+        kind: "COLLECTIVE",
+        applyRoles: ["GK", "DF", "MF", "FW"],
+        ovrBoost: 1,
+        teamPower: 24,
+        teamChem: 3,
+        xpGain: 90,
+        weight: 1.0,
+        summary: "+1 OVR em todos os titulares • +3% Química • +24 Poder • +90 XP"
+      }
+    ];
   }
 
   function gainPlayerXp(player, amount) {
@@ -8632,11 +9020,17 @@
       .filter(Boolean);
 
     const usedOppIds = getPickedPlayerIds();
+    const usedFullNames = new Set(
+      Object.values(state.squad)
+        .filter(Boolean)
+        .map((p) => (p.fullName || p.name || "").toLowerCase())
+    );
     // Seleciona um craque estrela (OVR 88 a 96) para liderar o time adversário de rua!
     const starCandidates = [];
     DB.teams.forEach((t) => {
       t.players.forEach((p) => {
-        if (!usedOppIds.has(p.id) && p.ovr >= 87) {
+        const fn = (p.fullName || p.name || "").toLowerCase();
+        if (!usedOppIds.has(p.id) && !usedFullNames.has(fn) && p.ovr >= 87) {
           starCandidates.push({ player: p, teamName: t.name, teamId: t.id, emblem: t.emblem, role: p.pos });
         }
       });
@@ -8644,22 +9038,29 @@
     const starRecruit = starCandidates.length > 0
       ? starCandidates[Math.floor(Math.random() * starCandidates.length)]
       : null;
-    if (starRecruit) usedOppIds.add(starRecruit.player.id);
+    if (starRecruit) {
+      usedOppIds.add(starRecruit.player.id);
+      usedFullNames.add((starRecruit.player.fullName || starRecruit.player.name || "").toLowerCase());
+    }
 
+    let starPlaced = false;
     const pickOppByRole = (role) => {
-      if (starRecruit && starRecruit.role === role) {
+      if (starRecruit && !starPlaced && starRecruit.role === role) {
+        starPlaced = true;
         return starRecruit;
       }
       const cands = [];
       DB.teams.forEach((t) => {
         t.players.forEach((p) => {
-          if (!usedOppIds.has(p.id) && p.pos === role && p.ovr >= 76 && p.ovr <= 89) {
+          const fn = (p.fullName || p.name || "").toLowerCase();
+          if (!usedOppIds.has(p.id) && !usedFullNames.has(fn) && p.pos === role && p.ovr >= 76 && p.ovr <= 89) {
             cands.push({ player: p, teamName: t.name, teamId: t.id, emblem: t.emblem, role });
           }
         });
       });
       const picked = cands[Math.floor(Math.random() * cands.length)] || { player: DB.teams[0].players[0], teamName: DB.teams[0].name, teamId: DB.teams[0].id, emblem: DB.teams[0].emblem, role };
       usedOppIds.add(picked.player.id);
+      usedFullNames.add((picked.player.fullName || picked.player.name || "").toLowerCase());
       return picked;
     };
     const oppQuintet = ["GK", "DF", "MF", "MF", "FW"].map(pickOppByRole);
@@ -8671,15 +9072,15 @@
     const userCoords = [
       { key: "GK", role: "GK", tacticalRole: "GK", label: "GOL", x: 9, y: 50 },
       { key: "DF", role: "DF", tacticalRole: "CB", label: "ZAG", x: 24, y: 50 },
-      { key: "MF1", role: "MF", tacticalRole: "MID", label: "MEI", x: 37, y: 27 },
-      { key: "MF2", role: "MF", tacticalRole: "MID", label: "MEI", x: 37, y: 73 },
+      { key: "MF1", role: "MF", tacticalRole: "CM", label: "MEI", x: 37, y: 27 },
+      { key: "MF2", role: "MF", tacticalRole: "CM", label: "MEI", x: 37, y: 73 },
       { key: "FW", role: "FW", tacticalRole: "ST", label: "ATA", x: 47, y: 50 }
     ];
     const oppCoords = [
       { key: "GK", role: "GK", tacticalRole: "GK", label: "GOL", x: 91, y: 50 },
       { key: "DF", role: "DF", tacticalRole: "CB", label: "ZAG", x: 76, y: 50 },
-      { key: "MF1", role: "MF", tacticalRole: "MID", label: "MEI", x: 63, y: 27 },
-      { key: "MF2", role: "MF", tacticalRole: "MID", label: "MEI", x: 63, y: 73 },
+      { key: "MF1", role: "MF", tacticalRole: "CM", label: "MEI", x: 63, y: 27 },
+      { key: "MF2", role: "MF", tacticalRole: "CM", label: "MEI", x: 63, y: 73 },
       { key: "FW", role: "FW", tacticalRole: "ST", label: "ATA", x: 53, y: 50 }
     ];
 
@@ -8790,7 +9191,16 @@
     clearTournamentTimers(false);
     const t = state.tournament;
     if (!t.prepBonuses) {
-      t.prepBonuses = { xp: 0, chem: 0, power: 0, staminaMul: 1, lateMatchNoStaminaLoss: false, permanentDoublePrep: false, log: [] };
+      t.prepBonuses = {
+        xp: 0,
+        chem: 0,
+        power: 0,
+        staminaMul: 1,
+        lateMatchNoStaminaLoss: false,
+        permanentDoublePrep: false,
+        tireTrainingDone: false,
+        log: []
+      };
     }
     // Se o time tiver a passiva permanente do treinador, cada preparação começa com 2 eventos!
     const allowedEvents = t.prepBonuses.permanentDoublePrep ? 2 : 1;
@@ -8804,6 +9214,7 @@
       isSpinningSlots: false,
       slotsSpun: [false, false, false],
       eventsRemaining: allowedEvents,
+      usedEventIdsThisRound: [],
       appliedMsg: null,
       clash5v5: null,
       recruitCandidate: null,
@@ -8823,17 +9234,14 @@
       t.prepTimerId = null;
     }
 
-    // Sorteia 3 opções DISTINTAS da lista de eventos daquele local e exibe diretamente (sem roleta/delay)
-    const availableEvents = [...loc.events];
+    // Sorteia até 3 opções DISTINTAS e ELEGÍVEIS (itens únicos / passivas já adquiridos nunca reaparecem!)
+    const availableEvents = [...getEligiblePrepEventsForLocation(loc, t)];
     const pickedThree = [];
     for (let c = 0; c < 3 && availableEvents.length > 0; c++) {
       const ev = pickWeightedPrepEvent(availableEvents);
       pickedThree.push(ev);
       const idx = availableEvents.indexOf(ev);
       if (idx !== -1) availableEvents.splice(idx, 1);
-    }
-    while (pickedThree.length < 3 && loc.events.length > 0) {
-      pickedThree.push(loc.events[Math.floor(Math.random() * loc.events.length)]);
     }
 
     t.prep.locId = locId;
@@ -8847,24 +9255,34 @@
   function handleChoosePrepOption(choiceEvent) {
     const t = state.tournament;
     const prep = t.prep;
-    if (!prep) return;
+    if (!prep || !choiceEvent) return;
     prep.event = choiceEvent;
+    if (choiceEvent.id) {
+      if (!Array.isArray(prep.usedEventIdsThisRound)) prep.usedEventIdsThisRound = [];
+      if (!prep.usedEventIdsThisRound.includes(choiceEvent.id)) {
+        prep.usedEventIdsThisRound.push(choiceEvent.id);
+      }
+    }
 
-    // 1. Passiva Permanente: Passe Livre do Treinador (+1 evento de preparação extra em TODAS as rodadas)
+    // 1. Passiva Permanente: Passe Livre do Treinador (+1 evento de preparação extra em TODAS as rodadas — única vez!)
     if (choiceEvent.kind === "PASSIVE_DOUBLE_EVENT") {
-      t.prepBonuses.permanentDoublePrep = true;
-      prep.eventsRemaining = (prep.eventsRemaining || 1) + 1;
-      t.prepBonuses.log.push("Passe Livre do Treinador (Passiva Permanente: 2 Eventos por Jogo)");
+      if (!t.prepBonuses.permanentDoublePrep) {
+        t.prepBonuses.permanentDoublePrep = true;
+        prep.eventsRemaining = (prep.eventsRemaining || 1) + 1;
+        t.prepBonuses.log.push("Passe Livre do Treinador (Passiva Permanente: 2 Eventos por Jogo)");
+      }
       prep.phase = "DONE";
       prep.appliedMsg = "🎟️ Passiva Permanente Ativada! A partir de agora e para TODAS as partidas do torneio, seu time pode realizar 2 EVENTOS de preparação a cada rodada!";
       renderAll();
       return;
     }
 
-    // 2. Passiva: Pingente da Resistência Final (não perde stamina após 75')
+    // 2. Passiva: Pingente da Resistência Final (não perde stamina após 75' — única vez!)
     if (choiceEvent.kind === "PASSIVE_LATE_RESIST") {
-      t.prepBonuses.lateMatchNoStaminaLoss = true;
-      t.prepBonuses.log.push("Resistência Final (Fôlego aos 75'+)");
+      if (!t.prepBonuses.lateMatchNoStaminaLoss) {
+        t.prepBonuses.lateMatchNoStaminaLoss = true;
+        t.prepBonuses.log.push("Resistência Final (Fôlego aos 75'+)");
+      }
       prep.phase = "DONE";
       prep.appliedMsg = "⚡ Pingente Equipado! Seus 11 jogadores agora possuem FÔLEGO INFINITO nos minutos finais (75'+)!";
       renderAll();
@@ -8898,6 +9316,7 @@
     const oldPlayer = state.squad[replaceSlotId];
     const newP = {
       ...starRecruit.player,
+      teamId: starRecruit.teamId,
       teamName: starRecruit.teamName,
       teamEmblem: starRecruit.emblem
     };
@@ -8929,6 +9348,9 @@
     if (event.staminaMul) {
       t.prepBonuses.staminaMul = Math.min(t.prepBonuses.staminaMul || 1, event.staminaMul);
     }
+    if (event.id === "tire_training") {
+      t.prepBonuses.tireTrainingDone = true;
+    }
     t.prepBonuses.log.push(event.title);
     t.prep.phase = "DONE";
     t.prep.appliedMsg = `${event.title} aplicado! ${event.summary}${affectedNames.length > 0 ? ` (${affectedNames.length} atletas fortalecidos)` : ""}`;
@@ -8945,22 +9367,35 @@
 
     let msg = "";
     if (event.kind === "ITEM_PICK" || event.kind === "MANUAL_PICK") {
-      player.boostOvr = (player.boostOvr || 0) + (event.ovrBoost || 2);
       if (!Array.isArray(player.equippedItems)) player.equippedItems = [];
-      player.equippedItems.push({ title: event.title, icon: event.icon });
+      const alreadyHas = player.equippedItems.some((it) => it.id === event.id || it.title === event.title);
+      if (!alreadyHas) {
+        player.boostOvr = (player.boostOvr || 0) + (event.ovrBoost || 2);
+        player.equippedItems.push({ id: event.id, title: event.title, icon: event.icon });
+      }
       msg = `${player.name} equipou ${event.title} e ganhou +${event.ovrBoost} OVR (agora ${getEffectiveOvr(player, slot.role)})!`;
     } else if (event.kind === "KESHIN_PICK") {
-      const pool = CANONICAL_KESHINS[slot.role] || CANONICAL_KESHINS.MF;
-      const chosenK = pool[Math.floor(Math.random() * pool.length)];
-      player.keshin = { name: chosenK.name, icon: UI[chosenK.iconKey] || UI.keshinIcon };
-      player.boostOvr = (player.boostOvr || 0) + (event.ovrBoost || 3);
-      msg = `${player.name} despertou a Incorporação 【${chosenK.name}】 (+${event.ovrBoost} OVR e bônus em todos os duelos)!`;
+      if (!player.keshin) {
+        const pool = CANONICAL_KESHINS[slot.role] || CANONICAL_KESHINS.MF;
+        const chosenK = pool[Math.floor(Math.random() * pool.length)];
+        player.keshin = { name: chosenK.name, icon: UI[chosenK.iconKey] || UI.keshinIcon };
+        player.boostOvr = (player.boostOvr || 0) + (event.ovrBoost || 3);
+        msg = `${player.name} despertou a Incorporação 【${chosenK.name}】 (+${event.ovrBoost} OVR e bônus em todos os duelos)!`;
+      } else {
+        msg = `${player.name} já possui a Incorporação 【${player.keshin.name}】!`;
+      }
     } else if (event.kind === "EVO_PICK") {
-      const evo = evolvePlayerPrimaryMove(player, slot.role);
-      player.boostOvr = (player.boostOvr || 0) + (event.ovrBoost || 2);
-      msg = evo
-        ? `${player.name} evoluiu 【${evo.oldName}】 ➔ 【${evo.nextName}】 e subiu +${event.ovrBoost} OVR!`
-        : `${player.name} aperfeiçoou sua técnica e ganhou +${event.ovrBoost} OVR!`;
+      if (event.id === "secret_hissatsu_mastery") {
+        const learnedMove = applySecretManualMastery(player, slot.role);
+        player.boostOvr = (player.boostOvr || 0) + (event.ovrBoost || 3);
+        msg = `${player.name} dominou a técnica secreta 【${learnedMove}】 e subiu +${event.ovrBoost} OVR!`;
+      } else {
+        const evo = evolvePlayerPrimaryMove(player, slot.role);
+        player.boostOvr = (player.boostOvr || 0) + (event.ovrBoost || 2);
+        msg = evo
+          ? `${player.name} evoluiu 【${evo.oldName}】 ➔ 【${evo.nextName}】 e subiu +${event.ovrBoost} OVR!`
+          : `${player.name} aperfeiçoou sua técnica e ganhou +${event.ovrBoost} OVR!`;
+      }
     }
 
     t.prepBonuses.xp += event.xpGain || 50;
@@ -9301,15 +9736,8 @@
             `;
           }
         } else {
-          // Escolha de jogador para Item / Keshin / Evolução / Manual
-          const eligibleSlots = getSlots().filter((slot) => {
-            const p = state.squad[slot.id];
-            if (!p) return false;
-            if (ev.targetRoles && ev.targetRoles.length > 0) {
-              return ev.targetRoles.includes(slot.role);
-            }
-            return true;
-          });
+          // Escolha de jogador elegível para Item / Keshin / Evolução / Manual (sem permitir duplicatas no mesmo jogador!)
+          const eligibleSlots = getEligibleSlotsForPrepEvent(ev);
           const pickList = eligibleSlots.length > 0 ? eligibleSlots : getSlots().filter((s) => state.squad[s.id]);
 
           outcomeHTML = `
@@ -9441,7 +9869,6 @@
       <div class="prep-stage-card" style="position:relative;">
         ${topBannerHTML}
         ${bodyHTML}
-        <div id="shot-clash-slot" class="pitch-clash-modal" style="display:none;"></div>
       </div>
     `;
   }
@@ -9648,12 +10075,22 @@
       const prep5SpeedBtn = document.getElementById("btn-prep5-speed");
       if (prep5SpeedBtn) {
         prep5SpeedBtn.addEventListener("click", () => {
+          const mSt5 = t.prep?.clash5v5?.miniSt;
+          if (mSt5?.finished) return;
           state.simSpeed = state.simSpeed === 1 ? 2 : state.simSpeed === 2 ? 4 : 1;
           prep5SpeedBtn.innerHTML = `<span>Vel: ${state.simSpeed}x</span>`;
-          if (state.simSpeed !== 1 && (state.tournament.pendingClashFinish || state.tournament.pendingBeatFinish || state.tournament.pendingShotFlightFinish)) {
+          if (
+            state.simSpeed !== 1 &&
+            (state.tournament.pendingClashFinish ||
+              state.tournament.pendingBeatFinish ||
+              state.tournament.pendingShotFlightFinish ||
+              state.tournament.pendingNetFlightFinish)
+          ) {
             clearTournamentTimers(true);
           }
-          startMatchInterval();
+          if (mSt5 && mSt5.running && !mSt5.finished) {
+            startMatchInterval();
+          }
         });
       }
 
@@ -9924,10 +10361,16 @@
       speedBtn.addEventListener("click", () => {
         state.simSpeed = state.simSpeed === 1 ? 2 : state.simSpeed === 2 ? 4 : 1;
         speedBtn.innerHTML = `<span>Vel: ${state.simSpeed}x</span>`;
-        if (state.simSpeed !== 1 && (state.tournament.pendingClashFinish || state.tournament.pendingBeatFinish || state.tournament.pendingShotFlightFinish)) {
+        if (
+          state.simSpeed !== 1 &&
+          (state.tournament.pendingClashFinish ||
+            state.tournament.pendingBeatFinish ||
+            state.tournament.pendingShotFlightFinish ||
+            state.tournament.pendingNetFlightFinish)
+        ) {
           clearTournamentTimers(true);
         }
-        if (st.running && !st.finished) {
+        if (st.running && !st.finished && !state.tournament.pendingWhistleFinish) {
           startMatchInterval();
         }
       });
