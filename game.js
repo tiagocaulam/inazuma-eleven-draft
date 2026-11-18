@@ -9017,12 +9017,16 @@
       {
         id: "town",
         title: "Cidade de Inazuma",
-        sub: "Lojas & Sinergias",
-        cta: "Visitar a Cidade",
+        sub: "Lojas & Equipamentos",
+        mapLabel: "Lojas & Itens",
+        mapX: 54,
+        mapY: 42,
+        cta: "Visitar as Lojas",
         spinMsg: "Sorteando 3 equipamentos e amuletos na Cidade de Inazuma...",
         resultEyebrow: "Escolha 1 de 3 Descobertas na Cidade",
         banner: UI.locTown || UI.stadiumBg,
-        badgeIcon: UI.itemShoesLegend || UI.itemGloveLegend,
+        badgeIcon: UI.iconShopBag || UI.itemShoesLegend,
+        subIcon: UI.iconShopBoots || UI.itemShoesLegend,
         desc: "Equipamentos que combam entre si, Níveis, Amuletos Elementais e Passivas.",
         events: [
           {
@@ -9139,11 +9143,15 @@
         id: "riverbank",
         title: "Margem do Rio",
         sub: "Campinho da Raimon",
-        cta: "Ir para o Campo",
+        mapLabel: "Campinho 5x5",
+        mapX: 35,
+        mapY: 75,
+        cta: "Ir para o Campinho",
         spinMsg: "Sorteando 3 oportunidades na Margem do Rio...",
         resultEyebrow: "Escolha 1 de 3 Oportunidades na Margem",
         banner: UI.locRiverbank || UI.stadiumBg,
-        badgeIcon: UI.ffLogo || UI.moveOF,
+        badgeIcon: UI.iconCampinho || UI.ffLogo,
+        subIcon: UI.iconBattleVR || UI.ffLogo,
         desc: "5x5 com recrutamento de craque (já chega no Nível da fase!), subida de Nível em grupo e táticas.",
         events: [
           {
@@ -9201,11 +9209,15 @@
         id: "training",
         title: "Centro Inabikari",
         sub: "Treino Secreto",
+        mapLabel: "Treino Secreto",
+        mapX: 88,
+        mapY: 64,
         cta: "Treinar no Inabikari",
         spinMsg: "Sorteando 3 salas de treino no Centro Inabikari...",
         resultEyebrow: "Escolha 1 de 3 Treinos no Inabikari",
         banner: UI.locTraining || UI.stadiumBg,
-        badgeIcon: UI.keshinPegasus || UI.keshinIcon,
+        badgeIcon: UI.iconSecretTrain || UI.keshinPegasus,
+        subIcon: UI.iconSpecialTrainVR || UI.steelTowerIcon,
         desc: "Manual Secreto (+3 Nv), Incorporação Keshin (+3 Nv), Evolução de Técnica e Sinergia Elemental.",
         events: [
           {
@@ -10061,7 +10073,35 @@
         </div>
       `;
 
+      const mapImgSrc = UI.inazumaMap || UI.locTown || UI.stadiumBg;
+      const mapStageHTML = mapImgSrc
+        ? `
+          <div class="prep-inazuma-map-stage">
+            <img class="prep-inazuma-map-img" src="${mapImgSrc}" alt="Mapa da Cidade de Inazuma" />
+            <div class="prep-inazuma-map-shade"></div>
+            <div class="prep-map-header-tag">
+              ${UI.iconDestVR ? `<img src="${UI.iconDestVR}" alt="" />` : "⚡"}
+              <span>MAPA DA CIDADE DE INAZUMA • TOQUE EM UM LOCAL</span>
+            </div>
+            ${locations
+              .map(
+                (loc) => `
+              <div class="prep-map-pin" data-prep-loc="${loc.id}" style="left:${loc.mapX || 50}%; top:${loc.mapY || 50}%;" title="${loc.title} — ${loc.sub}">
+                <div class="prep-map-pin-orb">
+                  ${loc.badgeIcon ? `<img class="pin-main-icon" src="${loc.badgeIcon}" alt="${loc.title}" />` : ""}
+                  ${loc.subIcon ? `<span class="prep-map-pin-sub"><img src="${loc.subIcon}" alt="" /></span>` : ""}
+                </div>
+                <span class="prep-map-pin-label">${loc.mapLabel || loc.title}</span>
+              </div>
+            `
+              )
+              .join("")}
+          </div>
+        `
+        : "";
+
       bodyHTML = `
+        ${mapStageHTML}
         <div class="prep-locations-grid">
           ${locations
             .map(
@@ -10069,6 +10109,7 @@
             <div class="prep-loc-card" data-prep-loc="${loc.id}">
               <div class="prep-loc-compact-icon-wrap">
                 ${loc.badgeIcon ? `<img class="prep-loc-badge-icon" src="${loc.badgeIcon}" alt="" />` : ""}
+                ${loc.subIcon ? `<span class="prep-loc-sub-badge"><img src="${loc.subIcon}" alt="" /></span>` : ""}
               </div>
               <div class="prep-loc-compact-content">
                 <div class="prep-loc-sub">${loc.sub || ""}</div>
