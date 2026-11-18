@@ -6853,6 +6853,43 @@ body {
   }
 }
 
+.squad-overview-modal-card {
+  max-width: 720px;
+  max-height: 86vh;
+  overflow-y: auto;
+}
+
+.squad-modal-bonds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.squad-modal-bond-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(30, 58, 138, 0.55);
+  border: 1px solid rgba(96, 165, 250, 0.38);
+  font-size: 0.64rem;
+  font-weight: 800;
+  color: #e2e8f0;
+}
+
+.squad-modal-roster-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+@media (max-width: 640px) {
+  .squad-modal-roster-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .live-tactics-modal-backdrop {
   position: fixed;
   inset: 0;

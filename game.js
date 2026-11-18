@@ -11320,7 +11320,7 @@
       bodyHTML = `
         ${mapStageHTML}
         ${buildActiveScalableBuffsHTML(t)}
-        ${buildTacticsControlBarHTML(true)}
+        ${buildTacticsControlBarHTML(false)}
         ${buildOpponentScoutCardHTML(nextStage, prep.nextStageIdx)}
       `;
     } else if (prep.phase === "PICK_CHOICE" || prep.phase === "SPINNING_CHOICES") {
@@ -11751,6 +11751,71 @@
     `;
   }
 
+  function buildUserSquadModalHTML(stats, t) {
+    const slots = getSlots();
+    const bonds = stats.activeBonds || [];
+    return `
+      <div class="live-tactics-modal-backdrop" id="squad-overview-modal">
+        <div class="live-tactics-modal-card squad-overview-modal-card">
+          <div class="live-tactics-modal-head">
+            <div>
+              <div style="font-size:0.68rem; font-weight:900; color:#4ade80; text-transform:uppercase;">Dream Team • Formação ${state.formation}</div>
+              <h4 style="margin:0; font-size:1rem; font-weight:900; color:#fff;">Escalação &amp; Poder do Time</h4>
+            </div>
+            <button type="button" class="ie-cmd-btn" id="btn-close-squad-modal" style="padding:5px 12px; font-size:0.74rem; background:#334155;">
+              <span>Fechar ✕</span>
+            </button>
+          </div>
+          <div class="opp-scout-stats-row">
+            <span class="opp-stat-pill is-pwr">Poder <strong>${stats.power.toLocaleString("pt-BR")}</strong></span>
+            <span class="opp-stat-pill">ATQ <strong>${stats.atk}</strong></span>
+            <span class="opp-stat-pill">MEI <strong>${stats.mid}</strong></span>
+            <span class="opp-stat-pill">DEF <strong>${stats.def}</strong></span>
+            <span class="opp-stat-pill">OVR <strong>${stats.ovr}</strong></span>
+            <span class="opp-stat-pill">Nv. Médio <strong>${stats.avgLevel || 1}</strong></span>
+            <span class="opp-stat-pill">Química <strong>${stats.chem}%</strong></span>
+          </div>
+          ${
+            bonds.length > 0
+              ? `<div class="squad-modal-bonds">${bonds.map((b) => `<span class="squad-modal-bond-chip">${b.label}</span>`).join("")}</div>`
+              : ""
+          }
+          <div class="squad-modal-roster-grid">
+            ${slots
+              .map((slot) => {
+                const p = state.squad[slot.id];
+                if (!p) return "";
+                const lvl = getPlayerLevel(p);
+                const effOvr = getEffectiveOvr(p, slot.role);
+                const pwr = calcIndividualPlayerPower(p, slot.role, lvl);
+                const move = getPrimaryMoveForRole(p, slot.role);
+                return `
+                  <div class="opp-scout-player squad-modal-player">
+                    <img class="opp-scout-avatar" src="${getPlayerFormSprite(p, slot.role)}" alt="${p.name}" style="border-color:rgba(74, 222, 128, 0.55);" />
+                    <div class="opp-scout-pinfo">
+                      <div class="opp-scout-pname-row">
+                        ${posIconHTML(slot.role, true)}
+                        ${elemIconHTML(p.element, "inline-elem-icon")}
+                        <span class="opp-scout-pname">${p.name}</span>
+                      </div>
+                      <div class="opp-scout-pmeta">
+                        <span class="b-lvl">Nv.${lvl}</span> • OVR ${effOvr} • <span class="b-pwr">Poder ${pwr}</span>
+                      </div>
+                      ${formatPlayerStatsStripHTML(p, slot.role, lvl)}
+                      <div class="opp-scout-pmove">${move}</div>
+                      ${p.keshin ? `<div class="opp-scout-keshin-pill">Keshin: ${p.keshin.name}</div>` : ""}
+                      ${p.equippedItems?.length ? `<div style="font-size:0.6rem; color:#fde047; font-weight:700;">Itens: ${p.equippedItems.map((it) => it.title).join(", ")}</div>` : ""}
+                    </div>
+                  </div>
+                `;
+              })
+              .join("")}
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
   function buildTournamentBracketStripHTML(t, focusStageIdx) {
     const focusStage = t.stages[focusStageIdx] || t.stages[t.stageIndex];
     if (!focusStage) return "";
@@ -11769,6 +11834,8 @@
       ? "Mata-Mata do Mundial"
       : "Mata-Mata Eliminatório";
 
+    const userStats = calcSquadStats();
+
     return `
       <div class="current-stage-hero-banner">
         <div class="current-stage-hero-left">
@@ -11778,35 +11845,42 @@
             <span style="opacity:0.4;">•</span>
             <span style="color:#93c5fd;">${roundSub}</span>
           </div>
-          <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+          <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
             <div class="current-stage-name-large">
               ${focusStage.stageName}
             </div>
             ${t.prep ? `
+              <span class="prep-xp-pill" style="font-size:0.74rem; font-weight:900; background:rgba(161, 98, 7, 0.35); border:1px solid #facc15; color:#fde047;">
+                Poder: ${userStats.power.toLocaleString("pt-BR")}
+              </span>
               <span class="prep-xp-pill" style="font-size:0.72rem; font-weight:900; background:rgba(21, 128, 61, 0.35); border:1px solid #4ade80; color:#86efac;">
-                📈 Seu Nível: Nv. ${ calcSquadStats().avgLevel || 1 }
+                Nv. ${userStats.avgLevel || 1} • OVR ${userStats.ovr} • Quím ${userStats.chem}%
               </span>
-              <span class="prep-xp-pill" style="font-size:0.72rem; font-weight:900; background:rgba(15, 34, 78, 0.9); border:1px solid #38bdf8; color:#7dd3fc;">
-                ✨ XP Acumulado: ${t.prepBonuses?.xp || 0}
-              </span>
-              ${t.prepBonuses?.permanentDoublePrep ? `
-                <span class="prep-xp-pill" style="background:rgba(234, 179, 8, 0.2); border-color:#facc15; color:#fde047; font-size:0.72rem;">
-                  🎟️ 2 Ações
-                </span>
-              ` : ""}
             ` : ""}
           </div>
         </div>
 
-        <div class="current-stage-vs-badge">
-          <span class="current-stage-vs-label">${t.prep && focusStageIdx === t.prep.nextStageIdx ? "PRÓXIMO RIVAL:" : "ADVERSÁRIO:"}</span>
-          <div class="current-stage-opp-box">
-            ${focusStage.oppTeam?.emblem ? `<img src="${focusStage.oppTeam.emblem}" alt="" class="current-stage-opp-emblem" />` : ""}
-            <span class="current-stage-opp-name">${focusStage.oppTeam?.name || "A Definir"}</span>
-            <span class="stage-opp-buff-badge" title="Nível do time adversário nesta fase (OVR ${focusStage.oppTeam?.baseOvr || 82})">⚡ Nv. ${getStageOpponentBuff(focusStageIdx).oppLevel} • Poder ${calcOpponentStats(focusStage.oppTeam, focusStageIdx).power.toLocaleString("pt-BR")}</span>
+        ${
+          t.prep
+            ? `
+          <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+            <button type="button" class="ie-cmd-btn ie-cmd-gold" id="btn-open-squad-modal" style="padding:7px 14px; font-size:0.78rem;">
+              <span>Ver Escalação (${state.formation})</span>
+            </button>
           </div>
-          <span class="current-stage-status-pill">${statusTxt}</span>
-        </div>
+        `
+            : `
+          <div class="current-stage-vs-badge">
+            <span class="current-stage-vs-label">ADVERSÁRIO:</span>
+            <div class="current-stage-opp-box">
+              ${focusStage.oppTeam?.emblem ? `<img src="${focusStage.oppTeam.emblem}" alt="" class="current-stage-opp-emblem" />` : ""}
+              <span class="current-stage-opp-name">${focusStage.oppTeam?.name || "A Definir"}</span>
+              <span class="stage-opp-buff-badge" title="Nível do time adversário nesta fase (OVR ${focusStage.oppTeam?.baseOvr || 82})">Nv. ${getStageOpponentBuff(focusStageIdx).oppLevel} • Poder ${calcOpponentStats(focusStage.oppTeam, focusStageIdx).power.toLocaleString("pt-BR")}</span>
+            </div>
+            <span class="current-stage-status-pill">${statusTxt}</span>
+          </div>
+        `
+        }
       </div>
     `;
   }
@@ -11837,7 +11911,23 @@
         ${bracketHTML}
         ${groupTableHTML}
         ${buildBetweenMatchPrepHTML(t, stats)}
+        ${buildUserSquadModalHTML(stats, t)}
       `;
+
+      const squadModal = document.getElementById("squad-overview-modal");
+      const openSquadBtn = document.getElementById("btn-open-squad-modal");
+      const closeSquadBtn = document.getElementById("btn-close-squad-modal");
+      if (openSquadBtn && squadModal) {
+        openSquadBtn.addEventListener("click", () => squadModal.classList.add("is-open"));
+      }
+      if (closeSquadBtn && squadModal) {
+        closeSquadBtn.addEventListener("click", () => squadModal.classList.remove("is-open"));
+      }
+      if (squadModal) {
+        squadModal.addEventListener("click", (e) => {
+          if (e.target === squadModal) squadModal.classList.remove("is-open");
+        });
+      }
 
       if (t.prep.clash5v5?.miniSt?.pitch) {
         updatePitchCameraTransform(t.prep.clash5v5.miniSt.pitch, performance.now(), true);
