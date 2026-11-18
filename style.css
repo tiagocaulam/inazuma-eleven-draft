@@ -6681,6 +6681,178 @@ body {
   flex: 1;
 }
 
+/* ==========================================================================
+   SCOUT DO ADVERSÁRIO (STATUS DO TIME + 4 DESTAQUES)
+   ========================================================================== */
+.opp-scout-card {
+  margin-top: 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(10, 20, 44, 0.85);
+  border: 1px solid rgba(248, 113, 113, 0.38);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.opp-scout-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.opp-scout-team-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.opp-scout-emblem {
+  width: 30px;
+  height: 30px;
+  object-fit: contain;
+}
+
+.opp-scout-eyebrow {
+  font-size: 0.64rem;
+  font-weight: 900;
+  color: #fca5a5;
+  text-transform: uppercase;
+  letter-spacing: 0.35px;
+}
+
+.opp-scout-team-name {
+  font-size: 0.92rem;
+  font-weight: 900;
+  color: #fff;
+}
+
+.opp-scout-stats-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.opp-stat-pill {
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: rgba(15, 23, 42, 0.9);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  font-size: 0.66rem;
+  font-weight: 700;
+  color: #cbd5e1;
+}
+
+.opp-stat-pill strong {
+  color: #fff;
+  font-weight: 900;
+}
+
+.opp-stat-pill.is-pwr {
+  border-color: rgba(250, 204, 21, 0.45);
+}
+
+.opp-stat-pill.is-pwr strong {
+  color: #facc15;
+}
+
+.opp-scout-subhead {
+  font-size: 0.68rem;
+  font-weight: 900;
+  color: #93c5fd;
+  text-transform: uppercase;
+  letter-spacing: 0.35px;
+}
+
+.opp-scout-highlights-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.opp-scout-player {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 9px;
+  background: rgba(15, 28, 58, 0.78);
+  border: 1px solid rgba(59, 130, 246, 0.28);
+  min-width: 0;
+}
+
+.opp-scout-avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 8px;
+  object-fit: cover;
+  border: 1px solid rgba(248, 113, 113, 0.5);
+  flex-shrink: 0;
+}
+
+.opp-scout-pinfo {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.opp-scout-pname-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.opp-scout-pname {
+  font-size: 0.74rem;
+  font-weight: 900;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.opp-scout-pmeta {
+  font-size: 0.64rem;
+  font-weight: 700;
+  color: #cbd5e1;
+}
+
+.opp-scout-pmove {
+  font-size: 0.64rem;
+  font-weight: 800;
+  color: #7dd3fc;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.opp-scout-keshin-pill {
+  display: inline-block;
+  align-self: flex-start;
+  padding: 1px 6px;
+  border-radius: 5px;
+  background: rgba(234, 179, 8, 0.2);
+  border: 1px solid rgba(250, 204, 21, 0.5);
+  color: #fde047;
+  font-size: 0.58rem;
+  font-weight: 900;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 640px) {
+  .opp-scout-highlights-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .live-tactics-modal-backdrop {
   position: fixed;
   inset: 0;

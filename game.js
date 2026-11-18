@@ -509,6 +509,15 @@
     return state.tournament.tactics;
   }
 
+  function getOpponentDynamicPosture() {
+    const st = state.tournament?.stages?.[state.tournament.stageIndex];
+    if (!st || st.isGoldenGoal5v5 || st.finished) return "balanced";
+    const m = st.minute || 0;
+    if (st.oppScore < st.userScore && m >= 50) return "offensive";
+    if (st.oppScore === st.userScore + 1 && m >= 70) return "defensive";
+    return "balanced";
+  }
+
   function switchTeamFormation(newFormationKey) {
     if (!DB.formations[newFormationKey] || state.formation === newFormationKey) return false;
     const oldSlots = getSlots();
@@ -1557,8 +1566,8 @@
     return { formSlots: best.formSlots, assignments: best.assignments };
   }
 
-  // Tabela de Nível dos Times Adversários por Fase (calibrada para o sistema de 3 ações + Energia do Time!)
-  const STAGE_OPPONENT_LEVELS = [3, 5, 6, 8, 9, 11, 13, 14, 16, 18, 20];
+  // Tabela de Nível dos Times Adversários por Fase (calibrada com evolução real de Keshin/Técnicas da CPU + Energia!)
+  const STAGE_OPPONENT_LEVELS = [3, 4, 5, 7, 8, 9, 10, 12, 13, 15, 16];
 
   function getStageOpponentBuff(stageIdx) {
     const idx = Math.max(0, stageIdx || 0);
@@ -1580,16 +1589,170 @@
     return 0;
   }
 
-  function calcOpponentStats(oppTeam, stageIdx) {
+  const CANONICAL_KESHINS = {
+    GK: [
+      { name: "Majin Great (Mão Demoníaca)", iconKey: "keshinMajin" },
+      { name: "Kougaishin Poseidon", iconKey: "keshinIcon" },
+      { name: "Goujin Tekki Atlas", iconKey: "keshinCoin" }
+    ],
+    DF: [
+      { name: "Kensei Lancelot", iconKey: "keshinIcon" },
+      { name: "Teppeki Gigadon", iconKey: "keshinCoin" },
+      { name: "Juukishi Kingburn", iconKey: "keshinIcon" }
+    ],
+    MF: [
+      { name: "Sousha Maestro", iconKey: "keshinIcon" },
+      { name: "Majin Pegasus Arc", iconKey: "keshinPegasus" },
+      { name: "Gouen no Gazard", iconKey: "keshinIcon" }
+    ],
+    FW: [
+      { name: "Majin Pegasus Arc", iconKey: "keshinPegasus" },
+      { name: "Kensei Lancelot", iconKey: "keshinIcon" },
+      { name: "Majuu Grendel", iconKey: "keshinMajin" }
+    ]
+  };
+
+  // Sistema de Aprendizado de Técnicas por Nível (usado tanto pelo usuário quanto pelos rivais)
+  const LEVEL_MOVE_CATALOG = {
+    3: {
+      FW: { cat: "SH", Fogo: "Chute Ardente", Vento: "Vendaval Cortante", Floresta: "Disparo Espiral", Montanha: "Impacto Rochoso" },
+      MF: { cat: "OF", Fogo: "Avanço Flamejante", Vento: "Drible Sônico", Floresta: "Passo Ilusório", Montanha: "Arrancada Sísmica" },
+      DF: { cat: "DF", Fogo: "Corte Vulcânico", Vento: "Vórtice Defensivo", Floresta: "Teia de Espinhos", Montanha: "Muralha de Pedra" },
+      GK: { cat: "GK", Fogo: "Punho Flamejante", Vento: "Barreira Eólica", Floresta: "Escudo da Floresta", Montanha: "Defesa Rochosa" }
+    },
+    6: {
+      FW: { cat: "SH", Fogo: "Tormenta de Fogo", Vento: "Tufão Celeste", Floresta: "Lança Botânica", Montanha: "Meteoro de Rocha" },
+      MF: { cat: "OF", Fogo: "Roda de Fogo", Vento: "Dança do Deus do Vento", Floresta: "Bola Ilusão", Montanha: "Terremoto Ofensivo" },
+      DF: { cat: "DF", Fogo: "Bloqueio Explosivo", Vento: "Furacão Giratório", Floresta: "Corte da Floresta", Montanha: "A Montanha" },
+      GK: { cat: "GK", Fogo: "Mão Explosiva", Vento: "Vórtice do Guardião", Floresta: "Mão Infinita", Montanha: "Mão Demoníaca" }
+    },
+    10: {
+      FW: { cat: "SH", Fogo: "Grande Fogo G2", Vento: "O Tufão V2", Floresta: "Explosão do Caos", Montanha: "Bola de Terra G2" },
+      MF: { cat: "OF", Fogo: "Campo Assassino G2", Vento: "Aikidou G2", Floresta: "Dobra Espacial G2", Montanha: "Quebra-Rochas G2" },
+      DF: { cat: "DF", Fogo: "Muralha de Ferro V2", Vento: "Falcão Voador V2", Floresta: "Armadilha Dimensional V2", Montanha: "Terremoto Mega V2" },
+      GK: { cat: "GK", Fogo: "Martelo da Ira Shin", Vento: "Mão Dimensional Shin", Floresta: "Rei Demônio (Maou)", Montanha: "Captura Ômega" }
+    },
+    15: {
+      FW: { cat: "SH", Fogo: "Fogo Máximo ★", Vento: "Prime Legend ★", Floresta: "Big Bang ★", Montanha: "A Terra ★" },
+      MF: { cat: "OF", Fogo: "Sobrecarga Solar ★", Vento: "Domínio Celestial ★", Floresta: "Ilusão Suprema ★", Montanha: "Força Tectônica ★" },
+      DF: { cat: "DF", Fogo: "Escudo Vulcânico ★", Vento: "Tempestade Defensiva ★", Floresta: "Prisão da Floresta ★", Montanha: "A Montanha ★" },
+      GK: { cat: "GK", Fogo: "Mão Ômega ★", Vento: "Mão Celestial W ★", Floresta: "Alma Suprema ★", Montanha: "Captura Ômega ★" }
+    }
+  };
+
+  function getPrimaryMoveForRole(player, role) {
+    if (!player?.moves) return player?.hissatsu || "Jogada Direta";
+    const ord =
+      role === "GK"
+        ? ["GK", "DF", "SH", "OF"]
+        : role === "DF"
+        ? ["DF", "OF", "SH", "GK"]
+        : role === "MF"
+        ? ["OF", "SH", "DF", "GK"]
+        : ["SH", "OF", "DF", "GK"];
+    for (const cat of ord) {
+      if (Array.isArray(player.moves[cat]) && player.moves[cat].length > 0) {
+        return player.moves[cat][0];
+      }
+    }
+    return player.hissatsu || "Jogada Direta";
+  }
+
+  function getEvolvedOpponentRoster(oppTeam, stageIdx) {
     const { formSlots, assignments } = getOpponentSlotAssignments(oppTeam);
     const buff = getStageOpponentBuff(stageIdx);
-    return evaluateTeamStats(formSlots, (s) => assignments[s.id], {
+    const oppLevel = buff.oppLevel || 1;
+    const sIdx = Math.max(0, stageIdx || 0);
+
+    const cloned = {};
+    const ranked = [];
+
+    formSlots.forEach((slot) => {
+      const raw = assignments[slot.id];
+      const copy = {
+        ...raw,
+        level: oppLevel,
+        moves: JSON.parse(JSON.stringify(raw.moves || { SH: [], OF: [], DF: [], GK: [] })),
+        bonusStats: { ...(raw.bonusStats || { for: 0, tec: 0, def: 0, vel: 0, fis: 0 }) },
+        bonusPower: raw.bonusPower || 0,
+        moveEvoCount: raw.moveEvoCount || 0,
+        learnedLvlMilestones: []
+      };
+      // Rivals também aprendem técnicas conforme sobem de nível!
+      checkAndLearnLevelMoves(copy, slot.role);
+      cloned[slot.id] = copy;
+
+      const roleWeight = slot.role === "FW" ? 6 : slot.role === "GK" ? 5 : slot.role === "MF" ? 3 : 1;
+      const starScore = (copy.isCaptain ? 1000 : 0) + (copy.ovr || 75) + roleWeight;
+      ranked.push({ slot, player: copy, starScore });
+    });
+
+    ranked.sort((a, b) => b.starScore - a.starScore);
+
+    // Quantos craques rivais têm Keshin (desde o começo!), técnicas evoluídas e bônus de item
+    const keshinCount = sIdx <= 1 ? 1 : sIdx <= 4 ? 2 : sIdx <= 7 ? 3 : 4;
+    const evoCount = sIdx === 0 ? 1 : sIdx <= 2 ? 2 : sIdx <= 4 ? 4 : sIdx <= 7 ? 6 : 8;
+    const equipCount = sIdx === 0 ? 2 : sIdx <= 3 ? 4 : 6;
+
+    const idSeed = String(oppTeam?.id || oppTeam?.name || "opp")
+      .split("")
+      .reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
+
+    ranked.forEach((entry, idx) => {
+      const p = entry.player;
+      const role = entry.slot.role;
+      if (idx < keshinCount) {
+        const pool = CANONICAL_KESHINS[role] || CANONICAL_KESHINS.MF;
+        const chosenK = pool[(idSeed + idx + sIdx) % pool.length];
+        p.keshin = { name: chosenK.name, icon: UI[chosenK.iconKey] || UI.keshinIcon };
+      }
+      if (idx < evoCount) {
+        evolvePlayerPrimaryMove(p, role);
+        if (sIdx >= 4 && idx < 2) {
+          evolvePlayerPrimaryMove(p, role);
+        }
+      }
+      if (idx < equipCount) {
+        p.bonusPower = (p.bonusPower || 0) + 10 + sIdx * 4;
+        const statBoost = 2 + Math.floor(sIdx / 2);
+        if (role === "FW") { p.bonusStats.for += statBoost; p.bonusStats.vel += statBoost; }
+        else if (role === "MF") { p.bonusStats.tec += statBoost; p.bonusStats.vel += statBoost; }
+        else { p.bonusStats.def += statBoost; p.bonusStats.fis += statBoost; }
+      }
+    });
+
+    const highlights = formSlots
+      .map((slot) => {
+        const p = cloned[slot.id];
+        const effOvr = getEffectiveOvr(p, slot.role);
+        const indivPower = calcIndividualPlayerPower(p, slot.role, oppLevel);
+        return {
+          slot,
+          role: slot.role,
+          player: p,
+          effOvr,
+          indivPower,
+          primaryMove: getPrimaryMoveForRole(p, slot.role),
+          keshin: p.keshin || null
+        };
+      })
+      .sort((a, b) => b.indivPower - a.indivPower)
+      .slice(0, 4);
+
+    return { formSlots, assignments: cloned, oppLevel, buff, highlights };
+  }
+
+  function calcOpponentStats(oppTeam, stageIdx) {
+    const { formSlots, assignments, buff, highlights } = getEvolvedOpponentRoster(oppTeam, stageIdx);
+    const res = evaluateTeamStats(formSlots, (s) => assignments[s.id], {
       isOpponent: true,
       clubIdHint: oppTeam.name || oppTeam.id,
       oppStageIdx: stageIdx,
       oppBuffPct: buff.pct,
       oppLevel: buff.oppLevel
     });
+    res.highlights = highlights;
+    return res;
   }
 
   // Sorteia o próximo time e anima o carrossel da roleta sem piscar!
@@ -3425,6 +3588,16 @@
       // Intensidade
       if (tac.intensity === "high") tacticalAndEnergyAdj += 1.3;
       else if (tac.intensity === "low") tacticalAndEnergyAdj -= 0.4;
+    } else if (node.side === "opp") {
+      // Adaptação silenciosa da CPU ao placar durante a partida
+      const oppPost = getOpponentDynamicPosture();
+      if (oppPost === "offensive") {
+        if (roleOrAction === "SH" || roleOrAction === "OF" || roleOrAction === "FW") tacticalAndEnergyAdj += 1.4;
+        else if (roleOrAction === "DF") tacticalAndEnergyAdj -= 1.0;
+      } else if (oppPost === "defensive") {
+        if (roleOrAction === "DF" || roleOrAction === "GK") tacticalAndEnergyAdj += 1.6;
+        else if (roleOrAction === "SH") tacticalAndEnergyAdj -= 0.8;
+      }
     }
 
     return (
@@ -3467,12 +3640,9 @@
   }
 
   function buildOpponentLineup(oppTeam, stageIdx) {
-    const { formSlots, assignments } = getOpponentSlotAssignments(oppTeam);
-    const buff = getStageOpponentBuff(stageIdx);
-    const oppLevel = buff.oppLevel || 1;
+    const { formSlots, assignments, oppLevel } = getEvolvedOpponentRoster(oppTeam, stageIdx);
     return formSlots.map((slot, idx) => {
-      const rawPlayer = assignments[slot.id];
-      const player = { ...rawPlayer, level: oppLevel };
+      const player = assignments[slot.id];
       const rawPosMatch = playerMatchesRole(player, slot.role) ? 0 : -4;
       const effOvr = Math.min(99, Math.max(58, Math.round(player.ovr + rawPosMatch)));
       const indivPower = calcIndividualPlayerPower(player, slot.role, oppLevel);
@@ -3985,6 +4155,10 @@
           } else if (tac.lane === "center" && (node.role === "MF" || node.role === "FW")) {
             node.targetY = node.targetY * 0.72 + 50 * 0.28;
           }
+        } else if (node.side === "opp" && node.role !== "GK" && !pitch.is5v5 && node.uid !== pitch.carrierUid) {
+          const oppPost = getOpponentDynamicPosture();
+          if (oppPost === "offensive") node.targetX = Math.max(10, node.targetX - 5);
+          else if (oppPost === "defensive") node.targetX = Math.min(90, node.targetX + 5);
         }
       });
     };
@@ -4681,8 +4855,10 @@
       if (isCarrierDisadvantagedVsGk && hasBetterElementalTeammateInBox && roll < 0.68) {
         return { action: "PASS", strictForward: true };
       }
-      const userPosture = attIsUser && !pitch.is5v5 ? getTactics().posture : "balanced";
-      const shotBoost = userPosture === "offensive" ? 0.16 : userPosture === "defensive" ? -0.14 : 0;
+      const activePosture = !pitch.is5v5
+        ? (attIsUser ? getTactics().posture : getOpponentDynamicPosture())
+        : "balanced";
+      const shotBoost = activePosture === "offensive" ? (attIsUser ? 0.16 : 0.11) : activePosture === "defensive" ? -0.14 : 0;
       if (blockingDefs === 0) {
         if (roll < Math.max(0.15, (isCarrierDisadvantagedVsGk ? 0.35 : 0.58) + shotBoost)) return { action: "SHOT", strictForward: true };
         if (!isTired && !tooManyDribbles && roll < 0.82) return { action: "DRIBBLE", strictForward: true };
@@ -5854,10 +6030,9 @@
     const userStats = calcSquadStats();
     const oppStats = calcOpponentStats(st.oppTeam, stageIdx);
     const powerDiff = userStats.power - oppStats.power;
-    // Vantagem de Poder do Time impacta diretamente nos duelos e no ritmo de jogo!
-    // Cada 100 de Poder de vantagem gera +1.15 de suporte em todos os duelos!
-    const userPwrBonus = powerDiff > 0 ? Math.min(18, (powerDiff / 100) * 1.15) : 0;
-    const oppPwrBonus = powerDiff < 0 ? Math.min(18, (Math.abs(powerDiff) / 100) * 1.15) : 0;
+    // Vantagem de Poder do Time gera suporte equilibrado nos duelos (evita bola de neve extrema!)
+    const userPwrBonus = powerDiff > 0 ? Math.min(7.5, (powerDiff / 150) * 1.1) : 0;
+    const oppPwrBonus = powerDiff < 0 ? Math.min(7.5, (Math.abs(powerDiff) / 150) * 1.1) : 0;
 
     pitch.matchSupport = {
       userTeamSupport:
@@ -6386,14 +6561,13 @@
           ? Math.min(7.5, 1.5 + (st.minute - 7) * 0.7)
           : 1.5
         : 0;
-      // Domínio esmagador: quando o time atacante tem muito mais Poder Total que o adversário, a finalização é letal,
-      // e quando o time mais fraco tenta chutar contra um time muito superior, o goleiro fecha o gol!
+      // Domínio moderado na finalização: Poder maior ajuda sem anular o goleiro rival
       const rawPwrDiff = pitch.matchSupport?.powerDiff || 0;
       const attPowerDiff = curAttIsUser ? rawPwrDiff : -rawPwrDiff;
       const dominanceShift =
         attPowerDiff >= 0
-          ? Math.min(10.5, (attPowerDiff / 190) * 1.85)
-          : Math.max(-13.5, (attPowerDiff / 160) * 2.45);
+          ? Math.min(5.0, (attPowerDiff / 240) * 1.45)
+          : Math.max(-5.0, (attPowerDiff / 220) * 1.65);
       const goalProb = st.isGoldenGoal5v5
         ? logisticWinProb(effectiveShotScore + goldenBias + dominanceShift * 0.6, gkStopScore, -3.6, 0.10, 0.86)
         : logisticWinProb(effectiveShotScore + dominanceShift, gkStopScore, -5.8, 0.03, 0.88);
@@ -9292,29 +9466,6 @@
   // ============================================================================
   // PREPARAÇÃO ENTRE PARTIDAS: LOCAIS DE INAZUMA + ROLETA + BOOSTS REAIS
   // ============================================================================
-  const CANONICAL_KESHINS = {
-    GK: [
-      { name: "Majin Great (Mão Demoníaca)", iconKey: "keshinMajin" },
-      { name: "Kougaishin Poseidon", iconKey: "keshinIcon" },
-      { name: "Goujin Tekki Atlas", iconKey: "keshinCoin" }
-    ],
-    DF: [
-      { name: "Kensei Lancelot", iconKey: "keshinIcon" },
-      { name: "Teppeki Gigadon", iconKey: "keshinCoin" },
-      { name: "Juukishi Kingburn", iconKey: "keshinIcon" }
-    ],
-    MF: [
-      { name: "Sousha Maestro", iconKey: "keshinIcon" },
-      { name: "Majin Pegasus Arc", iconKey: "keshinPegasus" },
-      { name: "Gouen no Gazard", iconKey: "keshinIcon" }
-    ],
-    FW: [
-      { name: "Majin Pegasus Arc", iconKey: "keshinPegasus" },
-      { name: "Kensei Lancelot", iconKey: "keshinIcon" },
-      { name: "Majuu Grendel", iconKey: "keshinMajin" }
-    ]
-  };
-
   function getPrepBuffPill(ev) {
     if (!ev) return "";
     if (ev.shortDesc) return ev.shortDesc;
@@ -10041,33 +10192,8 @@
     ];
   }
 
-  // Sistema de Aprendizado de Técnicas por Nível (quanto maior o nível, mais forte a técnica!)
-  const LEVEL_MOVE_CATALOG = {
-    3: {
-      FW: { cat: "SH", Fogo: "Chute Ardente", Vento: "Vendaval Cortante", Floresta: "Disparo Espiral", Montanha: "Impacto Rochoso" },
-      MF: { cat: "OF", Fogo: "Avanço Flamejante", Vento: "Drible Sônico", Floresta: "Passo Ilusório", Montanha: "Arrancada Sísmica" },
-      DF: { cat: "DF", Fogo: "Corte Vulcânico", Vento: "Vórtice Defensivo", Floresta: "Teia de Espinhos", Montanha: "Muralha de Pedra" },
-      GK: { cat: "GK", Fogo: "Punho Flamejante", Vento: "Barreira Eólica", Floresta: "Escudo da Floresta", Montanha: "Defesa Rochosa" }
-    },
-    6: {
-      FW: { cat: "SH", Fogo: "Tormenta de Fogo", Vento: "Tufão Celeste", Floresta: "Lança Botânica", Montanha: "Meteoro de Rocha" },
-      MF: { cat: "OF", Fogo: "Roda de Fogo", Vento: "Dança do Deus do Vento", Floresta: "Bola Ilusão", Montanha: "Terremoto Ofensivo" },
-      DF: { cat: "DF", Fogo: "Bloqueio Explosivo", Vento: "Furacão Giratório", Floresta: "Corte da Floresta", Montanha: "A Montanha" },
-      GK: { cat: "GK", Fogo: "Mão Explosiva", Vento: "Vórtice do Guardião", Floresta: "Mão Infinita", Montanha: "Mão Demoníaca" }
-    },
-    10: {
-      FW: { cat: "SH", Fogo: "Grande Fogo G2", Vento: "O Tufão V2", Floresta: "Explosão do Caos", Montanha: "Bola de Terra G2" },
-      MF: { cat: "OF", Fogo: "Campo Assassino G2", Vento: "Aikidou G2", Floresta: "Dobra Espacial G2", Montanha: "Quebra-Rochas G2" },
-      DF: { cat: "DF", Fogo: "Muralha de Ferro V2", Vento: "Falcão Voador V2", Floresta: "Armadilha Dimensional V2", Montanha: "Terremoto Mega V2" },
-      GK: { cat: "GK", Fogo: "Martelo da Ira Shin", Vento: "Mão Dimensional Shin", Floresta: "Rei Demônio (Maou)", Montanha: "Captura Ômega" }
-    },
-    15: {
-      FW: { cat: "SH", Fogo: "Fogo Máximo ★", Vento: "Prime Legend ★", Floresta: "Big Bang ★", Montanha: "A Terra ★" },
-      MF: { cat: "OF", Fogo: "Sobrecarga Solar ★", Vento: "Domínio Celestial ★", Floresta: "Ilusão Suprema ★", Montanha: "Força Tectônica ★" },
-      DF: { cat: "DF", Fogo: "Escudo Vulcânico ★", Vento: "Tempestade Defensiva ★", Floresta: "Prisão da Floresta ★", Montanha: "A Montanha ★" },
-      GK: { cat: "GK", Fogo: "Mão Ômega ★", Vento: "Mão Celestial W ★", Floresta: "Alma Suprema ★", Montanha: "Captura Ômega ★" }
-    }
-  };
+  // ============================================================================
+  // (LEVEL_MOVE_CATALOG definido acima antes de getEvolvedOpponentRoster)
 
   function checkAndLearnLevelMoves(player, slotRole = null) {
     if (!player) return [];
@@ -11053,6 +11179,63 @@
     `;
   }
 
+  function buildOpponentScoutCardHTML(nextStage, stageIdx) {
+    const oppTeam = nextStage?.oppTeam;
+    if (!oppTeam) return "";
+    const oppStats = calcOpponentStats(oppTeam, stageIdx);
+    const highlights = oppStats.highlights || [];
+    return `
+      <div class="opp-scout-card">
+        <div class="opp-scout-head">
+          <div class="opp-scout-team-info">
+            ${oppTeam.emblem ? `<img src="${oppTeam.emblem}" alt="" class="opp-scout-emblem" />` : ""}
+            <div>
+              <div class="opp-scout-eyebrow">Scout do Adversário • Nv. ${oppStats.oppLevel || 1}</div>
+              <div class="opp-scout-team-name">${oppTeam.name}</div>
+            </div>
+          </div>
+          <div class="opp-scout-stats-row">
+            <span class="opp-stat-pill">ATQ <strong>${oppStats.atk}</strong></span>
+            <span class="opp-stat-pill">MEI <strong>${oppStats.mid}</strong></span>
+            <span class="opp-stat-pill">DEF <strong>${oppStats.def}</strong></span>
+            <span class="opp-stat-pill">OVR <strong>${oppStats.ovr}</strong></span>
+            <span class="opp-stat-pill">Quím <strong>${oppStats.chem}%</strong></span>
+            <span class="opp-stat-pill is-pwr">Poder <strong>${oppStats.power.toLocaleString("pt-BR")}</strong></span>
+          </div>
+        </div>
+        <div class="opp-scout-subhead">4 Destaques do Rival</div>
+        <div class="opp-scout-highlights-grid">
+          ${highlights
+            .map((h) => {
+              const p = h.player;
+              return `
+                <div class="opp-scout-player">
+                  <img class="opp-scout-avatar" src="${getPlayerFormSprite(p, h.role)}" alt="${p.name}" />
+                  <div class="opp-scout-pinfo">
+                    <div class="opp-scout-pname-row">
+                      ${posIconHTML(h.role, true)}
+                      ${elemIconHTML(p.element, "inline-elem-icon")}
+                      <span class="opp-scout-pname">${p.name}</span>
+                    </div>
+                    <div class="opp-scout-pmeta">
+                      <span>OVR ${h.effOvr}</span> • <span class="b-pwr">Poder ${h.indivPower}</span>
+                    </div>
+                    <div class="opp-scout-pmove">${h.primaryMove}</div>
+                    ${
+                      h.keshin
+                        ? `<div class="opp-scout-keshin-pill">Keshin: ${h.keshin.name}</div>`
+                        : ""
+                    }
+                  </div>
+                </div>
+              `;
+            })
+            .join("")}
+        </div>
+      </div>
+    `;
+  }
+
   function buildBetweenMatchPrepHTML(t, stats) {
     const prep = t.prep;
     const nextStage = t.stages[prep.nextStageIdx];
@@ -11138,6 +11321,7 @@
         ${mapStageHTML}
         ${buildActiveScalableBuffsHTML(t)}
         ${buildTacticsControlBarHTML(true)}
+        ${buildOpponentScoutCardHTML(nextStage, prep.nextStageIdx)}
       `;
     } else if (prep.phase === "PICK_CHOICE" || prep.phase === "SPINNING_CHOICES") {
       const slotColsHTML = (prep.choices || []).map((chosenWinner, sIdx) => {
