@@ -2426,7 +2426,7 @@ body {
 }
 
 @media (max-width: 820px) {
-  .phase-tournament #hud-bars-wrap {
+  .phase-tournament:not(.phase-prep) #hud-bars-wrap {
     display: none !important;
   }
 
@@ -6854,9 +6854,25 @@ body {
 }
 
 .squad-overview-modal-card {
-  max-width: 720px;
-  max-height: 86vh;
+  max-width: 780px;
+  max-height: 90vh;
   overflow-y: auto;
+}
+
+.tac-squad-btn {
+  padding: 5px 11px !important;
+  font-size: 0.72rem !important;
+}
+
+@media (max-width: 640px) {
+  .tac-squad-group {
+    width: 100%;
+    justify-content: stretch !important;
+  }
+  .tac-squad-btn {
+    width: 100%;
+    justify-content: center;
+  }
 }
 
 .squad-modal-bonds {

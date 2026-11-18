@@ -8147,7 +8147,9 @@
   // RENDERIZAÇÃO DAS TELAS
   // ============================================================================
   function renderHeaderAndBonds() {
+    const inPrep = Boolean(state.phase === "tournament" && state.tournament?.prep);
     document.body.classList.toggle("phase-tournament", state.phase === "tournament");
+    document.body.classList.toggle("phase-prep", inPrep);
     const subEl = document.getElementById("topbar-brand-sub");
     if (subEl) {
       if (state.phase === "tournament") {
@@ -8183,8 +8185,8 @@
 
     const bondsBar = document.getElementById("bonds-bar");
     if (bondsBar) {
-      if (state.phase === "draft") {
-        // Na montagem do time (draft), as porcentagens e vantagens ficam diretamente no topo da escalação/campo!
+      if (state.phase === "draft" || inPrep) {
+        // Na montagem (draft) e na preparação, o topo exibe exatamente as mesmas barras de Poder/Nível/OVR/Química do Draft!
         bondsBar.style.display = "none";
       } else {
         bondsBar.style.display = "flex";
@@ -11066,22 +11068,13 @@
     `;
   }
 
-  function buildTacticsControlBarHTML(includeFormation = false) {
+  function buildTacticsControlBarHTML(showSquadBtn = false) {
     const tac = getTactics();
-    const formKeys = Object.keys(DB.formations);
     const pillBtn = (attr, val, label, active) =>
       `<button type="button" class="tac-pill-btn ${active ? "is-active" : ""}" ${attr}="${val}">${label}</button>`;
 
     return `
       <div class="tactics-control-bar">
-        ${includeFormation ? `
-          <div class="tac-group">
-            <span class="tac-label">Formação</span>
-            <div class="tac-pills">
-              ${formKeys.map((fk) => pillBtn("data-tac-formation", fk, fk, state.formation === fk)).join("")}
-            </div>
-          </div>
-        ` : ""}
         <div class="tac-group">
           <span class="tac-label">Intensidade</span>
           <div class="tac-pills">
@@ -11106,6 +11099,13 @@
             ${pillBtn("data-tac-lane", "center", "Meio", tac.lane === "center")}
           </div>
         </div>
+        ${showSquadBtn ? `
+          <div class="tac-group tac-squad-group">
+            <button type="button" class="ie-cmd-btn ie-cmd-gold tac-squad-btn" id="btn-open-squad-modal">
+              <span>Ver Escalação (${state.formation})</span>
+            </button>
+          </div>
+        ` : ""}
       </div>
     `;
   }
@@ -11320,7 +11320,7 @@
       bodyHTML = `
         ${mapStageHTML}
         ${buildActiveScalableBuffsHTML(t)}
-        ${buildTacticsControlBarHTML(false)}
+        ${buildTacticsControlBarHTML(true)}
         ${buildOpponentScoutCardHTML(nextStage, prep.nextStageIdx)}
       `;
     } else if (prep.phase === "PICK_CHOICE" || prep.phase === "SPINNING_CHOICES") {
@@ -11752,64 +11752,20 @@
   }
 
   function buildUserSquadModalHTML(stats, t) {
-    const slots = getSlots();
-    const bonds = stats.activeBonds || [];
     return `
       <div class="live-tactics-modal-backdrop" id="squad-overview-modal">
         <div class="live-tactics-modal-card squad-overview-modal-card">
           <div class="live-tactics-modal-head">
             <div>
               <div style="font-size:0.68rem; font-weight:900; color:#4ade80; text-transform:uppercase;">Dream Team • Formação ${state.formation}</div>
-              <h4 style="margin:0; font-size:1rem; font-weight:900; color:#fff;">Escalação &amp; Poder do Time</h4>
+              <h4 style="margin:0; font-size:1rem; font-weight:900; color:#fff;">Escalação &amp; Posições (<span id="squad-modal-pwr-val">${stats.power.toLocaleString("pt-BR")}</span> Poder)</h4>
             </div>
             <button type="button" class="ie-cmd-btn" id="btn-close-squad-modal" style="padding:5px 12px; font-size:0.74rem; background:#334155;">
               <span>Fechar ✕</span>
             </button>
           </div>
-          <div class="opp-scout-stats-row">
-            <span class="opp-stat-pill is-pwr">Poder <strong>${stats.power.toLocaleString("pt-BR")}</strong></span>
-            <span class="opp-stat-pill">ATQ <strong>${stats.atk}</strong></span>
-            <span class="opp-stat-pill">MEI <strong>${stats.mid}</strong></span>
-            <span class="opp-stat-pill">DEF <strong>${stats.def}</strong></span>
-            <span class="opp-stat-pill">OVR <strong>${stats.ovr}</strong></span>
-            <span class="opp-stat-pill">Nv. Médio <strong>${stats.avgLevel || 1}</strong></span>
-            <span class="opp-stat-pill">Química <strong>${stats.chem}%</strong></span>
-          </div>
-          ${
-            bonds.length > 0
-              ? `<div class="squad-modal-bonds">${bonds.map((b) => `<span class="squad-modal-bond-chip">${b.label}</span>`).join("")}</div>`
-              : ""
-          }
-          <div class="squad-modal-roster-grid">
-            ${slots
-              .map((slot) => {
-                const p = state.squad[slot.id];
-                if (!p) return "";
-                const lvl = getPlayerLevel(p);
-                const effOvr = getEffectiveOvr(p, slot.role);
-                const pwr = calcIndividualPlayerPower(p, slot.role, lvl);
-                const move = getPrimaryMoveForRole(p, slot.role);
-                return `
-                  <div class="opp-scout-player squad-modal-player">
-                    <img class="opp-scout-avatar" src="${getPlayerFormSprite(p, slot.role)}" alt="${p.name}" style="border-color:rgba(74, 222, 128, 0.55);" />
-                    <div class="opp-scout-pinfo">
-                      <div class="opp-scout-pname-row">
-                        ${posIconHTML(slot.role, true)}
-                        ${elemIconHTML(p.element, "inline-elem-icon")}
-                        <span class="opp-scout-pname">${p.name}</span>
-                      </div>
-                      <div class="opp-scout-pmeta">
-                        <span class="b-lvl">Nv.${lvl}</span> • OVR ${effOvr} • <span class="b-pwr">Poder ${pwr}</span>
-                      </div>
-                      ${formatPlayerStatsStripHTML(p, slot.role, lvl)}
-                      <div class="opp-scout-pmove">${move}</div>
-                      ${p.keshin ? `<div class="opp-scout-keshin-pill">Keshin: ${p.keshin.name}</div>` : ""}
-                      ${p.equippedItems?.length ? `<div style="font-size:0.6rem; color:#fde047; font-weight:700;">Itens: ${p.equippedItems.map((it) => it.title).join(", ")}</div>` : ""}
-                    </div>
-                  </div>
-                `;
-              })
-              .join("")}
+          <div id="squad-pitch-modal-body">
+            ${buildPitchHTML(true)}
           </div>
         </div>
       </div>
@@ -11891,6 +11847,7 @@
     if (!container) return;
 
     const t = state.tournament;
+    document.body.classList.toggle("phase-prep", Boolean(t?.prep));
     const st = t.stages[t.stageIndex];
     const stats = calcSquadStats();
     const focusIdx = t.prep ? t.prep.nextStageIdx : t.stageIndex;
@@ -11908,7 +11865,6 @@
 
     if (t.prep) {
       container.innerHTML = `
-        ${bracketHTML}
         ${groupTableHTML}
         ${buildBetweenMatchPrepHTML(t, stats)}
         ${buildUserSquadModalHTML(stats, t)}
@@ -11917,15 +11873,53 @@
       const squadModal = document.getElementById("squad-overview-modal");
       const openSquadBtn = document.getElementById("btn-open-squad-modal");
       const closeSquadBtn = document.getElementById("btn-close-squad-modal");
+      const bindSquadModalPitch = () => {
+        const pitchBody = document.getElementById("squad-pitch-modal-body");
+        if (!pitchBody) return;
+        pitchBody.querySelectorAll("[data-slot]").forEach((node) => {
+          node.addEventListener("click", () => {
+            const slotId = node.getAttribute("data-slot");
+            if (!slotId || !state.squad[slotId]) return;
+            if (!state.swapSlotId) {
+              state.swapSlotId = slotId;
+            } else {
+              if (state.swapSlotId !== slotId) {
+                const tmp = state.squad[state.swapSlotId];
+                state.squad[state.swapSlotId] = state.squad[slotId];
+                state.squad[slotId] = tmp;
+              }
+              state.swapSlotId = null;
+            }
+            pitchBody.innerHTML = buildPitchHTML(true);
+            bindSquadModalPitch();
+            renderHeaderAndBonds();
+            const pwrVal = document.getElementById("squad-modal-pwr-val");
+            if (pwrVal) pwrVal.textContent = calcSquadStats().power.toLocaleString("pt-BR");
+          });
+        });
+      };
+      const closeSquadModal = () => {
+        state.swapSlotId = null;
+        if (squadModal) squadModal.classList.remove("is-open");
+        renderTournamentScreen();
+      };
       if (openSquadBtn && squadModal) {
-        openSquadBtn.addEventListener("click", () => squadModal.classList.add("is-open"));
+        openSquadBtn.addEventListener("click", () => {
+          state.swapSlotId = null;
+          const pitchBody = document.getElementById("squad-pitch-modal-body");
+          if (pitchBody) {
+            pitchBody.innerHTML = buildPitchHTML(true);
+            bindSquadModalPitch();
+          }
+          squadModal.classList.add("is-open");
+        });
       }
       if (closeSquadBtn && squadModal) {
-        closeSquadBtn.addEventListener("click", () => squadModal.classList.remove("is-open"));
+        closeSquadBtn.addEventListener("click", closeSquadModal);
       }
       if (squadModal) {
         squadModal.addEventListener("click", (e) => {
-          if (e.target === squadModal) squadModal.classList.remove("is-open");
+          if (e.target === squadModal) closeSquadModal();
         });
       }
 
