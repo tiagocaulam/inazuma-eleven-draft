@@ -370,23 +370,34 @@
     "little_gigant"
   ]);
 
-  const state = {
-    phase: "menu", // "menu" | "draft" | "tournament"
-    gameMode: "relampago",
-    storyLockNotice: false,
-    formation: "4-3-3",
-    hideOvrBeforePick: true, // Dificuldade: true = Sem Overall no sorteio, false = Com Overall visível
-    squad: {}, // slotId -> player
-    currentTeam: null,
-    selectedPlayer: null,
-    peekField: false,
-    swapSlotId: null,
-    rerollsLeft: 3,
-    isSpinning: false,
-    spinTimerId: null,
-    usedTeamIds: [],
-    simSpeed: 1, // 1 = 420ms/min, 2 = 200ms/min, 4 = 80ms/min
-    tournament: {
+  function createFreshPrepBonuses() {
+    return {
+      xp: 0,
+      chem: 0,
+      power: 0,
+      staminaMul: 1,
+      lateMatchNoStaminaLoss: false,
+      permanentDoublePrep: false,
+      tireTrainingDone: false,
+      elemResonance: false,
+      boostedElement: null,
+      efficiencyLvl: 0,
+      restLvl: 0,
+      enduranceLvl: 0,
+      wingExplosionLvl: 0,
+      midSynergyLvl: 0,
+      defBlockLvl: 0,
+      hissatsuMasteryLvl: 0,
+      xpSpiritLvl: 0,
+      passBypassLvl: 0,
+      counterShotLvl: 0,
+      dribbleEdgeLvl: 0,
+      log: []
+    };
+  }
+
+  function createFreshTournamentState() {
+    return {
       stageIndex: 0,
       stages: [],
       worldUnlocked: false,
@@ -407,27 +418,7 @@
       prepTimerId: null,
       prepMatchTimerId: null,
       prep: null,
-      prepBonuses: {
-        xp: 0,
-        chem: 0,
-        power: 0,
-        staminaMul: 1,
-        lateMatchNoStaminaLoss: false,
-        permanentDoublePrep: false,
-        tireTrainingDone: false,
-        efficiencyLvl: 0,
-        restLvl: 0,
-        enduranceLvl: 0,
-        wingExplosionLvl: 0,
-        midSynergyLvl: 0,
-        defBlockLvl: 0,
-        hissatsuMasteryLvl: 0,
-        xpSpiritLvl: 0,
-        passBypassLvl: 0,
-        counterShotLvl: 0,
-        dribbleEdgeLvl: 0,
-        log: []
-      },
+      prepBonuses: createFreshPrepBonuses(),
       teamEnergy: 100,
       tactics: {
         lane: "balanced", // "wings" | "balanced" | "center"
@@ -435,7 +426,52 @@
         intensity: "medium" // "low" | "medium" | "high"
       },
       showRunSummary: false
-    }
+    };
+  }
+
+  function cloneFreshPlayerForSquad(player, teamInfo = null, forcedLevel = 1) {
+    if (!player) return null;
+    const rawMoves = player.moves || {};
+    const clonedMoves = {};
+    Object.keys(rawMoves).forEach((cat) => {
+      clonedMoves[cat] = Array.isArray(rawMoves[cat]) ? [...rawMoves[cat]] : rawMoves[cat];
+    });
+    return {
+      ...player,
+      moves: clonedMoves,
+      level: forcedLevel,
+      xp: 0,
+      bonusStats: { for: 0, tec: 0, def: 0, vel: 0, fis: 0 },
+      bonusPower: 0,
+      bonusSpd: 0,
+      equippedItems: [],
+      keshin: null,
+      moveEvoCount: 0,
+      learnedSecretManual: false,
+      learnedLvlMilestones: [],
+      teamId: teamInfo?.id ?? player.teamId,
+      teamName: teamInfo?.name ?? player.teamName,
+      teamEmblem: teamInfo?.emblem ?? player.teamEmblem
+    };
+  }
+
+  const state = {
+    phase: "menu", // "menu" | "draft" | "tournament"
+    gameMode: "relampago",
+    storyLockNotice: false,
+    formation: "4-3-3",
+    hideOvrBeforePick: true, // Dificuldade: true = Sem Overall no sorteio, false = Com Overall visível
+    squad: {}, // slotId -> player
+    currentTeam: null,
+    selectedPlayer: null,
+    peekField: false,
+    swapSlotId: null,
+    rerollsLeft: 3,
+    isSpinning: false,
+    spinTimerId: null,
+    usedTeamIds: [],
+    simSpeed: 1, // 1 = 420ms/min, 2 = 200ms/min, 4 = 80ms/min
+    tournament: createFreshTournamentState()
   };
 
   function getTeamEnergy() {
@@ -756,8 +792,8 @@
     const evoBonus = (player.moveEvoCount || 0) * 2;
     const manualBonus = player.learnedSecretManual ? 3 : 0;
 
-    // Bônus dinâmicos de função dos buffs escaláveis (funciona mesmo ao trocar formação ou recrutar craque no 5x5!)
-    const isSquadMember = Object.values(state.squad).some((sp) => sp && sp.id === player.id);
+    // Bônus dinâmicos de função dos buffs escaláveis (ativos apenas durante o torneio, nunca vazando para o draft!)
+    const isSquadMember = state.phase === "tournament" && Object.values(state.squad).some((sp) => sp && sp.id === player.id);
     const pb = isSquadMember ? state.tournament?.prepBonuses || {} : {};
     const wingStat = (role === "FW" || role === "MF") ? (pb.wingExplosionLvl || 0) * 3 : 0;
     const midStat = role === "MF" ? (pb.midSynergyLvl || 0) * 3 : 0;
@@ -845,7 +881,7 @@
     const keshinPwr = player.keshin ? 38 : 0;
     const evoPwr = (player.moveEvoCount || 0) * 22;
     const manualPwr = player.learnedSecretManual ? 28 : 0;
-    const isSquadMember = Object.values(state.squad).some((sp) => sp && sp.id === player.id);
+    const isSquadMember = state.phase === "tournament" && Object.values(state.squad).some((sp) => sp && sp.id === player.id);
     const pb = isSquadMember ? state.tournament?.prepBonuses || {} : {};
     let roleScalablePwr = 0;
     if (role === "FW" || role === "MF") roleScalablePwr += (pb.wingExplosionLvl || 0) * 6;
@@ -1337,7 +1373,7 @@
     }
 
     // 1. Química & Poder por Sinergia Elemental em PROXIMIDADE (Dream Team)
-    const prepB = state.tournament?.prepBonuses || null;
+    const prepB = (!isOpponent && state.phase === "tournament") ? (state.tournament?.prepBonuses || null) : null;
     const elemResonanceActive = Boolean(prepB?.elemResonance);
     if (activeElemPairs.length > 0) {
       const linkChem = Math.min(35, activeElemPairs.length * 5);
@@ -1901,12 +1937,7 @@
           const pid = card.getAttribute("data-player-id");
           const player = team.players.find((x) => x.id === pid);
           if (player && !pickedIds.has(player.id)) {
-            state.selectedPlayer = {
-              ...player,
-              teamId: team.id,
-              teamName: team.name,
-              teamEmblem: team.emblem
-            };
+            state.selectedPlayer = cloneFreshPlayerForSquad(player, team, 1);
             state.swapSlotId = null;
             renderMainScreen();
           }
@@ -2264,56 +2295,8 @@
 
     state.phase = "tournament";
     state.tournament = {
-      stageIndex: 0,
-      stages,
-      worldUnlocked: false,
-      worldGroup: null,
-      timerId: null,
-      pitchRafId: null,
-      clashTimer1: null,
-      clashTimer2: null,
-      pendingClashFinish: null,
-      shotFlightTimer: null,
-      pendingShotFlightFinish: null,
-      netFlightTimer: null,
-      pendingNetFlightFinish: null,
-      actionBeatTimer: null,
-      pendingBeatFinish: null,
-      whistleKeyHandler: null,
-      penTimerId: null,
-      prepTimerId: null,
-      prepMatchTimerId: null,
-      prep: null,
-      prepBonuses: {
-        xp: 0,
-        chem: 0,
-        power: 0,
-        staminaMul: 1,
-        lateMatchNoStaminaLoss: false,
-        permanentDoublePrep: false,
-        tireTrainingDone: false,
-        elemResonance: false,
-        boostedElement: null,
-        efficiencyLvl: 0,
-        restLvl: 0,
-        enduranceLvl: 0,
-        wingExplosionLvl: 0,
-        midSynergyLvl: 0,
-        defBlockLvl: 0,
-        hissatsuMasteryLvl: 0,
-        xpSpiritLvl: 0,
-        passBypassLvl: 0,
-        counterShotLvl: 0,
-        dribbleEdgeLvl: 0,
-        log: []
-      },
-      teamEnergy: 100,
-      tactics: {
-        lane: "balanced",
-        posture: "balanced",
-        intensity: "medium"
-      },
-      showRunSummary: false
+      ...createFreshTournamentState(),
+      stages
     };
 
     // Preparação em Inazuma também antes da 1ª partida!
@@ -8681,11 +8664,16 @@
     });
 
     document.getElementById("btn-start-game-now").addEventListener("click", () => {
+      clearTournamentTimers(false);
       state.storyLockNotice = false;
       state.phase = "draft";
       state.squad = {};
+      state.selectedPlayer = null;
+      state.peekField = false;
+      state.swapSlotId = null;
       state.rerollsLeft = state.hideOvrBeforePick ? 0 : 3;
       state.usedTeamIds = [];
+      state.tournament = createFreshTournamentState();
       spinNextTeam(false);
     });
   }
@@ -11079,14 +11067,11 @@
     const nextIdx = prep.nextStageIdx ?? t.stageIndex ?? 0;
     const stageTargetLvl = STAGE_OPPONENT_LEVELS[Math.min(nextIdx, STAGE_OPPONENT_LEVELS.length - 1)] || 1;
     const recruitLvl = Math.max(getPlayerLevel(oldPlayer) + 1, stageTargetLvl);
-    const newP = {
-      ...starRecruit.player,
-      level: recruitLvl,
-      xp: 0,
-      teamId: starRecruit.teamId,
-      teamName: starRecruit.teamName,
-      teamEmblem: starRecruit.emblem
-    };
+    const newP = cloneFreshPlayerForSquad(
+      starRecruit.player,
+      { id: starRecruit.teamId, name: starRecruit.teamName, emblem: starRecruit.emblem },
+      recruitLvl
+    );
     state.squad[replaceSlotId] = newP;
     const newPwr = calcIndividualPlayerPower(newP, starRecruit.role || newP.pos, recruitLvl);
     prep.phase = "DONE";
@@ -12831,9 +12816,12 @@
     state.storyLockNotice = false;
     state.phase = "menu";
     state.squad = {};
+    state.currentTeam = null;
     state.selectedPlayer = null;
     state.peekField = false;
     state.swapSlotId = null;
+    state.usedTeamIds = [];
+    state.tournament = createFreshTournamentState();
     renderAll();
   }
 
@@ -12856,8 +12844,15 @@
           clearTimeout(state.spinTimerId);
           state.spinTimerId = null;
         }
+        const wasDraft = state.phase === "draft";
         state.isSpinning = false;
         state.phase = "draft";
+        state.tournament = createFreshTournamentState();
+        if (!wasDraft) {
+          state.squad = {};
+          state.usedTeamIds = [];
+          state.rerollsLeft = state.hideOvrBeforePick ? 0 : 3;
+        }
         const openSlots = getOpenSlots();
         const pickedIds = getPickedPlayerIds();
         openSlots.forEach((slot) => {
@@ -12865,7 +12860,7 @@
           DB.teams.forEach((t) => {
             t.players.forEach((p) => {
               if (!pickedIds.has(p.id) && playerMatchesRole(p, slot.role)) {
-                candidates.push({ ...p, teamId: t.id, teamName: t.name, teamEmblem: t.emblem });
+                candidates.push(cloneFreshPlayerForSquad(p, t, 1));
               }
             });
           });
@@ -12877,6 +12872,7 @@
         });
         state.selectedPlayer = null;
         state.peekField = false;
+        state.swapSlotId = null;
         renderAll();
       });
     }
