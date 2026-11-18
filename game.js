@@ -2848,12 +2848,13 @@
     const koNodes = kickoffSide === "user" ? pitch.userNodes : pitch.oppNodes;
     const koMid = koNodes.find((n) => n.role === "MF") || koNodes[5] || koNodes[0];
 
-    // Se a reinicialização for após um gol, ambos os times recuperam ~60% da energia gasta!
+    // Após um gol, apenas os goleiros recuperam energia; jogadores de linha não recuperam com o gol!
     if (isGoalReset) {
       [...pitch.userNodes, ...pitch.oppNodes].forEach((n) => {
+        if (n.role !== "GK") return;
         const lost = Math.max(0, 100 - n.stamina);
         if (lost > 0) {
-          n.stamina = Math.min(100, Math.round(n.stamina + lost * 0.60));
+          n.stamina = Math.min(100, Math.round(n.stamina + lost * 0.55));
         }
       });
     }
@@ -2940,7 +2941,7 @@
     if (!slotEl || !st || !st.pitch) {
       if (isHalftime && st?.pitch) {
         [...st.pitch.userNodes, ...st.pitch.oppNodes].forEach((n) => {
-          n.stamina = Math.min(100, n.stamina + 20);
+          n.stamina = Math.min(100, n.stamina + (n.role === "GK" ? 18 : 10));
         });
         const nextSide = st.pitch.initialSide === "user" ? "opp" : "user";
         resetPitchForKickoff(st.pitch, nextSide, true);
@@ -3113,7 +3114,7 @@
         });
         if (isHalftime) {
           st.pitch.oppNodes.forEach((n) => {
-            n.stamina = Math.min(100, n.stamina + 20);
+            n.stamina = Math.min(100, n.stamina + (n.role === "GK" ? 18 : 10));
           });
         }
         syncLivePitchDOM(st);
@@ -3408,7 +3409,7 @@
         st.pitch.minuteFloat = 45;
         st.pitch.ticker = `45' Fim do 1º tempo! Placar: ${st.userScore} x ${st.oppScore}`;
         [...st.pitch.userNodes, ...st.pitch.oppNodes].forEach((n) => {
-          n.stamina = Math.min(100, n.stamina + 20);
+          n.stamina = Math.min(100, n.stamina + (n.role === "GK" ? 18 : 10));
         });
         const secondHalfSide = st.pitch.initialSide === "user" ? "opp" : "user";
         resetPitchForKickoff(st.pitch, secondHalfSide, true);
@@ -7449,8 +7450,8 @@
         }
         allNodes.forEach((n) => {
           if (n.uid !== pitch.carrierUid) {
-            // Regeneração passiva mais moderada por minuto para que o cansaço acumulado importe!
-            const regen = n.role === "GK" ? 1.4 : 1.1;
+            // Recuperação bem leve por minuto: exige administrar intensidade e habilidades em campo
+            const regen = n.role === "GK" ? 0.55 : 0.32;
             n.stamina = Math.min(100, n.stamina + regen);
           }
         });
@@ -8045,6 +8046,17 @@
         if (attIsUser && !ps.isGkOutlet) {
           pitch.stats.userPassesOk++;
           if (ps.passerNode) recordUserPlayerStat(pitch, ps.passerNode, "passesOk", 1);
+        }
+        // Passes completos dão um respiro leve no fôlego do time em campo
+        if (!ps.isGkOutlet) {
+          const teamList = attIsUser ? pitch.userNodes : pitch.oppNodes;
+          (teamList || []).forEach((n) => {
+            if (n.uid === catcher.uid) {
+              n.stamina = Math.min(100, n.stamina + 1.8);
+            } else {
+              n.stamina = Math.min(100, n.stamina + 0.45);
+            }
+          });
         }
         pitch.lastAssistCandidate = ps.isGkOutlet
           ? null
