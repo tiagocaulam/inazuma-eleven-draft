@@ -6472,11 +6472,12 @@
     const passSpeed = dist > 32 ? 50 : isThroughBall ? 46 : 44;
     const duration = Math.max(0.22, Math.min(1.25, dist / passSpeed));
 
-    // Curva orgânica fixa definida no momento do passe (Bézier quadrática):
-    // Passes curtos saem quase retos; passes médios/longos ou contestados ganham efeito para contornar marcadores!
+    // Trajetória orgânica fixa: mistura passes retos/diretos com passes com efeito (curva)
+    // Curva aparece naturalmente ao contornar marcador no caminho, em viradas/lançamentos longos ou ocasionais enfiadas diagonais
     let ctrlX = (fromX + leadX) * 0.5;
     let ctrlY = (fromY + leadY) * 0.5;
-    if (dist >= 8.5) {
+    let isCurvedPass = false;
+    if (dist >= 11.5) {
       const ux = dx / dist;
       const uy = dy / dist;
       const nx = -uy;
@@ -6489,26 +6490,37 @@
         const along = rx * ux + ry * uy;
         if (along > dist * 0.15 && along < dist * 0.85) {
           const perp = rx * nx + ry * ny;
-          if (Math.abs(perp) < 8.5) {
-            const weight = (8.5 - Math.abs(perp)) / 8.5;
+          if (Math.abs(perp) < 8.0) {
+            const weight = (8.0 - Math.abs(perp)) / 8.0;
             laneBias += (perp >= 0 ? -1 : 1) * weight;
           }
         }
       });
 
-      let curveSign;
-      if (Math.abs(laneBias) > 0.15) {
-        curveSign = laneBias >= 0 ? 1 : -1;
-      } else {
-        // Sem bloqueio direto na linha: curva natural voltada para o eixo ofensivo / centro
-        const centerSide = (50 - ctrlY) * ny + fwdDir * nx * 0.4;
-        curveSign = Math.abs(centerSide) > 0.1 ? (centerSide >= 0 ? 1 : -1) : (fromY < 50 ? 1 : -1);
+      const hasBlockerInLane = Math.abs(laneBias) > 0.22;
+      const isLongSwitch = dist >= 28;
+      const isDiagonalSpace = isThroughBall && dist >= 16 && Math.abs(dy) >= 6;
+      const shouldCurve =
+        hasBlockerInLane ||
+        (isLongSwitch && Math.random() < 0.72) ||
+        (isDiagonalSpace && Math.random() < 0.55) ||
+        (!isOneTwoPass && dist >= 16 && Math.random() < 0.26);
+
+      if (shouldCurve) {
+        isCurvedPass = true;
+        let curveSign;
+        if (hasBlockerInLane) {
+          curveSign = laneBias >= 0 ? 1 : -1;
+        } else {
+          const centerSide = (50 - ctrlY) * ny + fwdDir * nx * 0.4;
+          curveSign = Math.abs(centerSide) > 0.1 ? (centerSide >= 0 ? 1 : -1) : (fromY < 50 ? 1 : -1);
+        }
+        const maxArc = hasBlockerInLane ? 5.6 : isThroughBall ? 4.8 : 4.2;
+        const minArc = hasBlockerInLane ? 1.5 : 1.0;
+        const arcMag = Math.min(maxArc, Math.max(minArc, dist * (hasBlockerInLane ? 0.145 : 0.105)));
+        ctrlX = Math.max(5, Math.min(95, ctrlX + nx * arcMag * curveSign));
+        ctrlY = Math.max(7, Math.min(93, ctrlY + ny * arcMag * curveSign * 1.15));
       }
-      const maxArc = isThroughBall ? 6.2 : 5.4;
-      const minArc = isThroughBall ? 1.8 : 1.0;
-      const arcMag = Math.min(maxArc, Math.max(minArc, dist * (Math.abs(laneBias) > 0.15 ? 0.17 : 0.125)));
-      ctrlX = Math.max(5, Math.min(95, ctrlX + nx * arcMag * curveSign));
-      ctrlY = Math.max(7, Math.min(93, ctrlY + ny * arcMag * curveSign * 1.15));
     }
 
     // Recebedor reage imediatamente ao passe: avança / ativa Dash para atacar a bola!
@@ -6619,8 +6631,8 @@
     pitch.passTrail = {
       fromX,
       fromY,
-      ctrlX,
-      ctrlY,
+      ctrlX: isCurvedPass ? ctrlX : null,
+      ctrlY: isCurvedPass ? ctrlY : null,
       toX: leadX,
       toY: leadY,
       curX: fromX,
