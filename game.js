@@ -12245,18 +12245,32 @@
         !st.finished && !st.penalties
           ? `
         <div class="live-tactics-modal-backdrop" id="live-tactics-modal">
-          <div class="live-tactics-modal-card">
+          <div class="live-tactics-modal-card squad-overview-modal-card">
             <div class="live-tactics-modal-head">
               <div>
                 <div style="font-size:0.68rem; font-weight:900; color:#facc15; text-transform:uppercase;">Jogo Pausado</div>
-                <h4 style="margin:0; font-size:1rem; font-weight:900; color:#fff;">⚙️ Táticas da Partida (<span id="live-tactics-modal-min">${st.minute}'</span>)</h4>
+                <h4 style="margin:0; font-size:1rem; font-weight:900; color:#fff;">⚙️ Ajustes da Partida (<span id="live-tactics-modal-min">${st.minute}'</span>)</h4>
               </div>
               <button type="button" class="ie-cmd-btn ie-cmd-green" id="btn-close-live-tactics">
                 <span>Retomar ▶</span>
               </button>
             </div>
+            <div class="live-tac-matchup-strip">
+              <div class="live-tac-team-box is-user">
+                <div class="live-tac-team-name">Dream Team</div>
+                <div class="live-tac-team-meta" id="live-tac-user-meta">Nv. ${stats.avgLevel || 1} • Poder <strong>${stats.power.toLocaleString("pt-BR")}</strong> • Quím ${stats.chem}%</div>
+              </div>
+              <div class="live-tac-vs-sep">VS</div>
+              <div class="live-tac-team-box is-opp">
+                <div class="live-tac-team-name">${st.oppTeam.name}</div>
+                <div class="live-tac-team-meta">Nv. ${oppStats.oppLevel || 1} • Poder <strong>${oppStats.power.toLocaleString("pt-BR")}</strong> • Quím ${oppStats.chem}%</div>
+              </div>
+            </div>
             ${buildTeamEnergyBarHTML(false)}
             ${buildTacticsControlBarHTML(false)}
+            <div id="live-tac-pitch-body">
+              ${buildPitchHTML(true)}
+            </div>
           </div>
         </div>
       `
@@ -12269,12 +12283,75 @@
       const tacModal = document.getElementById("live-tactics-modal");
       if (tacModal) bindTacticsControls(tacModal);
 
+      const syncLivePitchNodesFromSquad = () => {
+        if (!st.pitch || !Array.isArray(st.pitch.userNodes)) return;
+        const stamByPlayerId = {};
+        st.pitch.userNodes.forEach((n) => {
+          if (n.player?.id) stamByPlayerId[n.player.id] = n.stamina;
+        });
+        st.pitch.userNodes.forEach((n) => {
+          const p = state.squad[n.slotId];
+          if (!p) return;
+          n.player = p;
+          n.effOvr = getEffectiveOvr(p, n.role);
+          n.level = getPlayerLevel(p);
+          n.indivPower = calcIndividualPlayerPower(p, n.role, n.level);
+          n.attrs = calcPlayerAttributes(p, n.role, n.level);
+          n.spd = n.attrs.vel;
+          n.maxSpeed = calcNodeBaseSpeed(n.tacticalRole, n.effOvr, p);
+          if (typeof stamByPlayerId[p.id] === "number") {
+            n.stamina = stamByPlayerId[p.id];
+          }
+          const tokEl = document.getElementById(`pnode-${n.uid}`);
+          if (tokEl) {
+            const avEl = tokEl.querySelector(".pitch-token-avatar");
+            const nmEl = tokEl.querySelector(".pitch-token-name");
+            if (avEl) avEl.src = resolveDynamicNodeSprite(n, st.pitch);
+            if (nmEl) nmEl.textContent = (p.name || n.label).split(" ").slice(-1)[0];
+          }
+        });
+        st.pitch.matchSupportInitialized = false;
+        ensureMatchSupport(st, st.pitch);
+        syncLivePitchDOM(st);
+      };
+
+      const bindLiveTacPitch = () => {
+        const pitchBody = document.getElementById("live-tac-pitch-body");
+        if (!pitchBody) return;
+        pitchBody.querySelectorAll("[data-slot]").forEach((nodeEl) => {
+          nodeEl.addEventListener("click", () => {
+            const slotId = nodeEl.getAttribute("data-slot");
+            if (!slotId || !state.squad[slotId]) return;
+            if (!state.swapSlotId) {
+              state.swapSlotId = slotId;
+            } else {
+              if (state.swapSlotId !== slotId) {
+                const tmp = state.squad[state.swapSlotId];
+                state.squad[state.swapSlotId] = state.squad[slotId];
+                state.squad[slotId] = tmp;
+                syncLivePitchNodesFromSquad();
+              }
+              state.swapSlotId = null;
+            }
+            pitchBody.innerHTML = buildPitchHTML(true);
+            bindLiveTacPitch();
+            renderHeaderAndBonds();
+            const curSt = calcSquadStats();
+            const uMeta = document.getElementById("live-tac-user-meta");
+            if (uMeta) {
+              uMeta.innerHTML = `Nv. ${curSt.avgLevel || 1} • Poder <strong>${curSt.power.toLocaleString("pt-BR")}</strong> • Quím ${curSt.chem}%`;
+            }
+          });
+        });
+      };
+
       const openTacBtn = document.getElementById("btn-open-live-tactics");
       const closeTacBtn = document.getElementById("btn-close-live-tactics");
       const pauseForTactics = () => {
         if (st.finished || state.tournament.pendingWhistleFinish || state.tournament.qteRafId) return;
         st.running = false;
         clearTournamentTimers(true);
+        state.swapSlotId = null;
         const minEl = document.getElementById("live-tactics-modal-min");
         if (minEl) minEl.textContent = `${st.minute}'`;
         const eVal = Math.round(getTeamEnergy());
@@ -12289,9 +12366,20 @@
           mFill.style.width = `${eVal}%`;
           mFill.style.background = eBand.color;
         }
+        const curSt = calcSquadStats();
+        const uMeta = document.getElementById("live-tac-user-meta");
+        if (uMeta) {
+          uMeta.innerHTML = `Nv. ${curSt.avgLevel || 1} • Poder <strong>${curSt.power.toLocaleString("pt-BR")}</strong> • Quím ${curSt.chem}%`;
+        }
+        const pitchBody = document.getElementById("live-tac-pitch-body");
+        if (pitchBody) {
+          pitchBody.innerHTML = buildPitchHTML(true);
+          bindLiveTacPitch();
+        }
         if (tacModal) tacModal.classList.add("is-open");
       };
       const resumeFromTactics = () => {
+        state.swapSlotId = null;
         if (tacModal) tacModal.classList.remove("is-open");
         if (!st.finished) {
           st.running = true;
