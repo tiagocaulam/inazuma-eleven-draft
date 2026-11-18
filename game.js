@@ -1085,7 +1085,7 @@
     if (isOpponent) {
       if (count > 0) {
         const posChem = Math.round(correctPosCount * 2.0);
-        const posPwr = Math.round(correctPosCount * 5.0 * tierScale);
+        const posPwr = Math.round(correctPosCount * 7.2 * tierScale);
         chem += posChem;
         bondsPower += posPwr;
         activeBonds.push({
@@ -1098,9 +1098,9 @@
         const linkChem = Math.min(35, activeElemPairs.length * 5);
         const rawLinkPwr =
           activeElemPairs.length <= 4
-            ? activeElemPairs.length * 14
-            : 56 + (activeElemPairs.length - 4) * 6;
-        const linkPwr = Math.min(Math.round(90 * tierScale), Math.round(rawLinkPwr * tierScale));
+            ? activeElemPairs.length * 16
+            : 64 + (activeElemPairs.length - 4) * 8;
+        const linkPwr = Math.min(Math.round(110 * tierScale), Math.round(rawLinkPwr * tierScale));
         chem += linkChem;
         bondsPower += linkPwr;
         const summaryParts = Object.keys(elemCountsByLink)
@@ -1115,7 +1115,7 @@
       const maxClub = Math.max(0, ...Object.values(teamsCount));
       if (maxClub >= 2) {
         const clubChem = Math.min(28, Math.round(12 + maxClub * 1.5));
-        const clubPwr = Math.round(Math.min(52, maxClub * 4.5) * tierScale);
+        const clubPwr = Math.round(Math.min(68, maxClub * 6.0) * tierScale);
         chem += clubChem;
         bondsPower += clubPwr;
         activeBonds.push({
@@ -1124,8 +1124,12 @@
         });
       }
 
+      if (oppLevel > 1) {
+        bondsPower += Math.round((oppLevel - 1) * 6);
+      }
+
       chem = Math.min(100, Math.max(0, chem));
-      const chemPower = Math.round(chem * 0.65 * tierScale);
+      const chemPower = Math.round(chem * 1.05 * tierScale);
       const basePower = Math.round(sumBasePwr);
       const power = count > 0 ? basePower + chemPower + bondsPower : 0;
 
@@ -1261,36 +1265,36 @@
     const activeCombos = [];
     // Combo 1: Conjunto Lendário da Raimon (Luvas Lendárias + Chuteiras Lendárias)
     if (equippedItemIds.has("glove_legend") && equippedItemIds.has("shoes_legend")) {
-      const cPwr = 85;
+      const cPwr = 65;
       chem += 8;
       bondsPower += cPwr;
       activeCombos.push(`🔥 Combo Lendário (Luvas + Chuteiras: +${cPwr} Poder • +8% Quím)`);
     }
     // Combo 2: Muralha Impenetrável (Luvas Lendárias + Travas de Bloqueio)
     if (equippedItemIds.has("glove_legend") && equippedItemIds.has("spike_block")) {
-      const cPwr = 75;
+      const cPwr = 55;
       chem += 6;
       bondsPower += cPwr;
       activeCombos.push(`🛡️ Combo Muralha Impenetrável (Luvas + Travas: +${cPwr} Poder • +6% Quím)`);
     }
     // Combo 3: Tempestade Relâmpago (Chuteiras do Trovão + Braçadeira do Capitão ou Amuleto Elemental)
     if (equippedItemIds.has("shoes_thunder") && (equippedItemIds.has("captain_armband") || equippedItemIds.has("elem_crest_boost"))) {
-      const cPwr = 70;
+      const cPwr = 50;
       chem += 6;
       bondsPower += cPwr;
       activeCombos.push(`⚡ Combo Tempestade Relâmpago (+${cPwr} Poder • +6% Quím)`);
     }
     // Combo 4: Esquadrão Equipado (3 ou mais jogadores equipados com itens)
     if (totalEquippedItemsCount >= 3) {
-      const cPwr = totalEquippedItemsCount * 22;
+      const cPwr = totalEquippedItemsCount * 15;
       bondsPower += cPwr;
       activeCombos.push(`🎒 Arsenal Completo (${totalEquippedItemsCount} itens: +${cPwr} Poder)`);
     }
-    // Combo 5: Domínio Elemental (4+ titulares do mesmo elemento quando Amuleto Elemental foi ativado)
+    // Combo 5: Domínio Elemental (3+ titulares do mesmo elemento quando Amuleto Elemental foi ativado)
     if (prepB?.boostedElement) {
       const elCnt = elemTotalsInSquad[prepB.boostedElement] || 0;
       if (elCnt >= 3) {
-        const cPwr = elCnt * 26;
+        const cPwr = elCnt * 18;
         chem += 6;
         bondsPower += cPwr;
         activeCombos.push(`🌟 Domínio de ${prepB.boostedElement} (${elCnt}x atletas: +${cPwr} Poder • +6% Quím)`);
@@ -1319,8 +1323,8 @@
 
     chem = Math.min(100, Math.max(0, chem));
 
-    // Poder Final Total = Soma do Poder Individual (OVR Fixo × Nível) + Química + Sinergias & Combos
-    const chemPower = Math.round(chem * 1.45 * tierScale);
+    // Poder Final Total = Soma do Poder Individual (OVR × Nível) + Química + Sinergias & Combos
+    const chemPower = Math.round(chem * 1.15 * tierScale);
     const basePower = Math.round(sumBasePwr);
     const power = count > 0 ? basePower + chemPower + bondsPower : 0;
 
@@ -1386,8 +1390,8 @@
     return { formSlots: best.formSlots, assignments: best.assignments };
   }
 
-  // Tabela de Nível dos Times Adversários por Fase (cresce a cada rodada, exigindo treinar o time!)
-  const STAGE_OPPONENT_LEVELS = [1, 2, 4, 6, 8, 9, 11, 13, 15, 17, 20];
+  // Tabela de Nível dos Times Adversários por Fase (cresce acima da média para exigir bom Draft, Treinos e Combos!)
+  const STAGE_OPPONENT_LEVELS = [3, 4, 6, 7, 9, 10, 12, 13, 15, 16, 18];
 
   function getStageOpponentBuff(stageIdx) {
     const idx = Math.max(0, stageIdx || 0);
@@ -4761,7 +4765,7 @@
   function awardPostMatchExperience(st) {
     if (!st || st.isGoldenGoal5v5 || st._postMatchXpAwarded) return;
     st._postMatchXpAwarded = true;
-    const baseXp = st.won ? 55 : st.isDraw ? 35 : 20;
+    const baseXp = st.won ? 35 : st.isDraw ? 22 : 12;
     const pStats = st.pitch?.stats?.playerStats || {};
     const leveledNames = [];
 
@@ -4771,13 +4775,13 @@
       const uid = `u_${slot.id}`;
       const ps = pStats[uid] || {};
       const perfXp =
-        (ps.goals || 0) * 28 +
-        (ps.assists || 0) * 18 +
-        Math.min(2, ps.saves || 0) * 14 +
-        Math.min(2, ps.steals || 0) * 10;
+        (ps.goals || 0) * 16 +
+        (ps.assists || 0) * 10 +
+        Math.min(2, ps.saves || 0) * 8 +
+        Math.min(2, ps.steals || 0) * 6;
       const res = gainPlayerXp(p, baseXp + perfXp);
-      if (res.leveledUp > 0) {
-        leveledNames.push(`${p.name} (Nv.${res.newLvl})`);
+      if (res.levelsGained > 0) {
+        leveledNames.push(`${p.name} (Nv.${getPlayerLevel(p)})`);
       }
     });
 
@@ -9058,13 +9062,13 @@
             icon: UI.itemShoesLegend,
             kind: "ITEM_PICK",
             targetRoles: ["FW", "MF"],
-            levelGain: 2,
-            indivPower: 55,
+            levelGain: 1,
+            indivPower: 38,
             spdBoost: 3,
-            teamPower: 30,
+            teamPower: 20,
             teamChem: 0,
             weight: 2.1,
-            summary: "+2 Níveis e +55 Poder Individual (+3 VEL) para 1 Atacante ou Meia • Comba com Luvas Lendárias (+85 Poder)!"
+            summary: "+1 Nível e +38 Poder Individual (+3 VEL) para 1 Atacante ou Meia • Comba com Luvas Lendárias (+65 Poder)!"
           },
           {
             id: "glove_legend",
@@ -9072,12 +9076,12 @@
             icon: UI.itemGloveLegend || UI.itemGloveRaimon,
             kind: "ITEM_PICK",
             targetRoles: ["GK"],
-            levelGain: 2,
-            indivPower: 65,
-            teamPower: 35,
+            levelGain: 1,
+            indivPower: 42,
+            teamPower: 22,
             teamChem: 0,
             weight: 1.9,
-            summary: "+2 Níveis e +65 Poder Individual no seu Goleiro • Comba com Chuteiras Lendárias (+85 Pwr) e Travas (+75 Pwr)!"
+            summary: "+1 Nível e +42 Poder Individual no seu Goleiro • Comba com Chuteiras Lendárias (+65 Pwr) e Travas (+55 Pwr)!"
           },
           {
             id: "shoes_thunder",
@@ -9085,13 +9089,13 @@
             icon: UI.itemShoesThunder,
             kind: "ITEM_PICK",
             targetRoles: ["FW", "MF", "DF"],
-            levelGain: 2,
-            indivPower: 42,
+            levelGain: 1,
+            indivPower: 30,
             spdBoost: 5,
-            teamPower: 25,
+            teamPower: 18,
             teamChem: 0,
             weight: 2.2,
-            summary: "+2 Níveis, +42 Poder Individual e +5 VEL para 1 jogador de linha • Comba com Braçadeira/Insígnia (+70 Poder)!"
+            summary: "+1 Nível, +30 Poder Individual e +5 VEL para 1 jogador de linha • Comba com Braçadeira/Insígnia (+50 Poder)!"
           },
           {
             id: "spike_block",
@@ -9099,12 +9103,12 @@
             icon: UI.itemSpikeBlock,
             kind: "ITEM_PICK",
             targetRoles: ["DF"],
-            levelGain: 2,
-            indivPower: 52,
-            teamPower: 28,
+            levelGain: 1,
+            indivPower: 36,
+            teamPower: 18,
             teamChem: 0,
             weight: 1.9,
-            summary: "+2 Níveis e +52 Poder Individual para 1 Zagueiro • Comba com Luvas Lendárias (Muralha +75 Poder)!"
+            summary: "+1 Nível e +36 Poder Individual para 1 Zagueiro • Comba com Luvas Lendárias (Muralha +55 Poder)!"
           },
           {
             id: "captain_armband",
@@ -9112,24 +9116,24 @@
             icon: UI.captain || UI.itemBraceletFortune,
             kind: "ITEM_PICK",
             targetRoles: ["GK", "DF", "MF", "FW"],
-            levelGain: 3,
-            indivPower: 45,
-            teamPower: 45,
-            teamChem: 10,
+            levelGain: 2,
+            indivPower: 32,
+            teamPower: 25,
+            teamChem: 8,
             weight: 1.8,
-            summary: "+3 Níveis no líder escolhido • +10% Química • +90 Poder total • Comba com Chuteiras do Trovão (+70 Poder)!"
+            summary: "+2 Níveis no líder escolhido • +8% Química • +57 Poder total • Comba com Chuteiras do Trovão (+50 Poder)!"
           },
           {
             id: "elem_crest_boost",
             title: "Insígnia de Ressonância Elemental",
             icon: UI.elemFire || UI.itemPendantLightning,
             kind: "ELEM_BOOST_PICK",
-            levelGain: 2,
-            indivPower: 50,
-            teamPower: 35,
-            teamChem: 6,
+            levelGain: 1,
+            indivPower: 28,
+            teamPower: 20,
+            teamChem: 5,
             weight: 2.0,
-            summary: "Escolha 1 titular: TODOS os jogadores do MESMO ELEMENTO dele no time ganham +2 Níveis e +45 Poder (ativa Domínio Elemental)!"
+            summary: "Escolha 1 titular: TODOS os jogadores do MESMO ELEMENTO dele no time ganham +1 Nível e +28 Poder (ativa Domínio Elemental)!"
           },
           {
             id: "misanga_friend",
@@ -9137,12 +9141,12 @@
             icon: UI.itemMisangaFriend || UI.itemBraceletFortune,
             kind: "ITEM_PICK",
             targetRoles: ["GK", "DF", "MF", "FW"],
-            levelGain: 2,
-            indivPower: 38,
-            teamPower: 35,
-            teamChem: 10,
+            levelGain: 1,
+            indivPower: 28,
+            teamPower: 20,
+            teamChem: 8,
             weight: 1.7,
-            summary: "+2 Níveis e +38 Poder em 1 titular • +10% Química • Conta para o Combo Arsenal Completo (3+ itens)!"
+            summary: "+1 Nível e +28 Poder em 1 titular • +8% Química • Conta para o Combo Arsenal Completo (3+ itens)!"
           }
         ]
       },
@@ -9167,7 +9171,7 @@
             icon: UI.ffLogo || UI.moveSH,
             kind: "STREET_5V5",
             weight: 2.8,
-            summary: "Gol de Ouro! Vencer sobe +2 Níveis nos 5 participantes e permite RECRUTAR o craque rival já treinado!"
+            summary: "Gol de Ouro! Vencer sobe +1 Nível nos 5 participantes e permite RECRUTAR o craque rival já treinado!"
           },
           {
             id: "river_xp",
@@ -9176,11 +9180,11 @@
             kind: "COLLECTIVE",
             applyRoles: ["GK", "DF", "MF", "FW"],
             levelGain: 1,
-            teamPower: 45,
+            teamPower: 25,
             teamChem: 4,
-            xpGain: 130,
+            xpGain: 90,
             weight: 2.1,
-            summary: "TODOS os 11 titulares sobem +1 Nível (evoluindo Status e Poder proporcionalmente ao OVR de cada um) • +4% Quím • +45 Poder!"
+            summary: "TODOS os 11 titulares sobem +1 Nível (evoluindo Status e Poder proporcionalmente ao OVR de cada um) • +4% Quím • +25 Poder!"
           },
           {
             id: "river_tactics",
@@ -9188,13 +9192,13 @@
             icon: UI.formation || UI.moveOF,
             kind: "COLLECTIVE",
             applyRoles: ["MF"],
-            levelGain: 2,
-            indivPower: 22,
-            teamPower: 55,
-            teamChem: 10,
-            xpGain: 100,
+            levelGain: 1,
+            indivPower: 16,
+            teamPower: 30,
+            teamChem: 8,
+            xpGain: 80,
             weight: 1.9,
-            summary: "Todos os Meias (MF) sobem +2 Níveis e +22 Poder • +10% Química • +55 Poder Coletivo!"
+            summary: "Todos os Meias (MF) sobem +1 Nível e +16 Poder • +8% Química • +30 Poder Coletivo!"
           },
           {
             id: "river_shot",
@@ -9202,13 +9206,13 @@
             icon: UI.moveSH,
             kind: "COLLECTIVE",
             applyRoles: ["FW"],
-            levelGain: 2,
-            indivPower: 28,
-            teamPower: 50,
+            levelGain: 1,
+            indivPower: 18,
+            teamPower: 28,
             teamChem: 0,
-            xpGain: 100,
+            xpGain: 80,
             weight: 1.8,
-            summary: "Todos os Atacantes (FW) sobem +2 Níveis e +28 Poder Individual • +50 Poder Coletivo!"
+            summary: "Todos os Atacantes (FW) sobem +1 Nível e +18 Poder Individual • +28 Poder Coletivo!"
           }
         ]
       },
@@ -9232,36 +9236,36 @@
             title: "Manual Secreto de Inazuma",
             icon: UI.manualInazuma || UI.manualSkill,
             kind: "EVO_PICK",
-            levelGain: 3,
-            indivPower: 45,
-            teamPower: 35,
-            xpGain: 120,
+            levelGain: 2,
+            indivPower: 30,
+            teamPower: 20,
+            xpGain: 95,
             weight: 2.5,
-            summary: "Escolha 1 titular para aprender a técnica suprema ★ do Manual Secreto: +3 Níveis e imenso salto de Poder!"
+            summary: "Escolha 1 titular para aprender a técnica suprema ★ do Manual Secreto: +2 Níveis e salto de Poder!"
           },
           {
             id: "keshin_awaken",
             title: "Despertar Incorporação!",
             icon: UI.keshinPegasus || UI.keshinIcon,
             kind: "KESHIN_PICK",
-            levelGain: 3,
-            indivPower: 40,
-            teamPower: 30,
-            xpGain: 120,
+            levelGain: 2,
+            indivPower: 28,
+            teamPower: 20,
+            xpGain: 95,
             weight: 2.4,
-            summary: "Escolha 1 titular para despertar um Espírito Guerreiro: +3 Níveis, +78 Poder Individual total e bônus nos duelos!"
+            summary: "Escolha 1 titular para despertar um Espírito Guerreiro: +2 Níveis, Poder Individual extra e bônus nos duelos!"
           },
           {
             id: "evo_move",
             title: "Evoluir Técnica (G2/Shin/★)",
             icon: UI.manualSkill || UI.manualKeshin,
             kind: "EVO_PICK",
-            levelGain: 2,
-            indivPower: 30,
-            teamPower: 25,
-            xpGain: 95,
+            levelGain: 1,
+            indivPower: 22,
+            teamPower: 18,
+            xpGain: 75,
             weight: 2.2,
-            summary: "Fortaleça a técnica principal de 1 titular para G2/V2/Shin/★ e suba +2 Níveis!"
+            summary: "Fortaleça a técnica principal de 1 titular para G2/V2/Shin/★ e suba +1 Nível!"
           },
           {
             id: "tire_training",
@@ -9269,14 +9273,14 @@
             icon: UI.steelTowerIcon || UI.moveGK,
             kind: "COLLECTIVE",
             applyRoles: ["GK", "DF"],
-            levelGain: 2,
-            indivPower: 24,
-            teamPower: 42,
+            levelGain: 1,
+            indivPower: 18,
+            teamPower: 25,
             teamChem: 4,
-            xpGain: 100,
+            xpGain: 80,
             staminaMul: 0.72,
             weight: 1.9,
-            summary: "Goleiro e Zagueiros (GK & DF) sobem +2 Níveis e +24 Poder • -28% gasto de energia • +42 Poder!"
+            summary: "Goleiro e Zagueiros (GK & DF) sobem +1 Nível e +18 Poder • -28% gasto de energia • +25 Poder!"
           },
           {
             id: "elem_resonance_tome",
@@ -9285,12 +9289,12 @@
             kind: "COLLECTIVE",
             applyRoles: ["GK", "DF", "MF", "FW"],
             levelGain: 1,
-            teamPower: 40,
-            teamChem: 8,
-            xpGain: 100,
+            teamPower: 25,
+            teamChem: 6,
+            xpGain: 85,
             elemResonance: true,
             weight: 1.8,
-            summary: "Passiva de Combo: Quase DOBRA o Poder gerado por todos os Links Elementais no campo + Todos sobem +1 Nível!"
+            summary: "Passiva de Combo: Fortalece o Poder gerado por todos os Links Elementais no campo + Todos sobem +1 Nível!"
           }
         ]
       }
@@ -9999,14 +10003,14 @@
         if (!state.tournament.prep || state.tournament.prep.clash5v5 !== c5) return;
         c5.status = "DONE";
         const won = finishedSt.userScore > finishedSt.oppScore;
-        const pwr = won ? 35 : -20;
+        const pwr = won ? 22 : -20;
         let totalXpGiven = 0;
 
         c5.xpSummary = c5.userQuintet.map((entry) => {
           const p = entry.player;
           const role = entry.slot?.role || entry.role;
           const isScorer = won && scorerName && p.name === scorerName;
-          const xpAmt = won ? (isScorer ? 240 : 200) : 80;
+          const xpAmt = won ? (isScorer ? 150 : 120) : 50;
           totalXpGiven += xpAmt;
           const beforePwr = calcIndividualPlayerPower(p, role);
           const res = gainPlayerXp(p, xpAmt);
