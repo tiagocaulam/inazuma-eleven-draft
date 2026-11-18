@@ -8381,8 +8381,8 @@
                     <div style="font-size:0.74rem; color:#dbeafe; margin-top:2px;">
                       ${
                         hasNaturalOpen
-                          ? `Toque em uma vaga de <strong>${sel.pos}</strong> em verde! (Feche 11/11 p/ <strong>+20% Quím e +2 OVR</strong> • Colar elementos iguais acende link próximo!)`
-                          : `Vagas de ${sel.pos} ocupadas! Improvisar tira <strong>-6 a -14 OVR</strong> do jogador e perde o bônus de <strong>11/11 na Posição (+20% Quím / +2 OVR)</strong>.`
+                          ? `Toque em uma vaga de <strong>${sel.pos}</strong> em verde! (Colar elementos iguais acende link próximo!)`
+                          : `Vagas de ${sel.pos} ocupadas! Improvisar reduz <strong>-6 a -14 OVR</strong> apenas no jogador fora de posição.`
                       }
                     </div>
                   </div>
