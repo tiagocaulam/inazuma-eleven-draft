@@ -925,7 +925,7 @@
     return {
       move: picked.move,
       isHeavy: picked.isHeavy,
-      cost: picked.isHeavy ? 38 : 28,
+      cost: picked.isHeavy ? 24 : 16,
       duelBonus: picked.isHeavy ? 1.6 : 0.4
     };
   }
@@ -942,7 +942,7 @@
         move: picked.move,
         isShCounter: true,
         isHeavy: picked.isHeavy,
-        cost: picked.isHeavy ? 34 : 26,
+        cost: picked.isHeavy ? 22 : 15,
         bonus: picked.isHeavy ? 2.8 : 1.9
       };
     }
@@ -955,7 +955,7 @@
         move: picked.move,
         isShCounter: false,
         isHeavy: picked.isHeavy,
-        cost: picked.isHeavy ? 30 : 24,
+        cost: picked.isHeavy ? 18 : 13,
         bonus: picked.isHeavy ? 1.5 : 0.8
       };
     }
@@ -975,8 +975,8 @@
       move: picked.move,
       isCanonicalChain,
       isHeavy: picked.isHeavy,
-      // Chain shot cansa bastante o 2º jogador (+14 de desgaste sobre o custo base do chute)
-      cost: (picked.isHeavy ? 38 : 26) + 14,
+      // Chain shot cansa um pouco mais o 2º jogador (+8 de desgaste sobre o custo base do chute)
+      cost: (picked.isHeavy ? 22 : 15) + 8,
       bonus: (picked.isHeavy ? 1.4 : 0) + (isCanonicalChain ? 1.8 : 0.4)
     };
   }
@@ -993,10 +993,10 @@
   function pickStaminaGatedMove(node, category) {
     const stamina = node ? node.stamina : 100;
     const list = node?.player?.moves?.[category] || [];
-    // Técnicas pesadas (super técnicas de grau alto) gastam bem mais energia!
-    const heavyCost = category === "GK" || category === "SH" ? 38 : 32;
-    // Técnicas padrão/médias também têm gasto relevante
-    const stdCost = category === "GK" || category === "SH" ? 26 : 22;
+    // Técnicas pesadas (super técnicas de grau alto) gastam mais fôlego, mas sem zerar o atleta no 1º tempo
+    const heavyCost = category === "GK" || category === "SH" ? 22 : 19;
+    // Técnicas padrão/médias têm gasto equilibrado ao longo dos 90 minutos
+    const stdCost = category === "GK" || category === "SH" ? 14 : 12;
 
     if (stamina < 45) {
       return {
@@ -1004,7 +1004,7 @@
         isHeavy: false,
         exhausted: true,
         gatedReason: "RED",
-        cost: 10,
+        cost: 5,
         duelBonus: -2.2
       };
     }
@@ -1015,7 +1015,7 @@
         isHeavy: false,
         exhausted: false,
         gatedReason: null,
-        cost: 12,
+        cost: 6,
         duelBonus: -0.6
       };
     }
@@ -1040,7 +1040,7 @@
           isHeavy: false,
           exhausted: false,
           gatedReason: null,
-          cost: 8,
+          cost: 4,
           duelBonus: 0
         };
       }
@@ -1093,7 +1093,7 @@
       isHeavy: false,
       exhausted: false,
       gatedReason: "YELLOW_ONLY_HEAVY",
-      cost: 12,
+      cost: 6,
       duelBonus: -1.4
     };
   }
@@ -3260,9 +3260,9 @@
       : `VITÓRIA DE ${st.oppTeam?.name || "ADVERSÁRIO"}!`;
 
     const subtitleText = isHalftime
-      ? "O árbitro apita o intervalo! Ambos os times recuperam +20% de fôlego."
+      ? "O árbitro apita o intervalo! Ambos os times recuperam fôlego para o 2º tempo (+35% linha / +45% goleiro)."
       : isExtraTime
-      ? "O empate persiste aos 90'! Vamos para a Prorrogação com Gol de Ouro!"
+      ? "O empate persiste aos 90'! Ambos os times recuperam +30% de fôlego para a Prorrogação!"
       : isPenalties
       ? "O árbitro encerra a prorrogação! A vaga será decidida nos pênaltis!"
       : isAdvancingToNextStage
@@ -3399,6 +3399,17 @@
     openCircleTimingChallenge(st, ovrDiff, { mode: "VOLUNTARY" });
   }
 
+  function applyIntervalStaminaRecharge(st, fieldGain, gkGain) {
+    if (!st?.pitch) return;
+    const restLvl = state.tournament?.prepBonuses?.restLvl || 0;
+    const restBonus = restLvl * 3;
+    [...(st.pitch.userNodes || []), ...(st.pitch.oppNodes || [])].forEach((n) => {
+      const base = n.role === "GK" ? gkGain : fieldGain;
+      const bonus = n.side === "user" ? restBonus : 0;
+      n.stamina = Math.min(100, Math.round((n.stamina + base + bonus) * 10) / 10);
+    });
+  }
+
   function handleMinuteEndBoundaries(st, ovrDiff) {
     if (st.isGoldenGoal5v5) {
       if (st.userScore > 0 || st.oppScore > 0) {
@@ -3428,24 +3439,22 @@
       st.halftimeHandled = true;
       st.running = false;
       clearTournamentTimers(false);
-      prependNarrationLine(
-        st,
-        "nar-pass",
-        `45' [Intervalo] Árbitro apita o fim do 1º tempo! (${st.userScore} x ${st.oppScore})`,
-        null,
-        null,
-        "FF"
-      );
       if (st.pitch) {
         st.pitch.minuteFloat = 45;
-        st.pitch.ticker = `45' Fim do 1º tempo! Placar: ${st.userScore} x ${st.oppScore}`;
-        [...st.pitch.userNodes, ...st.pitch.oppNodes].forEach((n) => {
-          n.stamina = Math.min(100, n.stamina + (n.role === "GK" ? 18 : 10));
-        });
+        st.pitch.ticker = `45' Fim do 1º tempo! Placar: ${st.userScore} x ${st.oppScore} (+35% Fôlego)`;
+        applyIntervalStaminaRecharge(st, 35, 45);
         const secondHalfSide = st.pitch.initialSide === "user" ? "opp" : "user";
         resetPitchForKickoff(st.pitch, secondHalfSide, true);
         syncLivePitchDOM(st);
       }
+      prependNarrationLine(
+        st,
+        "nar-pass",
+        `45' [Intervalo] Árbitro apitou o fim do 1º tempo (${st.userScore} x ${st.oppScore}) — atletas recuperam +35% de fôlego (+45% GOL)!`,
+        null,
+        null,
+        "FF"
+      );
       showRefereeWhistleModal(st, "HALFTIME", () => {
         st.running = true;
         if (st.pitch) {
@@ -3465,14 +3474,15 @@
       clearTournamentTimers(false);
       if (st.pitch) {
         st.pitch.minuteFloat = 90;
+        applyIntervalStaminaRecharge(st, 30, 40);
         resetPitchForKickoff(st.pitch, "user", true);
-        st.pitch.ticker = `90' Prorrogação iniciada! Bola no centro!`;
+        st.pitch.ticker = `90' Prorrogação iniciada! Atletas recuperam +30% de fôlego!`;
         syncLivePitchDOM(st);
       }
       prependNarrationLine(
         st,
         "nar-save",
-        `90' Empate no tempo normal! Vamos para a Prorrogação (até os 120')!`,
+        `90' Empate no tempo normal! Ambos os times recuperam +30% de fôlego (+40% GOL) para a Prorrogação (até os 120')!`,
         null,
         null,
         "FF"
@@ -3488,6 +3498,24 @@
         }
       });
       return true;
+    }
+
+    if (st.minute === 105 && !st.etHalftimeHandled && st.maxMinute === 120) {
+      st.etHalftimeHandled = true;
+      if (st.pitch) {
+        applyIntervalStaminaRecharge(st, 18, 25);
+        resetPitchForKickoff(st.pitch, "opp", true);
+        st.pitch.ticker = `105' Virada da Prorrogação! Fôlego recarregado (+18%) para os 15 minutos finais!`;
+        syncLivePitchDOM(st);
+      }
+      prependNarrationLine(
+        st,
+        "nar-pass",
+        `105' [Virada da Prorrogação] Breve pausa — jogadores recuperam +18% de fôlego (+25% GOL) para o 2º tempo extra!`,
+        null,
+        null,
+        "FF"
+      );
     }
 
     if (st.minute >= st.maxMinute) {
@@ -5331,9 +5359,16 @@
   function awardPostMatchExperience(st) {
     if (!st || st.isGoldenGoal5v5 || st._postMatchXpAwarded) return;
     st._postMatchXpAwarded = true;
-    const baseXp = st.won ? 35 : st.isDraw ? 22 : 12;
+    const baseXp = st.won ? 85 : st.isDraw ? 55 : 32;
+    const cleanSheetBonus = st.won && st.oppScore === 0 ? 12 : 0;
+    const marginBonus = st.won && (st.userScore - st.oppScore) >= 2 ? 10 : 0;
+    const xpSpiritLvl = Math.min(3, state.tournament?.prepBonuses?.xpSpiritLvl || 0);
+    const xpMult = [1, 1.25, 1.5, 1.8][xpSpiritLvl] || 1;
+
     const pStats = st.pitch?.stats?.playerStats || {};
     const leveledNames = [];
+    let minXpGained = Infinity;
+    let maxXpGained = 0;
 
     getSlots().forEach((slot) => {
       const p = state.squad[slot.id];
@@ -5342,23 +5377,42 @@
       const ps = pStats[uid] || {};
       const perfXp =
         (ps.goals || 0) * 16 +
-        (ps.assists || 0) * 10 +
-        Math.min(2, ps.saves || 0) * 8 +
-        Math.min(2, ps.steals || 0) * 6;
-      const xpSpiritLvl = state.tournament?.prepBonuses?.xpSpiritLvl || 0;
-      const xpMult = 1 + xpSpiritLvl * 0.15;
-      const res = gainPlayerXp(p, Math.round((baseXp + perfXp) * xpMult), slot.role);
+        (ps.assists || 0) * 12 +
+        Math.min(4, ps.saves || 0) * 9 +
+        Math.min(4, ps.steals || 0) * 8 +
+        Math.min(3, ps.blocks || 0) * 7 +
+        Math.min(5, ps.passesOk || 0) * 3 +
+        Math.min(4, ps.dribblesOk || 0) * 4;
+      const gained = Math.round((baseXp + cleanSheetBonus + marginBonus + perfXp) * xpMult);
+      minXpGained = Math.min(minXpGained, gained);
+      maxXpGained = Math.max(maxXpGained, gained);
+
+      const res = gainPlayerXp(p, gained, slot.role);
       if (res.levelsGained > 0) {
         const moveNote = res.learnedMoves?.length ? ` [Aprendeu: ${res.learnedMoves.map((m) => m.move).join(", ")}]` : "";
         leveledNames.push(`${p.name} (Nv.${getPlayerLevel(p)})${moveNote}`);
       }
     });
 
+    const bonusPct = Math.round((xpMult - 1) * 100);
+    const xpSummaryTxt = minXpGained <= maxXpGained
+      ? `+${minXpGained}${minXpGained !== maxXpGained ? ` a +${maxXpGained}` : ""} XP${bonusPct > 0 ? ` (+${bonusPct}% Espírito)` : ""}`
+      : "";
+
     if (leveledNames.length > 0) {
       prependNarrationLine(
         st,
         "nar-goal-user",
-        `📈 [Evolução Pós-Jogo] Subiram de nível com a experiência da partida: ${leveledNames.join(", ")}!`,
+        `📈 [Evolução Pós-Jogo • ${xpSummaryTxt}] Subiram de nível: ${leveledNames.join(", ")}!`,
+        null,
+        null,
+        "FF"
+      );
+    } else if (xpSummaryTxt) {
+      prependNarrationLine(
+        st,
+        "nar-pass",
+        `📈 [Experiência Pós-Jogo] O elenco recebeu ${xpSummaryTxt} acumulados para o próximo nível!`,
         null,
         null,
         "FF"
@@ -6581,8 +6635,8 @@
       receiver.targetSprint = 1.28;
     }
 
-    // Passe normal consome 4.5; reposição de goleiro 2.0; bola enfiada 6.5; tabela com arrancada 12 de stamina!
-    const passStaminaCost = isOneTwoPass ? 12 : isThroughBall ? 6.5 : isGkOutlet ? 2.0 : safeRestart ? 2.5 : 4.5;
+    // Passe normal consome 2.2; reposição de goleiro 1.2; bola enfiada 3.5; tabela com arrancada 6.5 de stamina
+    const passStaminaCost = isOneTwoPass ? 6.5 : isThroughBall ? 3.5 : isGkOutlet ? 1.2 : safeRestart ? 1.5 : 2.2;
     spendStamina(carrier, passStaminaCost);
     if (attIsUser) {
       if (isGkOutlet) {
@@ -7689,8 +7743,8 @@
         }
         allNodes.forEach((n) => {
           if (n.uid !== pitch.carrierUid) {
-            // Recuperação bem leve por minuto: exige administrar intensidade e habilidades em campo
-            const regen = n.role === "GK" ? 0.55 : 0.32;
+            // Recuperação natural por minuto sem a bola: permite dosar stamina entre 1º e 2º tempo
+            const regen = n.role === "GK" ? 0.75 : 0.48;
             n.stamina = Math.min(100, n.stamina + regen);
           }
         });
@@ -7841,7 +7895,7 @@
           if (spdDiff >= 6 && closestDist <= 5.8 && closestDist > 3.25) {
             const burstChance = Math.min(0.68, 0.35 + (spdDiff - 6) * 0.04);
             if (Math.random() < burstChance) {
-              spendStamina(carrier, 4.5);
+              spendStamina(carrier, 2.5);
               carrier.duelCooldown = 1.35;
               closestDef.duelCooldown = 2.1;
               closestDef.staggerTimer = 0.65;
@@ -7909,7 +7963,7 @@
           if (spdDiff <= -6 && closestDist <= 5.0 && closestDist > 2.8) {
             const recoveryChance = Math.min(0.65, 0.32 + (Math.abs(spdDiff) - 6) * 0.04);
             if (Math.random() < recoveryChance) {
-              spendStamina(closestDef, 4.5);
+              spendStamina(closestDef, 2.5);
               closestDef.duelCooldown = 1.35;
               carrier.duelCooldown = 2.1;
               carrier.staggerTimer = 0.65;
@@ -8300,7 +8354,7 @@
           }
 
           if (Math.random() < finalInterceptProb) {
-            spendStamina(interceptor, 4);
+            spendStamina(interceptor, 2.2);
 
             pitch.ballSide = attIsUser ? "opp" : "user";
             pitch.ballMode = "CARRIED";
@@ -8447,7 +8501,7 @@
         if (wonByAttack) {
           completeAttackingPassCatch(ls, bestCollector);
         } else {
-          spendStamina(bestCollector, 3);
+          spendStamina(bestCollector, 1.8);
           pitch.ballSide = bestCollector.side;
           pitch.ballMode = "CARRIED";
           pitch.carrierUid = bestCollector.uid;
@@ -8528,6 +8582,7 @@
     st.running = true;
     st.finished = false;
     st.halftimeHandled = false;
+    st.etHalftimeHandled = false;
     st.recoverCharges = 2;
     st.won = null;
     st.isDraw = false;
@@ -9904,7 +9959,10 @@
         const val = [0, 0.8, 1.6, 2.5][nextLvl] || 2.5;
         return `<span class="b-pwr">+${val} Duelo Técnica</span>`;
       }
-      if (ev.buffKey === "xpSpiritLvl") return `<span class="b-lvl">+${nextLvl * 15}% XP Pós-Jogo</span>`;
+      if (ev.buffKey === "xpSpiritLvl") {
+        const pct = [0, 25, 50, 80][nextLvl] || 80;
+        return `<span class="b-lvl">+${pct}% XP Pós-Jogo</span>`;
+      }
       if (ev.buffKey === "passBypassLvl") {
         const pct = [0, 15, 28, 40][nextLvl] || 40;
         return `<span class="b-chem">-${pct}% Interceptação</span>`;
@@ -9970,9 +10028,11 @@
           : `Bônus em duelos de técnica sobe de <span class="b-pwr">+${prevV}</span> para <span class="b-pwr">+${nextV}</span>.`;
       }
       if (ev.buffKey === "xpSpiritLvl") {
+        const curP = [0, 25, 50, 80][curLvl] || 0;
+        const nextP = [0, 25, 50, 80][nextLvl] || 80;
         return curLvl === 0
-          ? `Elenco ganha <span class="b-lvl">+15% XP</span> extra após cada partida.`
-          : `Bônus de XP pós-jogo sobe de <span class="b-lvl">+${curLvl * 15}%</span> para <span class="b-lvl">+${nextLvl * 15}%</span>.`;
+          ? `Elenco ganha <span class="b-lvl">+25% XP</span> extra após cada partida.`
+          : `Bônus de XP pós-jogo sobe de <span class="b-lvl">+${curP}%</span> para <span class="b-lvl">+${nextP}%</span>.`;
       }
       if (ev.buffKey === "passBypassLvl") {
         const prevP = [0, 15, 28, 40][curLvl] || 0;
@@ -10166,7 +10226,7 @@
             maxLevel: 3,
             teamPower: 12,
             weight: 1.8,
-            summary: `Aumenta o XP ganho pelo elenco após cada partida em <span class="b-lvl">+15% / +30% / +45%</span>.`
+            summary: `Aumenta o XP ganho pelo elenco após cada partida em <span class="b-lvl">+25% / +50% / +80%</span>.`
           }
         ]
       },
@@ -11080,7 +11140,8 @@
         const val = [0, 0.8, 1.6, 2.5][nextL] || 2.5;
         effectTxt = `<span class="b-pwr">+${val} de força extra</span> nos duelos ao usar técnicas`;
       } else if (key === "xpSpiritLvl") {
-        effectTxt = `<span class="b-lvl">+${nextL * 15}% XP</span> ganho após cada partida oficial`;
+        const pct = [0, 25, 50, 80][nextL] || 80;
+        effectTxt = `<span class="b-lvl">+${pct}% XP</span> ganho após cada partida oficial`;
       } else if (key === "passBypassLvl") {
         const pct = [0, 15, 28, 40][nextL] || 40;
         effectTxt = `<span class="b-chem">-${pct}% chance</span> de interceptação nos passes do time`;
