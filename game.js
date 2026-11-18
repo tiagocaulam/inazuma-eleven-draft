@@ -1759,7 +1759,7 @@
   function spinNextTeam(isManualReroll = false) {
     if (state.isSpinning) return;
     if (isManualReroll) {
-      if (state.rerollsLeft <= 0) return;
+      if (state.hideOvrBeforePick || state.rerollsLeft <= 0) return;
       state.rerollsLeft--;
     }
 
@@ -1849,9 +1849,13 @@
               <button class="ie-cmd-btn" id="btn-peek-field">
                 ${formationIconHTML()} <span>Campo (${pickedCount}/11)</span>
               </button>
-              <button class="ie-cmd-btn ie-cmd-gold" id="btn-reroll-team" ${state.rerollsLeft <= 0 ? "disabled" : ""}>
-                <span>Girar Outro (${state.rerollsLeft})</span>
-              </button>
+              ${
+                !state.hideOvrBeforePick
+                  ? `<button class="ie-cmd-btn ie-cmd-gold" id="btn-reroll-team" ${state.rerollsLeft <= 0 ? "disabled" : ""}>
+                      <span>Girar Outro (${state.rerollsLeft})</span>
+                    </button>`
+                  : ""
+              }
             </div>
           </div>
 
@@ -8283,7 +8287,7 @@
               </div>
               <div class="diff-card ${state.hideOvrBeforePick ? "selected" : ""}" data-diff="hidden">
                 <strong>${elemIconHTML("Fogo")} Modo Difícil (Sem Overall)</strong>
-                <span>O Overall fica oculto na lista e só é revelado quando você escala no campo!</span>
+                <span>O Overall fica oculto na lista e não é permitido roletar outro time!</span>
               </div>
             </div>
           </div>
@@ -8342,7 +8346,7 @@
       state.storyLockNotice = false;
       state.phase = "draft";
       state.squad = {};
-      state.rerollsLeft = 3;
+      state.rerollsLeft = state.hideOvrBeforePick ? 0 : 3;
       state.usedTeamIds = [];
       spinNextTeam(false);
     });
