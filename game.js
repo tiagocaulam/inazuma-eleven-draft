@@ -492,14 +492,14 @@
     const baseCost = loc?.energyCost || 0;
     if (baseCost <= 0) return 0;
     const bonuses = t?.prepBonuses || {};
-    const passDiscount = bonuses.permanentDoublePrep ? 5 : 0;
-    const effDiscount = (bonuses.efficiencyLvl || 0) * 3;
+    const passDiscount = bonuses.permanentDoublePrep ? 3 : 0;
+    const effDiscount = (bonuses.efficiencyLvl || 0) * 2;
     return Math.max(5, baseCost - passDiscount - effDiscount);
   }
 
   function getRestEnergyGain(t = state.tournament) {
     const restLvl = t?.prepBonuses?.restLvl || 0;
-    return 60 + restLvl * 10;
+    return 35 + restLvl * 7;
   }
 
   function getTactics() {
@@ -3575,8 +3575,8 @@
       }
 
       // Intensidade
-      if (tac.intensity === "high") tacticalAndEnergyAdj += 1.3;
-      else if (tac.intensity === "low") tacticalAndEnergyAdj -= 0.4;
+      if (tac.intensity === "high") tacticalAndEnergyAdj += 1.6;
+      else if (tac.intensity === "low") tacticalAndEnergyAdj -= 2.1;
     } else if (node.side === "opp") {
       // Adaptação silenciosa da CPU ao placar durante a partida
       const oppPost = getOpponentDynamicPosture();
@@ -3617,14 +3617,12 @@
       ? 0
       : state.tournament?.stages?.[state.tournament.stageIndex]?.minute || 0;
     const hasFinalResistance = !isIn5v5 && node.side === "user" && state.tournament?.prepBonuses?.lateMatchNoStaminaLoss;
-    if (hasFinalResistance && curMinute >= 75) {
-      return;
-    }
+    const lateMul = hasFinalResistance && curMinute >= 75 ? 0.5 : 1;
     const fisStat = node.attrs?.fis || 80;
     const fisMul = Math.max(0.76, Math.min(1.12, 1 - (fisStat - 82) * 0.004));
     const userInt = node.side === "user" ? getTactics().intensity : "medium";
-    const tacIntMul = userInt === "high" ? 1.22 : userInt === "low" ? 0.78 : 1.0;
-    const mul = (node.side === "user" ? state.tournament?.prepBonuses?.staminaMul || 1 : 1) * fisMul * tacIntMul;
+    const tacIntMul = userInt === "high" ? 1.28 : userInt === "low" ? 0.86 : 1.0;
+    const mul = (node.side === "user" ? state.tournament?.prepBonuses?.staminaMul || 1 : 1) * fisMul * tacIntMul * lateMul;
     node.stamina = Math.max(18, node.stamina - cost * mul);
   }
 
@@ -6940,7 +6938,7 @@
         if (isGoal) {
           const doKickoffReset = () => {
             resetPitchForKickoff(pitch, concedingSide, true, true);
-            pitch.ticker = `${st.minute}' Saída no centro com ${concedingSide === "user" ? "Dream Team" : st.oppTeam.name}! Fôlego restaurado pós-gol (+60% de energia gasta).`;
+            pitch.ticker = `${st.minute}' Saída no centro com ${concedingSide === "user" ? "Dream Team" : st.oppTeam.name}! Goleiros recuperam fôlego.`;
           };
 
           if (skipRestart || nowInstant) {
@@ -7656,11 +7654,10 @@
         if (!pitch.is5v5) {
           const tac = getTactics();
           const hasLateRes = Boolean(state.tournament?.prepBonuses?.lateMatchNoStaminaLoss && st.minute >= 75);
-          if (!hasLateRes) {
-            const perMinDrain = tac.intensity === "high" ? 0.54 : tac.intensity === "low" ? 0.15 : 0.31;
-            const stamMul = state.tournament?.prepBonuses?.staminaMul || 1;
-            adjustTeamEnergy(-(perMinDrain * stamMul));
-          }
+          const lateDrainMul = hasLateRes ? 0.5 : 1;
+          const perMinDrain = tac.intensity === "high" ? 0.76 : tac.intensity === "low" ? 0.24 : 0.46;
+          const stamMul = state.tournament?.prepBonuses?.staminaMul || 1;
+          adjustTeamEnergy(-(perMinDrain * stamMul * lateDrainMul));
           const eVal = Math.round(getTeamEnergy());
           const eBand = getTeamEnergyBand(eVal);
           const pillEl = document.getElementById("live-team-energy-pill");
@@ -9828,9 +9825,9 @@
   function getPrepBuffPill(ev) {
     if (!ev) return "";
     if (ev.shortDesc) return ev.shortDesc;
-    if (ev.kind === "PASSIVE_DOUBLE_EVENT") return `<span class="b-tech">4 Ações</span> • <span class="b-chem">-5% Custo</span>`;
-    if (ev.kind === "PASSIVE_LATE_RESIST") return `<span class="b-chem">Fôlego Infinito (75'+)</span>`;
-    if (ev.kind === "STREET_5V5") return `<span class="b-lvl">+120–150 XP</span> • <span class="b-chem">+25% Energia</span>`;
+    if (ev.kind === "PASSIVE_DOUBLE_EVENT") return `<span class="b-tech">4 Ações</span> • <span class="b-chem">-3% Custo</span>`;
+    if (ev.kind === "PASSIVE_LATE_RESIST") return `<span class="b-chem">-50% Desgaste (75'+)</span>`;
+    if (ev.kind === "STREET_5V5") return `<span class="b-lvl">+120–150 XP</span> • <span class="b-chem">+15% Energia</span>`;
     if (ev.id === "elem_crest_boost") return `<span class="b-lvl">+1 Nv</span> • <span class="b-pwr">+16 Poder</span> (Elemento)`;
     if (ev.id === "elem_resonance_tome") return `<span class="b-lvl">+1 Nv (Todos)</span> • <span class="b-chem">+6% Quím</span>`;
     if (ev.id === "captain_armband") return `<span class="b-lvl">+2 Níveis</span> • <span class="b-chem">+8% Quím</span>`;
@@ -9843,10 +9840,10 @@
     if (ev.kind === "SCALABLE_BUFF") {
       const curLvl = state.tournament?.prepBonuses?.[ev.buffKey] || 0;
       const nextLvl = Math.min(ev.maxLevel || 3, curLvl + 1);
-      if (ev.buffKey === "efficiencyLvl") return `<span class="b-chem">-${nextLvl * 3}% Custo na Cidade</span>`;
-      if (ev.buffKey === "restLvl") return `<span class="b-chem">Descanso +${60 + nextLvl * 10}%</span>`;
+      if (ev.buffKey === "efficiencyLvl") return `<span class="b-chem">-${nextLvl * 2}% Custo na Cidade</span>`;
+      if (ev.buffKey === "restLvl") return `<span class="b-chem">Descanso +${35 + nextLvl * 7}%</span>`;
       if (ev.buffKey === "enduranceLvl") {
-        const pct = [0, 12, 22, 32][nextLvl] || 32;
+        const pct = [0, 8, 15, 22][nextLvl] || 22;
         return `<span class="b-chem">-${pct}% Gasto em Campo</span>`;
       }
       if (ev.buffKey === "wingExplosionLvl") return `<span class="b-pwr">+${nextLvl * 3} VEL/FOR</span>`;
@@ -9870,7 +9867,7 @@
         return `<span class="b-pwr">+${val} Força Drible</span>`;
       }
     }
-    if (ev.kind === "ENERGY_DRINK") return `<span class="b-chem">+${ev.energyGain || 35}% Energia</span> • <span class="b-pwr">+${ev.teamPower || 12} Poder</span>`;
+    if (ev.kind === "ENERGY_DRINK") return `<span class="b-chem">+${ev.energyGain || 22}% Energia</span> • <span class="b-pwr">+${ev.teamPower || 10} Poder</span>`;
     if (ev.levelGain && ev.indivPower) return `<span class="b-lvl">+${ev.levelGain} Nv</span> • <span class="b-pwr">+${ev.indivPower} Poder</span>`;
     if (ev.levelGain) return `<span class="b-lvl">+${ev.levelGain} Nível(is)</span>`;
     if (ev.teamPower) return `<span class="b-pwr">+${ev.teamPower} Poder</span>`;
@@ -9884,19 +9881,19 @@
       const nextLvl = Math.min(ev.maxLevel || 3, curLvl + 1);
       if (ev.buffKey === "efficiencyLvl") {
         return curLvl === 0
-          ? `Reduz em <span class="b-chem">3%</span> o custo de energia dos locais da cidade.`
-          : `Aumenta o desconto nos locais de <span class="b-chem">-${curLvl * 3}%</span> para <span class="b-chem">-${nextLvl * 3}%</span>.`;
+          ? `Reduz em <span class="b-chem">2%</span> o custo de energia dos locais da cidade.`
+          : `Aumenta o desconto nos locais de <span class="b-chem">-${curLvl * 2}%</span> para <span class="b-chem">-${nextLvl * 2}%</span>.`;
       }
       if (ev.buffKey === "restLvl") {
         return curLvl === 0
-          ? `Descansar na Sede passa a recuperar <span class="b-chem">+70%</span> de energia.`
-          : `Evolui o Descansar de <span class="b-chem">+${60 + curLvl * 10}%</span> para <span class="b-chem">+${60 + nextLvl * 10}%</span>.`;
+          ? `Descansar na Sede passa a recuperar <span class="b-chem">+42%</span> de energia.`
+          : `Evolui o Descansar de <span class="b-chem">+${35 + curLvl * 7}%</span> para <span class="b-chem">+${35 + nextLvl * 7}%</span>.`;
       }
       if (ev.buffKey === "enduranceLvl") {
-        const prevP = [0, 12, 22, 32][curLvl] || 0;
-        const nextP = [0, 12, 22, 32][nextLvl] || 32;
+        const prevP = [0, 8, 15, 22][curLvl] || 0;
+        const nextP = [0, 8, 15, 22][nextLvl] || 22;
         return curLvl === 0
-          ? `Reduz em <span class="b-chem">12%</span> o gasto das técnicas e o desgaste em campo.`
+          ? `Reduz em <span class="b-chem">8%</span> o gasto das técnicas e o desgaste em campo.`
           : `Aumenta a economia em campo de <span class="b-chem">-${prevP}%</span> para <span class="b-chem">-${nextP}%</span>.`;
       }
       if (ev.buffKey === "wingExplosionLvl") {
@@ -9975,7 +9972,7 @@
             icon: UI.manualInazuma || UI.ffLogo,
             kind: "PASSIVE_DOUBLE_EVENT",
             weight: 2.2,
-            summary: `Passiva: <span class="b-tech">+1 ação extra (4 ações)</span> na cidade e <span class="b-chem">-5% custo de energia</span> em todos os locais.`
+            summary: `Passiva: <span class="b-tech">+1 ação extra (4 ações)</span> na cidade e <span class="b-chem">-3% custo de energia</span> em todos os locais.`
           },
           {
             id: "pendant_endurance",
@@ -9983,7 +9980,7 @@
             icon: UI.itemPendantLightning || UI.tpPendant,
             kind: "PASSIVE_LATE_RESIST",
             weight: 2.0,
-            summary: `Passiva: Os 11 titulares <span class="b-chem">não perdem energia</span> a partir dos 75' de jogo.`
+            summary: `Passiva: Reduz em <span class="b-chem">50% o gasto de energia</span> dos 11 titulares a partir dos 75' de jogo.`
           },
           {
             id: "shoes_legend",
@@ -10082,10 +10079,10 @@
             title: "Bebida Energética Raijin",
             icon: UI.sportsDrink || UI.onigiriIcon || UI.itemPendantLightning,
             kind: "ENERGY_DRINK",
-            energyGain: 35,
-            teamPower: 12,
+            energyGain: 22,
+            teamPower: 10,
             weight: 2.3,
-            summary: `Recupera <span class="b-chem">+35% de Energia do Time</span> na hora e garante <span class="b-pwr">+12 Poder</span>.`
+            summary: `Recupera <span class="b-chem">+22% de Energia do Time</span> na hora e garante <span class="b-pwr">+10 Poder</span>.`
           },
           {
             id: "efficiency_upgrade",
@@ -10096,7 +10093,7 @@
             maxLevel: 3,
             teamPower: 10,
             weight: 1.9,
-            summary: `Reduz em <span class="b-chem">-3% por nível</span> (-3% / -6% / -9%) o custo de energia dos locais da cidade.`
+            summary: `Reduz em <span class="b-chem">-2% por nível</span> (-2% / -4% / -6%) o custo de energia dos locais da cidade.`
           },
           {
             id: "rest_upgrade",
@@ -10107,7 +10104,7 @@
             maxLevel: 3,
             teamPower: 10,
             weight: 1.8,
-            summary: `O Descansar na Sede passa a recuperar <span class="b-chem">+70% / +80% / +90%</span> de Energia.`
+            summary: `O Descansar na Sede passa a recuperar <span class="b-chem">+42% / +49% / +56%</span> de Energia.`
           },
           {
             id: "xp_spirit_upgrade",
@@ -10295,7 +10292,7 @@
             maxLevel: 3,
             teamPower: 14,
             weight: 2.0,
-            summary: `Reduz em <span class="b-chem">-12% / -22% / -32%</span> o gasto das técnicas e o desgaste do time em campo.`
+            summary: `Reduz em <span class="b-chem">-8% / -15% / -22%</span> o gasto das técnicas e o desgaste do time em campo.`
           },
           {
             id: "elem_resonance_tome",
@@ -10353,13 +10350,13 @@
         mapLabel: "Descansar",
         mapX: 17,
         mapY: 42,
-        energyGain: 60,
+        energyGain: 35,
         isRestLocation: true,
-        cta: "Descansar (+60%)",
+        cta: "Descansar (+35%)",
         banner: UI.locTown || UI.stadiumBg,
         badgeIcon: UI.raimonEmblem || UI.iconDestVR || UI.ffLogo,
         subIcon: UI.itemPendantLightning || UI.tpPendant,
-        desc: "Recupera +60% de Energia do Time de forma bruta (máximo 100%).",
+        desc: "Recupera +35% de Energia do Time de forma bruta (máximo 100%).",
         events: []
       }
     ];
@@ -10929,30 +10926,30 @@
       }
     }
 
-    // 1. Passiva Permanente: Passe Livre do Treinador (+1 ação extra e -5% custo de energia em todas as rodadas)
+    // 1. Passiva Permanente: Passe Livre do Treinador (+1 ação extra e -3% custo de energia em todas as rodadas)
     if (choiceEvent.kind === "PASSIVE_DOUBLE_EVENT") {
       if (!t.prepBonuses.permanentDoublePrep) {
         t.prepBonuses.permanentDoublePrep = true;
         prep.eventsTotal = (prep.eventsTotal || 3) + 1;
         prep.eventsRemaining = (prep.eventsRemaining || 3) + 1;
-        t.prepBonuses.log.push("Passe Livre do Treinador (4 Ações e -5% Custo na Cidade)");
+        t.prepBonuses.log.push("Passe Livre do Treinador (4 Ações e -3% Custo na Cidade)");
       }
       prep.phase = "DONE";
       prep.affectedPlayers = [];
-      prep.appliedMsg = `Passiva ativada: seu time agora tem <span class="b-tech">4 ações por rodada</span> e <span class="b-chem">-5% custo de energia</span> nos locais da cidade.`;
+      prep.appliedMsg = `Passiva ativada: seu time agora tem <span class="b-tech">4 ações por rodada</span> e <span class="b-chem">-3% custo de energia</span> nos locais da cidade.`;
       renderAll();
       return;
     }
 
-    // 2. Passiva: Pingente da Resistência Final (não perde stamina após 75' — única vez!)
+    // 2. Passiva: Pingente da Resistência Final (-50% gasto de stamina após 75' — única vez!)
     if (choiceEvent.kind === "PASSIVE_LATE_RESIST") {
       if (!t.prepBonuses.lateMatchNoStaminaLoss) {
         t.prepBonuses.lateMatchNoStaminaLoss = true;
-        t.prepBonuses.log.push("Resistência Final (Fôlego aos 75'+)");
+        t.prepBonuses.log.push("Resistência Final (-50% gasto aos 75'+)");
       }
       prep.phase = "DONE";
       prep.affectedPlayers = [];
-      prep.appliedMsg = `Passiva equipada: os 11 titulares possuem <span class="b-chem">fôlego infinito</span> a partir dos 75' de jogo.`;
+      prep.appliedMsg = `Passiva equipada: os 11 titulares gastam <span class="b-chem">50% menos energia</span> a partir dos 75' de jogo.`;
       renderAll();
       return;
     }
@@ -10960,9 +10957,9 @@
     // 2.5 Bebida Energética
     if (choiceEvent.kind === "ENERGY_DRINK") {
       const prevE = Math.round(getTeamEnergy());
-      const gain = choiceEvent.energyGain || 35;
+      const gain = choiceEvent.energyGain || 22;
       const nextE = Math.round(adjustTeamEnergy(gain));
-      const pwr = choiceEvent.teamPower || 12;
+      const pwr = choiceEvent.teamPower || 10;
       t.prepBonuses.power += pwr;
       t.prepBonuses.log.push(`${choiceEvent.title} (+${gain}% Energia)`);
       prep.phase = "DONE";
@@ -10987,7 +10984,7 @@
       const pwr = choiceEvent.teamPower || 10;
       t.prepBonuses.power += pwr;
       if (key === "enduranceLvl") {
-        t.prepBonuses.staminaMul = [1, 0.88, 0.78, 0.68][nextL] || 0.68;
+        t.prepBonuses.staminaMul = [1, 0.92, 0.85, 0.78][nextL] || 0.78;
       }
       const affected = [];
       const collectAffectedRoles = (roles, badgeTxt) => {
@@ -11013,10 +11010,10 @@
       };
 
       let effectTxt = "";
-      if (key === "efficiencyLvl") effectTxt = `<span class="b-chem">-${nextL * 3}% custo de energia</span> nos locais da cidade`;
-      else if (key === "restLvl") effectTxt = `Descansar agora recupera <span class="b-chem">+${60 + nextL * 10}% de Energia</span>`;
+      if (key === "efficiencyLvl") effectTxt = `<span class="b-chem">-${nextL * 2}% custo de energia</span> nos locais da cidade`;
+      else if (key === "restLvl") effectTxt = `Descansar agora recupera <span class="b-chem">+${35 + nextL * 7}% de Energia</span>`;
       else if (key === "enduranceLvl") {
-        const pct = [0, 12, 22, 32][nextL] || 32;
+        const pct = [0, 8, 15, 22][nextL] || 22;
         effectTxt = `<span class="b-chem">-${pct}% gasto de energia</span> em técnicas e desgaste de campo`;
       } else if (key === "wingExplosionLvl") {
         collectAffectedRoles(["FW", "MF"], `+${nextL * 3} VEL/FOR`);
@@ -11384,8 +11381,8 @@
         let drinkMsg = "";
         if (won) {
           const prevE = Math.round(getTeamEnergy());
-          const nextE = Math.round(adjustTeamEnergy(25));
-          drinkMsg = ` + <span class="b-chem">Bebida Energética (+25% Energia: ${prevE}% ➔ ${nextE}%)</span>`;
+          const nextE = Math.round(adjustTeamEnergy(15));
+          drinkMsg = ` + <span class="b-chem">Bebida Energética (+15% Energia: ${prevE}% ➔ ${nextE}%)</span>`;
         }
         
         // Se venceu e havia um craque adversário, abre a oportunidade de RECRUTAMENTO!
