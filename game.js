@@ -466,8 +466,9 @@
 
   function getEffectiveOvr(player, slotRole) {
     if (!player) return 0;
-    const bonus = player.boostOvr || 0;
-    if (playerMatchesRole(player, slotRole)) return Math.min(99, player.ovr + bonus);
+    // OVR é 100% FIXO! Define o talento base e quanto Poder o jogador ganha a cada Nível.
+    // Apenas improvisar fora da posição reduz o OVR tático naquela vaga.
+    if (!slotRole || playerMatchesRole(player, slotRole)) return player.ovr;
     const validPos = getPlayerPositionsList(player);
     const adj = validPos.some(
       (pos) =>
@@ -475,7 +476,39 @@
         (pos === "MF" && (slotRole === "DF" || slotRole === "FW")) ||
         (pos === "FW" && slotRole === "MF")
     );
-    return Math.min(99, Math.max(45, player.ovr + bonus - (adj ? 6 : 14)));
+    return Math.max(45, player.ovr - (adj ? 6 : 14));
+  }
+
+  function getPlayerLevel(player) {
+    if (!player) return 1;
+    return Math.max(1, Math.min(30, Math.round(player.level || 1)));
+  }
+
+  // Quanto maior o OVR fixo do jogador, MAIS PODER ele recebe a cada Nível!
+  // Ex: OVR 72 = +8/nv | OVR 82 = +13/nv | OVR 88 = +18/nv | OVR 92 = +21/nv | OVR 95 = +24/nv | OVR 97 = +27/nv
+  function calcPowerPerLevel(effOvr) {
+    const clamped = Math.max(55, Math.min(99, effOvr || 75));
+    return Math.max(6, Math.round(6 + Math.pow((clamped - 60) / 10, 2.25)));
+  }
+
+  function calcBasePlayerPowerAtLevel1(effOvr) {
+    const clamped = Math.max(45, Math.min(99, effOvr || 75));
+    return Math.round(Math.pow(clamped / 84, 2.85) * 95);
+  }
+
+  function calcIndividualPlayerPower(player, slotRole = null, forcedLevel = null, extraComboPower = 0) {
+    if (!player) return 60;
+    const role = slotRole || player.pos || "MF";
+    const effOvr = getEffectiveOvr(player, role);
+    const lvl = forcedLevel != null ? Math.max(1, forcedLevel) : getPlayerLevel(player);
+    const basePwr = calcBasePlayerPowerAtLevel1(effOvr);
+    const pwrPerLvl = calcPowerPerLevel(effOvr);
+    const levelPwr = (lvl - 1) * pwrPerLvl;
+    const itemPwr = player.bonusPower || 0;
+    const keshinPwr = player.keshin ? 38 : 0;
+    const evoPwr = (player.moveEvoCount || 0) * 22;
+    const manualPwr = player.learnedSecretManual ? 28 : 0;
+    return Math.round(basePwr + levelPwr + itemPwr + keshinPwr + evoPwr + manualPwr + (extraComboPower || 0));
   }
 
   const HEAVY_MOVE_RX =
@@ -753,15 +786,20 @@
     return pairs;
   }
 
-  function calcPlayerPowerContribution(effOvr) {
-    // Contribuição progressiva por OVR: craques 90+ geram vantagem real e impedem inversões 81 > 92
-    return Math.pow(Math.max(40, effOvr) / 85, 2.7) * 100;
+  function calcPlayerPowerContribution(effOvr, level = 1, player = null, slotRole = null) {
+    if (player) {
+      return calcIndividualPlayerPower(player, slotRole, level);
+    }
+    return calcBasePlayerPowerAtLevel1(effOvr) + Math.max(0, level - 1) * calcPowerPerLevel(effOvr);
   }
 
-  // Status de Velocidade (VEL) individual do atleta: baseado no poder/OVR geral, posição, elemento e velocistas canônicos
+  // Status de Velocidade (VEL) individual do atleta: baseado no OVR fixo, Nível de treino, posição, elemento e itens de velocidade
   function calcPlayerSpeedStat(player, effOvr = null) {
     if (!player) return 70;
     const ovr = effOvr != null ? effOvr : (player.ovr || 75);
+    const lvl = getPlayerLevel(player);
+    const lvlSpdBonus = Math.min(8, Math.floor((lvl - 1) * 0.65));
+    const itemSpdBonus = player.bonusSpd || 0;
     const pos = player.pos || "MF";
     const posBonus = pos === "FW" ? 3 : pos === "MF" ? 2 : pos === "DF" ? 0 : -6;
     const elem = player.element || "";
@@ -775,14 +813,15 @@
     const name = player.name || player.fullName || "";
     const isSpeedster = speedsters.some((s) => name.includes(s));
     const speedsterBonus = isSpeedster ? 3 : 0;
-    const calculated = Math.round(ovr * 0.94 + posBonus + elemBonus + speedsterBonus);
+    const calculated = Math.round(ovr * 0.92 + posBonus + elemBonus + speedsterBonus + lvlSpdBonus + itemSpdBonus);
     return Math.min(99, Math.max(55, calculated));
   }
 
-  // Cálculo unificado de Química, Poder e Sinergia de Proximidade (usado tanto no Dream Team quanto no Adversário!)
+  // Cálculo unificado de OVR Fixo, Nível, Poder Escalar por OVR, Combos de Itens e Sinergias (Dream Team & Adversário)
   function evaluateTeamStats(slots, getPlayerForSlot, options = {}) {
-    const { isOpponent = false, ovrAdjust = 0, clubIdHint = null, oppStageIdx = 0, oppBuffPct = 0 } = options;
+    const { isOpponent = false, clubIdHint = null, oppStageIdx = 0, oppBuffPct = 0, oppLevel = 1 } = options;
     let sumOvr = 0;
+    let sumLevel = 0;
     let sumBasePwr = 0;
     let count = 0;
     let atkSum = 0, atkCnt = 0;
@@ -793,8 +832,11 @@
     const teamNames = {};
     const fullNamesInSquad = new Set();
     const elemCountsByLink = {};
+    const elemTotalsInSquad = {};
     const activeElemPairs = [];
     const slotPlayerMap = {};
+    const equippedItemIds = new Set();
+    let totalEquippedItemsCount = 0;
     let correctPosCount = 0;
 
     slots.forEach((s) => {
@@ -802,15 +844,26 @@
       if (!p) return;
       count++;
       slotPlayerMap[s.id] = p;
-      const adjP = isOpponent
-        ? { ...p, ovr: Math.min(99, Math.max(58, Math.round(p.ovr + ovrAdjust))) }
-        : p;
-      if (playerMatchesRole(adjP, s.role)) correctPosCount++;
-      const eff = isOpponent
-        ? Math.max(55, adjP.ovr - (playerMatchesRole(adjP, s.role) ? 0 : 4))
-        : getEffectiveOvr(adjP, s.role);
+      if (playerMatchesRole(p, s.role)) correctPosCount++;
+      const eff = getEffectiveOvr(p, s.role);
+      const pLvl = isOpponent ? Math.max(1, oppLevel) : getPlayerLevel(p);
+      const pPwr = isOpponent
+        ? calcIndividualPlayerPower({ ...p, level: pLvl }, s.role, pLvl)
+        : calcIndividualPlayerPower(p, s.role, pLvl);
+
       sumOvr += eff;
-      sumBasePwr += calcPlayerPowerContribution(eff);
+      sumLevel += pLvl;
+      sumBasePwr += pPwr;
+
+      if (p.element) {
+        elemTotalsInSquad[p.element] = (elemTotalsInSquad[p.element] || 0) + 1;
+      }
+      if (!isOpponent && Array.isArray(p.equippedItems)) {
+        p.equippedItems.forEach((it) => {
+          totalEquippedItemsCount++;
+          if (it.id) equippedItemIds.add(it.id);
+        });
+      }
 
       const tId = p.teamId || clubIdHint || "club";
       teamsCount[tId] = (teamsCount[tId] || 0) + 1;
@@ -823,8 +876,11 @@
     });
 
     const avgRawOvr = count > 0 ? sumOvr / count : 80;
-    // Escala pelo nível do elenco (elencos de OVR baixo não ganham o mesmo bônus bruto que seleções 92+)
-    const tierScale = Math.max(0.55, Math.min(1.16, Math.pow(avgRawOvr / 90, 1.45)));
+    const avgLevel = count > 0 ? Number((sumLevel / count).toFixed(1)) : 1;
+    // OVR é 100% FIXO: reflete exatamente a média real dos OVRs escalados!
+    const ovr = count > 0 ? Math.round(avgRawOvr) : 0;
+    // Escala pelo talento do elenco (elencos de OVR alto aproveitam melhor os bônus táticos)
+    const tierScale = Math.max(0.60, Math.min(1.25, Math.pow(avgRawOvr / 88, 1.55)));
 
     let chem = 0;
     let bondsPower = 0;
@@ -842,10 +898,9 @@
     });
 
     if (isOpponent) {
-      // Adversários baseiam Poder principalmente no OVR dos jogadores + Links Elementais em proximidade (sem loteria de Química/Amizade)
       if (count > 0) {
         const posChem = Math.round(correctPosCount * 2.0);
-        const posPwr = Math.round(correctPosCount * 4.5 * tierScale);
+        const posPwr = Math.round(correctPosCount * 5.0 * tierScale);
         chem += posChem;
         bondsPower += posPwr;
         activeBonds.push({
@@ -858,9 +913,9 @@
         const linkChem = Math.min(35, activeElemPairs.length * 5);
         const rawLinkPwr =
           activeElemPairs.length <= 4
-            ? activeElemPairs.length * 13
-            : 52 + (activeElemPairs.length - 4) * 5;
-        const linkPwr = Math.min(Math.round(80 * tierScale), Math.round(rawLinkPwr * tierScale));
+            ? activeElemPairs.length * 14
+            : 56 + (activeElemPairs.length - 4) * 6;
+        const linkPwr = Math.min(Math.round(90 * tierScale), Math.round(rawLinkPwr * tierScale));
         chem += linkChem;
         bondsPower += linkPwr;
         const summaryParts = Object.keys(elemCountsByLink)
@@ -875,7 +930,7 @@
       const maxClub = Math.max(0, ...Object.values(teamsCount));
       if (maxClub >= 2) {
         const clubChem = Math.min(28, Math.round(12 + maxClub * 1.5));
-        const clubPwr = Math.round(Math.min(48, maxClub * 4.2) * tierScale);
+        const clubPwr = Math.round(Math.min(52, maxClub * 4.5) * tierScale);
         chem += clubChem;
         bondsPower += clubPwr;
         activeBonds.push({
@@ -885,19 +940,16 @@
       }
 
       chem = Math.min(100, Math.max(0, chem));
-      const oppChemOvr = oppStageIdx >= 3 ? 2 : oppStageIdx >= 1 ? 1 : 0;
-      const ovr = count > 0 ? Math.min(99, Math.round(avgRawOvr) + oppChemOvr) : 0;
-
-      const chemPower = Math.round(chem * 0.55 * tierScale);
+      const chemPower = Math.round(chem * 0.65 * tierScale);
       const basePower = Math.round(sumBasePwr);
-      const rawPower = count > 0 ? basePower + chemPower + bondsPower : 0;
-      const buffMult = oppBuffPct > 0 ? 1 + (oppBuffPct / 100) : 1;
-      const power = Math.round(rawPower * buffMult);
+      const power = count > 0 ? basePower + chemPower + bondsPower : 0;
 
       return {
         count,
         correctPosCount,
         ovr,
+        avgLevel,
+        oppLevel: Math.max(1, oppLevel),
         power,
         basePower,
         chemPower,
@@ -916,7 +968,7 @@
     // 0. Química & Poder por Posições Corretas (Dream Team)
     if (count > 0) {
       if (correctPosCount === 11) {
-        const pwr = Math.round(92 * tierScale);
+        const pwr = Math.round(105 * tierScale);
         chem += 20;
         bondsPower += pwr;
         activeBonds.push({
@@ -925,7 +977,7 @@
         });
       } else {
         const posChem = Math.round(correctPosCount * 1.4);
-        const posPwr = Math.round(correctPosCount * 5 * tierScale);
+        const posPwr = Math.round(correctPosCount * 5.5 * tierScale);
         const improvised = count - correctPosCount;
         chem += posChem;
         bondsPower += posPwr;
@@ -940,13 +992,17 @@
     }
 
     // 1. Química & Poder por Sinergia Elemental em PROXIMIDADE (Dream Team)
+    const prepB = state.tournament?.prepBonuses || null;
+    const elemResonanceActive = Boolean(prepB?.elemResonance);
     if (activeElemPairs.length > 0) {
       const linkChem = Math.min(35, activeElemPairs.length * 5);
+      const perLinkBase = elemResonanceActive ? 35 : 21;
       const rawLinkPwr =
-        activeElemPairs.length <= 5
-          ? activeElemPairs.length * 20
-          : 100 + (activeElemPairs.length - 5) * 10;
-      const linkPwr = Math.min(Math.round(135 * tierScale), Math.round(rawLinkPwr * tierScale));
+        activeElemPairs.length <= 6
+          ? activeElemPairs.length * perLinkBase
+          : 6 * perLinkBase + (activeElemPairs.length - 6) * (elemResonanceActive ? 18 : 10);
+      const maxCap = elemResonanceActive ? 260 : 150;
+      const linkPwr = Math.min(Math.round(maxCap * tierScale), Math.round(rawLinkPwr * tierScale));
       chem += linkChem;
       bondsPower += linkPwr;
       const summaryParts = Object.keys(elemCountsByLink)
@@ -954,7 +1010,7 @@
         .join(" ");
       activeBonds.push({
         type: "element",
-        label: `${activeElemPairs.length}x Links Elementais (${summaryParts}) (+${linkChem}% • +${linkPwr} Poder)`
+        label: `${activeElemPairs.length}x Links Elementais (${summaryParts}) (+${linkChem}% • +${linkPwr} Poder${elemResonanceActive ? " · Ressonância!" : ""})`
       });
     }
 
@@ -963,7 +1019,7 @@
       const c = teamsCount[tId];
       if (c >= 2) {
         const chemBonus = c <= 4 ? (c - 1) * 9 : Math.min(38, 27 + Math.round((c - 4) * 2));
-        const rawPwr = c <= 4 ? (c - 1) * 25 : Math.min(100, 75 + (c - 4) * 3);
+        const rawPwr = c <= 4 ? (c - 1) * 26 : Math.min(110, 78 + (c - 4) * 4);
         const pwrBonus = Math.round(rawPwr * tierScale);
         chem += chemBonus;
         bondsPower += pwrBonus;
@@ -974,7 +1030,7 @@
       }
     });
 
-    // 3. Química & Poder por Laços de Amizade (com curva decrescente para laços sobrepostos)
+    // 3. Química & Poder por Laços de Amizade
     const matchedBonds = [];
     FRIENDSHIP_BONDS.forEach((bond) => {
       const matched = bond.members.filter((m) => fullNamesInSquad.has(m));
@@ -983,7 +1039,7 @@
           bond,
           extraCount: matched.length - 1,
           rawChem: (matched.length - 1) * bond.chemPerMatch,
-          rawPwr: (matched.length - 1) * 42
+          rawPwr: (matched.length - 1) * 44
         });
       }
     });
@@ -992,7 +1048,7 @@
     const decayWeights = [1.0, 0.55, 0.30, 0.15];
     let friendChemTotal = 0;
     let friendPwrTotal = 0;
-    const maxFriendPwr = Math.round(135 * tierScale);
+    const maxFriendPwr = Math.round(145 * tierScale);
 
     matchedBonds.forEach((entry, idx) => {
       const w = decayWeights[Math.min(idx, decayWeights.length - 1)];
@@ -1013,32 +1069,70 @@
       }
     });
 
-    const prepB = !isOpponent ? state.tournament?.prepBonuses : null;
+    // 4. COMBOS DE ITENS & SINERGIAS DE TREINO (Novos Combos!)
+    const activeCombos = [];
+    // Combo 1: Conjunto Lendário da Raimon (Luvas Lendárias + Chuteiras Lendárias)
+    if (equippedItemIds.has("glove_legend") && equippedItemIds.has("shoes_legend")) {
+      const cPwr = 85;
+      chem += 8;
+      bondsPower += cPwr;
+      activeCombos.push(`🔥 Combo Lendário (Luvas + Chuteiras: +${cPwr} Poder • +8% Quím)`);
+    }
+    // Combo 2: Muralha Impenetrável (Luvas Lendárias + Travas de Bloqueio)
+    if (equippedItemIds.has("glove_legend") && equippedItemIds.has("spike_block")) {
+      const cPwr = 75;
+      chem += 6;
+      bondsPower += cPwr;
+      activeCombos.push(`🛡️ Combo Muralha Impenetrável (Luvas + Travas: +${cPwr} Poder • +6% Quím)`);
+    }
+    // Combo 3: Tempestade Relâmpago (Chuteiras do Trovão + Braçadeira do Capitão ou Amuleto Elemental)
+    if (equippedItemIds.has("shoes_thunder") && (equippedItemIds.has("captain_armband") || equippedItemIds.has("elem_crest_boost"))) {
+      const cPwr = 70;
+      chem += 6;
+      bondsPower += cPwr;
+      activeCombos.push(`⚡ Combo Tempestade Relâmpago (+${cPwr} Poder • +6% Quím)`);
+    }
+    // Combo 4: Esquadrão Equipado (3 ou mais jogadores equipados com itens)
+    if (totalEquippedItemsCount >= 3) {
+      const cPwr = totalEquippedItemsCount * 22;
+      bondsPower += cPwr;
+      activeCombos.push(`🎒 Arsenal Completo (${totalEquippedItemsCount} itens: +${cPwr} Poder)`);
+    }
+    // Combo 5: Domínio Elemental (4+ titulares do mesmo elemento quando Amuleto Elemental foi ativado)
+    if (prepB?.boostedElement) {
+      const elCnt = elemTotalsInSquad[prepB.boostedElement] || 0;
+      if (elCnt >= 3) {
+        const cPwr = elCnt * 26;
+        chem += 6;
+        bondsPower += cPwr;
+        activeCombos.push(`🌟 Domínio de ${prepB.boostedElement} (${elCnt}x atletas: +${cPwr} Poder • +6% Quím)`);
+      }
+    }
+
+    activeCombos.forEach((lbl) => {
+      activeBonds.push({
+        type: "friendship",
+        label: lbl
+      });
+    });
+
     if (prepB && (prepB.chem > 0 || prepB.power > 0 || (prepB.log && prepB.log.length > 0))) {
       chem += prepB.chem || 0;
       bondsPower += prepB.power || 0;
       const evtCnt = prepB.log ? prepB.log.length : 0;
-      const xpTag = prepB.xp > 0 ? ` • ${prepB.xp} XP` : "";
       const prepIcon = UI.steelTowerIcon
         ? `<img class="inline-ui-icon" src="${UI.steelTowerIcon}" alt="" />`
         : "";
       activeBonds.push({
         type: "friendship",
-        label: `${prepIcon} Preparação (${evtCnt}x) (+${prepB.chem || 0}% Quím • +${prepB.power || 0} Poder${xpTag})`
+        label: `${prepIcon} Treinos &amp; Itens (${evtCnt}x) (+${prepB.chem || 0}% Quím • +${prepB.power || 0} Poder • Nv. Médio ${avgLevel})`
       });
     }
 
     chem = Math.min(100, Math.max(0, chem));
 
-    let ovr = 0;
-    if (count > 0) {
-      const chemOvrBonus = chem >= 80 ? 3 : chem >= 55 ? 2 : chem >= 30 ? 1 : 0;
-      const perfectPosOvrBonus = correctPosCount === 11 ? 2 : 0;
-      ovr = Math.min(99, Math.round(avgRawOvr) + chemOvrBonus + perfectPosOvrBonus);
-    }
-
-    // Poder Final Total = Soma Progressiva dos OVRs + Química + Bônus de Sinergia
-    const chemPower = Math.round(chem * 1.4 * tierScale);
+    // Poder Final Total = Soma do Poder Individual (OVR Fixo × Nível) + Química + Sinergias & Combos
+    const chemPower = Math.round(chem * 1.45 * tierScale);
     const basePower = Math.round(sumBasePwr);
     const power = count > 0 ? basePower + chemPower + bondsPower : 0;
 
@@ -1046,6 +1140,7 @@
       count,
       correctPosCount,
       ovr,
+      avgLevel,
       power,
       basePower,
       chemPower,
@@ -1103,35 +1198,27 @@
     return { formSlots: best.formSlots, assignments: best.assignments };
   }
 
+  // Tabela de Nível dos Times Adversários por Fase (cresce a cada rodada, exigindo treinar o time!)
+  const STAGE_OPPONENT_LEVELS = [1, 2, 4, 6, 8, 9, 11, 13, 15, 17, 20];
+
   function getStageOpponentBuff(stageIdx) {
     const idx = Math.max(0, stageIdx || 0);
     const st = state.tournament?.stages?.[idx];
-    // Percentual incremental padrão: 5% a cada rodada avançada
-    // Rodada 0 (Oitavas FF): 0% (base pura de saída do draft)
-    // Rodada 1 (Quartas FF): +5%
-    // Rodada 2 (Semi FF): +10%
-    // Rodada 3 (Final FF): +15%
-    // Rodada 4 (Grupos Mundial R1): +20%
-    // Rodada 5 (Grupos Mundial R2): +25%
-    // Rodada 6 (Grupos Mundial R3): +30%
-    // Rodada 7 (Oitavas Mundial): +35%
-    // Rodada 8 (Quartas Mundial): +40%
-    // Rodada 9 (Semi Mundial): +45%
-    // Rodada 10 (Final Mundial FFI): +50%
+    const oppLevel = typeof st?.oppLevel === "number"
+      ? st.oppLevel
+      : (STAGE_OPPONENT_LEVELS[Math.min(idx, STAGE_OPPONENT_LEVELS.length - 1)] || (1 + idx * 2));
     const pct = typeof st?.oppBuffPct === "number" ? st.oppBuffPct : idx * 5;
-    const ovrBoost = typeof st?.ovrBoost === "number" && st?.oppBuffPct != null
-      ? st.ovrBoost
-      : Number((pct * 0.24).toFixed(1));
     return {
       pct,
-      ovrBoost,
-      powerMultiplier: 1 + (pct / 100),
-      badgeText: pct > 0 ? `+${pct}%` : "Base"
+      oppLevel,
+      ovrBoost: 0, // OVR é fixo! A progressão agora é por Nível!
+      powerMultiplier: 1,
+      badgeText: `Nv. ${oppLevel}`
     };
   }
 
   function getStageOvrBoost(stageIdx) {
-    return getStageOpponentBuff(stageIdx).ovrBoost;
+    return 0;
   }
 
   function calcOpponentStats(oppTeam, stageIdx) {
@@ -1139,10 +1226,10 @@
     const buff = getStageOpponentBuff(stageIdx);
     return evaluateTeamStats(formSlots, (s) => assignments[s.id], {
       isOpponent: true,
-      ovrAdjust: buff.ovrBoost,
       clubIdHint: oppTeam.name || oppTeam.id,
       oppStageIdx: stageIdx,
-      oppBuffPct: buff.pct
+      oppBuffPct: buff.pct,
+      oppLevel: buff.oppLevel
     });
   }
 
@@ -1268,6 +1355,7 @@
                       <div class="roster-badges">
                         ${posIconHTML(p.pos, true)}${altPosHTML}
                         <span class="ovr-tag">${state.hideOvrBeforePick && !alreadyPicked ? "OVR ??" : `OVR ${p.ovr}`}</span>
+                        <span class="lvl-growth-tag" title="Poder ganho a cada Nível (escala pelo OVR fixo!)">${state.hideOvrBeforePick && !alreadyPicked ? "+?? Pwr/Nv" : `+${calcPowerPerLevel(p.ovr)} Pwr/Nv`}</span>
                         <span class="spd-tag">${state.hideOvrBeforePick && !alreadyPicked ? "VEL ??" : `⚡VEL ${calcPlayerSpeedStat(p)}`}</span>
                         ${elemIconHTML(p.element)}
                         ${hasLink ? `<span class="affinity-badge">+Química</span>` : ""}
@@ -1489,6 +1577,9 @@
         }
 
         const effOvr = getEffectiveOvr(p, slot.role);
+        const pLvl = getPlayerLevel(p);
+        const pPwr = calcIndividualPlayerPower(p, slot.role, pLvl);
+        const pwrPerLvl = calcPowerPerLevel(effOvr);
         const isImprovised = !playerMatchesRole(p, slot.role);
         const nodeSprite = getPlayerFormSprite(p, slot.role);
         const spdStat = calcPlayerSpeedStat(p, effOvr);
@@ -1498,13 +1589,15 @@
                style="left:${slot.x}%; top:${slot.y}%;"
                data-slot="${slot.id}">
             ${p.teamEmblem ? `<img class="node-team-emblem" src="${p.teamEmblem}" alt="" />` : ""}
-            <div class="node-ovr">${effOvr}</div>
+            <div class="node-ovr" title="OVR Fixo ${effOvr} (+${pwrPerLvl} Poder/Nível)">${effOvr}</div>
+            <span class="node-lvl-chip" title="Nível ${pLvl} • Poder Individual: ${pPwr}">Nv.${pLvl}</span>
             ${elemIconHTML(p.element, "node-elem-mini")}
             <img class="node-avatar" src="${nodeSprite}" alt="${p.name}" />
             <div class="node-name">${p.name}</div>
             <div style="display:flex; align-items:center; gap:3px; margin-top:1px;">
               ${posIconHTML(slot.role, true)}
               <span class="node-slot-label">${slot.label}${isImprovised ? " *" : ""}</span>
+              <span class="node-pwr-chip" title="Poder Individual (${pPwr}) • Ganha +${pwrPerLvl}/Nv">⚔️${pPwr}</span>
               <span class="node-spd-chip" title="Velocidade individual">⚡${spdStat}</span>
             </div>
           </div>
@@ -1558,8 +1651,11 @@
     Object.keys(state.squad).forEach((slotId) => {
       const p = state.squad[slotId];
       if (!p) return;
+      p.level = 1;
+      p.xp = 0;
       delete p.boostOvr;
-      delete p.xp;
+      delete p.bonusPower;
+      delete p.bonusSpd;
       delete p.equippedItems;
       delete p.keshin;
       delete p.moveEvoCount;
@@ -1577,6 +1673,7 @@
     competition = "FF",
     ovrBoost = 0,
     oppBuffPct = 0,
+    oppLevel = 1,
     isGroupStage = false,
     groupRoundIdx = -1
   }) {
@@ -1586,6 +1683,7 @@
       competition,
       ovrBoost,
       oppBuffPct,
+      oppLevel,
       isGroupStage,
       groupRoundIdx,
       minute: 0,
@@ -1639,14 +1737,15 @@
     const usedOpp = new Set();
     const stages = stageNames.map((sName, idx) => {
       const opp = pickPoolTeam([tiers[idx], domestic, DB.teams], usedOpp);
-      const oppBuffPct = idx * 5; // Oitavas: 0%, Quartas: 5%, Semifinal: 10%, Final: 15%
-      const ovrBoost = Number((oppBuffPct * 0.24).toFixed(1));
+      const oppLevel = STAGE_OPPONENT_LEVELS[idx] || (1 + idx * 2);
+      const oppBuffPct = idx * 5;
       return createTournamentStage({
         stageName: sName,
         oppTeam: opp,
         competition: "FF",
         oppBuffPct,
-        ovrBoost
+        oppLevel,
+        ovrBoost: 0
       });
     });
 
@@ -1680,6 +1779,8 @@
         lateMatchNoStaminaLoss: false,
         permanentDoublePrep: false,
         tireTrainingDone: false,
+        elemResonance: false,
+        boostedElement: null,
         log: []
       },
       showRunSummary: false
@@ -1844,14 +1945,15 @@
 
     const groupStages = groupOpps.map((opp, rIdx) => {
       const idx = 4 + rIdx;
-      const oppBuffPct = idx * 5; // Grupo R1: 20%, Grupo R2: 25%, Grupo R3: 30%
-      const ovrBoost = Number((oppBuffPct * 0.24).toFixed(1));
+      const oppLevel = STAGE_OPPONENT_LEVELS[idx] || (8 + rIdx * 2);
+      const oppBuffPct = idx * 5;
       return createTournamentStage({
         stageName: `Grupo A · ${rIdx + 1}ª Rodada`,
         oppTeam: opp,
         competition: "WORLD",
         oppBuffPct,
-        ovrBoost,
+        oppLevel,
+        ovrBoost: 0,
         isGroupStage: true,
         groupRoundIdx: rIdx
       });
@@ -1879,14 +1981,15 @@
 
     const koStages = koSpecs.map((spec, kIdx) => {
       const idx = 7 + kIdx;
-      const oppBuffPct = idx * 5; // Oitavas: 35%, Quartas: 40%, Semi: 45%, Final: 50%
-      const ovrBoost = Number((oppBuffPct * 0.24).toFixed(1));
+      const oppLevel = STAGE_OPPONENT_LEVELS[idx] || (13 + kIdx * 2);
+      const oppBuffPct = idx * 5;
       return createTournamentStage({
         stageName: spec.stageName,
         oppTeam: pickPoolTeam([...spec.pools, DB.teams], usedWorld),
         competition: "WORLD",
         oppBuffPct,
-        ovrBoost
+        oppLevel,
+        ovrBoost: 0
       });
     });
 
@@ -2847,6 +2950,7 @@
       if (st.isGroupStage) {
         finalizeWorldGroupRound(st);
       }
+      awardPostMatchExperience(st);
 
       showRefereeWhistleModal(st, "FULLTIME", () => {
         renderTournamentScreen();
@@ -2867,29 +2971,43 @@
   };
 
   function compressOvr(effOvr) {
-    // Escala mais justa e valorizada para craques: OVRs 85 a 99 mantêm 80% do seu peso real
-    return effOvr <= 84 ? effOvr : 84 + (effOvr - 84) * 0.82;
+    // Sem compressão artificial: craques 88..97 mantêm 100% do seu peso e ainda escalam mais Poder por Nível!
+    return effOvr;
   }
 
   function getElementEdge(atkElem, defElem) {
     if (!atkElem || !defElem) return 0;
     // Sistema Elemental canônico de Inazuma Eleven:
     // Fogo > Floresta > Vento > Montanha > Fogo
-    // Vantagem elemental: +4.8 pontos de duelo (impacto decisivo)
-    // Desvantagem elemental: -4.8 pontos de duelo
-    if (ELEMENT_ADVANTAGE[atkElem] === defElem) return 4.8;
-    if (ELEMENT_ADVANTAGE[defElem] === atkElem) return -4.8;
+    // Vantagem elemental: +5.2 pontos de duelo (impacto decisivo)
+    // Desvantagem elemental: -5.2 pontos de duelo
+    if (ELEMENT_ADVANTAGE[atkElem] === defElem) return 5.2;
+    if (ELEMENT_ADVANTAGE[defElem] === atkElem) return -5.2;
     return 0;
   }
 
   function calcNodeDuelScore(node, teamSupportBonus, opponentElem = null) {
     if (!node) return 75;
-    // Penalidade leve e progressiva apenas quando a energia cai na zona vermelha (< 45%)
-    const fatiguePenalty = node.stamina < 45 ? Math.min(3.8, 1.4 + (45 - node.stamina) * 0.085) : 0;
-    const keshinBonus = node.player?.keshin ? 1.8 : 0;
-    const evoBonus = node.player?.moveEvoCount ? Math.min(1.5, node.player.moveEvoCount * 0.9) : 0;
+    // Penalidade de cansaço quando a energia cai na zona vermelha (< 45%)
+    const fatiguePenalty = node.stamina < 45 ? Math.min(4.2, 1.5 + (45 - node.stamina) * 0.09) : 0;
+    const keshinBonus = node.player?.keshin ? 2.4 : 0;
+    const evoBonus = node.player?.moveEvoCount ? Math.min(2.2, node.player.moveEvoCount * 1.1) : 0;
+
+    // Poder individual do jogador (OVR fixo + Nível × Poder/Nível + Itens + Keshin)
+    const pLvl = node.level || getPlayerLevel(node.player);
+    const indivPwr =
+      node.indivPower ||
+      calcIndividualPlayerPower(node.player, node.role, pLvl);
+
+    // Converte o Poder Individual em escala de combate direta:
+    // - OVR 75 Nv.1 (~76 Pwr) -> ~73.5
+    // - OVR 88 Nv.1 (~109 Pwr) -> ~84.3
+    // - OVR 95 Nv.10 (~341 Pwr) -> ~127.0
+    // Assim, um jogador de OVR alto e bem treinado domina claramente duelos contra níveis/OVRs inferiores!
+    const powerScore = 54 + (indivPwr - 75) * 0.22 + (node.effOvr - 80) * 0.45;
+
     return (
-      compressOvr(node.effOvr) +
+      powerScore +
       teamSupportBonus +
       keshinBonus +
       evoBonus -
@@ -2898,9 +3016,11 @@
     );
   }
 
-  function logisticWinProb(atkScore, defScore, baseShift = 0, minP = 0.08, maxP = 0.88) {
-    const diff = Math.max(-18, Math.min(18, atkScore - defScore)) + baseShift;
-    const p = 1 / (1 + Math.exp(-diff * 0.115));
+  function logisticWinProb(atkScore, defScore, baseShift = 0, minP = 0.04, maxP = 0.94) {
+    // Curva logística mais íngreme (0.165) e faixa ampliada (-32..+32):
+    // Quando um time/jogador tem muito mais Poder e OVR, vence com consistência esmagadora!
+    const diff = Math.max(-32, Math.min(32, atkScore - defScore)) + baseShift;
+    const p = 1 / (1 + Math.exp(-diff * 0.165));
     return Math.max(minP, Math.min(maxP, p));
   }
 
@@ -2922,11 +3042,14 @@
 
   function buildOpponentLineup(oppTeam, stageIdx) {
     const { formSlots, assignments } = getOpponentSlotAssignments(oppTeam);
-    const boost = getStageOvrBoost(stageIdx);
+    const buff = getStageOpponentBuff(stageIdx);
+    const oppLevel = buff.oppLevel || 1;
     return formSlots.map((slot, idx) => {
-      const player = assignments[slot.id];
+      const rawPlayer = assignments[slot.id];
+      const player = { ...rawPlayer, level: oppLevel };
       const rawPosMatch = playerMatchesRole(player, slot.role) ? 0 : -4;
-      const effOvr = Math.min(99, Math.max(58, Math.round(player.ovr + boost + rawPosMatch)));
+      const effOvr = Math.min(99, Math.max(58, Math.round(player.ovr + rawPosMatch)));
+      const indivPower = calcIndividualPlayerPower(player, slot.role, oppLevel);
       const baseX = Math.max(7, Math.min(93, 100 - ((96 - slot.y) * 0.78 + 4)));
       const baseY = Math.max(12, Math.min(88, 100 - slot.x + (slot.role === "DF" ? 3 : -3)));
       const tacticalRole = getTacticalRole(slot.label);
@@ -2940,6 +3063,8 @@
         label: slot.label,
         player,
         effOvr,
+        level: oppLevel,
+        indivPower,
         spd,
         stamina: 100,
         baseX,
@@ -2966,6 +3091,8 @@
     const userNodes = slots.map((slot, idx) => {
       const player = state.squad[slot.id];
       const effOvr = getEffectiveOvr(player, slot.role);
+      const pLvl = getPlayerLevel(player);
+      const indivPower = calcIndividualPlayerPower(player, slot.role, pLvl);
       const baseX = Math.max(7, Math.min(76, (96 - slot.y) * 0.78 + 4));
       const baseY = Math.max(12, Math.min(88, slot.x));
       const tacticalRole = getTacticalRole(slot.label);
@@ -2979,6 +3106,8 @@
         label: slot.label,
         player,
         effOvr,
+        level: pLvl,
+        indivPower,
         spd,
         stamina: 100,
         baseX,
@@ -4235,13 +4364,17 @@
 
   function buildLiveScoreboardHTML(st, stats, oppStats) {
     const stadiumStyle = UI.stadiumBg ? `background-image: url('${UI.stadiumBg}');` : "";
+    const oppLvl = oppStats.oppLevel || oppStats.avgLevel || 1;
     return `
       <div class="live-scoreboard" style="${stadiumStyle}">
         <div class="scoreboard-overlay"></div>
         <div class="score-team">
           ${UI.raimonEmblem ? `<img class="score-emblem" src="${UI.raimonEmblem}" alt="Dream Team" />` : `<div style="font-size:1.9rem;">⚡</div>`}
-          <div style="font-weight:900; font-size:0.95rem;">Dream Team</div>
-          <div style="font-size:0.7rem; color:#fed7aa; font-weight:800;">Poder ${stats.power.toLocaleString("pt-BR")} • OVR ${stats.ovr} • Quím ${stats.chem}%</div>
+          <div style="font-weight:900; font-size:0.95rem; display:flex; align-items:center; justify-content:center; gap:5px;">
+            <span>Dream Team</span>
+            <span class="stage-opp-buff-badge" style="border-color:#4ade80; color:#86efac; background:rgba(21,128,61,0.35);">Nv. ${stats.avgLevel || 1}</span>
+          </div>
+          <div style="font-size:0.7rem; color:#fed7aa; font-weight:800;">Poder ${stats.power.toLocaleString("pt-BR")} • OVR Fixo ${stats.ovr} • Quím ${stats.chem}%</div>
         </div>
 
         <div class="score-digits">
@@ -4254,9 +4387,9 @@
           <img class="score-emblem" src="${st.oppTeam.emblem}" alt="${st.oppTeam.name}" />
           <div style="font-weight:900; font-size:0.95rem; display:flex; align-items:center; justify-content:center; gap:5px;">
             <span>${st.oppTeam.name}</span>
-            ${oppStats.buffPct > 0 ? `<span class="stage-opp-buff-badge">⚡ +${oppStats.buffPct}%</span>` : ""}
+            <span class="stage-opp-buff-badge">⚡ Nv. ${oppLvl}</span>
           </div>
-          <div style="font-size:0.7rem; color:#facc15; font-weight:800;">Poder ${oppStats.power.toLocaleString("pt-BR")}${oppStats.buffPct > 0 ? ` (+${oppStats.buffPct}%)` : ""} • OVR ${oppStats.ovr} • Quím ${oppStats.chem}%</div>
+          <div style="font-size:0.7rem; color:#facc15; font-weight:800;">Poder ${oppStats.power.toLocaleString("pt-BR")} • Nv. ${oppLvl} • OVR Fixo ${oppStats.ovr}</div>
         </div>
       </div>
     `;
@@ -4413,6 +4546,42 @@
     return list[taken % list.length];
   }
 
+  function awardPostMatchExperience(st) {
+    if (!st || st.isGoldenGoal5v5 || st._postMatchXpAwarded) return;
+    st._postMatchXpAwarded = true;
+    const baseXp = st.won ? 55 : st.isDraw ? 35 : 20;
+    const pStats = st.pitch?.stats?.playerStats || {};
+    const leveledNames = [];
+
+    getSlots().forEach((slot) => {
+      const p = state.squad[slot.id];
+      if (!p) return;
+      const uid = `u_${slot.id}`;
+      const ps = pStats[uid] || {};
+      const perfXp =
+        (ps.goals || 0) * 28 +
+        (ps.assists || 0) * 18 +
+        Math.min(2, ps.saves || 0) * 14 +
+        Math.min(2, ps.steals || 0) * 10;
+      const res = gainPlayerXp(p, baseXp + perfXp);
+      if (res.leveledUp > 0) {
+        leveledNames.push(`${p.name} (Nv.${res.newLvl})`);
+      }
+    });
+
+    if (leveledNames.length > 0) {
+      prependNarrationLine(
+        st,
+        "nar-goal-user",
+        `📈 [Evolução Pós-Jogo] Subiram de nível com a experiência da partida: ${leveledNames.join(", ")}!`,
+        null,
+        null,
+        "FF"
+      );
+    }
+    renderHeaderAndBonds();
+  }
+
   function finishPenaltyShootout(st) {
     const pen = st.penalties;
     if (!pen || st.finished) return;
@@ -4433,6 +4602,7 @@
       null,
       "SH"
     );
+    awardPostMatchExperience(st);
     renderTournamentScreen();
   }
 
@@ -5188,12 +5358,14 @@
   function ensureMatchSupport(st, pitch) {
     if (!pitch || pitch.matchSupportInitialized) return;
     if (st.isGoldenGoal5v5) {
-      const uAvg = pitch.userNodes.reduce((s, n) => s + n.effOvr, 0) / Math.max(1, pitch.userNodes.length);
-      const oAvg = pitch.oppNodes.reduce((s, n) => s + n.effOvr, 0) / Math.max(1, pitch.oppNodes.length);
+      const uPwrAvg = pitch.userNodes.reduce((s, n) => s + (n.indivPower || 120), 0) / Math.max(1, pitch.userNodes.length);
+      const oPwrAvg = pitch.oppNodes.reduce((s, n) => s + (n.indivPower || 120), 0) / Math.max(1, pitch.oppNodes.length);
+      const pwrEdge = (uPwrAvg - oPwrAvg) * 0.08;
       pitch.matchSupport = {
-        userTeamSupport: 2.2,
-        oppTeamSupport: 2.0,
-        ovrDiff: Math.round(uAvg - oAvg)
+        userTeamSupport: 2.2 + Math.max(-5, Math.min(8, pwrEdge)),
+        oppTeamSupport: 2.0 + Math.max(-5, Math.min(8, -pwrEdge)),
+        powerDiff: Math.round((uPwrAvg - oPwrAvg) * 5),
+        ovrDiff: Math.round((uPwrAvg - oPwrAvg) / 10)
       };
       pitch.matchSupportInitialized = true;
       return;
@@ -5201,15 +5373,22 @@
     const stageIdx = state.tournament.stageIndex || 0;
     const userStats = calcSquadStats();
     const oppStats = calcOpponentStats(st.oppTeam, stageIdx);
-    const buff = getStageOpponentBuff(stageIdx);
+    const powerDiff = userStats.power - oppStats.power;
+    // Vantagem de Poder do Time impacta diretamente nos duelos e no ritmo de jogo!
+    // Cada 100 de Poder de vantagem gera +1.15 de suporte em todos os duelos!
+    const userPwrBonus = powerDiff > 0 ? Math.min(18, (powerDiff / 100) * 1.15) : 0;
+    const oppPwrBonus = powerDiff < 0 ? Math.min(18, (Math.abs(powerDiff) / 100) * 1.15) : 0;
+
     pitch.matchSupport = {
       userTeamSupport:
-        (userStats.chem / 100) * 4.4 +
-        (userStats.correctPosCount === 11 ? 2.4 : userStats.correctPosCount * 0.12),
+        (userStats.chem / 100) * 4.2 +
+        (userStats.correctPosCount === 11 ? 2.4 : userStats.correctPosCount * 0.12) +
+        userPwrBonus,
       oppTeamSupport:
-        (oppStats.chem / 100) * 4.4 +
+        (oppStats.chem / 100) * 4.2 +
         (oppStats.correctPosCount === 11 ? 2.4 : oppStats.correctPosCount * 0.12) +
-        (buff.pct * 0.03),
+        oppPwrBonus,
+      powerDiff,
       ovrDiff: userStats.ovr - oppStats.ovr
     };
     pitch.matchSupportInitialized = true;
@@ -5715,9 +5894,17 @@
           ? Math.min(7.5, 1.5 + (st.minute - 7) * 0.7)
           : 1.5
         : 0;
+      // Domínio esmagador: quando o time atacante tem muito mais Poder Total que o adversário, a finalização é letal,
+      // e quando o time mais fraco tenta chutar contra um time muito superior, o goleiro fecha o gol!
+      const rawPwrDiff = pitch.matchSupport?.powerDiff || 0;
+      const attPowerDiff = curAttIsUser ? rawPwrDiff : -rawPwrDiff;
+      const dominanceShift =
+        attPowerDiff >= 0
+          ? Math.min(10.5, (attPowerDiff / 190) * 1.85)
+          : Math.max(-13.5, (attPowerDiff / 160) * 2.45);
       const goalProb = st.isGoldenGoal5v5
-        ? logisticWinProb(effectiveShotScore + goldenBias, gkStopScore, -6.2, 0.14, 0.58)
-        : logisticWinProb(effectiveShotScore, gkStopScore, -7.4, 0.08, 0.50);
+        ? logisticWinProb(effectiveShotScore + goldenBias + dominanceShift * 0.6, gkStopScore, -3.6, 0.10, 0.86)
+        : logisticWinProb(effectiveShotScore + dominanceShift, gkStopScore, -5.8, 0.03, 0.88);
       const isGoal = Math.random() < goalProb;
 
       const duelX = curAttIsUser ? 91.5 : 8.5;
@@ -6835,7 +7022,11 @@
 
       // 2) Decisão tática contínua do portador (Passe, Condução, Long Shot ou Chute)
       if (carrier.decisionTimer <= 0) {
-        carrier.decisionTimer = 0.24 + Math.random() * 0.14;
+        const rawPwrDiff = pitch.matchSupport?.powerDiff || 0;
+        const sidePwrDiff = attIsUser ? rawPwrDiff : -rawPwrDiff;
+        // Time com Poder muito superior pensa e executa jogadas até 30% mais rápido!
+        const tempoFactor = sidePwrDiff >= 250 ? 0.72 : sidePwrDiff <= -250 ? 1.18 : 1.0;
+        carrier.decisionTimer = (0.22 + Math.random() * 0.13) * tempoFactor;
 
         if (pitch.justKickedOff) {
           pitch.justKickedOff = false;
@@ -6898,8 +7089,8 @@
         const mustShoot =
           (inPenaltyX && centralLane) ||
           goalDist <= 22 ||
-          (inFinalThird && blockingDefs === 0 && goalDist <= 29 && roll < 0.56) ||
-          (effRoleOrPos(carrier) === "FW" && goalDist <= 31 && roll < 0.34);
+          (inFinalThird && blockingDefs === 0 && goalDist <= 30 && roll < (sidePwrDiff >= 200 ? 0.74 : 0.56)) ||
+          (effRoleOrPos(carrier) === "FW" && goalDist <= 32 && roll < (sidePwrDiff >= 200 ? 0.52 : 0.34));
 
         if (mustShoot) {
           // Inteligência elemental: em desvantagem contra o GK, tenta acionar um colega antes de forçar o chute
@@ -7278,6 +7469,8 @@
     const stats = calcSquadStats();
     const pwrEl = document.getElementById("val-power");
     if (pwrEl) pwrEl.textContent = stats.power.toLocaleString("pt-BR");
+    const lvlEl = document.getElementById("val-lvl");
+    if (lvlEl) lvlEl.textContent = `Nv. ${stats.avgLevel || 1}`;
     document.getElementById("val-ovr").textContent = stats.ovr;
     document.getElementById("val-atk").textContent = stats.atk;
     document.getElementById("val-mid").textContent = stats.mid;
@@ -7796,8 +7989,8 @@
       ? `${summary.wins}V/${summary.draws}E/${summary.losses}D`
       : `${summary.wins}V/${summary.losses}D`;
     const statusSub = summary.isChampion
-      ? `${pluralPt(summary.wins, "vitória", "vitórias")} em ${pluralPt(summary.matchesPlayed, "jogo", "jogos")} (${recordTxt}) · Poder ${stats.power.toLocaleString("pt-BR")} (Rank ${rank}) · OVR ${stats.ovr}`
-      : `${recordTxt} em ${pluralPt(summary.matchesPlayed, "jogo", "jogos")} · Poder ${stats.power.toLocaleString("pt-BR")} (Rank ${rank})`;
+      ? `${pluralPt(summary.wins, "vitória", "vitórias")} em ${pluralPt(summary.matchesPlayed, "jogo", "jogos")} (${recordTxt}) · Poder ${stats.power.toLocaleString("pt-BR")} (Rank ${rank}) · Nv. ${stats.avgLevel || 1} · OVR ${stats.ovr}`
+      : `${recordTxt} em ${pluralPt(summary.matchesPlayed, "jogo", "jogos")} · Poder ${stats.power.toLocaleString("pt-BR")} (Rank ${rank}) · Nv. ${stats.avgLevel || 1}`;
 
     const renderAwardCard = (cls, tag, player, statMain, statSub) => {
       if (!player) return "";
@@ -8597,16 +8790,19 @@
     if (ev.shortDesc) return ev.shortDesc;
     if (ev.kind === "PASSIVE_DOUBLE_EVENT") return "🎟️ +1 Ação por Rodada (Permanente)";
     if (ev.kind === "PASSIVE_LATE_RESIST") return "⚡ Fôlego Infinito (75'+)";
-    if (ev.kind === "STREET_5V5") return "⭐ Venceu = Recruta Craque";
-    if (ev.id === "secret_hissatsu_mastery") return "🔥 +3 OVR & Golpe Supremo";
-    if (ev.kind === "KESHIN_PICK") return "⚔️ +3 OVR & Keshin nos Duelos";
-    if (ev.kind === "EVO_PICK") return "⚡ Evolui Técnica & +2 OVR";
-    if (ev.id === "river_xp") return "✨ +1 OVR nos 11 & +130 XP";
-    if (ev.id === "river_tactics") return "📊 +10% Quím • +45 Poder • +2 OVR";
-    if (ev.id === "river_shot") return "⚽ +2 OVR nos Atacantes & +30 Pwr";
-    if (ev.id === "tire_training") return "🛡️ +1 OVR Goleiro/Zaga & -28% Stam";
-    if (ev.ovrBoost && ev.teamPower) return `📈 +${ev.ovrBoost} OVR & +${ev.teamPower} Poder`;
-    if (ev.ovrBoost) return `📈 +${ev.ovrBoost} OVR`;
+    if (ev.kind === "STREET_5V5") return "⭐ Venceu = +Níveis & Recruta Craque";
+    if (ev.id === "elem_crest_boost") return "🔥 +2 Nv & +50 Pwr no Elemento";
+    if (ev.id === "elem_resonance_tome") return "🌟 Dobra Poder dos Links Elementais!";
+    if (ev.id === "captain_armband") return "👑 +3 Níveis • +70 Poder • +10% Quím";
+    if (ev.id === "secret_hissatsu_mastery") return "🔥 +3 Níveis & Técnica Suprema ★";
+    if (ev.kind === "KESHIN_PICK") return "⚔️ +3 Níveis & Keshin nos Duelos";
+    if (ev.kind === "EVO_PICK") return "⚡ +2 Níveis & Evolui Técnica";
+    if (ev.id === "river_xp") return "✨ +1 Nível nos 11 & +45 Poder";
+    if (ev.id === "river_tactics") return "📊 +2 Níveis Meias • +10% Quím • +55 Pwr";
+    if (ev.id === "river_shot") return "⚽ +2 Níveis Atacantes & +50 Pwr";
+    if (ev.id === "tire_training") return "🛡️ +2 Níveis GOL/Zaga & -28% Stam";
+    if (ev.levelGain && ev.indivPower) return `📈 +${ev.levelGain} Nv & +${ev.indivPower} Poder`;
+    if (ev.levelGain) return `📈 +${ev.levelGain} Nível(is)`;
     if (ev.teamPower) return `⚡ +${ev.teamPower} Poder`;
     return ev.summary || "";
   }
@@ -8616,13 +8812,13 @@
       {
         id: "town",
         title: "Cidade de Inazuma",
-        sub: "Lojas & Comercial",
+        sub: "Lojas & Sinergias",
         cta: "Visitar a Cidade",
-        spinMsg: "Sorteando 3 itens esportivos na Cidade de Inazuma...",
+        spinMsg: "Sorteando 3 equipamentos e amuletos na Cidade de Inazuma...",
         resultEyebrow: "Escolha 1 de 3 Descobertas na Cidade",
         banner: UI.locTown || UI.stadiumBg,
         badgeIcon: UI.itemShoesLegend || UI.itemGloveLegend,
-        desc: "Equipamentos, passivas de 2 eventos e fôlego aos 75'+.",
+        desc: "Equipamentos que combam entre si, Níveis, Amuletos Elementais e Passivas.",
         events: [
           {
             id: "coach_double_pass",
@@ -8630,7 +8826,7 @@
             icon: UI.manualInazuma || UI.ffLogo,
             kind: "PASSIVE_DOUBLE_EVENT",
             weight: 2.2,
-            summary: "Passiva Permanente: Seu time ganha +1 ação de evento extra em TODAS as preparações de jogo até o fim do torneio!"
+            summary: "Passiva Permanente: Seu time ganha +1 ação de preparação extra em TODAS as rodadas até o fim do torneio!"
           },
           {
             id: "pendant_endurance",
@@ -8646,11 +8842,13 @@
             icon: UI.itemShoesLegend,
             kind: "ITEM_PICK",
             targetRoles: ["FW", "MF"],
-            ovrBoost: 3,
-            teamPower: 18,
+            levelGain: 2,
+            indivPower: 55,
+            spdBoost: 3,
+            teamPower: 30,
             teamChem: 0,
-            weight: 2.0,
-            summary: "+3 OVR para um Atacante ou Meia • +18 Poder"
+            weight: 2.1,
+            summary: "+2 Níveis e +55 Poder Individual (+3 VEL) para 1 Atacante ou Meia • Comba com Luvas Lendárias (+85 Poder)!"
           },
           {
             id: "glove_legend",
@@ -8658,11 +8856,12 @@
             icon: UI.itemGloveLegend || UI.itemGloveRaimon,
             kind: "ITEM_PICK",
             targetRoles: ["GK"],
-            ovrBoost: 3,
-            teamPower: 20,
+            levelGain: 2,
+            indivPower: 65,
+            teamPower: 35,
             teamChem: 0,
-            weight: 1.8,
-            summary: "+3 OVR para o seu Goleiro • +20 Poder"
+            weight: 1.9,
+            summary: "+2 Níveis e +65 Poder Individual no seu Goleiro • Comba com Chuteiras Lendárias (+85 Pwr) e Travas (+75 Pwr)!"
           },
           {
             id: "shoes_thunder",
@@ -8670,11 +8869,13 @@
             icon: UI.itemShoesThunder,
             kind: "ITEM_PICK",
             targetRoles: ["FW", "MF", "DF"],
-            ovrBoost: 2,
-            teamPower: 15,
+            levelGain: 2,
+            indivPower: 42,
+            spdBoost: 5,
+            teamPower: 25,
             teamChem: 0,
             weight: 2.2,
-            summary: "+2 OVR para um jogador de linha • +15 Poder"
+            summary: "+2 Níveis, +42 Poder Individual e +5 VEL para 1 jogador de linha • Comba com Braçadeira/Insígnia (+70 Poder)!"
           },
           {
             id: "spike_block",
@@ -8682,11 +8883,37 @@
             icon: UI.itemSpikeBlock,
             kind: "ITEM_PICK",
             targetRoles: ["DF"],
-            ovrBoost: 3,
-            teamPower: 16,
+            levelGain: 2,
+            indivPower: 52,
+            teamPower: 28,
             teamChem: 0,
+            weight: 1.9,
+            summary: "+2 Níveis e +52 Poder Individual para 1 Zagueiro • Comba com Luvas Lendárias (Muralha +75 Poder)!"
+          },
+          {
+            id: "captain_armband",
+            title: "Braçadeira Dourada do Capitão",
+            icon: UI.captain || UI.itemBraceletFortune,
+            kind: "ITEM_PICK",
+            targetRoles: ["GK", "DF", "MF", "FW"],
+            levelGain: 3,
+            indivPower: 45,
+            teamPower: 45,
+            teamChem: 10,
             weight: 1.8,
-            summary: "+3 OVR para um Zagueiro • +16 Poder"
+            summary: "+3 Níveis no líder escolhido • +10% Química • +90 Poder total • Comba com Chuteiras do Trovão (+70 Poder)!"
+          },
+          {
+            id: "elem_crest_boost",
+            title: "Insígnia de Ressonância Elemental",
+            icon: UI.elemFire || UI.itemPendantLightning,
+            kind: "ELEM_BOOST_PICK",
+            levelGain: 2,
+            indivPower: 50,
+            teamPower: 35,
+            teamChem: 6,
+            weight: 2.0,
+            summary: "Escolha 1 titular: TODOS os jogadores do MESMO ELEMENTO dele no time ganham +2 Níveis e +45 Poder (ativa Domínio Elemental)!"
           },
           {
             id: "misanga_friend",
@@ -8694,11 +8921,12 @@
             icon: UI.itemMisangaFriend || UI.itemBraceletFortune,
             kind: "ITEM_PICK",
             targetRoles: ["GK", "DF", "MF", "FW"],
-            ovrBoost: 2,
-            teamPower: 20,
-            teamChem: 8,
-            weight: 1.6,
-            summary: "+2 OVR em um titular • +8% Química • +20 Poder"
+            levelGain: 2,
+            indivPower: 38,
+            teamPower: 35,
+            teamChem: 10,
+            weight: 1.7,
+            summary: "+2 Níveis e +38 Poder em 1 titular • +10% Química • Conta para o Combo Arsenal Completo (3+ itens)!"
           }
         ]
       },
@@ -8711,7 +8939,7 @@
         resultEyebrow: "Escolha 1 de 3 Oportunidades na Margem",
         banner: UI.locRiverbank || UI.stadiumBg,
         badgeIcon: UI.ffLogo || UI.moveOF,
-        desc: "5x5 com recrutamento de craque, XP e táticas.",
+        desc: "5x5 com recrutamento de craque (já chega no Nível da fase!), subida de Nível em grupo e táticas.",
         events: [
           {
             id: "clash_5v5",
@@ -8719,46 +8947,48 @@
             icon: UI.ffLogo || UI.moveSH,
             kind: "STREET_5V5",
             weight: 2.8,
-            summary: "Gol de Ouro! O time rival traz um craque estrela: se vencer, você pode RECRUTAR e substituir alguém do seu time; se perder, sofre -20 de Poder!"
+            summary: "Gol de Ouro! Vencer sobe +2 Níveis nos 5 participantes e permite RECRUTAR o craque rival já treinado!"
           },
           {
             id: "river_xp",
-            title: "Coletivo & XP Geral",
+            title: "Intensivo Coletivo (Todos +1 Nível)",
             icon: UI.keshinCoin || UI.formation,
             kind: "COLLECTIVE",
             applyRoles: ["GK", "DF", "MF", "FW"],
-            ovrBoost: 1,
-            teamPower: 24,
-            teamChem: 3,
+            levelGain: 1,
+            teamPower: 45,
+            teamChem: 4,
             xpGain: 130,
-            weight: 1.8,
-            summary: "+130 XP • +1 OVR em todos os 11 titulares • +3% Quím • +24 Poder"
+            weight: 2.1,
+            summary: "TODOS os 11 titulares sobem +1 Nível (ganhando Poder proporcional ao OVR fixo de cada um) • +4% Quím • +45 Poder!"
           },
           {
             id: "river_tactics",
-            title: "Roda Tática de Tabelas",
+            title: "Roda Tática de Meio-Campo",
             icon: UI.formation || UI.moveOF,
             kind: "COLLECTIVE",
             applyRoles: ["MF"],
-            ovrBoost: 2,
-            teamPower: 45,
+            levelGain: 2,
+            indivPower: 22,
+            teamPower: 55,
             teamChem: 10,
-            xpGain: 90,
-            weight: 1.8,
-            summary: "+10% Química • +45 Poder • +2 OVR nos Meias • +90 XP"
+            xpGain: 100,
+            weight: 1.9,
+            summary: "Todos os Meias (MF) sobem +2 Níveis e +22 Poder • +10% Química • +55 Poder Coletivo!"
           },
           {
             id: "river_shot",
-            title: "Finalização na Correnteza",
+            title: "Bombardeio de Finalização",
             icon: UI.moveSH,
             kind: "COLLECTIVE",
             applyRoles: ["FW"],
-            ovrBoost: 2,
-            teamPower: 30,
+            levelGain: 2,
+            indivPower: 28,
+            teamPower: 50,
             teamChem: 0,
-            xpGain: 80,
-            weight: 1.6,
-            summary: "+2 OVR nos Atacantes • +30 Poder • +80 XP"
+            xpGain: 100,
+            weight: 1.8,
+            summary: "Todos os Atacantes (FW) sobem +2 Níveis e +28 Poder Individual • +50 Poder Coletivo!"
           }
         ]
       },
@@ -8771,54 +9001,72 @@
         resultEyebrow: "Escolha 1 de 3 Treinos no Inabikari",
         banner: UI.locTraining || UI.stadiumBg,
         badgeIcon: UI.keshinPegasus || UI.keshinIcon,
-        desc: "Manual Secreto, Incorporação Keshin e evolução de técnicas.",
+        desc: "Manual Secreto (+3 Nv), Incorporação Keshin (+3 Nv), Evolução de Técnica e Sinergia Elemental.",
         events: [
           {
             id: "secret_hissatsu_mastery",
             title: "Manual Secreto de Inazuma",
             icon: UI.manualInazuma || UI.manualSkill,
             kind: "EVO_PICK",
-            ovrBoost: 3,
-            teamPower: 26,
-            xpGain: 95,
-            weight: 2.6,
-            summary: "Escolha 1 titular para aprender a técnica suprema do Manual Secreto: +3 OVR e grande bônus de Poder!"
+            levelGain: 3,
+            indivPower: 45,
+            teamPower: 35,
+            xpGain: 120,
+            weight: 2.5,
+            summary: "Escolha 1 titular para aprender a técnica suprema ★ do Manual Secreto: +3 Níveis e imenso salto de Poder!"
           },
           {
             id: "keshin_awaken",
             title: "Despertar Incorporação!",
             icon: UI.keshinPegasus || UI.keshinIcon,
             kind: "KESHIN_PICK",
-            ovrBoost: 3,
-            teamPower: 18,
-            xpGain: 95,
+            levelGain: 3,
+            indivPower: 40,
+            teamPower: 30,
+            xpGain: 120,
             weight: 2.4,
-            summary: "Escolha 1 titular para despertar um Espírito Guerreiro: +3 OVR e bônus nos duelos!"
+            summary: "Escolha 1 titular para despertar um Espírito Guerreiro: +3 Níveis, +78 Poder Individual total e bônus nos duelos!"
           },
           {
             id: "evo_move",
-            title: "Evoluir Técnica (G2/Shin)",
+            title: "Evoluir Técnica (G2/Shin/★)",
             icon: UI.manualSkill || UI.manualKeshin,
             kind: "EVO_PICK",
-            ovrBoost: 2,
-            teamPower: 18,
-            xpGain: 85,
+            levelGain: 2,
+            indivPower: 30,
+            teamPower: 25,
+            xpGain: 95,
             weight: 2.2,
-            summary: "Fortaleça a técnica principal de 1 titular para G2/V2/Shin (+2 OVR + bônus em duelo)!"
+            summary: "Fortaleça a técnica principal de 1 titular para G2/V2/Shin/★ e suba +2 Níveis!"
           },
           {
             id: "tire_training",
-            title: "Treino de Pneus do Endou",
+            title: "Muralha de Pneus do Endou",
             icon: UI.steelTowerIcon || UI.moveGK,
             kind: "COLLECTIVE",
             applyRoles: ["GK", "DF"],
-            ovrBoost: 1,
-            teamPower: 28,
-            teamChem: 3,
-            xpGain: 85,
+            levelGain: 2,
+            indivPower: 24,
+            teamPower: 42,
+            teamChem: 4,
+            xpGain: 100,
             staminaMul: 0.72,
+            weight: 1.9,
+            summary: "Goleiro e Zagueiros (GK & DF) sobem +2 Níveis e +24 Poder • -28% gasto de energia • +42 Poder!"
+          },
+          {
+            id: "elem_resonance_tome",
+            title: "Tomo da Sincronia Elemental",
+            icon: UI.elemWind || UI.formation,
+            kind: "COLLECTIVE",
+            applyRoles: ["GK", "DF", "MF", "FW"],
+            levelGain: 1,
+            teamPower: 40,
+            teamChem: 8,
+            xpGain: 100,
+            elemResonance: true,
             weight: 1.8,
-            summary: "+1 OVR no Goleiro & Zagueiros • -28% gasto de energia • +28 Poder"
+            summary: "Passiva de Combo: Quase DOBRA o Poder gerado por todos os Links Elementais no campo + Todos sobem +1 Nível!"
           }
         ]
       }
@@ -8928,7 +9176,7 @@
       if (ev.targetRoles && ev.targetRoles.length > 0 && !ev.targetRoles.includes(slot.role)) {
         return false;
       }
-      if (ev.kind === "ITEM_PICK" || ev.kind === "MANUAL_PICK") {
+      if (ev.kind === "ITEM_PICK" || ev.kind === "MANUAL_PICK" || ev.kind === "ELEM_BOOST_PICK") {
         const alreadyHas =
           Array.isArray(p.equippedItems) &&
           p.equippedItems.some((it) => it.id === ev.id || it.title === ev.title);
@@ -8953,9 +9201,17 @@
       if (ev.kind === "PASSIVE_DOUBLE_EVENT" && bonuses.permanentDoublePrep) return false;
       if (ev.kind === "PASSIVE_LATE_RESIST" && bonuses.lateMatchNoStaminaLoss) return false;
       if (ev.id === "tire_training" && (bonuses.tireTrainingDone || (bonuses.staminaMul || 1) <= 0.72)) return false;
+      if (ev.id === "elem_resonance_tome" && bonuses.elemResonance) return false;
+      if (ev.id === "captain_armband") {
+        const someoneHasArmband = Object.values(state.squad).some(
+          (p) => Array.isArray(p?.equippedItems) && p.equippedItems.some((it) => it.id === "captain_armband")
+        );
+        if (someoneHasArmband) return false;
+      }
       if (
         ev.kind === "ITEM_PICK" ||
         ev.kind === "MANUAL_PICK" ||
+        ev.kind === "ELEM_BOOST_PICK" ||
         ev.kind === "KESHIN_PICK" ||
         ev.kind === "EVO_PICK"
       ) {
@@ -8981,26 +9237,26 @@
         icon: UI.tpWater || UI.manualSkill || UI.ffLogo,
         kind: "COLLECTIVE",
         applyRoles: ["GK", "DF", "MF", "FW"],
-        ovrBoost: 1,
-        teamPower: 24,
+        levelGain: 1,
+        teamPower: 35,
         teamChem: 3,
-        xpGain: 90,
+        xpGain: 100,
         weight: 1.0,
-        summary: "+1 OVR em todos os titulares • +3% Química • +24 Poder • +90 XP"
+        summary: "+1 Nível em todos os titulares • +3% Química • +35 Poder"
       }
     ];
   }
 
   function gainPlayerXp(player, amount) {
-    if (!player || !amount) return { xpGained: 0, ovrGained: 0, currentXp: 0 };
+    if (!player || !amount) return { xpGained: 0, levelsGained: 0, currentXp: 0 };
     player.xp = (player.xp || 0) + amount;
-    let ovrGained = 0;
+    let levelsGained = 0;
     while (player.xp >= 100) {
       player.xp -= 100;
-      player.boostOvr = (player.boostOvr || 0) + 1;
-      ovrGained++;
+      player.level = getPlayerLevel(player) + 1;
+      levelsGained++;
     }
-    return { xpGained: amount, ovrGained, currentXp: player.xp };
+    return { xpGained: amount, levelsGained, ovrGained: levelsGained, currentXp: player.xp };
   }
 
   function buildStreet5v5Matchup() {
@@ -9085,8 +9341,13 @@
     ];
 
     const makeNode = (entry, coords, side, idx) => {
-      const p = entry.player;
+      const rawP = entry.player;
+      const nextIdx = state.tournament?.prep?.nextStageIdx ?? state.tournament?.stageIndex ?? 0;
+      const oppLvl = STAGE_OPPONENT_LEVELS[Math.min(nextIdx, STAGE_OPPONENT_LEVELS.length - 1)] || 1;
+      const p = side === "opp" ? { ...rawP, level: oppLvl } : rawP;
+      const pLvl = side === "opp" ? oppLvl : getPlayerLevel(p);
       const effOvr = side === "user" && entry.slot ? getEffectiveOvr(p, entry.slot.role) : p.ovr;
+      const indivPower = calcIndividualPlayerPower(p, coords.role, pLvl);
       return {
         uid: `${side === "user" ? "u5" : "o5"}_${coords.key}`,
         side,
@@ -9096,6 +9357,8 @@
         label: coords.label,
         player: p,
         effOvr,
+        level: pLvl,
+        indivPower,
         spd: calcPlayerSpeedStat(p, effOvr),
         stamina: 100,
         baseX: coords.x,
@@ -9314,16 +9577,22 @@
     if (!prep || !starRecruit || !replaceSlotId) return;
 
     const oldPlayer = state.squad[replaceSlotId];
+    const nextIdx = prep.nextStageIdx ?? t.stageIndex ?? 0;
+    const stageTargetLvl = STAGE_OPPONENT_LEVELS[Math.min(nextIdx, STAGE_OPPONENT_LEVELS.length - 1)] || 1;
+    const recruitLvl = Math.max(getPlayerLevel(oldPlayer) + 1, stageTargetLvl);
     const newP = {
       ...starRecruit.player,
+      level: recruitLvl,
+      xp: 0,
       teamId: starRecruit.teamId,
       teamName: starRecruit.teamName,
       teamEmblem: starRecruit.emblem
     };
     state.squad[replaceSlotId] = newP;
+    const newPwr = calcIndividualPlayerPower(newP, starRecruit.role || newP.pos, recruitLvl);
     prep.phase = "DONE";
-    prep.appliedMsg = `⭐ RECRUTAMENTO OFICIAL! ${newP.name} (OVR ${newP.ovr}) entrou como titular no lugar de ${oldPlayer?.name || "titular"}!`;
-    t.prepBonuses.log.push(`Recrutou ${newP.name}`);
+    prep.appliedMsg = `⭐ RECRUTAMENTO OFICIAL! ${newP.name} (OVR Fixo ${newP.ovr} • Nv. ${recruitLvl} • Poder ${newPwr}) entrou como titular no lugar de ${oldPlayer?.name || "titular"}!`;
+    t.prepBonuses.log.push(`Recrutou ${newP.name} (Nv.${recruitLvl})`);
     renderAll();
   }
 
@@ -9332,13 +9601,25 @@
     if (!t.prep) return;
     const slots = getSlots();
     const affectedNames = [];
+    let totalPowerGainedFromLevels = 0;
+    const lvlGain = event.levelGain || event.ovrBoost || 0;
+    const indivPwrGain = event.indivPower || 0;
+
     slots.forEach((slot) => {
       const p = state.squad[slot.id];
       if (!p) return;
       if (!event.applyRoles || event.applyRoles.includes(slot.role)) {
-        if (event.ovrBoost) {
-          p.boostOvr = (p.boostOvr || 0) + event.ovrBoost;
-          affectedNames.push(p.name);
+        const beforePwr = calcIndividualPlayerPower(p, slot.role);
+        if (lvlGain > 0) {
+          p.level = getPlayerLevel(p) + lvlGain;
+        }
+        if (indivPwrGain > 0) {
+          p.bonusPower = (p.bonusPower || 0) + indivPwrGain;
+        }
+        const afterPwr = calcIndividualPlayerPower(p, slot.role);
+        totalPowerGainedFromLevels += Math.max(0, afterPwr - beforePwr);
+        if (lvlGain > 0 || indivPwrGain > 0) {
+          affectedNames.push(`${p.name} (Nv.${getPlayerLevel(p)})`);
         }
       }
     });
@@ -9351,9 +9632,12 @@
     if (event.id === "tire_training") {
       t.prepBonuses.tireTrainingDone = true;
     }
+    if (event.elemResonance) {
+      t.prepBonuses.elemResonance = true;
+    }
     t.prepBonuses.log.push(event.title);
     t.prep.phase = "DONE";
-    t.prep.appliedMsg = `${event.title} aplicado! ${event.summary}${affectedNames.length > 0 ? ` (${affectedNames.length} atletas fortalecidos)` : ""}`;
+    t.prep.appliedMsg = `${event.title} aplicado! ${event.summary} (+${totalPowerGainedFromLevels + (event.teamPower || 0)} Poder Total gerado no elenco!)`;
     renderAll();
   }
 
@@ -9366,39 +9650,73 @@
     if (!prep || !event || !player || !slot) return;
 
     let msg = "";
-    if (event.kind === "ITEM_PICK" || event.kind === "MANUAL_PICK") {
+    const lvlGain = event.levelGain || event.ovrBoost || 2;
+    const indivPwrGain = event.indivPower || 35;
+    const beforePwr = calcIndividualPlayerPower(player, slot.role);
+
+    if (event.kind === "ELEM_BOOST_PICK") {
+      const targetElem = player.element || "Fogo";
+      if (!Array.isArray(player.equippedItems)) player.equippedItems = [];
+      player.equippedItems.push({ id: event.id, title: `${event.title} (${targetElem})`, icon: event.icon });
+      t.prepBonuses.boostedElement = targetElem;
+      let elemCount = 0;
+      let totalElemPwr = 0;
+      getSlots().forEach((s) => {
+        const mate = state.squad[s.id];
+        if (mate && mate.element === targetElem) {
+          const bPwr = calcIndividualPlayerPower(mate, s.role);
+          mate.level = getPlayerLevel(mate) + lvlGain;
+          mate.bonusPower = (mate.bonusPower || 0) + indivPwrGain;
+          totalElemPwr += Math.max(0, calcIndividualPlayerPower(mate, s.role) - bPwr);
+          elemCount++;
+        }
+      });
+      msg = `🌟 Ressonância de ${targetElem}! ${elemCount} jogador(es) de ${targetElem} subiram +${lvlGain} Níveis e ganharam +${totalElemPwr} Poder Individual!`;
+    } else if (event.kind === "ITEM_PICK" || event.kind === "MANUAL_PICK") {
       if (!Array.isArray(player.equippedItems)) player.equippedItems = [];
       const alreadyHas = player.equippedItems.some((it) => it.id === event.id || it.title === event.title);
       if (!alreadyHas) {
-        player.boostOvr = (player.boostOvr || 0) + (event.ovrBoost || 2);
+        player.level = getPlayerLevel(player) + lvlGain;
+        player.bonusPower = (player.bonusPower || 0) + indivPwrGain;
+        if (event.spdBoost) {
+          player.bonusSpd = (player.bonusSpd || 0) + event.spdBoost;
+        }
         player.equippedItems.push({ id: event.id, title: event.title, icon: event.icon });
       }
-      msg = `${player.name} equipou ${event.title} e ganhou +${event.ovrBoost} OVR (agora ${getEffectiveOvr(player, slot.role)})!`;
+      const afterPwr = calcIndividualPlayerPower(player, slot.role);
+      const pwrDelta = Math.max(0, afterPwr - beforePwr);
+      msg = `${player.name} (OVR Fixo ${player.ovr}) equipou ${event.title}, subiu para o Nível ${getPlayerLevel(player)} e ganhou +${pwrDelta} Poder Individual (agora ${afterPwr} Poder)!`;
     } else if (event.kind === "KESHIN_PICK") {
       if (!player.keshin) {
         const pool = CANONICAL_KESHINS[slot.role] || CANONICAL_KESHINS.MF;
         const chosenK = pool[Math.floor(Math.random() * pool.length)];
         player.keshin = { name: chosenK.name, icon: UI[chosenK.iconKey] || UI.keshinIcon };
-        player.boostOvr = (player.boostOvr || 0) + (event.ovrBoost || 3);
-        msg = `${player.name} despertou a Incorporação 【${chosenK.name}】 (+${event.ovrBoost} OVR e bônus em todos os duelos)!`;
+        player.level = getPlayerLevel(player) + lvlGain;
+        player.bonusPower = (player.bonusPower || 0) + indivPwrGain;
+        const afterPwr = calcIndividualPlayerPower(player, slot.role);
+        msg = `${player.name} despertou a Incorporação 【${chosenK.name}】, subiu para o Nível ${getPlayerLevel(player)} (+${afterPwr - beforePwr} Poder Individual)!`;
       } else {
         msg = `${player.name} já possui a Incorporação 【${player.keshin.name}】!`;
       }
     } else if (event.kind === "EVO_PICK") {
       if (event.id === "secret_hissatsu_mastery") {
         const learnedMove = applySecretManualMastery(player, slot.role);
-        player.boostOvr = (player.boostOvr || 0) + (event.ovrBoost || 3);
-        msg = `${player.name} dominou a técnica secreta 【${learnedMove}】 e subiu +${event.ovrBoost} OVR!`;
+        player.level = getPlayerLevel(player) + lvlGain;
+        player.bonusPower = (player.bonusPower || 0) + indivPwrGain;
+        const afterPwr = calcIndividualPlayerPower(player, slot.role);
+        msg = `${player.name} dominou a técnica suprema 【${learnedMove}】, subiu para o Nível ${getPlayerLevel(player)} (+${afterPwr - beforePwr} Poder Individual)!`;
       } else {
         const evo = evolvePlayerPrimaryMove(player, slot.role);
-        player.boostOvr = (player.boostOvr || 0) + (event.ovrBoost || 2);
+        player.level = getPlayerLevel(player) + lvlGain;
+        player.bonusPower = (player.bonusPower || 0) + indivPwrGain;
+        const afterPwr = calcIndividualPlayerPower(player, slot.role);
         msg = evo
-          ? `${player.name} evoluiu 【${evo.oldName}】 ➔ 【${evo.nextName}】 e subiu +${event.ovrBoost} OVR!`
-          : `${player.name} aperfeiçoou sua técnica e ganhou +${event.ovrBoost} OVR!`;
+          ? `${player.name} evoluiu 【${evo.oldName}】 ➔ 【${evo.nextName}】, subiu para o Nível ${getPlayerLevel(player)} (+${afterPwr - beforePwr} Poder Individual)!`
+          : `${player.name} aperfeiçoou sua técnica, subiu para o Nível ${getPlayerLevel(player)} (+${afterPwr - beforePwr} Poder Individual)!`;
       }
     }
 
-    t.prepBonuses.xp += event.xpGain || 50;
+    t.prepBonuses.xp += event.xpGain || 80;
     t.prepBonuses.chem += event.teamChem || 0;
     t.prepBonuses.power += event.teamPower || 0;
     t.prepBonuses.log.push(`${event.title} (${player.name})`);
@@ -9454,17 +9772,22 @@
 
         c5.xpSummary = c5.userQuintet.map((entry) => {
           const p = entry.player;
+          const role = entry.slot?.role || entry.role;
           const isScorer = won && scorerName && p.name === scorerName;
-          const xpAmt = won ? (isScorer ? 160 : 120) : 50;
+          const xpAmt = won ? (isScorer ? 240 : 200) : 80;
           totalXpGiven += xpAmt;
+          const beforePwr = calcIndividualPlayerPower(p, role);
           const res = gainPlayerXp(p, xpAmt);
+          const afterPwr = calcIndividualPlayerPower(p, role);
           return {
             name: p.name,
-            role: entry.slot?.role || entry.role,
-            sprite: getPlayerFormSprite(p, entry.slot?.role || entry.role),
+            role,
+            sprite: getPlayerFormSprite(p, role),
             xpGained: res.xpGained,
-            ovrGained: res.ovrGained,
-            newOvr: entry.slot ? getEffectiveOvr(p, entry.slot.role) : p.ovr,
+            levelsGained: res.levelsGained,
+            newLevel: getPlayerLevel(p),
+            pwrGained: Math.max(0, afterPwr - beforePwr),
+            newPwr: afterPwr,
             curXp: res.currentXp,
             isScorer
           };
@@ -9478,12 +9801,12 @@
         if (won && c5.starRecruit) {
           prep.phase = "RECRUIT_OFFER";
           prep.recruitCandidate = c5.starRecruit;
-          prep.appliedMsg = `Vitória épica por Gol de Ouro (1 x 0${scorerName ? ` · ${scorerName}` : ""})! O craque rival ${c5.starRecruit.player.name} (OVR ${c5.starRecruit.player.ovr}) quer se juntar ao seu Dream Team!`;
+          prep.appliedMsg = `Vitória épica por Gol de Ouro (1 x 0${scorerName ? ` · ${scorerName}` : ""})! Os 5 participantes subiram +2 Níveis e o craque rival ${c5.starRecruit.player.name} (OVR Fixo ${c5.starRecruit.player.ovr}) quer se juntar ao seu Dream Team!`;
         } else {
           prep.phase = "DONE";
           prep.appliedMsg = won
-            ? `Vitória por Gol de Ouro (1 x 0${scorerName ? ` · ${scorerName}` : ""})! Todos os 5 participantes ganharam XP (+${totalXpGiven} XP totais) e +${pwr} Poder!`
-            : `Os Desafiantes venceram o Gol de Ouro (0 x 1). O time sentiu a pressão e perdeu 20 de Poder no próximo jogo (+${totalXpGiven} XP de aprendizado).`;
+            ? `Vitória por Gol de Ouro (1 x 0${scorerName ? ` · ${scorerName}` : ""})! Todos os 5 participantes subiram +2 Níveis e o time ganhou +${pwr} Poder!`
+            : `Os Desafiantes venceram o Gol de Ouro (0 x 1). O time sentiu a pressão (-20 Poder), mas ganhou +${totalXpGiven} XP de aprendizado.`;
         }
         renderAll();
       }
@@ -9620,18 +9943,23 @@
               const p = state.squad[slot.id];
               if (!p) return "";
               const curOvr = getEffectiveOvr(p, slot.role);
+              const curLvl = getPlayerLevel(p);
+              const curPwr = calcIndividualPlayerPower(p, slot.role, curLvl);
+              const nextIdx = prep.nextStageIdx ?? t.stageIndex ?? 0;
+              const recLvl = Math.max(curLvl + 1, STAGE_OPPONENT_LEVELS[Math.min(nextIdx, STAGE_OPPONENT_LEVELS.length - 1)] || 1);
+              const recPwr = calcIndividualPlayerPower({ ...recPlayer, level: recLvl }, slot.role, recLvl);
               return `
                 <div class="prep-pick-card is-recruit-target" data-recruit-replace-slot="${slot.id}">
                   <img class="prep-pick-sprite" src="${getPlayerFormSprite(p, slot.role)}" alt="${p.name}" />
                   <div style="min-width:0; flex:1;">
                     <div style="font-size:0.78rem; font-weight:900; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
-                      ${posIconHTML(slot.role, true)} ${p.name}
+                      ${posIconHTML(slot.role, true)} ${p.name} <span style="color:#86efac;">(Nv.${curLvl})</span>
                     </div>
                     <div style="font-size:0.68rem; font-weight:800; color:#94a3b8;">
-                      OVR atual: ${curOvr}
+                      OVR Fixo ${curOvr} • Poder ${curPwr}
                     </div>
-                    <div style="font-size:0.64rem; color:#f87171; font-weight:700;">
-                      Substituir por ${recPlayer.name} (${recPlayer.ovr})
+                    <div style="font-size:0.64rem; color:#fde047; font-weight:700;">
+                      Entra ${recPlayer.name} (OVR ${recPlayer.ovr} • Nv.${recLvl} • Poder ${recPwr})
                     </div>
                   </div>
                 </div>
@@ -9760,9 +10088,17 @@
                   .map((slot) => {
                     const p = state.squad[slot.id];
                     const curOvr = getEffectiveOvr(p, slot.role);
-                    const nextOvr = Math.min(99, curOvr + (ev.ovrBoost || 0));
+                    const curLvl = getPlayerLevel(p);
+                    const lvlGain = ev.levelGain || ev.ovrBoost || 2;
+                    const nextLvl = curLvl + lvlGain;
+                    const curPwr = calcIndividualPlayerPower(p, slot.role, curLvl);
+                    const pwrPerLvl = calcPowerPerLevel(curOvr);
+                    const extraItemPwr = (ev.indivPower || 35) + (ev.kind === "KESHIN_PICK" ? 38 : ev.id === "secret_hissatsu_mastery" ? 50 : ev.kind === "EVO_PICK" ? 22 : 0);
+                    const nextPwr = curPwr + lvlGain * pwrPerLvl + extraItemPwr;
                     const extraInfo =
-                      ev.kind === "EVO_PICK"
+                      ev.kind === "ELEM_BOOST_PICK"
+                        ? `Elemento: ${p.element} (+${lvlGain} Nv em todos de ${p.element})`
+                        : ev.kind === "EVO_PICK"
                         ? (() => {
                             const ord = slot.role === "GK" ? ["GK", "DF", "SH", "OF"] : slot.role === "DF" ? ["DF", "OF", "SH", "GK"] : slot.role === "MF" ? ["OF", "SH", "DF", "GK"] : ["SH", "OF", "DF", "GK"];
                             for (const c of ord) {
@@ -9781,10 +10117,10 @@
                         <img class="prep-pick-sprite" src="${getPlayerFormSprite(p, slot.role)}" alt="${p.name}" />
                         <div style="min-width:0; flex:1;">
                           <div style="font-size:0.78rem; font-weight:900; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
-                            ${posIconHTML(slot.role, true)} ${p.name}
+                            ${posIconHTML(slot.role, true)} ${p.name} <span style="color:#fde047;">(OVR ${curOvr})</span>
                           </div>
                           <div style="font-size:0.68rem; font-weight:800; color:#4ade80; margin-top:2px;">
-                            OVR ${curOvr} ➔ ${nextOvr}
+                            Nv. ${curLvl} ➔ Nv. ${nextLvl} • Poder ${curPwr} ➔ ${nextPwr} (+${pwrPerLvl}/Nv)
                           </div>
                           <div style="font-size:0.64rem; color:#94a3b8; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
                             ${extraInfo || ""}
@@ -9804,7 +10140,7 @@
           xpSummary.length > 0
             ? `
               <div style="font-size:0.74rem; font-weight:800; color:#93c5fd;">
-                XP ganho pelos 5 participantes (cada 100 XP = +1 OVR):
+                Evolução de Nível e Poder dos 5 participantes (100 XP = +1 Nível):
               </div>
               <div class="prep-5v5-xp-grid">
                 ${xpSummary
@@ -9817,7 +10153,7 @@
                         ${posIconHTML(px.role, true)} ${px.name} ${px.isScorer ? "⚡" : ""}
                       </div>
                       <div style="font-size:0.68rem; font-weight:800; color:#fde047;">
-                        +${px.xpGained} XP ${px.ovrGained > 0 ? `<span style="color:#4ade80;">• +${px.ovrGained} OVR (${px.newOvr})</span>` : `<span style="color:#94a3b8;">(${px.curXp}/100)</span>`}
+                        +${px.xpGained} XP ${px.levelsGained > 0 ? `<span style="color:#4ade80;">• +${px.levelsGained} Nv (Nv.${px.newLevel} · +${px.pwrGained} Pwr)</span>` : `<span style="color:#94a3b8;">(Nv.${px.newLevel} · ${px.curXp}/100 XP)</span>`}
                       </div>
                     </div>
                   </div>
@@ -9838,7 +10174,7 @@
                 <div style="font-size:0.7rem; font-weight:900; color:#4ade80; text-transform:uppercase;">Preparação Concluída!</div>
                 <div style="font-size:0.96rem; font-weight:900; color:#fff; margin-top:2px;">${prep.appliedMsg || "Bônus aplicado com sucesso!"}</div>
                 <div style="font-size:0.75rem; color:#cbd5e1; margin-top:4px;">
-                  Time pronto com <strong>OVR ${stats.ovr}</strong> • <strong>Poder ${stats.power.toLocaleString("pt-BR")}</strong> • <strong>Química ${stats.chem}%</strong>
+                  Time pronto com <strong>Nível Médio ${stats.avgLevel || 1}</strong> • <strong>Poder ${stats.power.toLocaleString("pt-BR")}</strong> • <strong>OVR Fixo ${stats.ovr}</strong> • <strong>Química ${stats.chem}%</strong>
                 </div>
                 ${prep.eventsRemaining > 1 ? `
                   <div style="font-size:0.76rem; font-weight:800; color:#facc15; margin-top:6px;">
@@ -9963,6 +10299,9 @@
               ${focusStage.stageName}
             </div>
             ${t.prep ? `
+              <span class="prep-xp-pill" style="font-size:0.72rem; font-weight:900; background:rgba(21, 128, 61, 0.35); border:1px solid #4ade80; color:#86efac;">
+                📈 Seu Nível: Nv. ${ calcSquadStats().avgLevel || 1 }
+              </span>
               <span class="prep-xp-pill" style="font-size:0.72rem; font-weight:900; background:rgba(15, 34, 78, 0.9); border:1px solid #38bdf8; color:#7dd3fc;">
                 ✨ XP Acumulado: ${t.prepBonuses?.xp || 0}
               </span>
@@ -9980,7 +10319,7 @@
           <div class="current-stage-opp-box">
             ${focusStage.oppTeam?.emblem ? `<img src="${focusStage.oppTeam.emblem}" alt="" class="current-stage-opp-emblem" />` : ""}
             <span class="current-stage-opp-name">${focusStage.oppTeam?.name || "A Definir"}</span>
-            ${getStageOpponentBuff(focusStageIdx).pct > 0 ? `<span class="stage-opp-buff-badge" title="Reforço incremental da rodada: +${getStageOpponentBuff(focusStageIdx).pct}% de Força e OVR">⚡ +${getStageOpponentBuff(focusStageIdx).pct}%</span>` : ""}
+            <span class="stage-opp-buff-badge" title="Nível do time adversário nesta fase (OVR fixo ${focusStage.oppTeam?.baseOvr || 82})">⚡ Nv. ${getStageOpponentBuff(focusStageIdx).oppLevel} • Poder ${calcOpponentStats(focusStage.oppTeam, focusStageIdx).power.toLocaleString("pt-BR")}</span>
           </div>
           <span class="current-stage-status-pill">${statusTxt}</span>
         </div>
@@ -10238,8 +10577,8 @@
                 ${compHeaderLabel} • ${st.stageName}
               </span>
               <h3 style="font-size:0.96rem; color:#fff; display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
-                <span>Dream Team vs ${st.oppTeam.name}</span>
-                ${oppStats.buffPct > 0 ? `<span class="stage-opp-buff-badge">⚡ +${oppStats.buffPct}%</span>` : ""}
+                <span>Dream Team (Nv. ${stats.avgLevel || 1}) vs ${st.oppTeam.name}</span>
+                <span class="stage-opp-buff-badge">⚡ Nv. ${oppStats.oppLevel || 1}</span>
               </h3>
             </div>
           </div>
