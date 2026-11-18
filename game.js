@@ -9318,53 +9318,126 @@
   function getPrepBuffPill(ev) {
     if (!ev) return "";
     if (ev.shortDesc) return ev.shortDesc;
-    if (ev.kind === "PASSIVE_DOUBLE_EVENT") return `<span class="b-tech">+1 Ação por Rodada (Permanente)</span>`;
+    if (ev.kind === "PASSIVE_DOUBLE_EVENT") return `<span class="b-tech">4 Ações</span> • <span class="b-chem">-5% Custo</span>`;
     if (ev.kind === "PASSIVE_LATE_RESIST") return `<span class="b-chem">Fôlego Infinito (75'+)</span>`;
-    if (ev.kind === "STREET_5V5") return `<span class="b-lvl">+XP</span> • <span class="b-pwr">Recruta Craque</span>`;
-    if (ev.id === "elem_crest_boost") return `<span class="b-lvl">+1 Nv</span> • <span class="b-pwr">+28 Poder</span> no Elemento`;
-    if (ev.id === "elem_resonance_tome") return `<span class="b-pwr">Fortalece Links Elementais</span> • <span class="b-lvl">+1 Nv</span>`;
-    if (ev.id === "captain_armband") return `<span class="b-lvl">+2 Níveis</span> • <span class="b-pwr">+57 Poder</span> • <span class="b-chem">+8% Quím</span>`;
+    if (ev.kind === "STREET_5V5") return `<span class="b-lvl">+120–150 XP</span> • <span class="b-chem">+25% Energia</span>`;
+    if (ev.id === "elem_crest_boost") return `<span class="b-lvl">+1 Nv</span> • <span class="b-pwr">+16 Poder</span> (Elemento)`;
+    if (ev.id === "elem_resonance_tome") return `<span class="b-lvl">+1 Nv (Todos)</span> • <span class="b-chem">+6% Quím</span>`;
+    if (ev.id === "captain_armband") return `<span class="b-lvl">+2 Níveis</span> • <span class="b-chem">+8% Quím</span>`;
     if (ev.id === "secret_hissatsu_mastery") return `<span class="b-lvl">+2 Níveis</span> • <span class="b-tech">Técnica Suprema</span>`;
     if (ev.kind === "KESHIN_PICK") return `<span class="b-lvl">+2 Níveis</span> • <span class="b-tech">Desperta Keshin</span>`;
-    if (ev.kind === "EVO_PICK") return `<span class="b-lvl">+1 Nível</span> • <span class="b-tech">Evolui Técnica</span>`;
+    if (ev.kind === "EVO_PICK") return `<span class="b-lvl">+${ev.levelGain || 2} Níveis</span> • <span class="b-tech">Evolui Técnica</span>`;
     if (ev.id === "river_xp") return `<span class="b-lvl">+1 Nível (Todos)</span> • <span class="b-pwr">+25 Poder</span>`;
-    if (ev.id === "river_tactics") return `<span class="b-lvl">+1 Nv Meias</span> • <span class="b-chem">+8% Quím</span> • <span class="b-pwr">+30 Poder</span>`;
+    if (ev.id === "river_tactics") return `<span class="b-lvl">+1 Nv Meias</span> • <span class="b-chem">+8% Quím</span>`;
     if (ev.id === "river_shot") return `<span class="b-lvl">+1 Nv Atacantes</span> • <span class="b-pwr">+28 Poder</span>`;
-    if (ev.id === "tire_training") return `<span class="b-lvl">+1 Nv GOL/Zaga</span> • <span class="b-chem">-28% Energia</span>`;
     if (ev.kind === "SCALABLE_BUFF") {
       const curLvl = state.tournament?.prepBonuses?.[ev.buffKey] || 0;
       const nextLvl = Math.min(ev.maxLevel || 3, curLvl + 1);
-      if (ev.buffKey === "efficiencyLvl") return `<span class="b-tech">Nv. ${nextLvl}/${ev.maxLevel || 3}</span> • <span class="b-chem">-${nextLvl * 3}% Custo</span>`;
-      if (ev.buffKey === "restLvl") return `<span class="b-tech">Nv. ${nextLvl}/${ev.maxLevel || 3}</span> • <span class="b-chem">Descanso +${60 + nextLvl * 10}%</span>`;
+      if (ev.buffKey === "efficiencyLvl") return `<span class="b-chem">-${nextLvl * 3}% Custo na Cidade</span>`;
+      if (ev.buffKey === "restLvl") return `<span class="b-chem">Descanso +${60 + nextLvl * 10}%</span>`;
       if (ev.buffKey === "enduranceLvl") {
         const pct = [0, 12, 22, 32][nextLvl] || 32;
-        return `<span class="b-tech">Nv. ${nextLvl}/${ev.maxLevel || 3}</span> • <span class="b-chem">-${pct}% Gasto em Campo</span>`;
+        return `<span class="b-chem">-${pct}% Gasto em Campo</span>`;
       }
-      if (ev.buffKey === "wingExplosionLvl") return `<span class="b-tech">Nv. ${nextLvl}/${ev.maxLevel || 3}</span> • <span class="b-pwr">+${nextLvl * 3} VEL/FOR</span>`;
-      if (ev.buffKey === "midSynergyLvl") return `<span class="b-tech">Nv. ${nextLvl}/${ev.maxLevel || 3}</span> • <span class="b-chem">+${nextLvl * 3} TEC · +${nextLvl * 4}% Quím</span>`;
-      if (ev.buffKey === "defBlockLvl") return `<span class="b-tech">Nv. ${nextLvl}/${ev.maxLevel || 3}</span> • <span class="b-pwr">+${nextLvl * 3} DEF/FIS</span>`;
+      if (ev.buffKey === "wingExplosionLvl") return `<span class="b-pwr">+${nextLvl * 3} VEL/FOR</span>`;
+      if (ev.buffKey === "midSynergyLvl") return `<span class="b-chem">+${nextLvl * 3} TEC · +4% Quím</span>`;
+      if (ev.buffKey === "defBlockLvl") return `<span class="b-pwr">+${nextLvl * 3} DEF/FIS</span>`;
       if (ev.buffKey === "hissatsuMasteryLvl") {
         const val = [0, 0.8, 1.6, 2.5][nextLvl] || 2.5;
-        return `<span class="b-tech">Nv. ${nextLvl}/${ev.maxLevel || 3}</span> • <span class="b-pwr">+${val} Duelo Técnica</span>`;
+        return `<span class="b-pwr">+${val} Duelo Técnica</span>`;
       }
-      if (ev.buffKey === "xpSpiritLvl") return `<span class="b-tech">Nv. ${nextLvl}/${ev.maxLevel || 3}</span> • <span class="b-lvl">+${nextLvl * 15}% XP Pós-Jogo</span>`;
+      if (ev.buffKey === "xpSpiritLvl") return `<span class="b-lvl">+${nextLvl * 15}% XP Pós-Jogo</span>`;
       if (ev.buffKey === "passBypassLvl") {
         const pct = [0, 15, 28, 40][nextLvl] || 40;
-        return `<span class="b-tech">Nv. ${nextLvl}/${ev.maxLevel || 3}</span> • <span class="b-chem">-${pct}% Interceptação</span>`;
+        return `<span class="b-chem">-${pct}% Interceptação</span>`;
       }
       if (ev.buffKey === "counterShotLvl") {
         const pct = [0, 12, 24, 35][nextLvl] || 35;
-        return `<span class="b-tech">Nv. ${nextLvl}/${ev.maxLevel || 3}</span> • <span class="b-pwr">+${pct}% Contra-Chute</span>`;
+        return `<span class="b-pwr">+${pct}% Contra-Chute</span>`;
       }
       if (ev.buffKey === "dribbleEdgeLvl") {
         const val = [0, 1.2, 2.4, 3.6][nextLvl] || 3.6;
-        return `<span class="b-tech">Nv. ${nextLvl}/${ev.maxLevel || 3}</span> • <span class="b-pwr">+${val} Drible</span>`;
+        return `<span class="b-pwr">+${val} Força Drible</span>`;
       }
     }
     if (ev.kind === "ENERGY_DRINK") return `<span class="b-chem">+${ev.energyGain || 35}% Energia</span> • <span class="b-pwr">+${ev.teamPower || 12} Poder</span>`;
     if (ev.levelGain && ev.indivPower) return `<span class="b-lvl">+${ev.levelGain} Nv</span> • <span class="b-pwr">+${ev.indivPower} Poder</span>`;
     if (ev.levelGain) return `<span class="b-lvl">+${ev.levelGain} Nível(is)</span>`;
     if (ev.teamPower) return `<span class="b-pwr">+${ev.teamPower} Poder</span>`;
+    return ev.summary || "";
+  }
+
+  function getPrepChoiceSummary(ev) {
+    if (!ev) return "";
+    if (ev.kind === "SCALABLE_BUFF") {
+      const curLvl = state.tournament?.prepBonuses?.[ev.buffKey] || 0;
+      const nextLvl = Math.min(ev.maxLevel || 3, curLvl + 1);
+      if (ev.buffKey === "efficiencyLvl") {
+        return curLvl === 0
+          ? `Reduz em <span class="b-chem">3%</span> o custo de energia dos locais da cidade.`
+          : `Aumenta o desconto nos locais de <span class="b-chem">-${curLvl * 3}%</span> para <span class="b-chem">-${nextLvl * 3}%</span>.`;
+      }
+      if (ev.buffKey === "restLvl") {
+        return curLvl === 0
+          ? `Descansar na Sede passa a recuperar <span class="b-chem">+70%</span> de energia.`
+          : `Evolui o Descansar de <span class="b-chem">+${60 + curLvl * 10}%</span> para <span class="b-chem">+${60 + nextLvl * 10}%</span>.`;
+      }
+      if (ev.buffKey === "enduranceLvl") {
+        const prevP = [0, 12, 22, 32][curLvl] || 0;
+        const nextP = [0, 12, 22, 32][nextLvl] || 32;
+        return curLvl === 0
+          ? `Reduz em <span class="b-chem">12%</span> o gasto das técnicas e o desgaste em campo.`
+          : `Aumenta a economia em campo de <span class="b-chem">-${prevP}%</span> para <span class="b-chem">-${nextP}%</span>.`;
+      }
+      if (ev.buffKey === "wingExplosionLvl") {
+        return curLvl === 0
+          ? `Atacantes e Meias ganham <span class="b-chem">+3 VEL e +3 FOR</span>.`
+          : `Atacantes e Meias sobem de <span class="b-chem">+${curLvl * 3}</span> para <span class="b-chem">+${nextLvl * 3} VEL/FOR</span>.`;
+      }
+      if (ev.buffKey === "midSynergyLvl") {
+        return curLvl === 0
+          ? `Meias ganham <span class="b-tech">+3 TEC</span> e o time ganha <span class="b-chem">+4% Química</span>.`
+          : `Meias sobem de <span class="b-tech">+${curLvl * 3}</span> para <span class="b-tech">+${nextLvl * 3} TEC</span> (<span class="b-chem">+4% Quím</span>).`;
+      }
+      if (ev.buffKey === "defBlockLvl") {
+        return curLvl === 0
+          ? `Goleiro e Zaga ganham <span class="b-pwr">+3 DEF e +3 FIS</span>.`
+          : `Goleiro e Zaga sobem de <span class="b-pwr">+${curLvl * 3}</span> para <span class="b-pwr">+${nextLvl * 3} DEF/FIS</span>.`;
+      }
+      if (ev.buffKey === "hissatsuMasteryLvl") {
+        const prevV = [0, 0.8, 1.6, 2.5][curLvl] || 0;
+        const nextV = [0, 0.8, 1.6, 2.5][nextLvl] || 2.5;
+        return curLvl === 0
+          ? `Dá <span class="b-pwr">+0.8</span> de força extra nos duelos com técnica.`
+          : `Bônus em duelos de técnica sobe de <span class="b-pwr">+${prevV}</span> para <span class="b-pwr">+${nextV}</span>.`;
+      }
+      if (ev.buffKey === "xpSpiritLvl") {
+        return curLvl === 0
+          ? `Elenco ganha <span class="b-lvl">+15% XP</span> extra após cada partida.`
+          : `Bônus de XP pós-jogo sobe de <span class="b-lvl">+${curLvl * 15}%</span> para <span class="b-lvl">+${nextLvl * 15}%</span>.`;
+      }
+      if (ev.buffKey === "passBypassLvl") {
+        const prevP = [0, 15, 28, 40][curLvl] || 0;
+        const nextP = [0, 15, 28, 40][nextLvl] || 40;
+        return curLvl === 0
+          ? `Reduz em <span class="b-chem">15%</span> a chance do rival interceptar seus passes.`
+          : `Redução de interceptação sobe de <span class="b-chem">-${prevP}%</span> para <span class="b-chem">-${nextP}%</span>.`;
+      }
+      if (ev.buffKey === "counterShotLvl") {
+        const prevP = [0, 12, 24, 35][curLvl] || 0;
+        const nextP = [0, 12, 24, 35][nextLvl] || 35;
+        return curLvl === 0
+          ? `Aumenta em <span class="b-tech">+12%</span> a chance de Contra-Chute na defesa.`
+          : `Chance de Contra-Chute sobe de <span class="b-tech">+${prevP}%</span> para <span class="b-tech">+${nextP}%</span>.`;
+      }
+      if (ev.buffKey === "dribbleEdgeLvl") {
+        const prevV = [0, 1.2, 2.4, 3.6][curLvl] || 0;
+        const nextV = [0, 1.2, 2.4, 3.6][nextLvl] || 3.6;
+        return curLvl === 0
+          ? `Dá <span class="b-pwr">+1.2</span> nos dribles (bônus extra no corredor tático).`
+          : `Força nos dribles sobe de <span class="b-pwr">+${prevV}</span> para <span class="b-pwr">+${nextV}</span>.`;
+      }
+    }
     return ev.summary || "";
   }
 
@@ -11074,10 +11147,10 @@
           const curL = t.prepBonuses?.[chosenWinner.buffKey] || 0;
           const nextL = Math.min(chosenWinner.maxLevel || 3, curL + 1);
           rarityCls = nextL >= 3 ? "rarity-nv3" : nextL === 2 ? "rarity-nv2" : "rarity-nv1";
-          badgeTxt = nextL >= 3 ? "MÁXIMO NV. 3 ★" : nextL === 2 ? "EVOLUÇÃO NV. 2" : "EVOLUÇÃO NV. 1";
+          badgeTxt = nextL >= 3 ? "NV. 3 ★" : nextL === 2 ? "NV. 2" : "NV. 1";
         } else if (chosenWinner.kind === "PASSIVE_DOUBLE_EVENT" || chosenWinner.kind === "PASSIVE_LATE_RESIST") {
           rarityCls = "rarity-unique";
-          badgeTxt = "PASSIVA ÚNICA";
+          badgeTxt = "PASSIVA";
         }
         return `
           <div class="prep-slot-col is-clickable-choice ${rarityCls}" data-prep-choice-idx="${sIdx}">
@@ -11090,7 +11163,7 @@
               <div class="prep-choice-icon-wrap">
                 ${chosenWinner.icon ? `<img src="${chosenWinner.icon}" alt="" />` : ""}
               </div>
-              <div class="prep-choice-summary">${chosenWinner.summary || ""}</div>
+              <div class="prep-choice-summary">${getPrepChoiceSummary(chosenWinner)}</div>
               <button class="ie-cmd-btn ie-cmd-gold prep-btn-pick" data-prep-choice-idx="${sIdx}">
                 <span>ESCOLHER</span>
               </button>
