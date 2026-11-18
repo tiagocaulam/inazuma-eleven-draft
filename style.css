@@ -1060,7 +1060,7 @@ body {
   position: relative;
   width: 100%;
   max-width: 600px;
-  height: 545px;
+  height: 575px;
   margin: 0 auto;
   background: repeating-linear-gradient(
     180deg,
@@ -1076,36 +1076,29 @@ body {
 }
 
 .pitch-swap-instruction-pill {
-  position: absolute;
-  top: 8px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 12;
-  display: flex;
+  align-self: center;
+  display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
-  padding: 4px 12px;
-  max-width: 90%;
+  padding: 5px 14px;
+  max-width: 100%;
   border-radius: 999px;
   background: rgba(15, 23, 42, 0.92);
   border: 1.5px solid rgba(250, 204, 21, 0.75);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.6), 0 0 12px rgba(250, 204, 21, 0.25);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45), 0 0 12px rgba(250, 204, 21, 0.2);
   color: #f8fafc;
   font-size: 0.72rem;
   font-weight: 800;
   letter-spacing: 0.2px;
-  pointer-events: none;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  overflow: hidden;
+  text-align: center;
 }
 
 @media (max-width: 480px) {
   .pitch-swap-instruction-pill {
     font-size: 0.64rem;
-    padding: 3px 9px;
+    padding: 4px 10px;
     gap: 4px;
-    top: 6px;
   }
 }
 
@@ -1219,6 +1212,14 @@ body {
   box-shadow: 0 6px 14px rgba(0, 0, 0, 0.6);
 }
 
+.node-avatar-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 3px;
+}
+
 .node-avatar {
   width: 44px;
   height: 44px;
@@ -1226,45 +1227,51 @@ body {
   object-fit: contain;
   background: radial-gradient(circle, rgba(56, 189, 248, 0.35), rgba(9, 22, 50, 0.95));
   border: 1.5px solid #93c5fd;
+  display: block;
+}
+
+.node-elem-mini {
+  position: absolute;
+  bottom: -2px;
+  right: -4px;
+  width: 15px;
+  height: 15px;
+  object-fit: contain;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.85));
 }
 
 .node-ovr {
   position: absolute;
   top: -7px;
   right: -7px;
-  width: 25px;
-  height: 25px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
   background: linear-gradient(180deg, #fef08a 0%, #facc15 50%, #ea580c 100%);
   color: #090d16;
   font-weight: 900;
-  font-size: 0.72rem;
+  font-size: 0.7rem;
   display: flex;
   align-items: center;
   justify-content: center;
   border: 1.5px solid #fff;
+  z-index: 2;
 }
 
-.node-team-emblem {
+.node-lvl-chip {
   position: absolute;
   top: -6px;
   left: -6px;
-  width: 21px;
-  height: 21px;
-  border-radius: 50%;
-  background: #0a1836;
-  padding: 2px;
-  border: 1px solid #93c5fd;
-  object-fit: contain;
-}
-
-.node-elem-mini {
-  position: absolute;
-  bottom: 20px;
-  right: 3px;
-  width: 15px;
-  height: 15px;
-  object-fit: contain;
+  font-size: 0.56rem;
+  font-weight: 900;
+  color: #86efac;
+  background: rgba(5, 46, 22, 0.95);
+  border: 1px solid #4ade80;
+  border-radius: 6px;
+  padding: 1px 4px;
+  line-height: 1.15;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.65);
+  z-index: 2;
 }
 
 .node-name {
@@ -1272,56 +1279,27 @@ body {
   font-weight: 800;
   color: #fff;
   text-align: center;
-  max-width: 82px;
+  max-width: 84px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  margin-top: 2px;
+  margin-top: 3px;
+  line-height: 1.15;
+}
+
+.node-pos-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  margin-top: 1px;
 }
 
 .node-slot-label {
   font-size: 0.56rem;
   font-weight: 900;
   color: #fde047;
-  margin-top: 1px;
-}
-
-.node-spd-chip {
-  font-size: 0.58rem;
-  font-weight: 900;
-  color: #38bdf8;
-  background: rgba(14, 165, 233, 0.22);
-  border: 1px solid rgba(56, 189, 248, 0.65);
-  border-radius: 3px;
-  padding: 0 3px;
-  line-height: 1.2;
-  letter-spacing: -0.2px;
-}
-
-.node-lvl-chip {
-  position: absolute;
-  bottom: 20px;
-  left: 3px;
-  font-size: 0.54rem;
-  font-weight: 900;
-  color: #86efac;
-  background: rgba(5, 46, 22, 0.92);
-  border: 1px solid #4ade80;
-  border-radius: 4px;
-  padding: 0 3px;
-  line-height: 1.2;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
-}
-
-.node-pwr-chip {
-  font-size: 0.56rem;
-  font-weight: 900;
-  color: #fde047;
-  background: rgba(113, 63, 18, 0.65);
-  border: 1px solid rgba(250, 204, 21, 0.65);
-  border-radius: 3px;
-  padding: 0 3px;
-  line-height: 1.2;
+  line-height: 1;
 }
 
 /* Go Ready Banner */
@@ -3561,57 +3539,82 @@ body {
   }
 
   .soccer-pitch {
-    height: 445px;
+    height: 485px;
     border-width: 2px;
   }
 
   .field-node {
     width: 60px;
-    min-height: 62px;
-    padding: 2px;
+    min-height: 60px;
+    padding: 3px 2px 2px;
     border-radius: 8px;
   }
 
+  .node-avatar-wrap {
+    margin-top: 2px;
+  }
+
   .node-avatar {
-    width: 30px;
-    height: 30px;
-  }
-
-  .node-ovr {
-    width: 19px;
-    height: 19px;
-    font-size: 0.6rem;
-    top: -5px;
-    right: -5px;
-  }
-
-  .node-team-emblem {
-    width: 16px;
-    height: 16px;
-    top: -5px;
-    left: -5px;
+    width: 28px;
+    height: 28px;
   }
 
   .node-elem-mini {
     width: 12px;
     height: 12px;
-    bottom: 16px;
-    right: 2px;
+    bottom: -2px;
+    right: -3px;
+  }
+
+  .node-ovr {
+    width: 18px;
+    height: 18px;
+    font-size: 0.56rem;
+    top: -5px;
+    right: -4px;
+  }
+
+  .node-lvl-chip {
+    top: -5px;
+    left: -4px;
+    bottom: auto;
+    font-size: 0.48rem;
+    padding: 1px 3px;
+    border-radius: 4px;
   }
 
   .node-name {
-    font-size: 0.56rem;
-    max-width: 55px;
+    font-size: 0.54rem;
+    max-width: 56px;
+    margin-top: 2px;
+    line-height: 1.1;
+  }
+
+  .node-pos-row {
+    gap: 2px;
     margin-top: 1px;
   }
 
-  .pos-icon-img {
-    height: 13px;
+  .node-slot-label {
+    font-size: 0.48rem;
   }
 
-  .node-spd-chip {
-    font-size: 0.5rem;
-    padding: 0 2px;
+  .pos-icon-img {
+    height: 11px;
+  }
+
+  .prep-inazuma-map-stage {
+    height: 162px;
+  }
+
+  .prep-map-pin-orb {
+    width: 42px;
+    height: 36px;
+  }
+
+  .prep-map-pin-label {
+    font-size: 0.56rem;
+    padding: 1px 6px;
   }
 
   .broadcast-card {

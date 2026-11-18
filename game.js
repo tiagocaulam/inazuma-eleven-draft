@@ -1013,6 +1013,7 @@
 
     const teamsCount = {};
     const teamNames = {};
+    const teamEmblems = {};
     const fullNamesInSquad = new Set();
     const elemCountsByLink = {};
     const elemTotalsInSquad = {};
@@ -1051,6 +1052,7 @@
       const tId = p.teamId || clubIdHint || "club";
       teamsCount[tId] = (teamsCount[tId] || 0) + 1;
       teamNames[tId] = p.teamName || clubIdHint || "Clube";
+      if (p.teamEmblem) teamEmblems[tId] = p.teamEmblem;
       if (p.fullName) fullNamesInSquad.add(p.fullName);
 
       if (s.role === "FW") { atkSum += eff; atkCnt++; }
@@ -1206,9 +1208,12 @@
         const pwrBonus = Math.round(rawPwr * tierScale);
         chem += chemBonus;
         bondsPower += pwrBonus;
+        const emblemTag = teamEmblems[tId]
+          ? `<img class="inline-ui-icon" src="${teamEmblems[tId]}" alt="" />`
+          : ffLogoIconHTML("inline-ui-icon");
         activeBonds.push({
           type: "team",
-          label: `${ffLogoIconHTML("inline-ui-icon")} ${c}x ${teamNames[tId]} (+${chemBonus}% • +${pwrBonus} Poder)`
+          label: `${emblemTag} ${c}x ${teamNames[tId]} (+${chemBonus}% • +${pwrBonus} Poder)`
         });
       }
     });
@@ -1739,6 +1744,8 @@
         const p = state.squad[slot.id];
         const isSwap = state.swapSlotId === slot.id;
 
+        const renderY = slot.role === "GK" ? 91.5 : slot.role === "DF" && slot.y >= 73 ? 72 : slot.y;
+
         if (!p) {
           let targetClass = "";
           let hintText = "Vazio";
@@ -1754,7 +1761,7 @@
 
           return `
             <div class="field-node ${targetClass}"
-                 style="left:${slot.x}%; top:${slot.y}%;"
+                 style="left:${slot.x}%; top:${renderY}%;"
                  data-slot="${slot.id}">
               ${posIconHTML(slot.role, true)}
               <span style="font-size:1.15rem; color:rgba(255,255,255,0.65); margin:1px 0;">＋</span>
@@ -1773,19 +1780,19 @@
 
         return `
           <div class="field-node occupied ${isSwap ? "swap-active" : ""}"
-               style="left:${slot.x}%; top:${slot.y}%;"
+               style="left:${slot.x}%; top:${renderY}%;"
                data-slot="${slot.id}"
                title="${nodeTooltip}">
-            ${p.teamEmblem ? `<img class="node-team-emblem" src="${p.teamEmblem}" alt="" />` : ""}
-            <div class="node-ovr" title="${nodeTooltip}">${effOvr}</div>
             <span class="node-lvl-chip" title="${nodeTooltip}">Nv.${pLvl}</span>
-            ${elemIconHTML(p.element, "node-elem-mini")}
-            <img class="node-avatar" src="${nodeSprite}" alt="${p.name}" />
+            <div class="node-ovr" title="${nodeTooltip}">${effOvr}</div>
+            <div class="node-avatar-wrap">
+              <img class="node-avatar" src="${nodeSprite}" alt="${p.name}" />
+              ${elemIconHTML(p.element, "node-elem-mini")}
+            </div>
             <div class="node-name">${p.name}</div>
-            <div style="display:flex; align-items:center; gap:3px; margin-top:1px;">
+            <div class="node-pos-row">
               ${posIconHTML(slot.role, true)}
               <span class="node-slot-label">${slot.label}${isImprovised ? " *" : ""}</span>
-              <span class="node-pwr-chip" title="${nodeTooltip}">⚔️${pPwr}</span>
             </div>
           </div>
         `;
@@ -1803,15 +1810,15 @@
             ${synergiesChips}
           </div>
         </div>
+        ${
+          isComplete
+            ? `<div class="pitch-swap-instruction-pill">
+                <span style="color:#facc15;">⇄</span>
+                <span>Toque em um jogador para trocar de lugar com outro</span>
+              </div>`
+            : ""
+        }
         <div class="soccer-pitch">
-          ${
-            isComplete
-              ? `<div class="pitch-swap-instruction-pill">
-                  <span style="color:#facc15;">⇄</span>
-                  <span>Toque em um jogador para trocar de lugar com outro</span>
-                </div>`
-              : ""
-          }
           <div class="pitch-penalty-top"></div>
           <div class="pitch-half-line"></div>
           <div class="pitch-center-circle">
@@ -7881,8 +7888,8 @@
                     <div style="font-size:0.7rem; font-weight:900; color:#4ade80; text-transform:uppercase;">
                       POSICIONANDO NO CAMPO (${pickedCount + 1} DE 11)
                     </div>
-                    <div style="font-size:1.05rem; font-weight:900; color:#fff; display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
-                      <span>#${sel.number} ${sel.name}</span> ${posIconHTML(sel.pos, true)} ${elemIconHTML(sel.element)} <span class="ovr-tag">OVR ${sel.ovr}</span> <span class="pwr-base-tag">⚔️ Poder ${calcIndividualPlayerPower(sel, sel.pos, 1)}</span>
+                    <div style="font-size:1.02rem; font-weight:900; color:#fff; display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                      <span>${sel.name}</span> ${posIconHTML(sel.pos, true)} ${elemIconHTML(sel.element)} <span class="ovr-tag">Nv. ${getPlayerLevel(sel)}</span> <span class="ovr-tag">OVR ${sel.ovr}</span>
                     </div>
                     <div style="font-size:0.74rem; color:#dbeafe; margin-top:2px;">
                       ${
