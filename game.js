@@ -3483,9 +3483,9 @@
       }
       awardPostMatchExperience(st);
 
-      showRefereeWhistleModal(st, "FULLTIME", () => {
-        renderTournamentScreen();
-      });
+      clearTournamentTimers(false);
+      st.running = false;
+      renderTournamentScreen();
       return true;
     }
     return false;
