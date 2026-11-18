@@ -1056,6 +1056,53 @@ body {
   font-weight: 600;
 }
 
+.pitch-synergy-chip.is-clickable,
+.bond-tag.is-clickable {
+  cursor: pointer;
+  transition: transform 0.12s ease, filter 0.12s ease, box-shadow 0.12s ease;
+}
+
+.pitch-synergy-chip.is-clickable:hover,
+.bond-tag.is-clickable:hover {
+  filter: brightness(1.16);
+  transform: translateY(-1px);
+}
+
+.bond-players-tooltip {
+  position: fixed;
+  z-index: 9999;
+  max-width: min(300px, calc(100vw - 24px));
+  background: rgba(9, 17, 38, 0.97);
+  border: 1px solid rgba(250, 204, 21, 0.72);
+  border-radius: 9px;
+  padding: 7px 11px;
+  color: #f8fafc;
+  font-size: 0.76rem;
+  font-weight: 800;
+  line-height: 1.4;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.68), 0 0 12px rgba(250, 204, 21, 0.2);
+  pointer-events: auto;
+  display: none;
+}
+
+.bond-players-tooltip.is-open {
+  display: block;
+}
+
+.bond-players-tooltip-names {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  color: #fef08a;
+}
+
+.bond-players-tooltip-name {
+  background: rgba(250, 204, 21, 0.14);
+  border: 1px solid rgba(250, 204, 21, 0.35);
+  border-radius: 5px;
+  padding: 1px 6px;
+}
+
 .soccer-pitch {
   position: relative;
   width: 100%;

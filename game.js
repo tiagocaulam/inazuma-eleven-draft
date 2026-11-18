@@ -205,49 +205,49 @@
   const FRIENDSHIP_BONDS = [
     {
       id: "trio_raimon",
-      name: "Trio Lendário (Endo, Goenji, Kido)",
+      name: "Trio Lendário",
       members: ["Endou Mamoru", "Gouenji Shuuya", "Kidou Yuuto"],
       minCount: 2,
       chemPerMatch: 14
     },
     {
       id: "fogo_gelo",
-      name: "Fogo Cruzado (Goenji & Fubuki)",
+      name: "Fogo Cruzado",
       members: ["Gouenji Shuuya", "Fubuki Shirou"],
       minCount: 2,
       chemPerMatch: 16
     },
     {
       id: "laco_imperial",
-      name: "Irmandade Imperial (Kido, Sakuma, Genda, Fudou)",
+      name: "Irmandade Imperial",
       members: ["Kidou Yuuto", "Sakuma Jirou", "Genda Koujirou", "Fudou Akio"],
       minCount: 2,
       chemPerMatch: 12
     },
     {
       id: "trio_caos",
-      name: "Trio Caos / Dragão de Fogo (Aphrodi, Burn, Gazel, Choi)",
+      name: "Trio Caos / Dragão",
       members: ["Afuro Terumi", "Nagumo Haruya", "Suzuno Fuusuke", "Choi Chang-Soo"],
       minCount: 2,
       chemPerMatch: 13
     },
     {
       id: "laco_aliea",
-      name: "Estrelas do Instituto Alien (Hiroto, Reize, Desarm, Ulvida, Nero)",
+      name: "Instituto Alien",
       members: ["Kiyama Hiroto", "Midorikawa Ryuuji", "Saginuma Osamu", "Yagami Reina", "Nemuro Keita"],
       minCount: 2,
       chemPerMatch: 12
     },
     {
       id: "laco_fenix_usa",
-      name: "Laço Fênix & Unicórnio (Ichinose, Domon, Kruger, Dylan, Endo)",
+      name: "Fênix & Unicórnio",
       members: ["Ichinose Kazuya", "Domon Asuka", "Mark Krueger", "Dylan Keith", "Endou Mamoru"],
       minCount: 2,
       chemPerMatch: 11
     },
     {
       id: "caravana_inazuma",
-      name: "Caravana Inazuma (Kazemaru, Kabeyama, Someoka, Tsunami, Tachimukai, Kogure, Touko)",
+      name: "Caravana Inazuma",
       members: [
         "Kazemaru Ichirouta",
         "Kabeyama Heigorou",
@@ -262,7 +262,7 @@
     },
     {
       id: "inazuma_japan_ffi",
-      name: "Companheiros de Seleção (Toramaru, Tobitaka, Hijikata, Hiroto, Fubuki, Goenji, Endo)",
+      name: "Seleção Inazuma Japan",
       members: [
         "Utsunomiya Toramaru",
         "Tobitaka Seiya",
@@ -277,21 +277,21 @@
     },
     {
       id: "laco_orfeu",
-      name: "Mestres da Orfeu (Fidio, Nakata, Blasi)",
+      name: "Mestres da Orfeu",
       members: ["Fideo Ardena", "Nakata Hidetoshi", "Gigi Blasi"],
       minCount: 2,
       chemPerMatch: 14
     },
     {
       id: "legado_daisuke",
-      name: "Legado de Daisuke (Endo & Rococo)",
+      name: "Legado de Daisuke",
       members: ["Endou Mamoru", "Rococo Urupa"],
       minCount: 2,
       chemPerMatch: 16
     },
     {
       id: "geracao_go",
-      name: "Revolução GO & Chrono Storm (Tenma, Tsurugi, Shindou, Kirino, Shinsuke, Fei, Kinako, Zanark)",
+      name: "Chrono Storm / GO",
       members: [
         "Matsukaze Tenma",
         "Tsurugi Kyousuke",
@@ -307,35 +307,35 @@
     },
     {
       id: "dupla_zero",
-      name: "Luz & Escuridão (Hakuryuu & Shuu)",
+      name: "Luz & Escuridão",
       members: ["Hakuryuu", "Shuu"],
       minCount: 2,
       chemPerMatch: 18
     },
     {
       id: "trio_ares_orion",
-      name: "Trindade Ares/Orion (Asuto, Haizaki, Nosaka)",
+      name: "Trindade Ares/Orion",
       members: ["Inamori Asuto", "Haizaki Ryouhei", "Nosaka Yuuma"],
       minCount: 2,
       chemPerMatch: 15
     },
     {
       id: "laco_outei_seishou",
-      name: "Rivais & Parceiros (Nosaka, Nishikage, Haizaki, Mizukamiya, Kira Hiroto)",
+      name: "Rivais Ares/Orion",
       members: ["Nosaka Yuuma", "Nishikage Seiya", "Haizaki Ryouhei", "Mizukamiya Seiryuu", "Kira Hiroto"],
       minCount: 2,
       chemPerMatch: 12
     },
     {
       id: "laco_orion_amigos",
-      name: "Estrelas de Orion (Ichihoshi, Froy, Malik, Asuto, Yurika)",
+      name: "Estrelas de Orion",
       members: ["Ichihoshi Mitsuru", "Ichihoshi Hikaru", "Froy Girikanan", "Malik Kuabel", "Inamori Asuto", "Yurika Beor"],
       minCount: 2,
       chemPerMatch: 13
     },
     {
       id: "earth_eleven_galaxy",
-      name: "Earth Eleven (Ibuki, Matatagi, Konoha, Minaho, Manabe, Tenma, Tsurugi, Shindou)",
+      name: "Earth Eleven",
       members: [
         "Ibuki Munemasa",
         "Matatagi Hayato",
@@ -1226,12 +1226,19 @@
     const teamsCount = {};
     const teamNames = {};
     const teamEmblems = {};
+    const clubPlayersMap = {};
     const fullNamesInSquad = new Set();
+    const fullToShortName = {};
     const elemCountsByLink = {};
     const elemTotalsInSquad = {};
+    const elemPlayersMap = {};
     const activeElemPairs = [];
     const slotPlayerMap = {};
     const equippedItemIds = new Set();
+    const itemHoldersMap = {};
+    const equippedPlayersList = [];
+    const trainedPlayersList = [];
+    const improvisedPlayers = [];
     let totalEquippedItemsCount = 0;
     let correctPosCount = 0;
 
@@ -1240,7 +1247,12 @@
       if (!p) return;
       count++;
       slotPlayerMap[s.id] = p;
-      if (playerMatchesRole(p, s.role)) correctPosCount++;
+      const dispName = p.name || p.fullName || "";
+      if (playerMatchesRole(p, s.role)) {
+        correctPosCount++;
+      } else if (dispName) {
+        improvisedPlayers.push(dispName);
+      }
       const eff = getEffectiveOvr(p, s.role);
       const pLvl = isOpponent ? Math.max(1, oppLevel) : getPlayerLevel(p);
       const pPwr = isOpponent
@@ -1253,19 +1265,34 @@
 
       if (p.element) {
         elemTotalsInSquad[p.element] = (elemTotalsInSquad[p.element] || 0) + 1;
+        if (!elemPlayersMap[p.element]) elemPlayersMap[p.element] = [];
+        if (dispName) elemPlayersMap[p.element].push(dispName);
       }
-      if (!isOpponent && Array.isArray(p.equippedItems)) {
+      if (!isOpponent && Array.isArray(p.equippedItems) && p.equippedItems.length > 0) {
+        if (dispName) equippedPlayersList.push(dispName);
         p.equippedItems.forEach((it) => {
           totalEquippedItemsCount++;
-          if (it.id) equippedItemIds.add(it.id);
+          if (it.id) {
+            equippedItemIds.add(it.id);
+            if (!itemHoldersMap[it.id]) itemHoldersMap[it.id] = [];
+            if (dispName && !itemHoldersMap[it.id].includes(dispName)) itemHoldersMap[it.id].push(dispName);
+          }
         });
+      }
+      if (!isOpponent && (pLvl > 1 || (p.bonusPower || 0) > 0 || p.keshin || (p.moveEvoCount || 0) > 0 || p.learnedSecretManual)) {
+        if (dispName) trainedPlayersList.push(dispName);
       }
 
       const tId = p.teamId || clubIdHint || "club";
       teamsCount[tId] = (teamsCount[tId] || 0) + 1;
       teamNames[tId] = p.teamName || clubIdHint || "Clube";
+      if (!clubPlayersMap[tId]) clubPlayersMap[tId] = [];
+      if (dispName) clubPlayersMap[tId].push(dispName);
       if (p.teamEmblem) teamEmblems[tId] = p.teamEmblem;
-      if (p.fullName) fullNamesInSquad.add(p.fullName);
+      if (p.fullName) {
+        fullNamesInSquad.add(p.fullName);
+        fullToShortName[p.fullName] = dispName || p.fullName;
+      }
 
       if (s.role === "FW") { atkSum += eff; atkCnt++; }
       else if (s.role === "MF") { midSum += eff; midCnt++; }
@@ -1368,7 +1395,8 @@
       const improvised = count - correctPosCount;
       activeBonds.push({
         type: "warn-pos",
-        label: `${formationIconHTML("inline-ui-icon")} ${improvised} fora de posição (-OVR no atleta)`
+        label: `${formationIconHTML("inline-ui-icon")} ${improvised} fora de pos. (-OVR)`,
+        players: improvisedPlayers
       });
     }
 
@@ -1386,12 +1414,20 @@
       const linkPwr = Math.min(Math.round(maxCap * tierScale), Math.round(rawLinkPwr * tierScale));
       chem += linkChem;
       bondsPower += linkPwr;
+      const elemLinkPlayers = [];
+      activeElemPairs.forEach(({ a, b }) => {
+        const nA = slotPlayerMap[a.id]?.name;
+        const nB = slotPlayerMap[b.id]?.name;
+        if (nA && !elemLinkPlayers.includes(nA)) elemLinkPlayers.push(nA);
+        if (nB && !elemLinkPlayers.includes(nB)) elemLinkPlayers.push(nB);
+      });
       const summaryParts = Object.keys(elemCountsByLink)
         .map((el) => `${elemIconHTML(el, "inline-elem-icon")}×${elemCountsByLink[el]}`)
         .join(" ");
       activeBonds.push({
         type: "element",
-        label: `${activeElemPairs.length}x Links Elementais (${summaryParts}) (+${linkChem}% • +${linkPwr} Poder${elemResonanceActive ? " · Ressonância!" : ""})`
+        label: `${activeElemPairs.length}x Links (${summaryParts}) (+${linkChem}% • +${linkPwr}${elemResonanceActive ? " · Ressonância" : ""})`,
+        players: elemLinkPlayers
       });
     }
 
@@ -1409,7 +1445,8 @@
           : ffLogoIconHTML("inline-ui-icon");
         activeBonds.push({
           type: "team",
-          label: `${emblemTag} ${c}x ${teamNames[tId]} (+${chemBonus}% • +${pwrBonus} Poder)`
+          label: `${emblemTag} ${c}x ${teamNames[tId]} (+${chemBonus}% • +${pwrBonus})`,
+          players: clubPlayersMap[tId] || []
         });
       }
     });
@@ -1421,6 +1458,8 @@
       if (matched.length >= bond.minCount) {
         matchedBonds.push({
           bond,
+          matchedCount: matched.length,
+          matchedPlayers: matched.map((m) => fullToShortName[m] || m),
           extraCount: matched.length - 1,
           rawChem: (matched.length - 1) * bond.chemPerMatch,
           rawPwr: (matched.length - 1) * 44
@@ -1448,39 +1487,53 @@
       if (pwrBonus > 0 || idx < 3) {
         activeBonds.push({
           type: "friendship",
-          label: `${entry.bond.name} (+${chemBonus}% • +${pwrBonus} Poder)`
+          label: `${entry.matchedCount}x ${entry.bond.name} (+${chemBonus}% • +${pwrBonus})`,
+          players: entry.matchedPlayers
         });
       }
     });
 
     // 4. COMBOS DE ITENS & SINERGIAS DE TREINO (Novos Combos!)
     const activeCombos = [];
+    const mergeUnique = (...lists) => [...new Set(lists.flat().filter(Boolean))];
     // Combo 1: Conjunto Lendário da Raimon (Luvas Lendárias + Chuteiras Lendárias)
     if (equippedItemIds.has("glove_legend") && equippedItemIds.has("shoes_legend")) {
       const cPwr = 65;
       chem += 8;
       bondsPower += cPwr;
-      activeCombos.push(`🔥 Combo Lendário (Luvas + Chuteiras: +${cPwr} Poder • +8% Quím)`);
+      activeCombos.push({
+        label: `🔥 Combo Lendário (+${cPwr} • +8%)`,
+        players: mergeUnique(itemHoldersMap["glove_legend"], itemHoldersMap["shoes_legend"])
+      });
     }
     // Combo 2: Muralha Impenetrável (Luvas Lendárias + Travas de Bloqueio)
     if (equippedItemIds.has("glove_legend") && equippedItemIds.has("spike_block")) {
       const cPwr = 55;
       chem += 6;
       bondsPower += cPwr;
-      activeCombos.push(`🛡️ Combo Muralha Impenetrável (Luvas + Travas: +${cPwr} Poder • +6% Quím)`);
+      activeCombos.push({
+        label: `🛡️ Muralha Impenetrável (+${cPwr} • +6%)`,
+        players: mergeUnique(itemHoldersMap["glove_legend"], itemHoldersMap["spike_block"])
+      });
     }
     // Combo 3: Tempestade Relâmpago (Chuteiras do Trovão + Braçadeira do Capitão ou Amuleto Elemental)
     if (equippedItemIds.has("shoes_thunder") && (equippedItemIds.has("captain_armband") || equippedItemIds.has("elem_crest_boost"))) {
       const cPwr = 50;
       chem += 6;
       bondsPower += cPwr;
-      activeCombos.push(`⚡ Combo Tempestade Relâmpago (+${cPwr} Poder • +6% Quím)`);
+      activeCombos.push({
+        label: `⚡ Tempestade Relâmpago (+${cPwr} • +6%)`,
+        players: mergeUnique(itemHoldersMap["shoes_thunder"], itemHoldersMap["captain_armband"], itemHoldersMap["elem_crest_boost"])
+      });
     }
     // Combo 4: Esquadrão Equipado (3 ou mais jogadores equipados com itens)
     if (totalEquippedItemsCount >= 3) {
       const cPwr = totalEquippedItemsCount * 15;
       bondsPower += cPwr;
-      activeCombos.push(`🎒 Arsenal Completo (${totalEquippedItemsCount} itens: +${cPwr} Poder)`);
+      activeCombos.push({
+        label: `🎒 Arsenal (${totalEquippedItemsCount}x: +${cPwr})`,
+        players: mergeUnique(equippedPlayersList)
+      });
     }
     // Combo 5: Domínio Elemental (3+ titulares do mesmo elemento quando Amuleto Elemental foi ativado)
     if (prepB?.boostedElement) {
@@ -1489,14 +1542,18 @@
         const cPwr = elCnt * 18;
         chem += 6;
         bondsPower += cPwr;
-        activeCombos.push(`🌟 Domínio de ${prepB.boostedElement} (${elCnt}x atletas: +${cPwr} Poder • +6% Quím)`);
+        activeCombos.push({
+          label: `🌟 Domínio ${prepB.boostedElement} (${elCnt}x: +${cPwr} • +6%)`,
+          players: elemPlayersMap[prepB.boostedElement] || []
+        });
       }
     }
 
-    activeCombos.forEach((lbl) => {
+    activeCombos.forEach((cb) => {
       activeBonds.push({
         type: "friendship",
-        label: lbl
+        label: cb.label,
+        players: cb.players
       });
     });
 
@@ -1509,7 +1566,8 @@
         : "";
       activeBonds.push({
         type: "friendship",
-        label: `${prepIcon} Treinos &amp; Itens (${evtCnt}x) (+${prepB.chem || 0}% Quím • +${prepB.power || 0} Poder • Nv. Médio ${avgLevel})`
+        label: `${prepIcon} Treinos &amp; Itens (${evtCnt}x) (+${prepB.chem || 0}% • +${prepB.power || 0})`,
+        players: trainedPlayersList.length > 0 ? mergeUnique(trainedPlayersList) : ["Elenco completo"]
       });
     }
 
@@ -2071,8 +2129,10 @@
     // Barra de Vantagens e Porcentagens no Canto Superior da Escalação
     const synergiesChips = squadStats.activeBonds && squadStats.activeBonds.length > 0
       ? squadStats.activeBonds.map((b) => {
-          let icon = b.type === "perfect-formation" ? "🌱" : b.type === "friendship" ? "⭐" : b.type === "element" ? "⚡" : "🛡️";
-          return `<span class="pitch-synergy-chip chip-${b.type}">${b.label}</span>`;
+          const playersList = Array.isArray(b.players) && b.players.length > 0 ? b.players.join("||") : "";
+          const safeAttr = playersList ? ` data-bond-players="${playersList.replace(/"/g, "&quot;")}"` : "";
+          const clickCls = playersList ? " is-clickable" : "";
+          return `<span class="pitch-synergy-chip chip-${b.type}${clickCls}"${safeAttr}>${b.label}</span>`;
         }).join("")
       : `<span class="pitch-synergy-chip chip-empty">${formationIconHTML("inline-ui-icon")} Escale na posição certa (improvisar aplica -OVR) e conecte mesmo elemento colado!</span>`;
 
@@ -8533,10 +8593,13 @@
           bondsBar.innerHTML =
             `<strong style="color:#38bdf8; margin-right:4px; display:inline-flex; align-items:center; gap:4px;">${captainIconHTML("inline-ui-icon")} Laços:</strong>` +
             stats.activeBonds
-              .map(
-                (b) =>
-                  `<span class="bond-tag ${b.type === "friendship" ? "friendship" : b.type === "perfect-formation" ? "perfect-formation" : b.type === "warn-pos" ? "warn-pos" : ""}">${b.label}</span>`
-              )
+              .map((b) => {
+                const playersList = Array.isArray(b.players) && b.players.length > 0 ? b.players.join("||") : "";
+                const safeAttr = playersList ? ` data-bond-players="${playersList.replace(/"/g, "&quot;")}"` : "";
+                const clickCls = playersList ? " is-clickable" : "";
+                const typeCls = b.type === "friendship" ? "friendship" : b.type === "perfect-formation" ? "perfect-formation" : b.type === "warn-pos" ? "warn-pos" : "";
+                return `<span class="bond-tag ${typeCls}${clickCls}"${safeAttr}>${b.label}</span>`;
+              })
               .join("");
         }
       }
@@ -12802,7 +12865,51 @@
     }
   }
 
+  function hideBondPlayersTooltip() {
+    const tip = document.getElementById("bond-players-tooltip");
+    if (tip) {
+      tip.classList.remove("is-open");
+      tip._anchorEl = null;
+    }
+  }
+
+  function showBondPlayersTooltip(anchorEl, playersRaw) {
+    if (!anchorEl || !playersRaw) return;
+    let tip = document.getElementById("bond-players-tooltip");
+    if (!tip) {
+      tip = document.createElement("div");
+      tip.id = "bond-players-tooltip";
+      tip.className = "bond-players-tooltip";
+      document.body.appendChild(tip);
+    }
+    if (tip.classList.contains("is-open") && tip._anchorEl === anchorEl) {
+      hideBondPlayersTooltip();
+      return;
+    }
+    const names = playersRaw.split("||").map((s) => s.trim()).filter(Boolean);
+    if (names.length === 0) {
+      hideBondPlayersTooltip();
+      return;
+    }
+    tip.innerHTML = `<div class="bond-players-tooltip-names">${names.map((n) => `<span class="bond-players-tooltip-name">${n}</span>`).join("")}</div>`;
+    tip.classList.add("is-open");
+    tip._anchorEl = anchorEl;
+
+    const rect = anchorEl.getBoundingClientRect();
+    const tipRect = tip.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    let left = Math.max(10, Math.min(vw - tipRect.width - 10, rect.left + rect.width / 2 - tipRect.width / 2));
+    let top = rect.top - tipRect.height - 8;
+    if (top < 8) {
+      top = Math.min(vh - tipRect.height - 8, rect.bottom + 8);
+    }
+    tip.style.left = `${Math.round(left)}px`;
+    tip.style.top = `${Math.round(top)}px`;
+  }
+
   function renderAll() {
+    hideBondPlayersTooltip();
     renderMainScreen();
   }
 
@@ -12876,6 +12983,18 @@
         renderAll();
       });
     }
+
+    document.addEventListener("click", (e) => {
+      const chip = e.target.closest("[data-bond-players]");
+      if (chip) {
+        e.stopPropagation();
+        showBondPlayersTooltip(chip, chip.getAttribute("data-bond-players"));
+        return;
+      }
+      if (!e.target.closest("#bond-players-tooltip")) {
+        hideBondPlayersTooltip();
+      }
+    });
 
     renderAll();
   }
