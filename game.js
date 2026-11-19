@@ -395,8 +395,70 @@
     };
   }
 
+  const RANKING_LOCAL_KEY = "ie_dream_team_rankings_v1";
+  const TEAM_NAME_LOCAL_KEY = "ie_dream_team_nickname_v1";
+  const VALID_RANKING_ROLES = new Set(["FW", "MF", "DF", "GK"]);
+  const VALID_RANKING_ELEMENTS = new Set(["Fogo", "Floresta", "Vento", "Montanha"]);
+
+  function escapeHtml(str) {
+    return String(str == null ? "" : str)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  function sanitizeTeamName(raw) {
+    const cleaned = String(raw || "")
+      .replace(/[\u0000-\u001F\u007F]/g, "")
+      .trim()
+      .slice(0, 28);
+    return cleaned || "Dream Team";
+  }
+
+  function getSavedTeamName() {
+    try {
+      const val = window.localStorage?.getItem(TEAM_NAME_LOCAL_KEY);
+      if (!val) return "";
+      const cleaned = sanitizeTeamName(val);
+      return cleaned === "Dream Team" ? "" : cleaned;
+    } catch {
+      return "";
+    }
+  }
+
+  function setSavedTeamName(name) {
+    const clean = sanitizeTeamName(name);
+    try {
+      window.localStorage?.setItem(TEAM_NAME_LOCAL_KEY, clean);
+    } catch {
+      // ignora erro de armazenamento privado
+    }
+    return clean;
+  }
+
+  function generateRandomToken(prefix = "id") {
+    try {
+      if (window.crypto && typeof window.crypto.randomUUID === "function") {
+        return `${prefix}_${window.crypto.randomUUID().replace(/-/g, "").slice(0, 24)}`;
+      }
+    } catch {
+      // fallback abaixo
+    }
+    const rnd = Math.random().toString(36).slice(2, 12);
+    const rnd2 = Math.random().toString(36).slice(2, 10);
+    return `${prefix}_${Date.now().toString(36)}_${rnd}${rnd2}`;
+  }
+
   function createFreshTournamentState() {
+    const rememberedTeamName = getSavedTeamName();
     return {
+      runId: generateRandomToken("run"),
+      runEditToken: generateRandomToken("tok"),
+      rankingSavedSignature: null,
+      rankingStatus: null,
+      rankingTeamName: rememberedTeamName || "Dream Team",
       stageIndex: 0,
       stages: [],
       worldUnlocked: false,
@@ -3681,6 +3743,9 @@
         finalizeWorldGroupRound(st);
       }
       awardPostMatchExperience(st);
+      if (isTournamentRunTerminal(state.tournament)) {
+        maybeAutoSaveRunToRanking(state.tournament);
+      }
 
       clearTournamentTimers(false);
       st.running = false;
@@ -5587,6 +5652,9 @@
       "SH"
     );
     awardPostMatchExperience(st);
+    if (isTournamentRunTerminal(state.tournament)) {
+      maybeAutoSaveRunToRanking(state.tournament);
+    }
     renderTournamentScreen();
   }
 
@@ -8824,17 +8892,185 @@
     }
   }
 
+  let _activeRankingEscHandler = null;
+  function clearRankingEscListener() {
+    if (_activeRankingEscHandler) {
+      document.removeEventListener("keydown", _activeRankingEscHandler);
+      _activeRankingEscHandler = null;
+    }
+  }
+
+  function renderRankingModalList(entries, filterDiff = "all", expandedSet = new Set(), noticeMsg = "") {
+    const bodyEl = document.getElementById("ranking-list-body");
+    const countEl = document.getElementById("ranking-count-pill");
+    if (!bodyEl) return;
+
+    const sortedAll = (Array.isArray(entries) ? entries : []).slice().sort(compareRankingEntries);
+    const filtered = sortedAll.filter((entry) => filterDiff === "all" || entry.difficulty === filterDiff);
+    if (countEl) {
+      countEl.textContent = `${filtered.length} ${filtered.length === 1 ? "time" : "times"}`;
+    }
+
+    const noticeHTML = noticeMsg
+      ? `<div class="ranking-notice-banner">${escapeHtml(noticeMsg)}</div>`
+      : "";
+
+    if (filtered.length === 0) {
+      bodyEl.innerHTML = `${noticeHTML}
+        <div class="ranking-empty-state">
+          <strong>Nenhum time registrado ainda${filterDiff !== "all" ? " nesta dificuldade" : ""}.</strong>
+          <span>Complete uma campanha (vitória ou eliminação) para entrar no Ranking por Força de Time!</span>
+        </div>
+      `;
+      return;
+    }
+
+    bodyEl.innerHTML = `${noticeHTML}
+      <div class="ranking-list">
+        ${filtered
+          .map((entry, idx) => {
+            const pos = idx + 1;
+            const posCls = pos === 1 ? "rank-1" : pos === 2 ? "rank-2" : pos === 3 ? "rank-3" : "";
+            const isExpanded = expandedSet.has(entry.runId);
+            const diffLabel = entry.difficulty === "hidden" ? "Difícil" : "Fácil";
+            const champBadge = entry.isWorldChampion
+              ? `<span class="ranking-micro-badge is-world">🏆 Mundial</span>`
+              : entry.isChampion
+              ? `<span class="ranking-micro-badge is-ff">🥇 FF</span>`
+              : "";
+            const rosterHTML = (entry.roster || [])
+              .map((pl) => {
+                const roleSafe = VALID_RANKING_ROLES.has(pl.role) ? pl.role : "MF";
+                const elemSafe = VALID_RANKING_ELEMENTS.has(pl.element) ? pl.element : "";
+                const spr = resolveRankingPlayerSprite(pl);
+                return `
+                  <div class="ranking-roster-item${pl.isImprovised ? " is-improvised" : ""}">
+                    <div class="ranking-roster-avatar-wrap">
+                      ${spr ? `<img class="ranking-roster-avatar" src="${spr}" alt="${escapeHtml(pl.name)}" />` : `<div class="ranking-roster-avatar"></div>`}
+                      ${elemSafe ? elemIconHTML(elemSafe, "ranking-roster-elem") : ""}
+                    </div>
+                    <div class="ranking-roster-info">
+                      <div class="ranking-roster-name-row">
+                        ${posIconHTML(roleSafe, true)}
+                        <span class="ranking-roster-slot">${escapeHtml(pl.slotLabel || roleSafe)}${pl.isImprovised ? " *" : ""}</span>
+                        <span class="ranking-roster-name">${escapeHtml(pl.name)}</span>
+                      </div>
+                      <div class="ranking-roster-meta">
+                        <span class="ranking-roster-lvl">Nv.${pl.level}</span>
+                        <span>OVR ${pl.ovr}</span>
+                      </div>
+                    </div>
+                    <span class="ranking-roster-pwr">⚔️ ${Number(pl.power || 0).toLocaleString("pt-BR")}</span>
+                  </div>
+                `;
+              })
+              .join("");
+
+            return `
+              <div class="ranking-entry-card${isExpanded ? " is-expanded" : ""}" data-rank-id="${escapeHtml(entry.runId)}">
+                <button type="button"
+                        class="ranking-entry-head"
+                        data-rank-toggle="${escapeHtml(entry.runId)}"
+                        aria-expanded="${isExpanded ? "true" : "false"}">
+                  <span class="ranking-pos-badge ${posCls}">#${pos}</span>
+                  <div class="ranking-entry-main">
+                    <div class="ranking-entry-title-row">
+                      <span class="ranking-team-name">${escapeHtml(entry.teamName)}</span>
+                      ${champBadge}
+                      <span class="ranking-micro-badge is-diff-${entry.difficulty}">${diffLabel}</span>
+                    </div>
+                    <div class="ranking-entry-sub-row">
+                      <span>Nv. ${entry.avgLevel}</span>
+                      <span>•</span>
+                      <span>${entry.wins}V ${entry.draws}E ${entry.losses}D</span>
+                      <span>•</span>
+                      <span>${escapeHtml(entry.formation)}</span>
+                    </div>
+                  </div>
+                  <div class="ranking-entry-right">
+                    <span class="ranking-power-pill">⚔️ ${Number(entry.power || 0).toLocaleString("pt-BR")}</span>
+                    <span class="ranking-chevron" aria-hidden="true">▾</span>
+                  </div>
+                </button>
+                <div class="ranking-entry-body">
+                  <div class="ranking-stats-strip">
+                    <div class="ranking-stat-box">
+                      <small>Nível Médio</small>
+                      <strong>Nv. ${entry.avgLevel}</strong>
+                    </div>
+                    <div class="ranking-stat-box">
+                      <small>Campanha (V/E/D)</small>
+                      <strong>${entry.wins}V · ${entry.draws}E · ${entry.losses}D</strong>
+                      <span>${escapeHtml(entry.stageName || `${entry.matchesPlayed} jogos`)}</span>
+                    </div>
+                    <div class="ranking-stat-box">
+                      <small>OVR / Química</small>
+                      <strong>OVR ${entry.ovr} · ${entry.chem}%</strong>
+                    </div>
+                    <div class="ranking-stat-box">
+                      <small>Formação / Modo</small>
+                      <strong>${escapeHtml(entry.formation)} · ${diffLabel}</strong>
+                    </div>
+                  </div>
+                  ${
+                    rosterHTML
+                      ? `<div class="ranking-roster-title">Escalação (${entry.roster.length}/11)</div>
+                         <div class="ranking-roster-grid">${rosterHTML}</div>`
+                      : `<div class="ranking-empty-roster">Escalação detalhada indisponível para este registro.</div>`
+                  }
+                </div>
+              </div>
+            `;
+          })
+          .join("")}
+      </div>
+    `;
+
+    bodyEl.querySelectorAll("[data-rank-toggle]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const id = btn.getAttribute("data-rank-toggle");
+        if (!id) return;
+        const card = btn.closest(".ranking-entry-card");
+        if (expandedSet.has(id)) {
+          expandedSet.delete(id);
+          if (card) card.classList.remove("is-expanded");
+          btn.setAttribute("aria-expanded", "false");
+        } else {
+          expandedSet.add(id);
+          if (card) card.classList.add("is-expanded");
+          btn.setAttribute("aria-expanded", "true");
+        }
+      });
+    });
+  }
+
   // TELA 1: MENU INICIAL ESTILO JOGO
   function renderStartMenuScreen() {
+    clearRankingEscListener();
     const container = document.getElementById("main-screen-container");
     if (!container) return;
 
     const stadiumStyle = UI.stadiumBg ? `background-image: url('${UI.stadiumBg}');` : "";
+    const rankCfg = getRankingConfig();
 
     container.innerHTML = `
       <div class="start-menu-card">
         <div class="start-hero-banner" style="${stadiumStyle}">
           <div class="start-hero-overlay"></div>
+          <button type="button"
+                  class="start-ranking-icon-btn"
+                  id="btn-open-ranking-modal"
+                  title="Ranking por Força de Time"
+                  aria-label="Abrir Ranking por Força de Time">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" />
+              <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" />
+              <path d="M4 22h16" />
+              <path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" />
+              <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" />
+              <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" />
+            </svg>
+          </button>
           <div class="start-hero-content">
             ${UI.ieLogo ? `<img class="start-ie-logo" src="${UI.ieLogo}" alt="Inazuma Eleven" />` : `<h2>INAZUMA ELEVEN</h2>`}
             <div class="start-title-ribbon">DREAM TEAM • MODO RELÂMPAGO</div>
@@ -8914,6 +9150,36 @@
           </button>
         </div>
       </div>
+
+      <div class="live-tactics-modal-backdrop" id="ranking-modal">
+        <div class="live-tactics-modal-card ranking-modal-card">
+          <div class="live-tactics-modal-head">
+            <div>
+              <div style="font-size:0.66rem; font-weight:900; color:#facc15; text-transform:uppercase;">
+                Hall da Fama • <span id="ranking-mode-label">${rankCfg.isOnline ? "Ranking Global Online" : "Ranking Local"}</span>
+              </div>
+              <h4 style="margin:0; font-size:1rem; font-weight:900; color:#fff;">Ranking por Força de Time</h4>
+            </div>
+            <div style="display:flex; align-items:center; gap:6px;">
+              <button type="button" class="ie-cmd-btn ranking-refresh-btn" id="btn-refresh-ranking" title="Atualizar ranking">
+                <span>↻ Atualizar</span>
+              </button>
+              <button type="button" class="ie-cmd-btn" id="btn-close-ranking-modal" style="padding:5px 12px; font-size:0.74rem; background:#334155;">
+                <span>Fechar ✕</span>
+              </button>
+            </div>
+          </div>
+          <div class="ranking-filter-bar">
+            <div class="ranking-filter-pills">
+              <button type="button" class="ranking-filter-pill is-active" data-rank-filter="all">Todos</button>
+              <button type="button" class="ranking-filter-pill" data-rank-filter="visible">Fácil</button>
+              <button type="button" class="ranking-filter-pill" data-rank-filter="hidden">Difícil</button>
+            </div>
+            <span class="ranking-count-pill" id="ranking-count-pill">0 times</span>
+          </div>
+          <div id="ranking-list-body"></div>
+        </div>
+      </div>
     `;
 
     container.querySelectorAll("[data-game-mode]").forEach((el) => {
@@ -8945,6 +9211,7 @@
     });
 
     document.getElementById("btn-start-game-now").addEventListener("click", () => {
+      clearRankingEscListener();
       clearTournamentTimers(false);
       if (state.spinTimerId) {
         clearTimeout(state.spinTimerId);
@@ -8962,6 +9229,83 @@
       state.tournament = createFreshTournamentState();
       spinNextTeam(false);
     });
+
+    const rankingModal = document.getElementById("ranking-modal");
+    const openRankingBtn = document.getElementById("btn-open-ranking-modal");
+    const closeRankingBtn = document.getElementById("btn-close-ranking-modal");
+    const refreshRankingBtn = document.getElementById("btn-refresh-ranking");
+    let rankingFilter = "all";
+    let cachedRankingEntries = [];
+    const expandedRankingIds = new Set();
+
+    const loadAndRenderRankingModal = async () => {
+      const bodyEl = document.getElementById("ranking-list-body");
+      const modeLbl = document.getElementById("ranking-mode-label");
+      const cfg = getRankingConfig();
+      if (cfg.isOnline) {
+        if (modeLbl) modeLbl.textContent = "Ranking Global Online";
+        if (bodyEl) {
+          bodyEl.innerHTML = `<div class="ranking-empty-state"><strong>⏳ Carregando Ranking Global...</strong><span>Conectando ao servidor...</span></div>`;
+        }
+        try {
+          cachedRankingEntries = await fetchOnlineRankings();
+          renderRankingModalList(cachedRankingEntries, rankingFilter, expandedRankingIds, "");
+        } catch {
+          if (modeLbl) modeLbl.textContent = "Ranking Local (Fallback Offline)";
+          cachedRankingEntries = loadLocalRankings();
+          renderRankingModalList(
+            cachedRankingEntries,
+            rankingFilter,
+            expandedRankingIds,
+            "Não foi possível conectar ao ranking global; exibindo registros locais."
+          );
+        }
+      } else {
+        if (modeLbl) modeLbl.textContent = "Ranking Local";
+        cachedRankingEntries = loadLocalRankings();
+        renderRankingModalList(cachedRankingEntries, rankingFilter, expandedRankingIds, "");
+      }
+    };
+
+    const closeRankingModal = () => {
+      if (rankingModal) rankingModal.classList.remove("is-open");
+      clearRankingEscListener();
+    };
+
+    const openRankingModal = () => {
+      if (!rankingModal) return;
+      rankingModal.classList.add("is-open");
+      clearRankingEscListener();
+      _activeRankingEscHandler = (ev) => {
+        if (ev.key === "Escape") closeRankingModal();
+      };
+      document.addEventListener("keydown", _activeRankingEscHandler);
+      loadAndRenderRankingModal();
+    };
+
+    if (openRankingBtn) {
+      openRankingBtn.addEventListener("click", openRankingModal);
+    }
+    if (closeRankingBtn) {
+      closeRankingBtn.addEventListener("click", closeRankingModal);
+    }
+    if (refreshRankingBtn) {
+      refreshRankingBtn.addEventListener("click", loadAndRenderRankingModal);
+    }
+    if (rankingModal) {
+      rankingModal.addEventListener("click", (e) => {
+        if (e.target === rankingModal) closeRankingModal();
+      });
+      rankingModal.querySelectorAll("[data-rank-filter]").forEach((pill) => {
+        pill.addEventListener("click", () => {
+          rankingFilter = pill.getAttribute("data-rank-filter") || "all";
+          rankingModal.querySelectorAll("[data-rank-filter]").forEach((p) => {
+            p.classList.toggle("is-active", p === pill);
+          });
+          renderRankingModalList(cachedRankingEntries, rankingFilter, expandedRankingIds, "");
+        });
+      });
+    }
   }
 
   // TELA 2: DRAFT (Roleta ou Campo ao Selecionar Personagem)
@@ -9310,6 +9654,353 @@
     };
   }
 
+  let _playerLookupIndexCache = null;
+
+  function getRankingConfig() {
+    const raw = window.INAZUMA_RANKING_CONFIG || {};
+    const supabaseUrl = String(raw.supabaseUrl || "").trim().replace(/\/+$/, "");
+    const supabaseAnonKey = String(raw.supabaseAnonKey || "").trim();
+    const maxEntries = Math.max(10, Math.min(100, Number(raw.maxEntries) || 50));
+    return {
+      supabaseUrl,
+      supabaseAnonKey,
+      maxEntries,
+      isOnline: Boolean(supabaseUrl && supabaseAnonKey)
+    };
+  }
+
+  function buildPlayerLookupIndex() {
+    if (_playerLookupIndexCache) return _playerLookupIndexCache;
+    const byId = new Map();
+    const byName = new Map();
+    (DB.teams || []).forEach((team) => {
+      (team.players || []).forEach((pl) => {
+        if (pl.id != null) byId.set(String(pl.id), pl);
+        const nm = String(pl.name || "").trim().toLowerCase();
+        if (nm && !byName.has(nm)) byName.set(nm, pl);
+        const fnm = String(pl.fullName || "").trim().toLowerCase();
+        if (fnm && !byName.has(fnm)) byName.set(fnm, pl);
+      });
+    });
+    _playerLookupIndexCache = { byId, byName };
+    return _playerLookupIndexCache;
+  }
+
+  function resolveRankingPlayerSprite(entryPlayer) {
+    if (!entryPlayer) return "";
+    const idx = buildPlayerLookupIndex();
+    let found = entryPlayer.id != null ? idx.byId.get(String(entryPlayer.id)) : null;
+    if (!found && entryPlayer.name) {
+      found = idx.byName.get(String(entryPlayer.name).trim().toLowerCase()) || null;
+    }
+    if (!found) return "";
+    const role = VALID_RANKING_ROLES.has(entryPlayer.role) ? entryPlayer.role : found.pos;
+    return getPlayerFormSprite(found, role) || found.sprite || "";
+  }
+
+  function buildCompactRankingRoster() {
+    const slots = getSlots();
+    const roleOrder = { FW: 0, MF: 1, DF: 2, GK: 3 };
+    const items = [];
+    slots.forEach((slot) => {
+      const p = state.squad[slot.id];
+      if (!p) return;
+      const lvl = getPlayerLevel(p);
+      const effOvr = getEffectiveOvr(p, slot.role);
+      const pwr = calcIndividualPlayerPower(p, slot.role, lvl);
+      items.push({
+        id: p.id != null ? String(p.id) : "",
+        name: String(p.name || "Jogador"),
+        role: slot.role,
+        slotLabel: String(slot.label || slot.role),
+        level: lvl,
+        ovr: effOvr,
+        power: Math.round(pwr),
+        element: VALID_RANKING_ELEMENTS.has(p.element) ? p.element : "",
+        isImprovised: !playerMatchesRole(p, slot.role)
+      });
+    });
+    return items.sort((a, b) => {
+      const ra = roleOrder[a.role] ?? 9;
+      const rb = roleOrder[b.role] ?? 9;
+      if (ra !== rb) return ra - rb;
+      return b.power - a.power;
+    });
+  }
+
+  function compareRankingEntries(a, b) {
+    return (
+      (b.power || 0) - (a.power || 0) ||
+      (b.wins || 0) - (a.wins || 0) ||
+      (b.avgLevel || 0) - (a.avgLevel || 0) ||
+      String(a.createdAt || "").localeCompare(String(b.createdAt || ""))
+    );
+  }
+
+  function normalizeRankingEntry(raw) {
+    if (!raw || typeof raw !== "object") return null;
+    const runId = String(raw.runId || raw.run_id || "").trim();
+    if (!runId) return null;
+    const rosterRaw = Array.isArray(raw.roster)
+      ? raw.roster
+      : Array.isArray(raw.roster_json)
+      ? raw.roster_json
+      : [];
+    return {
+      runId,
+      teamName: sanitizeTeamName(raw.teamName || raw.team_name),
+      power: Math.round(Number(raw.power) || 0),
+      avgLevel: Number((Number(raw.avgLevel != null ? raw.avgLevel : raw.avg_level) || 1).toFixed(1)),
+      ovr: Math.round(Number(raw.ovr) || 0),
+      chem: Math.round(Number(raw.chem) || 0),
+      wins: Math.max(0, Math.round(Number(raw.wins) || 0)),
+      draws: Math.max(0, Math.round(Number(raw.draws) || 0)),
+      losses: Math.max(0, Math.round(Number(raw.losses) || 0)),
+      matchesPlayed: Math.max(0, Math.round(Number(raw.matchesPlayed != null ? raw.matchesPlayed : raw.matches_played) || 0)),
+      stageName: String(raw.stageName != null ? raw.stageName : raw.stage_name || ""),
+      isChampion: Boolean(raw.isChampion != null ? raw.isChampion : raw.is_champion),
+      isWorldChampion: Boolean(raw.isWorldChampion != null ? raw.isWorldChampion : raw.is_world_champion),
+      difficulty: raw.difficulty === "hidden" ? "hidden" : "visible",
+      formation: ["4-3-3", "4-4-2", "3-4-3", "3-5-2"].includes(raw.formation) ? raw.formation : "4-3-3",
+      roster: rosterRaw.slice(0, 11).map((pl) => ({
+        id: pl?.id != null ? String(pl.id) : "",
+        name: String(pl?.name || "Jogador"),
+        role: VALID_RANKING_ROLES.has(pl?.role) ? pl.role : "MF",
+        slotLabel: String(pl?.slotLabel || pl?.role || ""),
+        level: Math.max(1, Math.round(Number(pl?.level) || 1)),
+        ovr: Math.round(Number(pl?.ovr) || 75),
+        power: Math.round(Number(pl?.power) || 0),
+        element: VALID_RANKING_ELEMENTS.has(pl?.element) ? pl.element : "",
+        isImprovised: Boolean(pl?.isImprovised)
+      })),
+      createdAt: String(raw.createdAt || raw.created_at || new Date().toISOString())
+    };
+  }
+
+  function loadLocalRankings() {
+    try {
+      const raw = window.localStorage?.getItem(RANKING_LOCAL_KEY);
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return [];
+      return parsed.map(normalizeRankingEntry).filter(Boolean).sort(compareRankingEntries);
+    } catch {
+      return [];
+    }
+  }
+
+  function saveLocalRankings(list) {
+    try {
+      const { maxEntries } = getRankingConfig();
+      const sorted = (Array.isArray(list) ? list : [])
+        .map(normalizeRankingEntry)
+        .filter(Boolean)
+        .sort(compareRankingEntries)
+        .slice(0, maxEntries);
+      window.localStorage?.setItem(RANKING_LOCAL_KEY, JSON.stringify(sorted));
+      return sorted;
+    } catch {
+      return [];
+    }
+  }
+
+  function upsertLocalRankingEntry(entry) {
+    const clean = normalizeRankingEntry(entry);
+    if (!clean) return [];
+    const current = loadLocalRankings().filter((item) => item.runId !== clean.runId);
+    current.push(clean);
+    return saveLocalRankings(current);
+  }
+
+  function renameLocalRankingEntry(runId, newName) {
+    if (!runId) return false;
+    const cleanName = sanitizeTeamName(newName);
+    const list = loadLocalRankings();
+    let updated = false;
+    const next = list.map((item) => {
+      if (item.runId === runId) {
+        updated = true;
+        return { ...item, teamName: cleanName };
+      }
+      return item;
+    });
+    if (updated) saveLocalRankings(next);
+    return updated;
+  }
+
+  async function fetchOnlineRankings() {
+    const cfg = getRankingConfig();
+    if (!cfg.isOnline) {
+      throw new Error("Supabase ranking config is empty");
+    }
+    const endpoint =
+      `${cfg.supabaseUrl}/rest/v1/rankings_public` +
+      `?select=run_id,team_name,power,avg_level,ovr,chem,wins,draws,losses,matches_played,stage_name,is_champion,is_world_champion,difficulty,formation,roster_json,created_at` +
+      `&order=power.desc,wins.desc,avg_level.desc,created_at.asc&limit=${cfg.maxEntries}`;
+    const res = await fetch(endpoint, {
+      method: "GET",
+      headers: {
+        apikey: cfg.supabaseAnonKey,
+        Authorization: `Bearer ${cfg.supabaseAnonKey}`
+      }
+    });
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}`);
+    }
+    const rows = await res.json();
+    if (!Array.isArray(rows)) return [];
+    return rows.map(normalizeRankingEntry).filter(Boolean).sort(compareRankingEntries);
+  }
+
+  async function pushOnlineRankingEntry(entry, editToken) {
+    const cfg = getRankingConfig();
+    if (!cfg.isOnline) return false;
+    const res = await fetch(`${cfg.supabaseUrl}/rest/v1/rpc/save_ranking_run`, {
+      method: "POST",
+      headers: {
+        apikey: cfg.supabaseAnonKey,
+        Authorization: `Bearer ${cfg.supabaseAnonKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        p_run_id: entry.runId,
+        p_edit_token: editToken,
+        p_team_name: entry.teamName,
+        p_power: entry.power,
+        p_avg_level: entry.avgLevel,
+        p_ovr: entry.ovr,
+        p_chem: entry.chem,
+        p_wins: entry.wins,
+        p_draws: entry.draws,
+        p_losses: entry.losses,
+        p_matches_played: entry.matchesPlayed,
+        p_stage_name: entry.stageName,
+        p_is_champion: entry.isChampion,
+        p_is_world_champion: entry.isWorldChampion,
+        p_difficulty: entry.difficulty,
+        p_formation: entry.formation,
+        p_roster_json: entry.roster
+      })
+    });
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}`);
+    }
+    return true;
+  }
+
+  async function renameOnlineRankingEntry(runId, editToken, newName) {
+    const cfg = getRankingConfig();
+    if (!cfg.isOnline) return false;
+    const res = await fetch(`${cfg.supabaseUrl}/rest/v1/rpc/rename_ranking_run`, {
+      method: "POST",
+      headers: {
+        apikey: cfg.supabaseAnonKey,
+        Authorization: `Bearer ${cfg.supabaseAnonKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        p_run_id: runId,
+        p_edit_token: editToken,
+        p_team_name: sanitizeTeamName(newName)
+      })
+    });
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}`);
+    }
+    const ok = await res.json();
+    return Boolean(ok);
+  }
+
+  function buildRankingEntryFromRun(t, summary, stats) {
+    const teamName = sanitizeTeamName(t?.rankingTeamName || getSavedTeamName() || "Dream Team");
+    return normalizeRankingEntry({
+      runId: t?.runId || generateRandomToken("run"),
+      teamName,
+      power: Math.round(stats?.power || 0),
+      avgLevel: Number(stats?.avgLevel || 1),
+      ovr: Math.round(stats?.ovr || 0),
+      chem: Math.round(stats?.chem || 0),
+      wins: summary?.wins || 0,
+      draws: summary?.draws || 0,
+      losses: summary?.losses || 0,
+      matchesPlayed: summary?.matchesPlayed || 0,
+      stageName: summary?.stageName || "",
+      isChampion: Boolean(summary?.isChampion || summary?.isFFChampion),
+      isWorldChampion: Boolean(summary?.isWorldChampion),
+      difficulty: state.hideOvrBeforePick ? "hidden" : "visible",
+      formation: state.formation || "4-3-3",
+      roster: buildCompactRankingRoster(),
+      createdAt: new Date().toISOString()
+    });
+  }
+
+  function isTournamentRunTerminal(t = state.tournament) {
+    if (!t || !Array.isArray(t.stages) || t.stages.length === 0) return false;
+    const st = t.stages[t.stageIndex];
+    if (!st || !st.finished) return false;
+    const isFFFinalWin = Boolean(st.won && st.competition === "FF" && t.stageIndex === 3 && !t.worldUnlocked);
+    const isWorldFinalWin = Boolean(st.won && t.worldUnlocked && t.stageIndex === t.stages.length - 1);
+    const isGroupElim = Boolean(st.isGroupStage && st.groupRoundIdx === 2 && getUserGroupRank(t.worldGroup) > 2);
+    const isKnockoutLoss = Boolean(!st.isGroupStage && !st.won);
+    return isFFFinalWin || isWorldFinalWin || isGroupElim || isKnockoutLoss;
+  }
+
+  function getRankingStatusBadgeHTML(t) {
+    const cfg = getRankingConfig();
+    if (t?.rankingStatus === "saving") {
+      return `⏳ Salvando campanha no Ranking Global...`;
+    }
+    if (t?.rankingStatus === "online") {
+      return `🌐 Salvo no Ranking Global (${escapeHtml(sanitizeTeamName(t.rankingTeamName))})`;
+    }
+    if (cfg.isOnline && t?.rankingStatus === "local") {
+      return `💾 Salvo localmente (sem conexão ao servidor global)`;
+    }
+    return `🏆 Salvo automaticamente no Ranking (${escapeHtml(sanitizeTeamName(t?.rankingTeamName || "Dream Team"))})`;
+  }
+
+  function updateRunRankingStatusBadge(t, customHtml = null) {
+    const el = document.getElementById("run-ranking-status-badge");
+    if (!el || state.tournament !== t) return;
+    el.innerHTML = customHtml != null ? customHtml : getRankingStatusBadgeHTML(t);
+  }
+
+  function maybeAutoSaveRunToRanking(t = state.tournament) {
+    if (!t || !t.runId) return;
+    const summary = computeTournamentRunSummary(t);
+    const stats = calcSquadStats();
+    if (!summary || (stats?.power || 0) < 100) return;
+    const teamName = sanitizeTeamName(t.rankingTeamName || getSavedTeamName() || "Dream Team");
+    t.rankingTeamName = teamName;
+    const sig = `${t.runId}|${summary.matchesPlayed}|${summary.wins}|${summary.draws}|${summary.losses}|${Math.round(stats.power)}|${teamName}`;
+    if (t.rankingSavedSignature === sig) return;
+    t.rankingSavedSignature = sig;
+
+    const entry = buildRankingEntryFromRun(t, summary, stats);
+    if (!entry) return;
+    upsertLocalRankingEntry(entry);
+
+    const cfg = getRankingConfig();
+    if (cfg.isOnline) {
+      t.rankingStatus = "saving";
+      updateRunRankingStatusBadge(t);
+      pushOnlineRankingEntry(entry, t.runEditToken)
+        .then(() => {
+          if (state.tournament !== t) return;
+          t.rankingStatus = "online";
+          updateRunRankingStatusBadge(t);
+        })
+        .catch(() => {
+          if (state.tournament !== t) return;
+          t.rankingStatus = "local";
+          updateRunRankingStatusBadge(t);
+        });
+    } else {
+      t.rankingStatus = "local";
+      updateRunRankingStatusBadge(t);
+    }
+  }
+
   function buildRunSummaryCardHTML(summary, stats, t) {
     if (!summary) return "";
     const rank = stats.power >= 1650 ? "S+" : stats.power >= 1450 ? "S" : stats.power >= 1250 ? "A" : "B";
@@ -9382,6 +10073,24 @@
             ${actionButtons}
             <span class="export-png-status" id="export-png-status"></span>
           </div>
+        </div>
+
+        <div class="run-ranking-bar">
+          <div class="run-ranking-status" id="run-ranking-status-badge">
+            ${getRankingStatusBadgeHTML(t)}
+          </div>
+          <form class="run-ranking-name-form" id="run-ranking-name-form">
+            <input type="text"
+                   id="run-ranking-name-input"
+                   class="run-ranking-name-input"
+                   maxlength="28"
+                   autocomplete="off"
+                   placeholder="Nome / apelido do time..."
+                   value="${escapeHtml(t?.rankingTeamName && t.rankingTeamName !== "Dream Team" ? t.rankingTeamName : getSavedTeamName())}" />
+            <button type="submit" class="ie-cmd-btn ie-cmd-gold run-ranking-save-btn" id="btn-save-ranking-name">
+              <span>Salvar Nome</span>
+            </button>
+          </form>
         </div>
 
         <div class="run-team-totals-grid">
@@ -12752,11 +13461,54 @@
 
     if (isRunEnded && t.showRunSummary) {
       const runSummaryObj = computeTournamentRunSummary(t);
+      maybeAutoSaveRunToRanking(t);
       // No relatório final, não repete cards de chaveamento/topo nem de fases anteriores
       container.innerHTML = `
         ${groupTableHTML}
         ${buildRunSummaryCardHTML(runSummaryObj, stats, t)}
       `;
+
+      const rankingNameForm = document.getElementById("run-ranking-name-form");
+      if (rankingNameForm) {
+        rankingNameForm.addEventListener("submit", async (e) => {
+          e.preventDefault();
+          const inputEl = document.getElementById("run-ranking-name-input");
+          const cleanName = setSavedTeamName(inputEl ? inputEl.value : "");
+          if (inputEl) inputEl.value = cleanName === "Dream Team" ? "" : cleanName;
+          t.rankingTeamName = cleanName;
+          const summaryNow = computeTournamentRunSummary(t);
+          const statsNow = calcSquadStats();
+          if (summaryNow) {
+            t.rankingSavedSignature = `${t.runId}|${summaryNow.matchesPlayed}|${summaryNow.wins}|${summaryNow.draws}|${summaryNow.losses}|${Math.round(statsNow.power)}|${cleanName}`;
+          }
+          if (!renameLocalRankingEntry(t.runId, cleanName) && summaryNow) {
+            upsertLocalRankingEntry(buildRankingEntryFromRun(t, summaryNow, statsNow));
+          }
+          const cfg = getRankingConfig();
+          if (cfg.isOnline) {
+            t.rankingStatus = "saving";
+            updateRunRankingStatusBadge(t, `⏳ Atualizando nome para "${escapeHtml(cleanName)}"...`);
+            try {
+              const renamed = await renameOnlineRankingEntry(t.runId, t.runEditToken, cleanName);
+              if (!renamed && summaryNow) {
+                await pushOnlineRankingEntry(buildRankingEntryFromRun(t, summaryNow, statsNow), t.runEditToken);
+              }
+              if (state.tournament === t) {
+                t.rankingStatus = "online";
+                updateRunRankingStatusBadge(t, `✓ Nome "${escapeHtml(cleanName)}" atualizado no Ranking Global!`);
+              }
+            } catch {
+              if (state.tournament === t) {
+                t.rankingStatus = "local";
+                updateRunRankingStatusBadge(t, `✓ Nome "${escapeHtml(cleanName)}" atualizado localmente!`);
+              }
+            }
+          } else {
+            t.rankingStatus = "local";
+            updateRunRankingStatusBadge(t, `✓ Nome "${escapeHtml(cleanName)}" atualizado no ranking!`);
+          }
+        });
+      }
 
       const advanceFromSummaryBtn = document.getElementById("btn-advance-world-from-summary");
       if (advanceFromSummaryBtn) {
@@ -13321,6 +14073,7 @@
   }
 
   function goToMenu() {
+    clearRankingEscListener();
     clearTournamentTimers(false);
     if (state.spinTimerId) {
       clearTimeout(state.spinTimerId);
