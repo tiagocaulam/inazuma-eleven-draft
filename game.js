@@ -227,14 +227,14 @@
     {
       id: "trio_caos",
       name: "Trio Caos / Dragão",
-      members: ["Afuro Terumi", "Nagumo Haruya", "Suzuno Fuusuke", "Choi Chang-Soo"],
+      members: ["Afuro Terumi", "Nagumo Haruya", "Suzuno Fuusuke", "Choi Chang-soo"],
       minCount: 2,
       chemPerMatch: 13
     },
     {
       id: "laco_aliea",
       name: "Instituto Alien",
-      members: ["Kiyama Hiroto", "Midorikawa Ryuuji", "Saginuma Osamu", "Yagami Reina", "Nemuro Keita"],
+      members: ["Kiyama Hiroto", "Midorikawa Ryuuji", "Saginuma Osamu", "Yagami Reina", "Nemuro Kimiyuki"],
       minCount: 2,
       chemPerMatch: 12
     },
@@ -254,8 +254,7 @@
         "Someoka Ryuugo",
         "Tsunami Jousuke",
         "Tachimukai Yuuki",
-        "Kogure Yuuya",
-        "Zaizen Touko"
+        "Kogure Yuuya"
       ],
       minCount: 2,
       chemPerMatch: 9
@@ -278,14 +277,14 @@
     {
       id: "laco_orfeu",
       name: "Mestres da Orfeu",
-      members: ["Fideo Ardena", "Nakata Hidetoshi", "Gigi Blasi"],
+      members: ["Fidio Aldena", "Nakata Hidetoshi", "Gigi Blasi"],
       minCount: 2,
       chemPerMatch: 14
     },
     {
       id: "legado_daisuke",
       name: "Legado de Daisuke",
-      members: ["Endou Mamoru", "Rococo Urupa"],
+      members: ["Endou Mamoru", "Rococo Ulpa"],
       minCount: 2,
       chemPerMatch: 16
     },
@@ -599,6 +598,15 @@
     return new Set(Object.values(state.squad).filter(Boolean).map((p) => p.id));
   }
 
+  function getPickedFullNames() {
+    return new Set(
+      Object.values(state.squad)
+        .filter(Boolean)
+        .map((p) => (p.fullName || p.name || "").trim().toLowerCase())
+        .filter(Boolean)
+    );
+  }
+
   function getOpenSlots() {
     return getSlots().filter((s) => !state.squad[s.id]);
   }
@@ -891,7 +899,7 @@
   }
 
   const HEAVY_MOVE_RX =
-    /(ômega|omega|the earth|a terra|god catch|maou|rei demônio|captura|dimensional|martelo da ira|grand fire|grande fogo|fogo máximo|maximum|a explosão|explosão cósmica|explosão do caos|explosão universo|explosão diabólica|tenkuu|queda celestial|chaos|big bang|god break|impacto divino|impacto x|x blast|último recurso|last resort|zero magnum|infinity|asura|saikyou|onda dos onze|mão da alma|alma suprema|god hand x|god hand v|god hand w|super mão fantasma|mão fantasma da amizade|lenda suprema|prime legend|ruptura mortal|death break|supernova|chama do rei|presas de fera suprema|a galáxia|neo galáxia|pinguins deus|kamakura|tempestade tornado|g2|g3|v2|v3|shin|★)/i;
+    /(ômega|omega|the earth|a terra|god catch|maou|rei demônio|captura|dimensional|martelo da ira|grand fire|grande fogo|fogo máximo|maximum|a explosão|explosão cósmica|explosão do caos|explosão universo|explosão diabólica|tenkuu|queda celestial|chaos|big bang|god break|impacto divino|impacto x|x blast|último recurso|last resort|zero magnum|infinity|asura|saikyou|onda dos onze|mão da alma|alma suprema|god hand x|god hand v|god hand w|super mão fantasma|mão fantasma da amizade|lenda suprema|prime legend|ruptura mortal|death break|supernova|chama do rei|presas de fera suprema|a galáxia|neo galáxia|pinguins deus|kamakura|tempestade tornado|\b(g2|g3|v2|v3|shin)\b|★)/i;
 
   const LONG_SHOT_RX =
     /(impulso tsunami|o tufão|excalibur|meteoro cortante|supernova|lança de odin|gungnir|observador das estrelas|chute balista|ballista shot|canhão carronade|carronade hou|canhão do dragão|dragon cannon|serpente letal|sidewinder|controle remoto|chuva da morte|death rain|chute astro|impulso torre eiffel|eiffel drive|espada crisântemo|kiku ichimonji|explosão de concha|shellbit burst|chute torre de osaka|tsuutenkaku|chute bolha arco-íris|rainbow bubble|raio de diamante|diamond ray|estilingue|slingshot|disparo de canhão|gunshot|mil flechas|chute eletromagnético|gauss shot|explosão cósmica|cosmic blaster|orbe de perseu|perseus orb|onda cintilante|pinguins imperiais nº 3|pinguins espaciais|pinguins imperiais nº 7|koutei penguin 7|lança glacial|tempestade tornado furacão|the earth|a terra|queda de meteoro|overcyclone|desastre total|explosão universo|próton de ganimedes|cabeçada megaton|megaton head|cabeçada gigaton|gigaton head|bola de terra|alvorecer negro)/i;
@@ -1022,8 +1030,8 @@
 
     const heavyMoves = [];
     const standardMoves = [];
-    list.forEach((m, idx) => {
-      const isSup = HEAVY_MOVE_RX.test(m) || (list.length >= 3 && idx >= 2);
+    list.forEach((m) => {
+      const isSup = HEAVY_MOVE_RX.test(m);
       if (isSup) heavyMoves.push(m);
       else standardMoves.push(m);
     });
@@ -1087,7 +1095,20 @@
       };
     }
 
-    // Se todas as técnicas da categoria forem pesadas e ele está na amarela: fica sem técnica pesada
+    // Se todas as técnicas da categoria forem pesadas e ele está na amarela:
+    // Goleiros (e atletas sem opção leve) ainda conseguem usar sua opção menos pesada pagando um pouco mais de desgaste
+    if (category === "GK" && heavyMoves.length > 0) {
+      const fallbackMove = heavyMoves[heavyMoves.length - 1];
+      return {
+        move: fallbackMove,
+        isHeavy: false,
+        exhausted: false,
+        gatedReason: "YELLOW",
+        cost: stdCost + 4,
+        duelBonus: -0.7 + masteryBonus
+      };
+    }
+
     return {
       move: null,
       isHeavy: false,
@@ -1148,12 +1169,15 @@
 
   function formatPlayerMovesSummary(p) {
     if (!p || !p.moves) return p.hissatsu || "";
+    const tagDesc = { L: "Chute Longo", CT: "Contra-Chute / Bloqueio", CH: "Chute em Cadeia" };
     const tagFor = (m, cat) => {
       const tags = [];
       if (cat === "SH" && LONG_SHOT_RX.test(m)) tags.push("L");
       if ((cat === "SH" && COUNTER_SHOT_RX.test(m)) || (cat === "DF" && COUNTER_DF_RX.test(m))) tags.push("CT");
       if (cat === "SH" && CHAIN_SHOT_RX.test(m)) tags.push("CH");
-      return tags.length ? ` <em style="color:#fde047; font-style:normal; font-size:0.62em; font-weight:900;">[${tags.join("/")}]</em>` : "";
+      if (!tags.length) return "";
+      const tip = tags.map((t) => `${t}: ${tagDesc[t]}`).join(" • ");
+      return ` <em title="${tip}" style="color:#fde047; font-style:normal; font-size:0.68em; font-weight:900;">[${tags.join("/")}]</em>`;
     };
     const parts = [];
     if (p.pos === "GK" && p.moves.GK?.length) parts.push(`${moveIconHTML("GK")} <span>${p.moves.GK[0]}</span>`);
@@ -1344,7 +1368,7 @@
           .join(" ");
         activeBonds.push({
           type: "element",
-          label: `${activeElemPairs.length}x Links Elementais (${summaryParts}) (+${linkChem}% • +${linkPwr} Poder)`
+          label: `${activeElemPairs.length}x Links Elementais <span class="bond-nowrap">(${summaryParts})</span> (+${linkChem}% • +${linkPwr} Poder)`
         });
       }
 
@@ -1426,7 +1450,7 @@
         .join(" ");
       activeBonds.push({
         type: "element",
-        label: `${activeElemPairs.length}x Links (${summaryParts}) (+${linkChem}% • +${linkPwr}${elemResonanceActive ? " · Ressonância" : ""})`,
+        label: `${activeElemPairs.length}x Links <span class="bond-nowrap">(${summaryParts})</span> (+${linkChem}% • +${linkPwr}${elemResonanceActive ? " · Ressonância" : ""})`,
         players: elemLinkPlayers
       });
     }
@@ -1526,28 +1550,34 @@
         players: mergeUnique(itemHoldersMap["shoes_thunder"], itemHoldersMap["captain_armband"], itemHoldersMap["elem_crest_boost"])
       });
     }
-    // Combo 4: Esquadrão Equipado (3 ou mais jogadores equipados com itens)
-    if (totalEquippedItemsCount >= 3) {
-      const cPwr = totalEquippedItemsCount * 15;
+    // Combo 4: Esquadrão Equipado (3 ou mais jogadores distintos equipados com itens)
+    const uniqueEquippedPlayers = mergeUnique(equippedPlayersList);
+    if (uniqueEquippedPlayers.length >= 3) {
+      const cPwr = uniqueEquippedPlayers.length * 16;
       bondsPower += cPwr;
       activeCombos.push({
-        label: `🎒 Arsenal (${totalEquippedItemsCount}x: +${cPwr})`,
-        players: mergeUnique(equippedPlayersList)
+        label: `🎒 Arsenal (${uniqueEquippedPlayers.length}x: +${cPwr})`,
+        players: uniqueEquippedPlayers
       });
     }
-    // Combo 5: Domínio Elemental (3+ titulares do mesmo elemento quando Amuleto Elemental foi ativado)
-    if (prepB?.boostedElement) {
-      const elCnt = elemTotalsInSquad[prepB.boostedElement] || 0;
+    // Combo 5: Domínio Elemental (3+ titulares do mesmo elemento quando Insígnia Elemental foi ativada)
+    const boostedElemsList = Array.isArray(prepB?.boostedElements) && prepB.boostedElements.length > 0
+      ? prepB.boostedElements
+      : prepB?.boostedElement
+      ? [prepB.boostedElement]
+      : [];
+    boostedElemsList.forEach((bEl) => {
+      const elCnt = elemTotalsInSquad[bEl] || 0;
       if (elCnt >= 3) {
         const cPwr = elCnt * 18;
         chem += 6;
         bondsPower += cPwr;
         activeCombos.push({
-          label: `🌟 Domínio ${prepB.boostedElement} (${elCnt}x: +${cPwr} • +6%)`,
-          players: elemPlayersMap[prepB.boostedElement] || []
+          label: `🌟 Domínio ${bEl} (${elCnt}x: +${cPwr} • +6%)`,
+          players: elemPlayersMap[bEl] || []
         });
       }
-    }
+    });
 
     activeCombos.forEach((cb) => {
       activeBonds.push({
@@ -1641,7 +1671,7 @@
   }
 
   // Tabela de Nível dos Times Adversários por Fase (calibrada com evolução real de Keshin/Técnicas da CPU + Energia!)
-  const STAGE_OPPONENT_LEVELS = [3, 4, 5, 7, 8, 9, 10, 12, 13, 15, 16];
+  const STAGE_OPPONENT_LEVELS = [3, 4, 5, 7, 9, 10, 11, 13, 14, 15, 17];
 
   function getStageOpponentBuff(stageIdx) {
     const idx = Math.max(0, stageIdx || 0);
@@ -1841,15 +1871,17 @@
     state.peekField = false;
 
     const pickedIds = getPickedPlayerIds();
+    const pickedFulls = getPickedFullNames();
     const openRoles = new Set(getOpenSlots().map((s) => s.role));
+    const isAvail = (p) => !pickedIds.has(p.id) && !pickedFulls.has((p.fullName || p.name || "").trim().toLowerCase());
 
     let pool = DB.teams.filter(
       (t) =>
         !state.usedTeamIds.includes(t.id) &&
-        t.players.some((p) => !pickedIds.has(p.id) && getPlayerPositionsList(p).some((r) => openRoles.has(r)))
+        t.players.some((p) => isAvail(p) && getPlayerPositionsList(p).some((r) => openRoles.has(r)))
     );
     if (pool.length === 0) {
-      pool = DB.teams.filter((t) => t.players.some((p) => !pickedIds.has(p.id)));
+      pool = DB.teams.filter((t) => t.players.some((p) => isAvail(p)));
     }
 
     const chosen = pool[Math.floor(Math.random() * pool.length)];
@@ -1873,6 +1905,7 @@
 
     const pickedCount = getPickedCount();
     const pickedIds = getPickedPlayerIds();
+    const pickedFulls = getPickedFullNames();
     const openSlots = getOpenSlots();
     const openRoles = new Set(openSlots.map((s) => s.role));
     const team = state.currentTeam || DB.teams[0];
@@ -1936,7 +1969,8 @@
           <div class="roster-grid">
             ${sortedPlayers
               .map((p) => {
-                const alreadyPicked = pickedIds.has(p.id);
+                const fnKey = (p.fullName || p.name || "").trim().toLowerCase();
+                const alreadyPicked = pickedIds.has(p.id) || (fnKey && pickedFulls.has(fnKey));
                 const hasNaturalSlot = getPlayerPositionsList(p).some((r) => openRoles.has(r));
                 const movesSummary = formatPlayerMovesSummary(p);
                 const hasLink = !alreadyPicked && hasAffinityWithCurrentSquad({ ...p, teamId: team.id });
@@ -1994,7 +2028,8 @@
           if (state.isSpinning) return;
           const pid = card.getAttribute("data-player-id");
           const player = team.players.find((x) => x.id === pid);
-          if (player && !pickedIds.has(player.id)) {
+          const fnKey = player ? (player.fullName || player.name || "").trim().toLowerCase() : "";
+          if (player && !pickedIds.has(player.id) && !(fnKey && pickedFulls.has(fnKey))) {
             state.selectedPlayer = cloneFreshPlayerForSquad(player, team, 1);
             state.swapSlotId = null;
             renderMainScreen();
@@ -2256,17 +2291,21 @@
       if (!p) return;
       p.level = 1;
       p.xp = 0;
-      delete p.boostOvr;
-      delete p.bonusPower;
-      delete p.bonusSpd;
-      delete p.bonusStats;
-      delete p.equippedItems;
-      delete p.keshin;
-      delete p.moveEvoCount;
-      delete p.learnedSecretManual;
+      p.bonusStats = { for: 0, tec: 0, def: 0, vel: 0, fis: 0 };
+      p.bonusPower = 0;
+      p.bonusSpd = 0;
+      p.equippedItems = [];
+      p.keshin = null;
+      p.moveEvoCount = 0;
+      p.learnedSecretManual = false;
+      p.learnedLvlMilestones = [];
       if (p._baseMovesSnapshot) {
         p.moves = JSON.parse(JSON.stringify(p._baseMovesSnapshot));
         delete p._baseMovesSnapshot;
+      }
+      if (p._baseHissatsuSnapshot) {
+        p.hissatsu = p._baseHissatsuSnapshot;
+        delete p._baseHissatsuSnapshot;
       }
     });
   }
@@ -2928,6 +2967,10 @@
     pitch.camY = 50;
     pitch.camSnap = true;
     pitch.passTrail = null;
+    pitch.dashFx = null;
+    pitch.pushTweens = [];
+    pitch.shockFx = null;
+    pitch.saveRingFx = null;
     pitch.justKickedOff = true;
 
     if (koMid) {
@@ -3213,6 +3256,7 @@
   }
 
   function showRefereeWhistleModal(st, type, onProceed) {
+    hideBondPlayersTooltip();
     clearTournamentTimers(false);
     const slotEl = document.getElementById("shot-clash-slot");
     if (!slotEl || !st) {
@@ -3638,11 +3682,13 @@
         else if (roleOrAction === "DF") tacticalAndEnergyAdj -= 1.8;
       }
 
-      // Canal de Ataque (escalado pelos atributos do jogador naquela faixa!)
-      if (tac.lane === "wings" && (node.y < 34 || node.y > 66)) {
-        tacticalAndEnergyAdj += 1.6 + Math.max(-0.5, (attrs.vel - 80) * 0.08);
-      } else if (tac.lane === "center" && node.y >= 34 && node.y <= 66) {
-        tacticalAndEnergyAdj += 1.6 + Math.max(-0.5, (attrs.tec - 80) * 0.08);
+      // Canal de Ataque (escalado pelos atributos do jogador apenas em ações ofensivas, sem buffar GK/zaga!)
+      if (roleOrAction === "SH" || roleOrAction === "OF") {
+        if (tac.lane === "wings" && (node.y < 34 || node.y > 66)) {
+          tacticalAndEnergyAdj += 1.6 + Math.max(-0.5, (attrs.vel - 80) * 0.08);
+        } else if (tac.lane === "center" && node.y >= 34 && node.y <= 66) {
+          tacticalAndEnergyAdj += 1.6 + Math.max(-0.5, (attrs.tec - 80) * 0.08);
+        }
       }
 
       // Intensidade
@@ -4008,8 +4054,16 @@
         };
       }
       const defNodes = isUser ? pitch.oppNodes : pitch.userNodes;
+      const laneAim = isUser && !pitch.is5v5 ? getTactics().lane : "balanced";
+      let carrierLaneY = 50 + Math.sin(t * 1.1 + node.wanderPhase) * 16;
+      if (laneAim === "wings") {
+        const wingCorridorY = node.y < 50 ? 19 : 81;
+        carrierLaneY = Math.abs(oppGoalX - node.x) > 22 ? wingCorridorY : (node.y < 50 ? 34 : 66);
+      } else if (laneAim === "center") {
+        carrierLaneY = 50 + Math.sin(t * 1.1 + node.wanderPhase) * 7;
+      }
       let steerX = oppGoalX - dir * 10 - node.x;
-      let steerY = (50 + Math.sin(t * 1.1 + node.wanderPhase) * 16) - node.y;
+      let steerY = carrierLaneY - node.y;
       const distGoal = Math.hypot(steerX, steerY) || 1;
       steerX /= distGoal;
       steerY /= distGoal;
@@ -4306,17 +4360,28 @@
           if (tac.posture === "defensive") {
             node.targetX = Math.max(10, node.targetX - 7);
           } else if (tac.posture === "offensive") {
-            node.targetX = Math.min(90, node.targetX + 7);
+            const maxAttackX =
+              pitch.ballSide === "user" && (node.role === "FW" || node.tacticalRole === "WING" || node.tacticalRole === "ST")
+                ? Math.min(89, Math.max(52, deepestOppDef - 0.6))
+                : 90;
+            node.targetX = Math.min(maxAttackX, node.targetX + 7);
           }
           if (tac.lane === "wings" && (node.role === "MF" || node.role === "FW")) {
-            node.targetY = node.targetY <= 50 ? Math.max(10, node.targetY - 6) : Math.min(90, node.targetY + 6);
+            const sideBias = node.baseY < 48 ? -1 : node.baseY > 52 ? 1 : node.y <= 50 ? -1 : 1;
+            const wingFactor = Math.abs(node.targetY - 50) < 6 ? 0.5 : 1;
+            node.targetY = Math.max(10, Math.min(90, node.targetY + sideBias * 6 * wingFactor));
           } else if (tac.lane === "center" && (node.role === "MF" || node.role === "FW")) {
             node.targetY = node.targetY * 0.72 + 50 * 0.28;
           }
         } else if (node.side === "opp" && node.role !== "GK" && !pitch.is5v5 && node.uid !== pitch.carrierUid && !isBallChaser) {
           const oppPost = getOpponentDynamicPosture();
-          if (oppPost === "offensive") node.targetX = Math.max(10, node.targetX - 5);
-          else if (oppPost === "defensive") node.targetX = Math.min(90, node.targetX + 5);
+          if (oppPost === "offensive") {
+            const minOppX =
+              pitch.ballSide === "opp" && (node.role === "FW" || node.tacticalRole === "WING" || node.tacticalRole === "ST")
+                ? Math.max(11, Math.min(48, deepestOppDef + 0.6))
+                : 10;
+            node.targetX = Math.max(minOppX, node.targetX - 5);
+          } else if (oppPost === "defensive") node.targetX = Math.min(90, node.targetX + 5);
         }
       });
     };
@@ -5469,8 +5534,8 @@
 
     const kickerSupp = isUserKicking ? support.userTeamSupport : support.oppTeamSupport;
     const keeperSupp = isUserKicking ? support.oppTeamSupport : support.userTeamSupport;
-    const shotScore = calcNodeDuelScore(kicker, kickerSupp * 0.5, keeper?.player?.element);
-    const gkScore = calcNodeDuelScore(keeper, keeperSupp * 0.5, kicker?.player?.element);
+    const shotScore = calcNodeDuelScore(kicker, kickerSupp * 0.5, keeper?.player?.element, "SH");
+    const gkScore = calcNodeDuelScore(keeper, keeperSupp * 0.5, kicker?.player?.element, "GK");
 
     let isGoal = false;
     if (shootZone === diveZone) {
@@ -5611,7 +5676,16 @@
       const z = Math.floor(Math.random() * 6);
       resolvePenaltyTurn(st, z, true);
     }
-    if (!st.finished) finishPenaltyShootout(st);
+    if (!st.finished) {
+      if (pen.userGoals === pen.oppGoals) {
+        pen.userTaken++;
+        pen.userGoals++;
+        pen.oppTaken++;
+        pen.userKicks.push({ kickerName: "Desempate", sprite: pen.userOrder?.[0]?.player?.sprite || "", zone: 0, outcome: "GOAL" });
+        pen.oppKicks.push({ kickerName: "Desempate", sprite: pen.oppOrder?.[0]?.player?.sprite || "", zone: 0, outcome: "SAVED" });
+      }
+      finishPenaltyShootout(st);
+    }
   }
 
   function buildPenaltyDotsHTML(kicks, totalSlots = 5) {
@@ -6333,8 +6407,8 @@
         if (inChosenLane) dribTacBonus += 0.8;
       }
     }
-    const dribScore = calcNodeDuelScore(carrier, attSupport, marker?.player?.element) + ofPick.duelBonus + spdBonus + dribTacBonus;
-    const defScore = calcNodeDuelScore(marker, defSupport, carrier?.player?.element) + dfPick.duelBonus;
+    const dribScore = calcNodeDuelScore(carrier, attSupport, marker?.player?.element, "OF") + ofPick.duelBonus + spdBonus + dribTacBonus;
+    const defScore = calcNodeDuelScore(marker, defSupport, carrier?.player?.element, "DF") + dfPick.duelBonus;
     const wonDribble = Math.random() < logisticWinProb(dribScore, defScore, 4.4, 0.38, 0.86);
 
     spendStamina(carrier, ofPick.cost);
@@ -6476,6 +6550,17 @@
     }
   }
 
+  function isNodeOffside(receiver, passer, attIsUser, defNodes) {
+    const oppOutfieldDefs = (defNodes || []).filter((d) => d.role !== "GK");
+    const oppDefLineX = oppOutfieldDefs.length > 0
+      ? (attIsUser ? Math.max(...oppOutfieldDefs.map((d) => d.x)) : Math.min(...oppOutfieldDefs.map((d) => d.x)))
+      : (attIsUser ? 84 : 16);
+    const isOnside = attIsUser
+      ? (receiver.x <= 50 || receiver.x <= passer.x + 0.8 || receiver.x <= oppDefLineX + 0.8)
+      : (receiver.x >= 50 || receiver.x >= passer.x - 0.8 || receiver.x >= oppDefLineX - 0.8);
+    return !isOnside && (attIsUser ? receiver.x > 50 : receiver.x < 50);
+  }
+
   function launchContinuousPass(st, pitch, carrier, attNodes, defNodes, strictForward, safeRestart, isOneTwoPass = false, passOptions = {}) {
     const attIsUser = carrier.side === "user";
     const isGkOutlet = carrier.role === "GK";
@@ -6492,16 +6577,8 @@
       ? (attIsUser ? Math.max(...oppOutfieldDefs.map((d) => d.x)) : Math.min(...oppOutfieldDefs.map((d) => d.x)))
       : (attIsUser ? 84 : 16);
 
-    // Condição legal de impedimento no instante do passe (at the moment the ball is played):
-    // 1) Em seu próprio campo, OU
-    // 2) Atrás ou na mesma linha da bola, OU
-    // 3) Atrás ou na mesma linha do penúltimo adversário
-    // OBS: No 5x5, jogador está SEMPRE em condição legal (isReceiverOnside = true)
-    const isReceiverOnside = pitch.is5v5 || (attIsUser
-      ? (receiver.x <= 50 || receiver.x <= carrier.x + 0.8 || receiver.x <= oppDefLineX + 0.8)
-      : (receiver.x >= 50 || receiver.x >= carrier.x - 0.8 || receiver.x >= oppDefLineX - 0.8));
-
-    const wasOffsideAtPassTime = !pitch.is5v5 && !isReceiverOnside && (attIsUser ? receiver.x > 50 : receiver.x < 50);
+    const wasOffsideAtPassTime = !pitch.is5v5 && isNodeOffside(receiver, carrier, attIsUser, defNodes);
+    const isReceiverOnside = !wasOffsideAtPassTime;
 
     const effRole = getEffectiveCarrierRole(carrier);
     const forwardSpace = attIsUser ? (oppDefLineX - receiver.x) : (receiver.x - oppDefLineX);
@@ -6790,7 +6867,7 @@
 
     // Vantagem elemental contra o goleiro (calculada diretamente para o chute contra o GK)
     const baseShotScore =
-      calcNodeDuelScore(shooterNode, attSupport, origGkNode?.player?.element) +
+      calcNodeDuelScore(shooterNode, attSupport, origGkNode?.player?.element, "SH") +
       longMod +
       (shotInfo.duelBonus || 0);
 
@@ -6847,7 +6924,7 @@
         gkPick.move || (gkPick.exhausted ? "Defesa sem técnica (sem energia)" : "Defesa Direta");
       spendStamina(curGkNode, gkPick.cost);
 
-      const gkStopScore = calcNodeDuelScore(curGkNode, curDefSupport, activeShooter?.player?.element) + gkPick.duelBonus;
+      const gkStopScore = calcNodeDuelScore(curGkNode, curDefSupport, activeShooter?.player?.element, "GK") + gkPick.duelBonus;
       const goldenBias = st.isGoldenGoal5v5
         ? st.minute >= 30
           ? Math.min(14, 7.5 + (st.minute - 30) * 0.25)
@@ -7389,7 +7466,7 @@
 
       const counterLvlBonus = [0, 1.0, 2.0, 3.2][userCounterLvl] || 0;
       const counterDuelScore =
-        calcNodeDuelScore(counterNode, defSupport, shooterNode?.player?.element) + cPick.bonus + counterLvlBonus;
+        calcNodeDuelScore(counterNode, defSupport, shooterNode?.player?.element, cPick.isShCounter ? "SH" : "DF") + cPick.bonus + counterLvlBonus;
       const counterWinProb = logisticWinProb(counterDuelScore, baseShotScore, -0.3, 0.22, 0.78);
       const counterSuccess = Math.random() < counterWinProb;
 
@@ -7569,7 +7646,7 @@
     spendStamina(blockerNode, blockPick.cost);
 
     const blockerStopScore =
-      calcNodeDuelScore(blockerNode, defSupport, shooterNode?.player?.element) + blockPick.duelBonus;
+      calcNodeDuelScore(blockerNode, defSupport, shooterNode?.player?.element, "DF") + blockPick.duelBonus;
     const passBlockerProb = logisticWinProb(baseShotScore, blockerStopScore, -1.6, 0.38, 0.80);
     const passedBlocker = Math.random() < passBlockerProb;
 
@@ -8298,7 +8375,9 @@
       if (playMeta.isOneTwoPass && playMeta.passerNode && Math.random() < 0.78) {
         const runner = playMeta.passerNode;
         const runnerFwd = attIsUser ? runner.x > catcher.x - 4 : runner.x < catcher.x + 4;
-        if (runnerFwd && Math.hypot(runner.x - catcher.x, runner.y - catcher.y) <= 32) {
+        const runnerOnside =
+          pitch.is5v5 || !isNodeOffside(runner, catcher, attIsUser, defNodes);
+        if (runnerFwd && runnerOnside && Math.hypot(runner.x - catcher.x, runner.y - catcher.y) <= 32) {
           catcher.duelCooldown = 1.0;
           launchContinuousPass(st, pitch, catcher, attNodes, defNodes, true, false, false, {
             targetReceiver: runner,
@@ -8336,8 +8415,8 @@
         );
         if (interceptor) {
           interceptor.duelCooldown = 2.0;
-          const passScore = calcNodeDuelScore(ps.passerNode, attSupport, interceptor?.player?.element);
-          const defScore = calcNodeDuelScore(interceptor, defSupport, ps.passerNode?.player?.element);
+          const passScore = calcNodeDuelScore(ps.passerNode, attSupport, interceptor?.player?.element, "OF");
+          const defScore = calcNodeDuelScore(interceptor, defSupport, ps.passerNode?.player?.element, "DF");
 
           const passerOvr = ps.passerNode?.effOvr || 75;
           const defOvr = interceptor.effOvr || 75;
@@ -8465,18 +8544,18 @@
       pitch.ballX += ls.vx * dt;
       pitch.ballY += ls.vy * dt;
 
-      if (pitch.ballX < 5.5) {
-        pitch.ballX = 5.5;
+      if (pitch.ballX < 7.0) {
+        pitch.ballX = 7.0;
         ls.vx = Math.abs(ls.vx) * 0.45;
-      } else if (pitch.ballX > 94.5) {
-        pitch.ballX = 94.5;
+      } else if (pitch.ballX > 93.0) {
+        pitch.ballX = 93.0;
         ls.vx = -Math.abs(ls.vx) * 0.45;
       }
-      if (pitch.ballY < 8.5) {
-        pitch.ballY = 8.5;
+      if (pitch.ballY < 9.0) {
+        pitch.ballY = 9.0;
         ls.vy = Math.abs(ls.vy) * 0.45;
-      } else if (pitch.ballY > 91.5) {
-        pitch.ballY = 91.5;
+      } else if (pitch.ballY > 91.0) {
+        pitch.ballY = 91.0;
         ls.vy = -Math.abs(ls.vy) * 0.45;
       }
 
@@ -8602,6 +8681,10 @@
     const inPrep = Boolean(state.phase === "tournament" && state.tournament?.prep);
     document.body.classList.toggle("phase-tournament", state.phase === "tournament");
     document.body.classList.toggle("phase-prep", inPrep);
+    const autoBtn = document.getElementById("btn-auto-draft");
+    if (autoBtn) {
+      autoBtn.style.display = state.phase === "draft" ? "inline-flex" : "none";
+    }
     const subEl = document.getElementById("topbar-brand-sub");
     if (subEl) {
       if (state.phase === "tournament") {
@@ -8783,6 +8866,11 @@
 
     document.getElementById("btn-start-game-now").addEventListener("click", () => {
       clearTournamentTimers(false);
+      if (state.spinTimerId) {
+        clearTimeout(state.spinTimerId);
+        state.spinTimerId = null;
+      }
+      state.isSpinning = false;
       state.storyLockNotice = false;
       state.phase = "draft";
       state.squad = {};
@@ -8830,7 +8918,7 @@
     // Se o usuário selecionou um personagem (ou clicou em Ver Campo) -> Abre o Campo!
     if (state.selectedPlayer || state.peekField) {
       const sel = state.selectedPlayer;
-      const hasNaturalOpen = sel ? openRoles.has(sel.pos) : true;
+      const hasNaturalOpen = sel ? getPlayerPositionsList(sel).some((r) => openRoles.has(r)) : true;
 
       container.innerHTML = `
         <div class="placing-banner">
@@ -8843,13 +8931,13 @@
                       POSICIONANDO NO CAMPO (${pickedCount + 1} DE 11)
                     </div>
                     <div style="font-size:1.02rem; font-weight:900; color:#fff; display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
-                      <span>${sel.name}</span> ${posIconHTML(sel.pos, true)} ${elemIconHTML(sel.element)} <span class="ovr-tag">Nv. ${getPlayerLevel(sel)}</span> <span class="ovr-tag">OVR ${sel.ovr}</span>
+                      <span>${sel.name}</span> ${posIconHTML(sel.pos, true)} ${elemIconHTML(sel.element)} <span class="ovr-tag">Nv. ${getPlayerLevel(sel)}</span> <span class="ovr-tag">${state.hideOvrBeforePick ? "OVR ??" : `OVR ${sel.ovr}`}</span>
                     </div>
                     <div style="font-size:0.74rem; color:#dbeafe; margin-top:2px;">
                       ${
                         hasNaturalOpen
-                          ? `Toque em uma vaga de <strong>${sel.pos}</strong> em verde! (Colar elementos iguais acende link próximo!)`
-                          : `Vagas de ${sel.pos} ocupadas! Improvisar reduz <strong>-6 a -14 OVR</strong> apenas no jogador fora de posição.`
+                          ? `Toque em uma vaga de <strong>${getPlayerPositionsList(sel).join("/")}</strong> em verde! (Colar elementos iguais acende link próximo!)`
+                          : `Vagas de ${getPlayerPositionsList(sel).join("/")} ocupadas! Improvisar reduz <strong>-6 a -14 OVR</strong> apenas no jogador fora de posição.`
                       }
                     </div>
                   </div>
@@ -8879,6 +8967,7 @@
       document.getElementById("btn-back-to-team").addEventListener("click", () => {
         state.selectedPlayer = null;
         state.peekField = false;
+        state.swapSlotId = null;
         renderDraftWheelAndRoster(false);
       });
 
@@ -9470,34 +9559,41 @@
   }
 
   async function exportRunSummaryImage(summary, stats, t) {
+    const btnEl = document.getElementById("btn-export-run-png");
+    if (btnEl && btnEl.disabled) return null;
+    if (btnEl) btnEl.disabled = true;
     const statusEl = document.getElementById("export-png-status");
     const previewSlot = document.getElementById("run-export-preview-slot");
     if (statusEl) statusEl.textContent = "⏳ Gerando imagem...";
 
-    const imgCache = new Map();
-    const urls = new Set();
-    if (UI.raimonEmblem) urls.add(UI.raimonEmblem);
-    [
-      summary.mvp,
-      summary.topScorer,
-      summary.topAssister,
-      summary.topPasser,
-      summary.topDribbler,
-      summary.topStealer,
-      summary.topKeeper,
-      ...(summary.rosterSorted || [])
-    ].forEach((p) => {
-      if (p?.sprite) urls.add(p.sprite);
-    });
-    (summary.allStages || []).forEach((s) => {
-      if (s?.oppTeam?.emblem) urls.add(s.oppTeam.emblem);
-    });
+    try {
+      const imgCache = new Map();
+      const urls = new Set();
+      if (UI.raimonEmblem) urls.add(UI.raimonEmblem);
+      [
+        summary.mvp,
+        summary.topScorer,
+        summary.topAssister,
+        summary.topPasser,
+        summary.topDribbler,
+        summary.topStealer,
+        summary.topKeeper,
+        ...(summary.rosterSorted || [])
+      ].forEach((p) => {
+        if (p?.sprite) urls.add(p.sprite);
+      });
+      (summary.allStages || []).forEach((s) => {
+        if (s?.oppTeam?.emblem) urls.add(s.oppTeam.emblem);
+      });
 
-    await Promise.all(
-      Array.from(urls).map(async (u) => {
-        imgCache.set(u, await loadCanvasImageSafe(u));
-      })
-    );
+      await Promise.all(
+        Array.from(urls).map(async (u) => {
+          imgCache.set(u, await loadCanvasImageSafe(u));
+        })
+      );
+      if (state.phase !== "tournament" || state.tournament !== t || !t?.showRunSummary) {
+        return null;
+      }
 
     const stageCount = (summary.allStages || []).length || 4;
     const stageRows = Math.max(1, Math.ceil(stageCount / 4));
@@ -9923,6 +10019,9 @@
       `;
     }
     return dataUrl;
+    } finally {
+      if (btnEl && btnEl.isConnected) btnEl.disabled = false;
+    }
   }
 
   // ============================================================================
@@ -10183,7 +10282,7 @@
             teamPower: 20,
             teamChem: 8,
             weight: 1.7,
-            summary: `<span class="b-lvl">+1 Nível</span> e <span class="b-pwr">+28 Poder</span> em 1 titular e <span class="b-chem">+8% Química</span>. Conta para Arsenal Completo.`
+            summary: `<span class="b-lvl">+1 Nível</span> e <span class="b-pwr">+28 Poder</span> em 1 titular e <span class="b-chem">+8% Química</span>. Conta para Arsenal.`
           },
           {
             id: "energy_drink",
@@ -10204,7 +10303,7 @@
             maxLevel: 3,
             teamPower: 10,
             weight: 1.9,
-            summary: `Reduz em <span class="b-chem">-2% por nível</span> (-2% / -4% / -6%) o custo de energia dos locais da cidade.`
+            summary: `Reduz em <span class="b-chem">-2 pontos por nível</span> (-2% / -4% / -6%) o custo de energia dos locais da cidade.`
           },
           {
             id: "rest_upgrade",
@@ -10235,8 +10334,8 @@
         title: "Margem do Rio",
         sub: "Campinho da Raimon",
         mapLabel: "Campinho 5x5",
-        mapX: 30,
-        mapY: 79,
+        mapX: 31,
+        mapY: 71,
         energyCost: 25,
         cta: "Ir para o Campinho",
         spinMsg: "Sorteando 3 oportunidades na Margem do Rio...",
@@ -10459,8 +10558,8 @@
         title: "Sede do Clube",
         sub: "Descanso & Recuperação",
         mapLabel: "Descansar",
-        mapX: 17,
-        mapY: 42,
+        mapX: 19,
+        mapY: 46,
         energyGain: 35,
         isRestLocation: true,
         cta: "Descansar (+35%)",
@@ -10505,6 +10604,9 @@
     if (!player._baseMovesSnapshot) {
       player._baseMovesSnapshot = JSON.parse(JSON.stringify(player.moves));
     }
+    if (player._baseHissatsuSnapshot === undefined) {
+      player._baseHissatsuSnapshot = player.hissatsu || "";
+    }
     const order =
       slotRole === "GK"
         ? ["GK", "DF", "SH", "OF"]
@@ -10514,11 +10616,15 @@
         ? ["OF", "SH", "DF", "GK"]
         : ["SH", "OF", "DF", "GK"];
 
+    const baseMoves = player._baseMovesSnapshot || {};
     for (const cat of order) {
       const arr = player.moves[cat];
       if (Array.isArray(arr) && arr.length > 0) {
-        const oldName = arr[0];
-        if (oldName.includes("★")) continue;
+        const origList = Array.isArray(baseMoves[cat]) ? baseMoves[cat] : [];
+        let targetIdx = arr.findIndex((m) => !m.includes("★") && (origList.length === 0 || origList.some((o) => m.startsWith(o))));
+        if (targetIdx < 0) targetIdx = arr.findIndex((m) => !m.includes("★"));
+        if (targetIdx < 0) continue;
+        const oldName = arr[targetIdx];
         let nextName = oldName;
         if (cat === "GK") {
           nextName = oldName.includes("Shin") ? `${oldName} ★` : oldName.includes("Kai") ? oldName.replace("Kai", "Shin") : `${oldName} Shin`;
@@ -10527,7 +10633,7 @@
         } else {
           nextName = oldName.includes("G2") ? oldName.replace("G2", "G3") : oldName.includes("G3") ? `${oldName} ★` : `${oldName} G2`;
         }
-        arr[0] = nextName;
+        arr[targetIdx] = nextName;
         player.moveEvoCount = (player.moveEvoCount || 0) + 1;
         player.hissatsu = [
           ...(player.moves[order[0]] || []),
@@ -10546,6 +10652,9 @@
     if (!player.moves) player.moves = { SH: [], OF: [], DF: [], GK: [] };
     if (!player._baseMovesSnapshot) {
       player._baseMovesSnapshot = JSON.parse(JSON.stringify(player.moves));
+    }
+    if (player._baseHissatsuSnapshot === undefined) {
+      player._baseHissatsuSnapshot = player.hissatsu || "";
     }
     player.learnedSecretManual = true;
     player.moveEvoCount = (player.moveEvoCount || 0) + 1;
@@ -10646,7 +10755,7 @@
       {
         id: `fallback_${loc.id}`,
         title: loc.id === "town" ? "Suplemento Relâmpago" : "Treino Intensivo Relâmpago",
-        icon: UI.tpWater || UI.manualSkill || UI.ffLogo,
+        icon: UI.sportsDrink || UI.manualSkill || UI.ffLogo,
         kind: "COLLECTIVE",
         applyRoles: ["GK", "DF", "MF", "FW"],
         levelGain: 1,
@@ -10670,6 +10779,9 @@
     if (!player.moves) player.moves = { SH: [], OF: [], DF: [], GK: [] };
     if (!player._baseMovesSnapshot) {
       player._baseMovesSnapshot = JSON.parse(JSON.stringify(player.moves));
+    }
+    if (player._baseHissatsuSnapshot === undefined) {
+      player._baseHissatsuSnapshot = player.hissatsu || "";
     }
     if (!Array.isArray(player.learnedLvlMilestones)) {
       player.learnedLvlMilestones = [];
@@ -10718,12 +10830,19 @@
 
   function gainPlayerXp(player, amount, slotRole = null) {
     if (!player || !amount) return { xpGained: 0, levelsGained: 0, currentXp: 0, learnedMoves: [] };
+    if (getPlayerLevel(player) >= 30) {
+      player.xp = 0;
+      return { xpGained: 0, levelsGained: 0, ovrGained: 0, currentXp: 0, learnedMoves: [] };
+    }
     player.xp = (player.xp || 0) + amount;
     let levelsGained = 0;
-    while (player.xp >= 100) {
+    while (player.xp >= 100 && getPlayerLevel(player) < 30) {
       player.xp -= 100;
       player.level = getPlayerLevel(player) + 1;
       levelsGained++;
+    }
+    if (getPlayerLevel(player) >= 30) {
+      player.xp = 0;
     }
     const learnedMoves = levelsGained > 0 ? checkAndLearnLevelMoves(player, slotRole || player.pos) : [];
     return { xpGained: amount, levelsGained, ovrGained: levelsGained, currentXp: player.xp, learnedMoves };
@@ -10818,6 +10937,7 @@
       const pLvl = side === "opp" ? oppLvl : getPlayerLevel(p);
       const effOvr = side === "user" && entry.slot ? getEffectiveOvr(p, entry.slot.role) : p.ovr;
       const indivPower = calcIndividualPlayerPower(p, coords.role, pLvl);
+      const attrs = calcPlayerAttributes(p, coords.role, pLvl);
       return {
         uid: `${side === "user" ? "u5" : "o5"}_${coords.key}`,
         side,
@@ -10829,7 +10949,8 @@
         effOvr,
         level: pLvl,
         indivPower,
-        spd: calcPlayerSpeedStat(p, effOvr),
+        attrs,
+        spd: attrs.vel,
         stamina: 100,
         baseX: coords.x,
         baseY: coords.y,
@@ -10973,6 +11094,11 @@
   function startPrepLocationTripleSlot(locId) {
     const t = state.tournament;
     if (!t.prep) return;
+    if ((t.prep.eventsRemaining || 0) <= 0) {
+      t.prep.energyNotice = "Suas ações desta preparação acabaram! Ajuste Táticas/Escalação ou inicie a partida.";
+      renderTournamentScreen();
+      return;
+    }
     const loc = getPrepLocationsCatalog().find((x) => x.id === locId);
     if (!loc) return;
 
@@ -10983,6 +11109,12 @@
 
     if (loc.isRestLocation) {
       const prevE = Math.round(getTeamEnergy());
+      if (prevE >= 100) {
+        t.prep.energyNotice = "Sua Energia já está em 100%! Escolha outro local na cidade.";
+        renderTournamentScreen();
+        return;
+      }
+      t.prep.energyNotice = null;
       const gain = getRestEnergyGain(t);
       const nextE = Math.round(adjustTeamEnergy(gain));
       t.prep.locId = locId;
@@ -11001,8 +11133,11 @@
 
     const reqCost = getPrepLocationCost(loc, t);
     if (reqCost > 0 && getTeamEnergy() < reqCost) {
+      t.prep.energyNotice = `Energia insuficiente para ${loc.title} (precisa de ${reqCost}% — descanse na Sede do Clube!).`;
+      renderTournamentScreen();
       return;
     }
+    t.prep.energyNotice = null;
     if (reqCost > 0) {
       adjustTeamEnergy(-reqCost);
     }
@@ -11188,6 +11323,8 @@
     if (!prep || !starRecruit || !replaceSlotId) return;
 
     const oldPlayer = state.squad[replaceSlotId];
+    const targetSlot = getSlots().find((s) => s.id === replaceSlotId);
+    const targetRole = targetSlot?.role || starRecruit.player?.pos || starRecruit.role || "MF";
     const nextIdx = prep.nextStageIdx ?? t.stageIndex ?? 0;
     const stageTargetLvl = STAGE_OPPONENT_LEVELS[Math.min(nextIdx, STAGE_OPPONENT_LEVELS.length - 1)] || 1;
     const recruitLvl = Math.max(getPlayerLevel(oldPlayer) + 1, stageTargetLvl);
@@ -11196,9 +11333,11 @@
       { id: starRecruit.teamId, name: starRecruit.teamName, emblem: starRecruit.emblem },
       recruitLvl
     );
+    checkAndLearnLevelMoves(newP, targetRole);
     state.squad[replaceSlotId] = newP;
-    const newPwr = calcIndividualPlayerPower(newP, starRecruit.role || newP.pos, recruitLvl);
+    const newPwr = calcIndividualPlayerPower(newP, targetRole, recruitLvl);
     prep.phase = "DONE";
+    prep.recruitCandidate = null;
     prep.appliedMsg = `⭐ RECRUTAMENTO OFICIAL! ${newP.name} (OVR ${newP.ovr} • Nv. ${recruitLvl} • Poder ${newPwr}) entrou como titular no lugar de ${oldPlayer?.name || "titular"}!`;
     t.prepBonuses.log.push(`Recrutou ${newP.name} (Nv.${recruitLvl})`);
     renderAll();
@@ -11282,6 +11421,10 @@
       const targetElem = player.element || "Fogo";
       if (!Array.isArray(player.equippedItems)) player.equippedItems = [];
       player.equippedItems.push({ id: event.id, title: `${event.title} (${targetElem})`, icon: event.icon });
+      if (!Array.isArray(t.prepBonuses.boostedElements)) t.prepBonuses.boostedElements = [];
+      if (!t.prepBonuses.boostedElements.includes(targetElem)) {
+        t.prepBonuses.boostedElements.push(targetElem);
+      }
       t.prepBonuses.boostedElement = targetElem;
       let totalElemPwr = 0;
       getSlots().forEach((s) => {
@@ -11324,7 +11467,7 @@
         else if (event.id === "shoes_thunder") { player.bonusStats.vel += 6; player.bonusStats.tec += 3; }
         else if (event.id === "glove_legend") { player.bonusStats.def += 6; player.bonusStats.fis += 3; }
         else if (event.id === "spike_block") { player.bonusStats.def += 5; player.bonusStats.fis += 4; }
-        else if (event.id === "bracelet_friendship" || event.id === "misanga_friend" || event.id === "captain_armband") {
+        else if (event.id === "misanga_friend" || event.id === "captain_armband") {
           player.bonusStats.tec += 4; player.bonusStats.for += 3; player.bonusStats.fis += 3;
         }
         player.equippedItems.push({ id: event.id, title: event.title, icon: event.icon });
@@ -11498,11 +11641,11 @@
         if (won && c5.starRecruit) {
           prep.phase = "RECRUIT_OFFER";
           prep.recruitCandidate = c5.starRecruit;
-          prep.appliedMsg = `Vitória épica por Gol de Ouro (1 x 0${scorerName ? ` · ${scorerName}` : ""})! Os 5 participantes subiram +2 Níveis${drinkMsg} e o craque rival ${c5.starRecruit.player.name} (OVR ${c5.starRecruit.player.ovr}) quer se juntar ao seu Dream Team!`;
+          prep.appliedMsg = `Vitória épica por Gol de Ouro (1 x 0${scorerName ? ` · ${scorerName}` : ""})! Os 5 participantes ganharam +120 a +150 XP${drinkMsg} e o craque rival ${c5.starRecruit.player.name} (OVR ${c5.starRecruit.player.ovr}) quer se juntar ao seu Dream Team!`;
         } else {
           prep.phase = "DONE";
           prep.appliedMsg = won
-            ? `Vitória por Gol de Ouro (1 x 0${scorerName ? ` · ${scorerName}` : ""})! Todos os 5 participantes subiram +2 Níveis${drinkMsg} e o time ganhou +${pwr} Poder!`
+            ? `Vitória por Gol de Ouro (1 x 0${scorerName ? ` · ${scorerName}` : ""})! Todos os 5 participantes ganharam +120 a +150 XP${drinkMsg} e o time ganhou +${pwr} Poder!`
             : `Os Desafiantes venceram o Gol de Ouro (0 x 1). O time sentiu a pressão (-20 Poder), mas ganhou +${totalXpGiven} XP de aprendizado.`;
         }
         renderAll();
@@ -11721,7 +11864,7 @@
         ? "Prepare seu Dream Team antes da partida de estreia!"
         : isWorldDebut
         ? "Prepare a seleção para a estreia na Fase de Grupos do Mundial!"
-        : "Escolha até 3 ações na cidade ou vá direto para a partida:";
+        : `Escolha até ${totActions} ações na cidade ou vá direto para a partida:`;
 
       topBannerHTML = `
         <div class="prep-top-banner">
@@ -11730,6 +11873,7 @@
               ${prepHeadline}
             </h3>
             ${buildTeamEnergyBarHTML(false)}
+            ${prep.energyNotice ? `<div style="margin-top:6px; font-size:0.74rem; font-weight:800; color:#fde047;">⚠️ ${prep.energyNotice}</div>` : ""}
           </div>
           <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
             <span class="prep-xp-pill">Ações: ${remActions}/${totActions}</span>
@@ -11747,7 +11891,7 @@
             <img class="prep-inazuma-map-img" src="${mapImgSrc}" alt="Mapa da Cidade de Inazuma" />
             <div class="prep-inazuma-map-shade"></div>
             <div class="prep-map-header-tag">
-              <span>Onde quer ir? • ${remActions} ${remActions === 1 ? "ação restante" : "ações restantes"}</span>
+              <span>${remActions > 0 ? `Onde quer ir? • ${remActions} ${remActions === 1 ? "ação restante" : "ações restantes"}` : "Ações encerradas • Ajuste táticas ou inicie a partida"}</span>
             </div>
             <div class="prep-map-footer-tag">
               ${UI.iconDestVR ? `<img src="${UI.iconDestVR}" alt="" />` : "⚡"}
@@ -11758,8 +11902,14 @@
                 (loc) => {
                   const reqCost = getPrepLocationCost(loc, t);
                   const restGain = getRestEnergyGain(t);
-                  const isDisabled = !loc.isRestLocation && curTeamEnergy < reqCost;
-                  const pinTitle = isDisabled
+                  const isNoActions = remActions <= 0;
+                  const isFullEnergyRest = Boolean(loc.isRestLocation && curTeamEnergy >= 100);
+                  const isDisabled = isNoActions || isFullEnergyRest || (!loc.isRestLocation && curTeamEnergy < reqCost);
+                  const pinTitle = isNoActions
+                    ? `${loc.title} — Ações desta rodada encerradas`
+                    : isFullEnergyRest
+                    ? `${loc.title} — Energia já está em 100%`
+                    : isDisabled
                     ? `${loc.title} — Energia insuficiente (precisa de ${reqCost}%)`
                     : `${loc.title} — ${loc.sub}`;
                   const energyBadge = loc.isRestLocation
@@ -11850,7 +12000,7 @@
               ${recPlayer.name} (OVR ${recPlayer.ovr} · ${recPlayer.pos}) quer jogar no seu time!
             </div>
             <div style="font-size:0.78rem; color:#cbd5e1; max-width:620px; margin:4px auto 0;">
-              Após a derrota no 5x5, este craque do ${rec.teamName} reconheceu a força da sua equipe e quer uma vaga como titular.
+              Após a vitória no 5x5, este craque do ${rec.teamName} reconheceu a força da sua equipe e quer uma vaga como titular.
               Selecione quem você deseja substituir no seu time principal:
             </div>
           </div>
@@ -12045,8 +12195,10 @@
                       <div class="prep-pick-card" data-prep-pick="${slot.id}">
                         <img class="prep-pick-sprite" src="${getPlayerFormSprite(p, slot.role)}" alt="${p.name}" />
                         <div style="min-width:0; flex:1;">
-                          <div style="font-size:0.78rem; font-weight:900; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
-                            ${posIconHTML(slot.role, true)} ${p.name} <span style="color:#fde047;">(OVR ${curOvr})</span>
+                          <div style="display:flex; align-items:center; gap:4px; flex-wrap:wrap; font-size:0.76rem; font-weight:900; color:#fff;">
+                            ${posIconHTML(slot.role, true)}
+                            <span style="min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1 1 auto;">${p.name}</span>
+                            <span style="color:#fde047; flex-shrink:0;">(OVR ${curOvr})</span>
                           </div>
                           <div style="font-size:0.68rem; font-weight:800; color:#4ade80; margin-top:2px;">
                             Nv. ${curLvl} ➔ Nv. ${nextLvl} • Poder ${curPwr} ➔ ${nextPwr}
@@ -12139,6 +12291,9 @@
                   <button class="ie-cmd-btn ie-cmd-green" id="btn-prep-proceed">
                     <span>Ir para ${nextStage.stageName} →</span>
                   </button>
+                  <button class="ie-cmd-btn ie-cmd-gold" id="btn-prep-second-event" style="font-size:0.76rem; padding:7px 14px;">
+                    <span>Ajustar Escalação / Mapa</span>
+                  </button>
                 `}
               </div>
             </div>
@@ -12169,6 +12324,7 @@
           </div>
           ${wg.lastOtherResult ? `<span class="world-group-other">Outro jogo: ${wg.lastOtherResult}</span>` : ""}
         </div>
+        <div class="world-group-table-wrap">
         <table class="world-group-table">
           <thead>
             <tr>
@@ -12212,6 +12368,25 @@
               .join("")}
           </tbody>
         </table>
+        </div>
+      </div>
+    `;
+  }
+
+  function buildFormationSelectorStripHTML() {
+    return `
+      <div class="tactics-control-bar" style="margin-bottom:8px; padding:7px 10px;">
+        <div class="tac-group">
+          <span class="tac-label">Formação</span>
+          <div class="tac-pills">
+            ${Object.keys(DB.formations || {})
+              .map(
+                (fk) =>
+                  `<button type="button" class="tac-pill-btn ${state.formation === fk ? "is-active" : ""}" data-tac-formation="${fk}">${fk}</button>`
+              )
+              .join("")}
+          </div>
+        </div>
       </div>
     `;
   }
@@ -12229,6 +12404,7 @@
               <span>Fechar ✕</span>
             </button>
           </div>
+          ${buildFormationSelectorStripHTML()}
           <div id="squad-pitch-modal-body">
             ${buildPitchHTML(true)}
           </div>
@@ -12308,6 +12484,7 @@
 
   // TELA 3: TORNEIO FUTEBOL FRONTEIRA & MUNDIAL (FFI)
   function renderTournamentScreen() {
+    hideBondPlayersTooltip();
     const container = document.getElementById("main-screen-container");
     if (!container) return;
 
@@ -12398,7 +12575,13 @@
         });
       });
 
-      bindTacticsControls(container, () => renderAll());
+      bindTacticsControls(container, () => {
+        const wasModalOpen = squadModal?.classList.contains("is-open");
+        renderAll();
+        if (wasModalOpen) {
+          document.getElementById("btn-open-squad-modal")?.click();
+        }
+      });
 
       container.querySelectorAll("[data-prep-choice-idx]").forEach((btn) => {
         btn.addEventListener("click", () => {
@@ -12429,13 +12612,15 @@
       const secondEventBtn = document.getElementById("btn-prep-second-event");
       if (secondEventBtn) {
         secondEventBtn.addEventListener("click", () => {
-          t.prep.eventsRemaining = Math.max(1, (t.prep.eventsRemaining || 2) - 1);
+          t.prep.eventsRemaining = Math.max(0, (t.prep.eventsRemaining || 1) - 1);
           t.prep.phase = "CHOOSE_LOC";
           t.prep.locId = null;
           t.prep.choices = null;
           t.prep.slotStrips = null;
           t.prep.event = null;
           t.prep.clash5v5 = null;
+          t.prep.recruitCandidate = null;
+          t.prep.energyNotice = null;
           t.prep.appliedMsg = null;
           renderTournamentScreen();
         });
@@ -12739,6 +12924,7 @@
               </div>
             </div>
             ${buildTeamEnergyBarHTML(false)}
+            ${buildFormationSelectorStripHTML()}
             ${buildTacticsControlBarHTML(false)}
             <div id="live-tac-pitch-body">
               ${buildPitchHTML(true)}
@@ -12753,35 +12939,97 @@
     if (st.pitch && !st.finished && !st.penalties) {
       updatePitchCameraTransform(st.pitch, performance.now(), true);
       const tacModal = document.getElementById("live-tactics-modal");
-      if (tacModal) bindTacticsControls(tacModal);
 
-      const syncLivePitchNodesFromSquad = () => {
+      const syncLivePitchNodesFromSquad = (formationChanged = false) => {
         if (!st.pitch || !Array.isArray(st.pitch.userNodes)) return;
-        const stamByPlayerId = {};
+        const oldByPlayerId = {};
         st.pitch.userNodes.forEach((n) => {
-          if (n.player?.id) stamByPlayerId[n.player.id] = n.stamina;
+          if (n.player?.id) oldByPlayerId[n.player.id] = n;
         });
+        const oldStatsByPlayerId = {};
+        if (st.pitch.stats?.playerStats) {
+          Object.values(st.pitch.stats.playerStats).forEach((ps) => {
+            if (ps?.id) oldStatsByPlayerId[ps.id] = ps;
+          });
+        }
+        const formSlots = getSlots();
+        const slotMap = Object.fromEntries(formSlots.map((s) => [s.id, s]));
+
+        if (formationChanged) {
+          // Remapeia cada nó ao novo slot da formação mantendo player, stamina, posição física e uid
+          const takenNodeUids = new Set();
+          formSlots.forEach((s) => {
+            const p = state.squad[s.id];
+            if (!p) return;
+            let node = st.pitch.userNodes.find((n) => n.player?.id === p.id && !takenNodeUids.has(n.uid));
+            if (!node) {
+              node = st.pitch.userNodes.find((n) => !takenNodeUids.has(n.uid));
+            }
+            if (!node) return;
+            takenNodeUids.add(node.uid);
+            node.slotId = s.id;
+            node.role = s.role;
+            node.tacticalRole = getTacticalRole(s.label);
+            node.label = s.label;
+            node.baseX = Math.max(7, Math.min(76, (96 - s.y) * 0.78 + 4));
+            node.baseY = Math.max(12, Math.min(88, s.x));
+          });
+        }
+
         st.pitch.userNodes.forEach((n) => {
           const p = state.squad[n.slotId];
           if (!p) return;
+          const prevNode = oldByPlayerId[p.id];
           n.player = p;
+          if (!formationChanged) {
+            const s = slotMap[n.slotId];
+            if (s) {
+              n.role = s.role;
+              n.tacticalRole = getTacticalRole(s.label);
+              n.label = s.label;
+            }
+          }
           n.effOvr = getEffectiveOvr(p, n.role);
           n.level = getPlayerLevel(p);
           n.indivPower = calcIndividualPlayerPower(p, n.role, n.level);
           n.attrs = calcPlayerAttributes(p, n.role, n.level);
           n.spd = n.attrs.vel;
           n.maxSpeed = calcNodeBaseSpeed(n.tacticalRole, n.effOvr, p);
-          if (typeof stamByPlayerId[p.id] === "number") {
-            n.stamina = stamByPlayerId[p.id];
+          if (prevNode && typeof prevNode.stamina === "number") {
+            n.stamina = prevNode.stamina;
           }
+          if (st.pitch.stats?.playerStats) {
+            const prevStat = oldStatsByPlayerId[p.id];
+            st.pitch.stats.playerStats[n.uid] = {
+              ...(prevStat || {
+                goals: 0, assists: 0, passesOk: 0, passesTry: 0,
+                gkReleases: 0, dribblesOk: 0, dribblesTry: 0,
+                steals: 0, blocks: 0, shots: 0, saves: 0
+              }),
+              uid: n.uid,
+              slotId: n.slotId,
+              role: n.role,
+              id: p.id,
+              name: p.name,
+              fullName: p.fullName || p.name,
+              sprite: getPlayerFormSprite(p, n.role),
+              element: p.element,
+              teamEmblem: p.teamEmblem,
+              teamName: p.teamName,
+              ovr: n.effOvr
+            };
+          }
+          const dynSprite = resolveDynamicNodeSprite(n, st.pitch);
+          n._renderedSprite = dynSprite;
           const tokEl = document.getElementById(`pnode-${n.uid}`);
           if (tokEl) {
             const avEl = tokEl.querySelector(".pitch-token-avatar");
             const nmEl = tokEl.querySelector(".pitch-token-name");
-            if (avEl) avEl.src = resolveDynamicNodeSprite(n, st.pitch);
+            if (avEl) avEl.src = dynSprite;
             if (nmEl) nmEl.textContent = (p.name || n.label).split(" ").slice(-1)[0];
           }
         });
+        recomputePitchTargets(st.pitch);
         st.pitch.matchSupportInitialized = false;
         ensureMatchSupport(st, st.pitch);
         syncLivePitchDOM(st);
@@ -12801,7 +13049,7 @@
                 const tmp = state.squad[state.swapSlotId];
                 state.squad[state.swapSlotId] = state.squad[slotId];
                 state.squad[slotId] = tmp;
-                syncLivePitchNodesFromSquad();
+                syncLivePitchNodesFromSquad(false);
               }
               state.swapSlotId = null;
             }
@@ -12817,10 +13065,28 @@
         });
       };
 
+      if (tacModal) {
+        bindTacticsControls(tacModal, () => {
+          syncLivePitchNodesFromSquad(true);
+          const pitchBody = document.getElementById("live-tac-pitch-body");
+          if (pitchBody) {
+            pitchBody.innerHTML = buildPitchHTML(true);
+            bindLiveTacPitch();
+          }
+          renderHeaderAndBonds();
+          const curSt = calcSquadStats();
+          const uMeta = document.getElementById("live-tac-user-meta");
+          if (uMeta) {
+            uMeta.innerHTML = `Nv. ${curSt.avgLevel || 1} • Poder <strong>${curSt.power.toLocaleString("pt-BR")}</strong> • Quím ${curSt.chem}%`;
+          }
+        });
+      }
+
       const openTacBtn = document.getElementById("btn-open-live-tactics");
       const closeTacBtn = document.getElementById("btn-close-live-tactics");
       const pauseForTactics = () => {
         if (st.finished || state.tournament.pendingWhistleFinish || state.tournament.qteRafId) return;
+        hideBondPlayersTooltip();
         st.running = false;
         clearTournamentTimers(true);
         state.swapSlotId = null;
@@ -13023,19 +13289,33 @@
         }
         const openSlots = getOpenSlots();
         const pickedIds = getPickedPlayerIds();
+        const pickedFulls = getPickedFullNames();
         openSlots.forEach((slot) => {
           const candidates = [];
           DB.teams.forEach((t) => {
             t.players.forEach((p) => {
-              if (!pickedIds.has(p.id) && playerMatchesRole(p, slot.role)) {
+              const fnKey = (p.fullName || p.name || "").trim().toLowerCase();
+              if (!pickedIds.has(p.id) && !(fnKey && pickedFulls.has(fnKey)) && playerMatchesRole(p, slot.role)) {
                 candidates.push(cloneFreshPlayerForSquad(p, t, 1));
               }
             });
           });
+          if (candidates.length === 0) {
+            DB.teams.forEach((t) => {
+              t.players.forEach((p) => {
+                const fnKey = (p.fullName || p.name || "").trim().toLowerCase();
+                if (!pickedIds.has(p.id) && !(fnKey && pickedFulls.has(fnKey))) {
+                  candidates.push(cloneFreshPlayerForSquad(p, t, 1));
+                }
+              });
+            });
+          }
           if (candidates.length > 0) {
             const pick = candidates[Math.floor(Math.random() * candidates.length)];
             state.squad[slot.id] = pick;
             pickedIds.add(pick.id);
+            const fnKey = (pick.fullName || pick.name || "").trim().toLowerCase();
+            if (fnKey) pickedFulls.add(fnKey);
           }
         });
         state.selectedPlayer = null;

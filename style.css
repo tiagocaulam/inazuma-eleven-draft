@@ -601,8 +601,17 @@ body {
   font-weight: 800;
   font-size: 0.69rem;
   display: inline-flex;
+  flex-wrap: wrap;
+  max-width: 100%;
   align-items: center;
   gap: 4px;
+}
+
+.bond-nowrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  white-space: nowrap;
 }
 
 .bond-tag.friendship {
@@ -839,15 +848,21 @@ body {
 }
 
 .roster-sub {
-  font-size: 0.71rem;
+  font-size: 0.7rem;
+  line-height: 1.25;
   color: #bfdbfe;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
   margin-top: 2px;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 4px;
+  gap: 3px 5px;
+}
+
+.roster-sub > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  max-width: 100%;
 }
 
 .roster-badges {
@@ -1005,6 +1020,8 @@ body {
 
 .pitch-synergy-chip {
   display: inline-flex;
+  flex-wrap: wrap;
+  max-width: 100%;
   align-items: center;
   gap: 4px;
   padding: 3px 8px;
@@ -2416,7 +2433,7 @@ body {
 .pitch-clash-modal {
   position: absolute;
   inset: 0;
-  z-index: 25;
+  z-index: 40;
   background: rgba(3, 10, 28, 0.80);
   backdrop-filter: blur(2.5px);
   display: flex;
@@ -3532,7 +3549,7 @@ body {
   .ovr-header-bar {
     padding: 6px;
     gap: 5px;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
   .ovr-pill small {
@@ -3661,7 +3678,7 @@ body {
   }
 
   .prep-inazuma-map-stage {
-    height: 205px;
+    height: 224px;
   }
 
   .prep-map-pin-orb {
@@ -5912,6 +5929,12 @@ body {
   border-radius: 999px;
 }
 
+.world-group-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
 .world-group-table {
   width: 100%;
   border-collapse: collapse;
@@ -6247,7 +6270,8 @@ body {
     white-space: normal;
     text-align: center;
     border-radius: 6px;
-    word-break: break-word;
+    overflow-wrap: break-word;
+    word-break: normal;
     min-height: 28px;
   }
   .prep-choice-summary {
@@ -6264,6 +6288,16 @@ body {
   }
   .prep-btn-pick span {
     white-space: nowrap;
+  }
+}
+
+@media (max-width: 440px) {
+  .prep-triple-cols-grid {
+    grid-template-columns: 1fr !important;
+    gap: 8px;
+  }
+  .prep-choice-card-body.is-revealed-choice {
+    padding: 6px 4px 2px;
   }
 }
 
@@ -6620,6 +6654,16 @@ body {
   .pitch-tv-controls-bug .pitch-hud-btn {
     padding: 3px 7px !important;
     font-size: 0.64rem !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .pitch-tv-scoreboard-bug .tv-team span {
+    display: none;
+  }
+  .score-team-name {
+    font-size: 0.72rem;
+    line-height: 1.15;
   }
 }
 
@@ -7051,7 +7095,9 @@ body {
 
 .live-tactics-modal-card {
   width: 100%;
-  max-width: 540px;
+  max-width: 560px;
+  max-height: 90dvh;
+  overflow-y: auto;
   background: linear-gradient(165deg, #0f172a 0%, #09132e 100%);
   border: 2px solid #facc15;
   border-radius: 14px;
@@ -7063,11 +7109,20 @@ body {
 }
 
 .live-tactics-modal-head {
+  position: sticky;
+  top: -14px;
+  z-index: 30;
+  background: #0f172a;
+  margin: -14px -16px 0;
+  padding: 12px 16px 10px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  padding-bottom: 8px;
   border-bottom: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+.live-tactics-modal-head .ie-cmd-btn span {
+  white-space: nowrap;
 }
 
