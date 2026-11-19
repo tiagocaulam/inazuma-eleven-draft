@@ -377,7 +377,6 @@
       staminaMul: 1,
       lateMatchNoStaminaLoss: false,
       permanentDoublePrep: false,
-      tireTrainingDone: false,
       elemResonance: false,
       boostedElement: null,
       efficiencyLvl: 0,
@@ -541,7 +540,8 @@
   }
 
   function getTeamEnergyBand(energy = getTeamEnergy()) {
-    if (energy >= 70) {
+    const e = Math.max(0, Math.min(100, Number(energy) || 0));
+    if (e >= 70) {
       return {
         key: "GREEN",
         label: "Descansado",
@@ -550,30 +550,36 @@
         border: "rgba(74, 222, 128, 0.55)",
         duelPenalty: 0,
         startStamina: 100,
-        desc: "100% dos atributos em campo"
+        desc: "100% nos duelos · Início 100% fôlego"
       };
     }
-    if (energy >= 35) {
+    if (e >= 35) {
+      const tYellow = (70 - e) / 35;
+      const duelPenalty = Number((-0.8 - tYellow * 3.0).toFixed(2));
+      const startStamina = Math.round(78 + ((e - 35) / 35) * 14);
       return {
         key: "YELLOW",
         label: "Cansado",
         color: "#facc15",
         bg: "rgba(161, 98, 7, 0.3)",
         border: "rgba(250, 204, 21, 0.6)",
-        duelPenalty: -3.2,
-        startStamina: 82,
-        desc: "-10% Poder nos duelos"
+        duelPenalty,
+        startStamina,
+        desc: `Duelos ${duelPenalty.toFixed(1)} · Início ${startStamina}% fôlego`
       };
     }
+    const tRed = (35 - e) / 35;
+    const duelPenalty = Number((-4.0 - tRed * 3.0).toFixed(2));
+    const startStamina = Math.round(55 + (e / 35) * 15);
     return {
       key: "RED",
       label: "Exausto",
       color: "#ef4444",
       bg: "rgba(153, 27, 27, 0.35)",
       border: "rgba(248, 113, 113, 0.65)",
-      duelPenalty: -6.8,
-      startStamina: 62,
-      desc: "-22% Poder nos duelos"
+      duelPenalty,
+      startStamina,
+      desc: `Exausto (${duelPenalty.toFixed(1)}) · Início ${startStamina}% fôlego`
     };
   }
 
@@ -975,11 +981,17 @@
   const CHAIN_SHOT_RX =
     /(furacão de fogo|fire tornado|tempestade explosiva|parafuso explosivo|super relâmpago|relâmpago nº 1|tempestade relâmpago|inazuma break|impacto dragão|furacão dragão|impacto wyvern|vendaval wyvern|matador de dragões|explosão do dragão|vendaval eterno|lobo lendário|vendaval de fogo|impacto do norte|erupção atômica|grande fogo|fogo máximo|fogo do inferno|fogo cruzado|crossfire|pinguins imperiais|pinguins perfeitos|pinguins aéreos|pinguins deus|tubarão das profundezas|bicicleta espada|espada da morte|impulso tigre|tempestade do tigre|arco gladiador|queda celestial|tenkuu otoshi|lâmina de diamante|asas celestiais|god knows|impacto divino|god break|explosão do caos|chaos break|big bang|a origem|the birth|the earth|a terra|lenda suprema|prime legend|chute duplo|golpe duplo|impulso duplo|impulso triplo|twin boost|lança dupla|twin lancer|dual strike|zona mortal|última zona mortal|triângulo z|triangle zz|last death zone|lança da escuridão|death spear|ruptura mortal|death break|zero magnum|último recurso|last resort|impulso instantâneo|setsuna boost|fortíssimo|blitz do amanhecer|alvorecer negro|black dawn|impacto x|x blast|mandíbula dupla|neo galáxia|neo galaxy|grande fenrir|impulso unicórnio|nevasca da pantera|panther blizzard|fera do trovão|thunder beast|fênix negra|a fênix|chute pégaso|impulso cruzado|cross drive|estrada glacial|grande explosão|ataque ômega)/i;
 
+  function isHeavyHissatsu(move, list = null, idx = -1) {
+    if (!move) return false;
+    if (HEAVY_MOVE_RX.test(move)) return true;
+    return Boolean(Array.isArray(list) && list.length >= 3 && idx >= 2);
+  }
+
   function getEligibleMovesFromList(list, stamina) {
     if (!Array.isArray(list) || list.length === 0 || stamina < 45) return [];
     const usable = [];
     list.forEach((m, idx) => {
-      const isSup = HEAVY_MOVE_RX.test(m) || (list.length >= 3 && idx >= 2);
+      const isSup = isHeavyHissatsu(m, list, idx);
       if (stamina >= 70 || !isSup) {
         usable.push({ move: m, isHeavy: isSup });
       }
@@ -1092,8 +1104,8 @@
 
     const heavyMoves = [];
     const standardMoves = [];
-    list.forEach((m) => {
-      const isSup = HEAVY_MOVE_RX.test(m);
+    list.forEach((m, idx) => {
+      const isSup = isHeavyHissatsu(m, list, idx);
       if (isSup) heavyMoves.push(m);
       else standardMoves.push(m);
     });
@@ -1102,9 +1114,9 @@
     const masteryLvl = node?.side === "user" ? (state.tournament?.prepBonuses?.hissatsuMasteryLvl || 0) : 0;
     const masteryBonus = [0, 0.8, 1.6, 2.5][masteryLvl] || 0;
 
-    // Intensidade BAIXA: prioriza jogadas sem técnica ou técnicas leves para economizar energia
+    // Intensidade BAIXA: economiza energia com jogadas sem técnica ou apenas técnicas padrão (nunca vaza técnica pesada)
     if (userIntensity === "low") {
-      if (category !== "GK" && Math.random() < 0.62) {
+      if (category !== "GK" && category !== "SH" && Math.random() < 0.50) {
         return {
           move: null,
           isHeavy: false,
@@ -1122,9 +1134,28 @@
           exhausted: false,
           gatedReason: null,
           cost: Math.round(stdCost * 0.72),
-          duelBonus: 0
+          duelBonus: masteryBonus
         };
       }
+      if (category === "GK" && heavyMoves.length > 0) {
+        const fallbackMove = heavyMoves[heavyMoves.length - 1];
+        return {
+          move: fallbackMove,
+          isHeavy: false,
+          exhausted: false,
+          gatedReason: "LOW_ECONOMY",
+          cost: stdCost + 2,
+          duelBonus: -0.4 + masteryBonus
+        };
+      }
+      return {
+        move: null,
+        isHeavy: false,
+        exhausted: false,
+        gatedReason: "LOW_ECONOMY",
+        cost: 5,
+        duelBonus: -0.4
+      };
     }
 
     if (stamina >= 70) {
@@ -1145,6 +1176,7 @@
     }
 
     // Faixa Amarela (45..69): técnicas mais fortes bloqueadas!
+    const highYellowBonus = userIntensity === "high" ? 0.9 : 0;
     if (standardMoves.length > 0) {
       const move = standardMoves[Math.floor(Math.random() * standardMoves.length)];
       return {
@@ -1153,7 +1185,7 @@
         exhausted: false,
         gatedReason: heavyMoves.length > 0 ? "YELLOW" : null,
         cost: stdCost,
-        duelBonus: -0.35 + masteryBonus
+        duelBonus: -0.35 + highYellowBonus + masteryBonus
       };
     }
 
@@ -1167,7 +1199,7 @@
         exhausted: false,
         gatedReason: "YELLOW",
         cost: stdCost + 4,
-        duelBonus: -0.7 + masteryBonus
+        duelBonus: -0.7 + highYellowBonus + masteryBonus
       };
     }
 
@@ -1199,7 +1231,7 @@
     }
     const pick = pickStaminaGatedMove(shooterNode, "SH");
     const userInt = shooterNode?.side === "user" ? getTactics().intensity : "medium";
-    const shotHissatsuProb = userInt === "low" ? 0.34 : userInt === "high" ? 0.95 : 0.8;
+    const shotHissatsuProb = userInt === "low" ? 0.48 : userInt === "high" ? 0.95 : 0.80;
     if (pick.move && Math.random() < shotHissatsuProb) {
       return {
         isHissatsu: true,
@@ -2211,7 +2243,18 @@
     }
   }
 
-  function buildPitchHTML(isComplete = false) {
+  function getLiveStaminaMapForStage(st) {
+    if (!st?.pitch?.userNodes) return null;
+    const map = {};
+    st.pitch.userNodes.forEach((n) => {
+      if (n.player?.id && typeof n.stamina === "number") {
+        map[n.player.id] = Math.round(n.stamina);
+      }
+    });
+    return map;
+  }
+
+  function buildPitchHTML(isComplete = false, liveStaminaByPlayerId = null) {
     const slots = getSlots();
     const sel = state.selectedPlayer;
     const adjPairs = getAdjacentSlotPairs(slots);
@@ -2284,7 +2327,13 @@
         const attrs = calcPlayerAttributes(p, slot.role, pLvl);
         const isImprovised = !playerMatchesRole(p, slot.role);
         const nodeSprite = getPlayerFormSprite(p, slot.role);
-        const nodeTooltip = `OVR ${effOvr} • Nv.${pLvl} • Poder ${pPwr} | FOR ${attrs.for} · TEC ${attrs.tec} · DEF ${attrs.def} · VEL ${attrs.vel} · FIS ${attrs.fis}`;
+        const pStam =
+          liveStaminaByPlayerId && p?.id != null && typeof liveStaminaByPlayerId[p.id] === "number"
+            ? liveStaminaByPlayerId[p.id]
+            : null;
+        const stamCol = pStam === null ? "" : pStam >= 70 ? "#4ade80" : pStam >= 45 ? "#facc15" : "#ef4444";
+        const stamCls = pStam === null ? "" : pStam >= 70 ? "is-stam-green" : pStam >= 45 ? "is-stam-yellow" : "is-stam-red";
+        const nodeTooltip = `OVR ${effOvr} • Nv.${pLvl} • Poder ${pPwr}${pStam !== null ? ` • Fôlego ${pStam}%` : ""} | FOR ${attrs.for} · TEC ${attrs.tec} · DEF ${attrs.def} · VEL ${attrs.vel} · FIS ${attrs.fis}`;
 
         scaledRows.push({
           slot,
@@ -2295,7 +2344,10 @@
           attrs,
           isImprovised,
           nodeSprite,
-          isSwap
+          isSwap,
+          pStam,
+          stamCol,
+          stamCls
         });
 
         return `
@@ -2315,6 +2367,7 @@
               <span class="node-slot-label">${slot.label}${isImprovised ? " *" : ""}</span>
             </div>
             <div class="node-pwr-pill${isImprovised ? " is-improvised" : ""}" title="${nodeTooltip}">⚔️ ${pPwr.toLocaleString("pt-BR")}</div>
+            ${pStam !== null ? `<div class="node-live-stam-track" title="Fôlego atual: ${pStam}%"><div class="node-live-stam-fill" style="width:${pStam}%; background:${stamCol};"></div></div>` : ""}
           </div>
         `;
       })
@@ -2332,6 +2385,13 @@
       const sumIndivPwr = orderedRows.reduce((acc, r) => acc + r.pPwr, 0);
       const avgIndivPwr = Math.round(sumIndivPwr / orderedRows.length);
       const maxIndivPwr = Math.max(1, ...orderedRows.map((r) => r.pPwr));
+      const stamLegendHTML = liveStaminaByPlayerId
+        ? `<div class="pitch-stam-legend">
+             <span><i style="background:#4ade80;"></i> ≥70% Todas técnicas</span>
+             <span><i style="background:#facc15;"></i> 45–69% Só padrão</span>
+             <span><i style="background:#ef4444;"></i> &lt;45% Exausto</span>
+           </div>`
+        : "";
 
       powerSectionHTML = `
         <div class="pitch-power-section" id="pitch-power-section">
@@ -2339,6 +2399,7 @@
             <span class="pitch-power-title">⚔️ FORÇA INDIVIDUAL DOS ESCALADOS</span>
             <span class="pitch-power-summary">Soma Base: <strong>${sumIndivPwr.toLocaleString("pt-BR")}</strong> • Média: <strong>${avgIndivPwr.toLocaleString("pt-BR")}</strong></span>
           </div>
+          ${stamLegendHTML}
           <div class="pitch-power-grid">
             ${orderedRows.map((r) => {
               const pctBar = Math.max(18, Math.min(100, Math.round((r.pPwr / maxIndivPwr) * 100)));
@@ -2346,6 +2407,9 @@
                 r.p.keshin ? "⚡ Keshin" : "",
                 (r.p.bonusPower || 0) > 0 ? `+${r.p.bonusPower} Item` : ""
               ].filter(Boolean).join(" · ");
+              const stamMetaBadge = r.pStam !== null
+                ? `<span class="pitch-power-stam ${r.stamCls}">⚡ ${r.pStam}%</span>`
+                : "";
               return `
                 <div class="pitch-power-card${r.isSwap ? " swap-active" : ""}${r.isImprovised ? " is-improvised" : ""}"
                      data-slot="${r.slot.id}"
@@ -2362,6 +2426,7 @@
                         <span class="pitch-power-name">${r.p.name}</span>
                       </div>
                       <div class="pitch-power-meta-row">
+                        ${stamMetaBadge}
                         <span class="pitch-power-lvl">Nv.${r.pLvl}</span>
                         <span class="pitch-power-ovr">OVR ${r.effOvr}</span>
                         <span class="pitch-power-attrs">FOR ${r.attrs.for} · TEC ${r.attrs.tec} · DEF ${r.attrs.def} · VEL ${r.attrs.vel}</span>
@@ -2857,17 +2922,9 @@
       clearTimeout(state.tournament.prepMatchTimerId);
       state.tournament.prepMatchTimerId = null;
     }
-    if (state.tournament.qteRafId) {
-      cancelAnimationFrame(state.tournament.qteRafId);
-      state.tournament.qteRafId = null;
-    }
     if (state.tournament.whistleTimerId) {
       clearTimeout(state.tournament.whistleTimerId);
       state.tournament.whistleTimerId = null;
-    }
-    if (typeof state.tournament.qteKeyHandler === "function") {
-      document.removeEventListener("keydown", state.tournament.qteKeyHandler);
-      state.tournament.qteKeyHandler = null;
     }
     if (typeof state.tournament.whistleKeyHandler === "function") {
       document.removeEventListener("keydown", state.tournament.whistleKeyHandler);
@@ -3123,280 +3180,6 @@
     }
   }
 
-  function describeSvgArc(cx, cy, r, startDeg, endDeg) {
-    const toRad = (deg) => ((deg - 90) * Math.PI) / 180;
-    const x1 = cx + r * Math.cos(toRad(startDeg));
-    const y1 = cy + r * Math.sin(toRad(startDeg));
-    const x2 = cx + r * Math.cos(toRad(endDeg));
-    const y2 = cy + r * Math.sin(toRad(endDeg));
-    const largeArc = Math.abs(endDeg - startDeg) <= 180 ? "0" : "1";
-    return `M ${x1.toFixed(1)} ${y1.toFixed(1)} A ${r} ${r} 0 ${largeArc} 1 ${x2.toFixed(1)} ${y2.toFixed(1)}`;
-  }
-
-  function updateVoluntaryRecoverButtonDOM(st) {
-    const btn = document.getElementById("btn-voluntary-recover");
-    if (!btn || !st) return;
-    const charges = st.recoverCharges ?? 0;
-    const iconHTML = UI.sportsDrink
-      ? `<img src="${UI.sportsDrink}" alt="" style="width:15px; height:15px; object-fit:contain;" />`
-      : "";
-    btn.innerHTML = `${iconHTML}<span>Recuperar (${charges})</span>`;
-    btn.disabled = charges <= 0 || Boolean(st.finished || st.penalties);
-  }
-
-  function computeShortestAngleDiffDeg(a, b) {
-    let diff = ((a - b + 540) % 360) - 180;
-    return Math.abs(diff);
-  }
-
-  // Desafio circular de 1 única volta (usado no Apito de 45' e no botão voluntário Recuperar)
-  function openCircleTimingChallenge(st, ovrDiff, opts = {}) {
-    const isHalftime = opts.mode === "HALFTIME";
-    clearTournamentTimers(false);
-    const slotEl = document.getElementById("shot-clash-slot");
-    if (!slotEl || !st || !st.pitch) {
-      if (isHalftime && st?.pitch) {
-        [...st.pitch.userNodes, ...st.pitch.oppNodes].forEach((n) => {
-          n.stamina = Math.min(100, n.stamina + (n.role === "GK" ? 18 : 10));
-        });
-        const nextSide = st.pitch.initialSide === "user" ? "opp" : "user";
-        resetPitchForKickoff(st.pitch, nextSide, true);
-        syncLivePitchDOM(st);
-      }
-      startMatchInterval();
-      return;
-    }
-
-    // Alvo fixo no topo (0°) no Intervalo; ângulo aleatório no desafio voluntário!
-    const targetDeg = isHalftime ? 0 : Math.round(-120 + Math.random() * 240);
-    const greenHalf = isHalftime ? 34 : 32;
-    const yellowHalf = isHalftime ? 68 : 64;
-    const speedDegPerSec = isHalftime ? 175 : 190;
-    const startDeg = ((targetDeg + 180 + 540) % 360) - 180;
-
-    const yellowArc = describeSvgArc(80, 80, 56, targetDeg - yellowHalf, targetDeg + yellowHalf);
-    const greenArc = describeSvgArc(80, 80, 56, targetDeg - greenHalf, targetDeg + greenHalf);
-    const drinkIcon = isHalftime
-      ? UI.sportsDrink || UI.onigiriIcon || UI.tpPendant || ""
-      : UI.onigiriIcon || UI.sportsDrink || "";
-    const headerImg = isHalftime ? UI.refereeWhistle || UI.whistleIcon || "" : UI.sportsDrink || UI.onigiriIcon || "";
-    const badgeImg = isHalftime ? UI.whistleIcon : UI.onigiriIcon;
-    const badgeHTML = badgeImg
-      ? `<img src="${badgeImg}" alt="" style="width:18px; height:18px; object-fit:contain;" />`
-      : "";
-
-    const headerTitle = isHalftime
-      ? "45' • APITO DO JUIZ — FIM DO 1º TEMPO!"
-      : `${st.minute}' • PAUSA TÁTICA — RECUPERAÇÃO`;
-    const headerSub = isHalftime
-      ? `Dream Team ${st.userScore} x ${st.oppScore} ${st.oppTeam.name}`
-      : "Desafio rápido de fôlego (1 volta única!)";
-    const bodyHint = isHalftime
-      ? `Você tem <strong style="color:#fde047;">1 volta</strong> para acertar o <strong style="color:#4ade80;">VERDE</strong> e restaurar o time no intervalo!`
-      : `Acerte o <strong style="color:#4ade80;">VERDE</strong> na <strong style="color:#fde047;">única volta</strong> para recuperar energia imediata!`;
-
-    slotEl.style.display = "flex";
-    slotEl.innerHTML = `
-      <div class="halftime-qte-stage">
-        <div class="halftime-ref-row">
-          ${headerImg ? `<img class="${isHalftime ? "halftime-ref-img" : "qte-vol-img"}" src="${headerImg}" alt="" />` : ""}
-          <div style="flex:1; min-width:0;">
-            <div style="display:flex; align-items:center; gap:5px; font-size:0.72rem; font-weight:900; color:#facc15; text-transform:uppercase;">
-              ${badgeHTML}<span>${headerTitle}</span>
-            </div>
-            <div style="font-size:0.84rem; font-weight:900; color:#fff; margin-top:2px;">
-              ${headerSub}
-            </div>
-          </div>
-          <span class="prep-xp-pill" id="qte-lap-pill" style="font-size:0.64rem; padding:3px 8px;">1 VOLTA</span>
-        </div>
-
-        <div class="halftime-qte-body">
-          <div class="qte-circle-wrap" id="qte-circle-wrap" title="Clique ou aperte Espaço na zona verde (1 volta)!">
-            <svg class="qte-circle-svg" viewBox="0 0 160 160">
-              <circle cx="80" cy="80" r="56" fill="none" stroke="rgba(148, 163, 184, 0.25)" stroke-width="14" />
-              <path d="${yellowArc}" fill="none" stroke="#eab308" stroke-width="14" stroke-linecap="round" />
-              <path d="${greenArc}" fill="none" stroke="#22c55e" stroke-width="15" stroke-linecap="round" />
-              <g id="qte-needle-group" transform="rotate(${startDeg.toFixed(1)} 80 80)">
-                <line x1="80" y1="80" x2="80" y2="16" stroke="#ffffff" stroke-width="3.2" stroke-linecap="round" />
-                <circle cx="80" cy="24" r="5.5" fill="#fde047" stroke="#0f172a" stroke-width="2" />
-              </g>
-            </svg>
-            <div class="qte-center-icon">
-              ${drinkIcon ? `<img src="${drinkIcon}" alt="Energia" />` : ""}
-            </div>
-          </div>
-
-          <div class="qte-controls-col">
-            <div style="font-size:0.74rem; font-weight:800; color:#cbd5e1; line-height:1.35;">
-              ${bodyHint}
-            </div>
-            <div id="qte-result-area"></div>
-            <button class="ie-cmd-btn ie-cmd-green" id="btn-qte-stop" style="width:100%; justify-content:center;">
-              <span>PARAR NO VERDE!</span>
-            </button>
-            <button class="ie-cmd-btn" id="btn-qte-skip" style="width:100%; justify-content:center; font-size:0.7rem; padding:4px 8px;">
-              <span>${isHalftime ? "Descanso Rápido (+12%)" : "Pular (+6%)"}</span>
-            </button>
-          </div>
-        </div>
-      </div>
-    `;
-
-    let qteResolved = false;
-    const startT = performance.now();
-    const computeProgressAt = (now) => {
-      const elapsedSec = Math.max(0, (now - startT) / 1000);
-      const traveledDeg = elapsedSec * speedDegPerSec;
-      const raw = (startDeg + traveledDeg) % 360;
-      const angle = ((raw + 540) % 360) - 180;
-      return { traveledDeg, angle };
-    };
-    let curAngleDeg = startDeg;
-
-    const finalizeResume = () => {
-      state.tournament.pendingClashFinish = null;
-      if (state.tournament.qteRafId) {
-        cancelAnimationFrame(state.tournament.qteRafId);
-        state.tournament.qteRafId = null;
-      }
-      if (typeof state.tournament.qteKeyHandler === "function") {
-        document.removeEventListener("keydown", state.tournament.qteKeyHandler);
-        state.tournament.qteKeyHandler = null;
-      }
-      const mSlot = document.getElementById("shot-clash-slot");
-      if (mSlot) {
-        mSlot.innerHTML = "";
-        mSlot.style.display = "none";
-      }
-      if (st.pitch && !st.finished) {
-        if (isHalftime) {
-          const nextSide = st.pitch.initialSide === "user" ? "opp" : "user";
-          resetPitchForKickoff(st.pitch, nextSide, true);
-          st.pitch.ticker = `46' Início do 2º Tempo — posse de ${nextSide === "user" ? "Dream Team" : st.oppTeam.name}!`;
-        } else {
-          st.pitch.ticker = `${st.minute}' Fôlego renovado! Bola em jogo!`;
-        }
-        syncLivePitchDOM(st);
-        if (!handleMinuteEndBoundaries(st, ovrDiff)) startMatchInterval();
-      }
-    };
-
-    const resolveQte = (reason = "CLICK") => {
-      if (qteResolved) return;
-      qteResolved = true;
-
-      if (state.tournament.qteRafId) {
-        cancelAnimationFrame(state.tournament.qteRafId);
-        state.tournament.qteRafId = null;
-      }
-      if (typeof state.tournament.qteKeyHandler === "function") {
-        document.removeEventListener("keydown", state.tournament.qteKeyHandler);
-        state.tournament.qteKeyHandler = null;
-      }
-
-      const isSkip = reason === "SKIP";
-      const isTimeout = reason === "TIMEOUT";
-      if (!isSkip && !isTimeout) {
-        curAngleDeg = computeProgressAt(performance.now()).angle;
-        const needle = document.getElementById("qte-needle-group");
-        if (needle) needle.setAttribute("transform", `rotate(${curAngleDeg.toFixed(1)} 80 80)`);
-      }
-
-      const diffDeg = computeShortestAngleDiffDeg(curAngleDeg, targetDeg);
-      const hasTireBonus = (state.tournament?.prepBonuses?.staminaMul || 1) < 1;
-      const extra = hasTireBonus ? 5 : 0;
-
-      let userGain = (isHalftime ? 12 : 6) + extra;
-      let zoneCls = "is-miss";
-      let zoneLabel = isTimeout
-        ? `Acabou a volta! Descanso mínimo (+${userGain}% Energia)`
-        : `Fora do alvo (+${userGain}% Energia)`;
-
-      if (!isSkip && !isTimeout && diffDeg <= greenHalf) {
-        userGain = (isHalftime ? 40 : 35) + extra;
-        zoneCls = "is-green";
-        zoneLabel = `VERDE PERFEITO! +${userGain}% Energia!`;
-      } else if (!isSkip && !isTimeout && diffDeg <= yellowHalf) {
-        userGain = (isHalftime ? 25 : 20) + extra;
-        zoneCls = "is-yellow";
-        zoneLabel = `BOM TIMING (AMARELO)! +${userGain}% Energia!`;
-      }
-
-      if (st.pitch) {
-        st.pitch.userNodes.forEach((n) => {
-          const gkExtra = !isHalftime && n.role === "GK" && zoneCls === "is-green" ? 7 : 0;
-          n.stamina = Math.min(100, n.stamina + userGain + gkExtra);
-        });
-        if (isHalftime) {
-          st.pitch.oppNodes.forEach((n) => {
-            n.stamina = Math.min(100, n.stamina + (n.role === "GK" ? 18 : 10));
-          });
-        }
-        syncLivePitchDOM(st);
-      }
-
-      prependNarrationLine(
-        st,
-        zoneCls === "is-green" ? "nar-dribble" : "",
-        isHalftime
-          ? `45' [Intervalo] Árbitro apitou o fim do 1º tempo (${st.userScore} x ${st.oppScore}) • ${zoneLabel}`
-          : `${st.minute}' [Recuperação] Pausa de fôlego do time • ${zoneLabel}`,
-        null,
-        null,
-        isHalftime ? "BALL" : "GK"
-      );
-
-      if (isSkip) {
-        finalizeResume();
-        return;
-      }
-
-      const resArea = document.getElementById("qte-result-area");
-      const stopBtn = document.getElementById("btn-qte-stop");
-      const skipBtn = document.getElementById("btn-qte-skip");
-      if (resArea) resArea.innerHTML = `<div class="qte-result-pill ${zoneCls}">${zoneLabel}</div>`;
-      if (stopBtn) stopBtn.disabled = true;
-      if (skipBtn) skipBtn.style.display = "none";
-
-      state.tournament.clashTimer1 = setTimeout(finalizeResume, 900);
-    };
-
-    const tickNeedle = (now) => {
-      if (qteResolved || state.phase !== "tournament") return;
-      const { traveledDeg, angle } = computeProgressAt(now);
-      if (traveledDeg >= 360) {
-        curAngleDeg = startDeg;
-        const needle = document.getElementById("qte-needle-group");
-        if (needle) needle.setAttribute("transform", `rotate(${startDeg.toFixed(1)} 80 80)`);
-        resolveQte("TIMEOUT");
-        return;
-      }
-      curAngleDeg = angle;
-      const needle = document.getElementById("qte-needle-group");
-      if (needle) needle.setAttribute("transform", `rotate(${curAngleDeg.toFixed(1)} 80 80)`);
-      state.tournament.qteRafId = requestAnimationFrame(tickNeedle);
-    };
-    state.tournament.qteRafId = requestAnimationFrame(tickNeedle);
-
-    state.tournament.pendingClashFinish = () => resolveQte("SKIP");
-
-    const stopBtn = document.getElementById("btn-qte-stop");
-    const skipBtn = document.getElementById("btn-qte-skip");
-    const circleWrap = document.getElementById("qte-circle-wrap");
-    if (stopBtn) stopBtn.addEventListener("click", () => resolveQte("CLICK"));
-    if (circleWrap) circleWrap.addEventListener("click", () => resolveQte("CLICK"));
-    if (skipBtn) skipBtn.addEventListener("click", () => resolveQte("SKIP"));
-
-    state.tournament.qteKeyHandler = (ev) => {
-      if (ev.code === "Space" || ev.key === " ") {
-        ev.preventDefault();
-        resolveQte("CLICK");
-      }
-    };
-    document.addEventListener("keydown", state.tournament.qteKeyHandler);
-  }
-
   function showRefereeWhistleModal(st, type, onProceed) {
     hideBondPlayersTooltip();
     clearTournamentTimers(false);
@@ -3445,10 +3228,11 @@
       ? "FIM DE JOGO • EMPATE!"
       : `VITÓRIA DE ${st.oppTeam?.name || "ADVERSÁRIO"}!`;
 
+    const restBonus = (t?.prepBonuses?.restLvl || 0) * 3;
     const subtitleText = isHalftime
-      ? "O árbitro apita o intervalo! Ambos os times recuperam fôlego para o 2º tempo (+35% linha / +45% goleiro)."
+      ? `O árbitro apita o intervalo! Ambos os times recuperam fôlego (+${35 + restBonus}% linha / +${45 + restBonus}% goleiro).`
       : isExtraTime
-      ? "O empate persiste aos 90'! Ambos os times recuperam +30% de fôlego para a Prorrogação!"
+      ? `O empate persiste aos 90'! Ambos os times recuperam +${30 + restBonus}% de fôlego para a Prorrogação!`
       : isPenalties
       ? "O árbitro encerra a prorrogação! A vaga será decidida nos pênaltis!"
       : isAdvancingToNextStage
@@ -3568,32 +3352,21 @@
     }, autoAdvanceMs);
   }
 
-  function triggerVoluntaryRecoveryChallenge(st) {
-    if (!st || st.finished || !st.running || st.penalties || (st.recoverCharges || 0) <= 0) return;
-    if (
-      state.tournament.pendingClashFinish ||
-      state.tournament.pendingBeatFinish ||
-      state.tournament.pendingShotFlightFinish ||
-      state.tournament.pendingNetFlightFinish ||
-      state.tournament.pendingWhistleFinish
-    ) {
-      return;
-    }
-    st.recoverCharges--;
-    updateVoluntaryRecoverButtonDOM(st);
-    const ovrDiff = st.pitch?.matchSupport?.ovrDiff || 0;
-    openCircleTimingChallenge(st, ovrDiff, { mode: "VOLUNTARY" });
-  }
-
   function applyIntervalStaminaRecharge(st, fieldGain, gkGain) {
-    if (!st?.pitch) return;
     const restLvl = state.tournament?.prepBonuses?.restLvl || 0;
     const restBonus = restLvl * 3;
+    const result = {
+      userField: fieldGain + restBonus,
+      userGk: gkGain + restBonus,
+      restBonus
+    };
+    if (!st?.pitch) return result;
     [...(st.pitch.userNodes || []), ...(st.pitch.oppNodes || [])].forEach((n) => {
       const base = n.role === "GK" ? gkGain : fieldGain;
       const bonus = n.side === "user" ? restBonus : 0;
       n.stamina = Math.min(100, Math.round((n.stamina + base + bonus) * 10) / 10);
     });
+    return result;
   }
 
   function handleMinuteEndBoundaries(st, ovrDiff) {
@@ -3625,10 +3398,11 @@
       st.halftimeHandled = true;
       st.running = false;
       clearTournamentTimers(false);
+      const rec = applyIntervalStaminaRecharge(st, 35, 45);
+      const restNote = rec.restBonus > 0 ? ` (+${rec.restBonus}% Descanso)` : "";
       if (st.pitch) {
         st.pitch.minuteFloat = 45;
-        st.pitch.ticker = `45' Fim do 1º tempo! Placar: ${st.userScore} x ${st.oppScore} (+35% Fôlego)`;
-        applyIntervalStaminaRecharge(st, 35, 45);
+        st.pitch.ticker = `45' Fim do 1º tempo! Placar: ${st.userScore} x ${st.oppScore} (+${rec.userField}% Fôlego${restNote})`;
         const secondHalfSide = st.pitch.initialSide === "user" ? "opp" : "user";
         resetPitchForKickoff(st.pitch, secondHalfSide, true);
         syncLivePitchDOM(st);
@@ -3636,7 +3410,7 @@
       prependNarrationLine(
         st,
         "nar-pass",
-        `45' [Intervalo] Árbitro apitou o fim do 1º tempo (${st.userScore} x ${st.oppScore}) — atletas recuperam +35% de fôlego (+45% GOL)!`,
+        `45' [Intervalo] Árbitro apitou o fim do 1º tempo (${st.userScore} x ${st.oppScore}) — Dream Team recupera +${rec.userField}% de fôlego (+${rec.userGk}% GOL)${restNote}!`,
         null,
         null,
         "FF"
@@ -3658,17 +3432,18 @@
       st.maxMinute = 120;
       st.running = false;
       clearTournamentTimers(false);
+      const rec = applyIntervalStaminaRecharge(st, 30, 40);
+      const restNote = rec.restBonus > 0 ? ` (+${rec.restBonus}% Descanso)` : "";
       if (st.pitch) {
         st.pitch.minuteFloat = 90;
-        applyIntervalStaminaRecharge(st, 30, 40);
         resetPitchForKickoff(st.pitch, "user", true);
-        st.pitch.ticker = `90' Prorrogação iniciada! Atletas recuperam +30% de fôlego!`;
+        st.pitch.ticker = `90' Prorrogação iniciada! Dream Team recupera +${rec.userField}% de fôlego${restNote}!`;
         syncLivePitchDOM(st);
       }
       prependNarrationLine(
         st,
         "nar-save",
-        `90' Empate no tempo normal! Ambos os times recuperam +30% de fôlego (+40% GOL) para a Prorrogação (até os 120')!`,
+        `90' Empate no tempo normal! Dream Team recupera +${rec.userField}% de fôlego (+${rec.userGk}% GOL)${restNote} para a Prorrogação (até os 120')!`,
         null,
         null,
         "FF"
@@ -3688,16 +3463,17 @@
 
     if (st.minute === 105 && !st.etHalftimeHandled && st.maxMinute === 120) {
       st.etHalftimeHandled = true;
+      const rec = applyIntervalStaminaRecharge(st, 18, 25);
+      const restNote = rec.restBonus > 0 ? ` (+${rec.restBonus}% Descanso)` : "";
       if (st.pitch) {
-        applyIntervalStaminaRecharge(st, 18, 25);
         resetPitchForKickoff(st.pitch, "opp", true);
-        st.pitch.ticker = `105' Virada da Prorrogação! Fôlego recarregado (+18%) para os 15 minutos finais!`;
+        st.pitch.ticker = `105' Virada da Prorrogação! Fôlego recarregado (+${rec.userField}%${restNote}) para os 15 minutos finais!`;
         syncLivePitchDOM(st);
       }
       prependNarrationLine(
         st,
         "nar-pass",
-        `105' [Virada da Prorrogação] Breve pausa — jogadores recuperam +18% de fôlego (+25% GOL) para o 2º tempo extra!`,
+        `105' [Virada da Prorrogação] Dream Team recupera +${rec.userField}% de fôlego (+${rec.userGk}% GOL)${restNote} para o 2º tempo extra!`,
         null,
         null,
         "FF"
@@ -3784,7 +3560,7 @@
   function calcNodeDuelScore(node, teamSupportBonus, opponentElem = null, actionKind = null) {
     if (!node) return 75;
     // Penalidade de cansaço quando a energia cai na zona vermelha (< 45%)
-    const fatiguePenalty = node.stamina < 45 ? Math.min(4.2, 1.5 + (45 - node.stamina) * 0.09) : 0;
+    const fatiguePenalty = node.stamina < 45 ? Math.min(5.0, 1.4 + (45 - node.stamina) * 0.09) : 0;
     const keshinBonus = node.player?.keshin ? 3.2 : 0;
     const evoBonus = node.player?.moveEvoCount ? Math.min(2.2, node.player.moveEvoCount * 1.1) : 0;
 
@@ -3872,7 +3648,7 @@
 
   function spendStamina(node, cost) {
     if (!node) return;
-    // Passiva: Pingente da Resistência Final — não perde energia nos minutos finais (a partir de 75' em partidas 11x11)
+    // Passiva: Pingente da Resistência Final — reduz em 50% o gasto de stamina a partir dos 75' (11x11)
     const active5v5 = state.tournament?.prep?.clash5v5?.miniSt;
     const isIn5v5 = Boolean(active5v5 && active5v5.running && !active5v5.finished);
     const curMinute = isIn5v5
@@ -3885,7 +3661,7 @@
     const userInt = node.side === "user" ? getTactics().intensity : "medium";
     const tacIntMul = userInt === "high" ? 1.28 : userInt === "low" ? 0.86 : 1.0;
     const mul = (node.side === "user" ? state.tournament?.prepBonuses?.staminaMul || 1 : 1) * fisMul * tacIntMul * lateMul;
-    node.stamina = Math.max(18, node.stamina - cost * mul);
+    node.stamina = Math.max(5, node.stamina - cost * mul);
   }
 
   function buildOpponentLineup(oppTeam, stageIdx) {
@@ -7966,10 +7742,14 @@
           const pct = Math.min(100, Math.round((st.minute / st.maxMinute) * 100));
           barEl.style.width = `${pct}%`;
         }
+        const activeInt = getTactics().intensity;
         allNodes.forEach((n) => {
           if (n.uid !== pitch.carrierUid) {
-            // Recuperação natural por minuto sem a bola: permite dosar stamina entre 1º e 2º tempo
-            const regen = n.role === "GK" ? 0.75 : 0.48;
+            const sideInt = n.side === "user" ? activeInt : "medium";
+            const regen =
+              n.role === "GK"
+                ? sideInt === "low" ? 0.95 : sideInt === "high" ? 0.55 : 0.75
+                : sideInt === "low" ? 0.68 : sideInt === "high" ? 0.30 : 0.48;
             n.stamina = Math.min(100, n.stamina + regen);
           }
         });
@@ -7977,21 +7757,11 @@
           const tac = getTactics();
           const hasLateRes = Boolean(state.tournament?.prepBonuses?.lateMatchNoStaminaLoss && st.minute >= 75);
           const lateDrainMul = hasLateRes ? 0.5 : 1;
+          const etDrainMul = st.minute > 90 ? 0.60 : 1;
           const perMinDrain = tac.intensity === "high" ? 0.76 : tac.intensity === "low" ? 0.24 : 0.46;
           const stamMul = state.tournament?.prepBonuses?.staminaMul || 1;
-          adjustTeamEnergy(-(perMinDrain * stamMul * lateDrainMul));
-          const eVal = Math.round(getTeamEnergy());
-          const eBand = getTeamEnergyBand(eVal);
-          const pillEl = document.getElementById("live-team-energy-pill");
-          const fillEl = document.getElementById("live-team-energy-fill");
-          if (pillEl) {
-            pillEl.textContent = `${eVal}% (${eBand.label})`;
-            pillEl.style.color = eBand.color;
-          }
-          if (fillEl) {
-            fillEl.style.width = `${eVal}%`;
-            fillEl.style.background = eBand.color;
-          }
+          adjustTeamEnergy(-(perMinDrain * stamMul * lateDrainMul * etDrainMul));
+          syncTeamEnergyBarDOM("live", st.minute);
         }
         if (pitch.ballSide === "user") pitch.stats.userTicks++;
         else pitch.stats.oppTicks++;
@@ -8003,12 +7773,24 @@
 
     // Steering + integração suave de velocidade e separação entre colegas (ZERO teleporte!)
     recomputePitchTargets(pitch);
+    const getEffectiveMatchSpeed = (n) => {
+      const raw = n.spd || calcPlayerSpeedStat(n.player, n.effOvr);
+      const stam = typeof n.stamina === "number" ? n.stamina : 100;
+      if (stam >= 70) return raw;
+      if (stam >= 45) return Math.round(raw - 3 - ((70 - stam) / 25) * 3);
+      return Math.round(raw - 8 - ((45 - stam) / 40) * 7);
+    };
     const steerNodes = (list) => {
       list.forEach((node) => {
         const dx = node.targetX - node.x;
         const dy = node.targetY - node.y;
         const dist = Math.hypot(dx, dy);
-        const staminaFactor = node.stamina < 45 ? 0.9 : 1.0;
+        const staminaFactor =
+          node.stamina >= 70
+            ? 1.0
+            : node.stamina >= 45
+            ? 0.96
+            : Math.max(0.76, 0.90 - ((45 - node.stamina) / 40) * 0.14);
         const staggerFactor = node.staggerTimer > 0 ? 0.42 : 1.0;
         const speedLimit = node.maxSpeed * (node.targetSprint || 0.9) * staminaFactor * staggerFactor;
         const arriveScale = dist < 3.0 ? dist / 3.0 : 1.0;
@@ -8112,12 +7894,12 @@
 
         // Quando o marcador se aproxima, avalia diferencial de velocidade (Arranque / Recuperação Veloz), Tabela ou Duelo
         if (closestDef && carrier.carryTime >= 0.25) {
-          const carrierSpd = carrier.spd || calcPlayerSpeedStat(carrier.player, carrier.effOvr);
-          const defSpd = closestDef.spd || calcPlayerSpeedStat(closestDef.player, closestDef.effOvr);
+          const carrierSpd = getEffectiveMatchSpeed(carrier);
+          const defSpd = getEffectiveMatchSpeed(closestDef);
           const spdDiff = carrierSpd - defSpd;
 
-          // 1. ⚡ Arranque Veloz: Atacante com vantagem de velocidade (spdDiff >= +6) deixa o marcador na poeira sem duelo físico
-          if (spdDiff >= 6 && closestDist <= 5.8 && closestDist > 3.25) {
+          // 1. ⚡ Arranque Veloz: Atacante descansado com vantagem de velocidade (spdDiff >= +6) deixa o marcador na poeira
+          if (carrier.stamina >= 45 && spdDiff >= 6 && closestDist <= 5.8 && closestDist > 3.25) {
             const burstChance = Math.min(0.68, 0.35 + (spdDiff - 6) * 0.04);
             if (Math.random() < burstChance) {
               spendStamina(carrier, 2.5);
@@ -8184,8 +7966,8 @@
             }
           }
 
-          // 2. ⚡ Recuperação Veloz: Marcador com vantagem de velocidade (spdDiff <= -6) engole a distância na corrida
-          if (spdDiff <= -6 && closestDist <= 5.0 && closestDist > 2.8) {
+          // 2. ⚡ Recuperação Veloz: Marcador descansado com vantagem de velocidade (spdDiff <= -6) engole a distância na corrida
+          if (closestDef.stamina >= 45 && spdDiff <= -6 && closestDist <= 5.0 && closestDist > 2.8) {
             const recoveryChance = Math.min(0.65, 0.32 + (Math.abs(spdDiff) - 6) * 0.04);
             if (Math.random() < recoveryChance) {
               spendStamina(closestDef, 2.5);
@@ -8500,9 +8282,9 @@
         const teamList = attIsUser ? pitch.userNodes : pitch.oppNodes;
         (teamList || []).forEach((n) => {
           if (n.uid === catcher.uid) {
-            n.stamina = Math.min(100, n.stamina + 1.8);
+            n.stamina = Math.min(100, n.stamina + 1.0);
           } else {
-            n.stamina = Math.min(100, n.stamina + 0.45);
+            n.stamina = Math.min(100, n.stamina + 0.25);
           }
         });
       }
@@ -8810,7 +8592,6 @@
     st.finished = false;
     st.halftimeHandled = false;
     st.etHalftimeHandled = false;
-    st.recoverCharges = 2;
     st.won = null;
     st.isDraw = false;
     st.penalties = null;
@@ -10835,7 +10616,7 @@
       const curLvl = state.tournament?.prepBonuses?.[ev.buffKey] || 0;
       const nextLvl = Math.min(ev.maxLevel || 3, curLvl + 1);
       if (ev.buffKey === "efficiencyLvl") return `<span class="b-chem">-${nextLvl * 2}% Custo na Cidade</span>`;
-      if (ev.buffKey === "restLvl") return `<span class="b-chem">Descanso +${35 + nextLvl * 7}%</span>`;
+      if (ev.buffKey === "restLvl") return `<span class="b-chem">Descanso +${35 + nextLvl * 7}%</span> • <span class="b-lvl">+${nextLvl * 3}% Intervalo</span>`;
       if (ev.buffKey === "enduranceLvl") {
         const pct = [0, 8, 15, 22][nextLvl] || 22;
         return `<span class="b-chem">-${pct}% Gasto em Campo</span>`;
@@ -10883,8 +10664,8 @@
       }
       if (ev.buffKey === "restLvl") {
         return curLvl === 0
-          ? `Descansar na Sede passa a recuperar <span class="b-chem">+42%</span> de energia.`
-          : `Evolui o Descansar de <span class="b-chem">+${35 + curLvl * 7}%</span> para <span class="b-chem">+${35 + nextLvl * 7}%</span>.`;
+          ? `Descansar recupera <span class="b-chem">+42%</span> de energia e atletas ganham <span class="b-lvl">+3% fôlego</span> nos intervalos.`
+          : `Evolui Descansar para <span class="b-chem">+${35 + nextLvl * 7}%</span> e bônus nos intervalos para <span class="b-lvl">+${nextLvl * 3}%</span>.`;
       }
       if (ev.buffKey === "enduranceLvl") {
         const prevP = [0, 8, 15, 22][curLvl] || 0;
@@ -11103,7 +10884,7 @@
             maxLevel: 3,
             teamPower: 10,
             weight: 1.8,
-            summary: `O Descansar na Sede passa a recuperar <span class="b-chem">+42% / +49% / +56%</span> de Energia.`
+            summary: `Descansar na Sede sobe para <span class="b-chem">+42% / +49% / +56%</span> e recupera <span class="b-lvl">+3% / +6% / +9% fôlego</span> nos intervalos.`
           },
           {
             id: "xp_spirit_upgrade",
@@ -11507,7 +11288,6 @@
     const baseEligible = loc.events.filter((ev) => {
       if (ev.kind === "PASSIVE_DOUBLE_EVENT" && bonuses.permanentDoublePrep) return false;
       if (ev.kind === "PASSIVE_LATE_RESIST" && bonuses.lateMatchNoStaminaLoss) return false;
-      if (ev.id === "tire_training" && (bonuses.tireTrainingDone || (bonuses.staminaMul || 1) <= 0.72)) return false;
       if (ev.kind === "SCALABLE_BUFF") {
         return (bonuses[ev.buffKey] || 0) < (ev.maxLevel || 3);
       }
@@ -11843,7 +11623,6 @@
         staminaMul: 1,
         lateMatchNoStaminaLoss: false,
         permanentDoublePrep: false,
-        tireTrainingDone: false,
         efficiencyLvl: 0,
         restLvl: 0,
         enduranceLvl: 0,
@@ -12046,7 +11825,7 @@
 
       let effectTxt = "";
       if (key === "efficiencyLvl") effectTxt = `<span class="b-chem">-${nextL * 2}% custo de energia</span> nos locais da cidade`;
-      else if (key === "restLvl") effectTxt = `Descansar agora recupera <span class="b-chem">+${35 + nextL * 7}% de Energia</span>`;
+      else if (key === "restLvl") effectTxt = `Descansar agora recupera <span class="b-chem">+${35 + nextL * 7}% de Energia</span> e <span class="b-lvl">+${nextL * 3}% fôlego nos intervalos</span>`;
       else if (key === "enduranceLvl") {
         const pct = [0, 8, 15, 22][nextL] || 22;
         effectTxt = `<span class="b-chem">-${pct}% gasto de energia</span> em técnicas e desgaste de campo`;
@@ -12176,9 +11955,6 @@
     t.prepBonuses.power += event.teamPower || 0;
     if (event.staminaMul) {
       t.prepBonuses.staminaMul = Math.min(t.prepBonuses.staminaMul || 1, event.staminaMul);
-    }
-    if (event.id === "tire_training") {
-      t.prepBonuses.tireTrainingDone = true;
     }
     if (event.elemResonance) {
       t.prepBonuses.elemResonance = true;
@@ -12449,20 +12225,65 @@
     startPitchRafLoop(miniSt);
   }
 
-  function buildTeamEnergyBarHTML(isLive = false) {
+  function buildTeamEnergyBarHTML(isLive = false, activeMinute = 0) {
     const val = Math.round(getTeamEnergy());
     const band = getTeamEnergyBand(val);
+    const prefix = isLive ? "live" : "prep";
+    const showLateBadge = Boolean(
+      state.tournament?.prepBonuses?.lateMatchNoStaminaLoss && activeMinute >= 75
+    );
     return `
-      <div class="team-energy-strip ${isLive ? "is-live" : ""}" style="border-color:${band.border}; background:${band.bg};">
+      <div class="team-energy-strip ${isLive ? "is-live" : ""}" id="${prefix}-team-energy-strip" style="border-color:${band.border}; background:${band.bg};">
         <div class="team-energy-row">
-          <span class="team-energy-title">⚡ Energia do Time: <strong id="${isLive ? "live-team-energy-pill" : "prep-team-energy-pill"}" style="color:${band.color};">${val}% (${band.label})</strong></span>
-          <span class="team-energy-desc">${band.desc}</span>
+          <span class="team-energy-title">⚡ Energia do Time: <strong id="${prefix}-team-energy-pill" style="color:${band.color};">${val}% (${band.label})</strong><span class="team-energy-passive-badge" id="${prefix}-team-energy-passive" style="display:${showLateBadge ? "inline-flex" : "none"};">🛡️ -50% (75'+)</span></span>
+          <span class="team-energy-desc" id="${prefix}-team-energy-desc">${band.desc}</span>
         </div>
         <div class="team-energy-bar-bg">
-          <div class="team-energy-bar-fill" id="${isLive ? "live-team-energy-fill" : "prep-team-energy-fill"}" style="width:${val}%; background:${band.color};"></div>
+          <div class="team-energy-bar-fill" id="${prefix}-team-energy-fill" style="width:${val}%; background:${band.color};"></div>
         </div>
       </div>
     `;
+  }
+
+  function syncTeamEnergyBarDOM(prefix = "live", activeMinute = 0) {
+    const eVal = Math.round(getTeamEnergy());
+    const eBand = getTeamEnergyBand(eVal);
+    const stripEl = document.getElementById(`${prefix}-team-energy-strip`);
+    const pillEl = document.getElementById(`${prefix}-team-energy-pill`);
+    const descEl = document.getElementById(`${prefix}-team-energy-desc`);
+    const fillEl = document.getElementById(`${prefix}-team-energy-fill`);
+    const passiveEl = document.getElementById(`${prefix}-team-energy-passive`);
+    if (stripEl) {
+      stripEl.style.borderColor = eBand.border;
+      stripEl.style.background = eBand.bg;
+    }
+    if (pillEl) {
+      pillEl.textContent = `${eVal}% (${eBand.label})`;
+      pillEl.style.color = eBand.color;
+    }
+    if (descEl) {
+      descEl.textContent = eBand.desc;
+    }
+    if (fillEl) {
+      fillEl.style.width = `${eVal}%`;
+      fillEl.style.background = eBand.color;
+    }
+    if (passiveEl) {
+      const showLate = Boolean(
+        state.tournament?.prepBonuses?.lateMatchNoStaminaLoss && activeMinute >= 75
+      );
+      passiveEl.style.display = showLate ? "inline-flex" : "none";
+    }
+  }
+
+  function getIntensityHintText(intensity) {
+    if (intensity === "low") {
+      return "Baixa (~22%/jogo): recupera mais fôlego sem bola, usa só técnicas padrão e reduz força em duelos.";
+    }
+    if (intensity === "high") {
+      return "Alta (~68%/jogo): +força nos duelos e super técnicas frequentes, mas desgasta muito mais rápido.";
+    }
+    return "Média (~41%/jogo): ritmo equilibrado entre técnica, fôlego individual e gasto de energia.";
   }
 
   function buildTacticsControlBarHTML(showSquadBtn = false) {
@@ -12503,6 +12324,7 @@
             </button>
           </div>
         ` : ""}
+        <div class="tac-intensity-hint" data-tac-intensity-hint>${getIntensityHintText(tac.intensity)}</div>
       </div>
     `;
   }
@@ -12528,6 +12350,10 @@
         const val = btn.getAttribute("data-tac-intensity");
         getTactics().intensity = val;
         syncActive("data-tac-intensity", val);
+        const hintTxt = getIntensityHintText(val);
+        rootEl.querySelectorAll("[data-tac-intensity-hint]").forEach((el) => {
+          el.textContent = hintTxt;
+        });
       });
     });
     rootEl.querySelectorAll("[data-tac-posture]").forEach((btn) => {
@@ -13640,7 +13466,7 @@
           <div class="time-bar-fill" id="live-bar-fill" style="width:${pct}%;"></div>
         </div>
 
-        ${st.finished ? "" : buildTeamEnergyBarHTML(true)}
+        ${st.finished ? "" : buildTeamEnergyBarHTML(true, st.minute)}
 
         ${postMatchBarHTML}
 
@@ -13755,11 +13581,11 @@
                 <div class="live-tac-team-meta">Nv. ${oppStats.oppLevel || 1} • Poder <strong>${oppStats.power.toLocaleString("pt-BR")}</strong> • Quím ${oppStats.chem}%</div>
               </div>
             </div>
-            ${buildTeamEnergyBarHTML(false)}
+            ${buildTeamEnergyBarHTML(false, st.minute)}
             ${buildFormationSelectorStripHTML()}
             ${buildTacticsControlBarHTML(false)}
             <div id="live-tac-pitch-body">
-              ${buildPitchHTML(true)}
+              ${buildPitchHTML(true, getLiveStaminaMapForStage(st))}
             </div>
           </div>
         </div>
@@ -13774,9 +13600,11 @@
 
       const syncLivePitchNodesFromSquad = (formationChanged = false) => {
         if (!st.pitch || !Array.isArray(st.pitch.userNodes)) return;
-        const oldByPlayerId = {};
+        const oldStaminaByPlayerId = {};
         st.pitch.userNodes.forEach((n) => {
-          if (n.player?.id) oldByPlayerId[n.player.id] = n;
+          if (n.player?.id && typeof n.stamina === "number") {
+            oldStaminaByPlayerId[n.player.id] = n.stamina;
+          }
         });
         const oldStatsByPlayerId = {};
         if (st.pitch.stats?.playerStats) {
@@ -13811,7 +13639,7 @@
         st.pitch.userNodes.forEach((n) => {
           const p = state.squad[n.slotId];
           if (!p) return;
-          const prevNode = oldByPlayerId[p.id];
+          const prevStam = oldStaminaByPlayerId[p.id];
           n.player = p;
           if (!formationChanged) {
             const s = slotMap[n.slotId];
@@ -13827,8 +13655,8 @@
           n.attrs = calcPlayerAttributes(p, n.role, n.level);
           n.spd = n.attrs.vel;
           n.maxSpeed = calcNodeBaseSpeed(n.tacticalRole, n.effOvr, p);
-          if (prevNode && typeof prevNode.stamina === "number") {
-            n.stamina = prevNode.stamina;
+          if (typeof prevStam === "number") {
+            n.stamina = prevStam;
           }
           if (st.pitch.stats?.playerStats) {
             const prevStat = oldStatsByPlayerId[p.id];
@@ -13885,7 +13713,7 @@
               }
               state.swapSlotId = null;
             }
-            pitchBody.innerHTML = buildPitchHTML(true);
+            pitchBody.innerHTML = buildPitchHTML(true, getLiveStaminaMapForStage(st));
             bindLiveTacPitch();
             renderHeaderAndBonds();
             const curSt = calcSquadStats();
@@ -13902,7 +13730,7 @@
           syncLivePitchNodesFromSquad(true);
           const pitchBody = document.getElementById("live-tac-pitch-body");
           if (pitchBody) {
-            pitchBody.innerHTML = buildPitchHTML(true);
+            pitchBody.innerHTML = buildPitchHTML(true, getLiveStaminaMapForStage(st));
             bindLiveTacPitch();
           }
           renderHeaderAndBonds();
@@ -13917,25 +13745,14 @@
       const openTacBtn = document.getElementById("btn-open-live-tactics");
       const closeTacBtn = document.getElementById("btn-close-live-tactics");
       const pauseForTactics = () => {
-        if (st.finished || state.tournament.pendingWhistleFinish || state.tournament.qteRafId) return;
+        if (st.finished || state.tournament.pendingWhistleFinish) return;
         hideBondPlayersTooltip();
         st.running = false;
         clearTournamentTimers(true);
         state.swapSlotId = null;
         const minEl = document.getElementById("live-tactics-modal-min");
         if (minEl) minEl.textContent = `${st.minute}'`;
-        const eVal = Math.round(getTeamEnergy());
-        const eBand = getTeamEnergyBand(eVal);
-        const mPill = document.getElementById("prep-team-energy-pill");
-        const mFill = document.getElementById("prep-team-energy-fill");
-        if (mPill) {
-          mPill.textContent = `${eVal}% (${eBand.label})`;
-          mPill.style.color = eBand.color;
-        }
-        if (mFill) {
-          mFill.style.width = `${eVal}%`;
-          mFill.style.background = eBand.color;
-        }
+        syncTeamEnergyBarDOM("prep", st.minute);
         const curSt = calcSquadStats();
         const uMeta = document.getElementById("live-tac-user-meta");
         if (uMeta) {
@@ -13943,7 +13760,7 @@
         }
         const pitchBody = document.getElementById("live-tac-pitch-body");
         if (pitchBody) {
-          pitchBody.innerHTML = buildPitchHTML(true);
+          pitchBody.innerHTML = buildPitchHTML(true, getLiveStaminaMapForStage(st));
           bindLiveTacPitch();
         }
         if (tacModal) tacModal.classList.add("is-open");
