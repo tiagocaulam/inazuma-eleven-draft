@@ -2183,12 +2183,14 @@
       })
       .join("");
 
+    const scaledRows = [];
+
     const nodesHTML = slots
       .map((slot) => {
         const p = state.squad[slot.id];
         const isSwap = state.swapSlotId === slot.id;
 
-        const renderY = slot.role === "GK" ? 91.5 : slot.role === "DF" && slot.y >= 73 ? 72 : slot.y;
+        const renderY = slot.role === "GK" ? 90.5 : slot.role === "DF" && slot.y >= 73 ? 71.5 : slot.y;
 
         if (!p) {
           let targetClass = "";
@@ -2222,6 +2224,18 @@
         const nodeSprite = getPlayerFormSprite(p, slot.role);
         const nodeTooltip = `OVR ${effOvr} • Nv.${pLvl} • Poder ${pPwr} | FOR ${attrs.for} · TEC ${attrs.tec} · DEF ${attrs.def} · VEL ${attrs.vel} · FIS ${attrs.fis}`;
 
+        scaledRows.push({
+          slot,
+          p,
+          effOvr,
+          pLvl,
+          pPwr,
+          attrs,
+          isImprovised,
+          nodeSprite,
+          isSwap
+        });
+
         return `
           <div class="field-node occupied ${isSwap ? "swap-active" : ""}"
                style="left:${slot.x}%; top:${renderY}%;"
@@ -2238,10 +2252,75 @@
               ${posIconHTML(slot.role, true)}
               <span class="node-slot-label">${slot.label}${isImprovised ? " *" : ""}</span>
             </div>
+            <div class="node-pwr-pill${isImprovised ? " is-improvised" : ""}" title="${nodeTooltip}">⚔️ ${pPwr.toLocaleString("pt-BR")}</div>
           </div>
         `;
       })
       .join("");
+
+    let powerSectionHTML = "";
+    if ((isComplete || state.peekField) && scaledRows.length > 0) {
+      const roleOrder = { FW: 0, MF: 1, DF: 2, GK: 3 };
+      const orderedRows = [...scaledRows].sort((a, b) => {
+        const ra = roleOrder[a.slot.role] ?? 9;
+        const rb = roleOrder[b.slot.role] ?? 9;
+        if (ra !== rb) return ra - rb;
+        return b.pPwr - a.pPwr;
+      });
+      const sumIndivPwr = orderedRows.reduce((acc, r) => acc + r.pPwr, 0);
+      const avgIndivPwr = Math.round(sumIndivPwr / orderedRows.length);
+      const maxIndivPwr = Math.max(1, ...orderedRows.map((r) => r.pPwr));
+
+      powerSectionHTML = `
+        <div class="pitch-power-section" id="pitch-power-section">
+          <div class="pitch-power-head">
+            <span class="pitch-power-title">⚔️ FORÇA INDIVIDUAL DOS ESCALADOS</span>
+            <span class="pitch-power-summary">Soma Base: <strong>${sumIndivPwr.toLocaleString("pt-BR")}</strong> • Média: <strong>${avgIndivPwr.toLocaleString("pt-BR")}</strong></span>
+          </div>
+          <div class="pitch-power-grid">
+            ${orderedRows.map((r) => {
+              const pctBar = Math.max(18, Math.min(100, Math.round((r.pPwr / maxIndivPwr) * 100)));
+              const extraBadges = [
+                r.p.keshin ? "⚡ Keshin" : "",
+                (r.p.bonusPower || 0) > 0 ? `+${r.p.bonusPower} Item` : ""
+              ].filter(Boolean).join(" · ");
+              return `
+                <div class="pitch-power-card${r.isSwap ? " swap-active" : ""}${r.isImprovised ? " is-improvised" : ""}"
+                     data-slot="${r.slot.id}"
+                     title="Toque para trocar ${r.p.name} de posição">
+                  <div class="pitch-power-card-main">
+                    <div class="pitch-power-avatar-wrap">
+                      <img class="pitch-power-avatar" src="${r.nodeSprite}" alt="${r.p.name}" />
+                      ${elemIconHTML(r.p.element, "pitch-power-elem")}
+                    </div>
+                    <div class="pitch-power-info">
+                      <div class="pitch-power-name-row">
+                        ${posIconHTML(r.slot.role, true)}
+                        <span class="pitch-power-slot">${r.slot.label}${r.isImprovised ? " *" : ""}</span>
+                        <span class="pitch-power-name">${r.p.name}</span>
+                      </div>
+                      <div class="pitch-power-meta-row">
+                        <span class="pitch-power-lvl">Nv.${r.pLvl}</span>
+                        <span class="pitch-power-ovr">OVR ${r.effOvr}</span>
+                        <span class="pitch-power-attrs">FOR ${r.attrs.for} · TEC ${r.attrs.tec} · DEF ${r.attrs.def} · VEL ${r.attrs.vel}</span>
+                        ${extraBadges ? `<span class="pitch-power-extra">${extraBadges}</span>` : ""}
+                      </div>
+                    </div>
+                    <div class="pitch-power-val${r.isImprovised ? " is-improvised" : ""}">
+                      <small>PODER</small>
+                      <strong>⚔️ ${r.pPwr.toLocaleString("pt-BR")}</strong>
+                    </div>
+                  </div>
+                  <div class="pitch-power-bar-track">
+                    <div class="pitch-power-bar-fill${r.isImprovised ? " is-improvised" : ""}" style="width:${pctBar}%;"></div>
+                  </div>
+                </div>
+              `;
+            }).join("")}
+          </div>
+        </div>
+      `;
+    }
 
     return `
       <div class="pitch-formation-wrapper">
@@ -2272,6 +2351,7 @@
           <svg class="draft-links-svg" viewBox="0 0 100 100" preserveAspectRatio="none">${linksSVG}</svg>
           <div id="pitch-nodes-container">${nodesHTML}</div>
         </div>
+        ${powerSectionHTML}
       </div>
     `;
   }
@@ -8909,7 +8989,7 @@
         startTournamentGo();
       });
 
-      container.querySelectorAll(".field-node").forEach((el) => {
+      container.querySelectorAll("[data-slot]").forEach((el) => {
         el.addEventListener("click", () => handleFieldSlotClick(el.getAttribute("data-slot")));
       });
       return;
@@ -8971,7 +9051,7 @@
         renderDraftWheelAndRoster(false);
       });
 
-      container.querySelectorAll(".field-node").forEach((el) => {
+      container.querySelectorAll("[data-slot]").forEach((el) => {
         el.addEventListener("click", () => handleFieldSlotClick(el.getAttribute("data-slot")));
       });
       return;
