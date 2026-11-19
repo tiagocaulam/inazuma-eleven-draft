@@ -10102,6 +10102,18 @@
     }
   }
 
+  function buildSupabaseHeaders(cfg, includeJson = false) {
+    const key = String(cfg?.supabaseAnonKey || "").trim();
+    const headers = { apikey: key };
+    if (key.startsWith("eyJ")) {
+      headers.Authorization = `Bearer ${key}`;
+    }
+    if (includeJson) {
+      headers["Content-Type"] = "application/json";
+    }
+    return headers;
+  }
+
   async function fetchOnlineRankings() {
     const cfg = getRankingConfig();
     if (!cfg.isOnline) {
@@ -10113,10 +10125,7 @@
       `&order=power.desc,wins.desc,avg_level.desc,created_at.asc&limit=${cfg.maxEntries}`;
     const res = await fetch(endpoint, {
       method: "GET",
-      headers: {
-        apikey: cfg.supabaseAnonKey,
-        Authorization: `Bearer ${cfg.supabaseAnonKey}`
-      }
+      headers: buildSupabaseHeaders(cfg, false)
     });
     if (!res.ok) {
       throw new Error(`HTTP ${res.status}`);
@@ -10131,11 +10140,7 @@
     if (!cfg.isOnline) return false;
     const res = await fetch(`${cfg.supabaseUrl}/rest/v1/rpc/save_ranking_run`, {
       method: "POST",
-      headers: {
-        apikey: cfg.supabaseAnonKey,
-        Authorization: `Bearer ${cfg.supabaseAnonKey}`,
-        "Content-Type": "application/json"
-      },
+      headers: buildSupabaseHeaders(cfg, true),
       body: JSON.stringify({
         p_run_id: entry.runId,
         p_edit_token: editToken,
@@ -10167,11 +10172,7 @@
     if (!cfg.isOnline) return false;
     const res = await fetch(`${cfg.supabaseUrl}/rest/v1/rpc/rename_ranking_run`, {
       method: "POST",
-      headers: {
-        apikey: cfg.supabaseAnonKey,
-        Authorization: `Bearer ${cfg.supabaseAnonKey}`,
-        "Content-Type": "application/json"
-      },
+      headers: buildSupabaseHeaders(cfg, true),
       body: JSON.stringify({
         p_run_id: runId,
         p_edit_token: editToken,
