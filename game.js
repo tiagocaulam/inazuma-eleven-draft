@@ -396,8 +396,19 @@
 
   const RANKING_LOCAL_KEY = "ie_dream_team_rankings_v1";
   const TEAM_NAME_LOCAL_KEY = "ie_dream_team_nickname_v1";
+  const ACTIVE_RUN_SAVE_KEY = "ie_dream_team_active_run_v1";
   const VALID_RANKING_ROLES = new Set(["FW", "MF", "DF", "GK"]);
   const VALID_RANKING_ELEMENTS = new Set(["Fogo", "Floresta", "Vento", "Montanha"]);
+
+  function isPermanentRunEnd(t = state.tournament) {
+    if (!t || !Array.isArray(t.stages) || t.stages.length === 0) return false;
+    const st = t.stages[t.stageIndex];
+    if (!st || !st.finished) return false;
+    const isWorldFinalWin = Boolean(st.won && t.worldUnlocked && t.stageIndex === t.stages.length - 1);
+    const isGroupElim = Boolean(st.isGroupStage && st.groupRoundIdx === 2 && getUserGroupRank(t.worldGroup) > 2);
+    const isKnockoutLoss = Boolean(!st.isGroupStage && !st.won);
+    return isWorldFinalWin || isGroupElim || isKnockoutLoss;
+  }
 
   function escapeHtml(str) {
     return String(str == null ? "" : str)
@@ -8469,6 +8480,8 @@
     clearTournamentTimers(false);
     state.tournament.stageIndex = stageIdx;
     state.tournament.showRunSummary = false;
+    state.tournament.preMatchTeamEnergy = getTeamEnergy();
+    saveActiveRunProgress();
 
     const st = state.tournament.stages[stageIdx];
     if (st.isGroupStage && state.tournament.worldGroup) {
@@ -8738,6 +8751,7 @@
 
     const stadiumStyle = UI.stadiumBg ? `background-image: url('${UI.stadiumBg}');` : "";
     const rankCfg = getRankingConfig();
+    const savedRun = loadActiveRunPreview();
 
     container.innerHTML = `
       <div class="start-menu-card">
@@ -8764,6 +8778,23 @@
         </div>
 
         <div class="start-body">
+          ${
+            savedRun
+              ? `<div class="continue-run-banner" id="continue-run-banner">
+                  <div class="continue-run-info">
+                    <div class="continue-run-eyebrow">⚡ CAMPANHA EM ANDAMENTO</div>
+                    <div class="continue-run-title">${escapeHtml(savedRun.preview.stageLabel)}</div>
+                    <div class="continue-run-meta">${escapeHtml(savedRun.preview.metaLine)}</div>
+                  </div>
+                  <div class="continue-run-actions">
+                    <button type="button" class="ie-cmd-btn ie-cmd-green continue-run-btn" id="btn-continue-saved-run">
+                      <span>▶ Continuar</span>
+                    </button>
+                    <button type="button" class="continue-discard-btn" id="btn-discard-saved-run" title="Descartar campanha salva" aria-label="Descartar campanha salva">✕</button>
+                  </div>
+                </div>`
+              : ""
+          }
           <div class="option-group" style="margin-top:0;">
             <label>${ffLogoIconHTML("inline-ui-icon")} 1. Escolha o Modo de Jogo:</label>
             <div class="mode-select-grid">
@@ -8896,8 +8927,24 @@
       });
     });
 
+    const continueSavedBtn = document.getElementById("btn-continue-saved-run");
+    if (continueSavedBtn) {
+      continueSavedBtn.addEventListener("click", () => {
+        resumeSavedRunProgress();
+      });
+    }
+
+    const discardSavedBtn = document.getElementById("btn-discard-saved-run");
+    if (discardSavedBtn) {
+      discardSavedBtn.addEventListener("click", () => {
+        clearActiveRunProgress();
+        renderStartMenuScreen();
+      });
+    }
+
     document.getElementById("btn-start-game-now").addEventListener("click", () => {
       clearRankingEscListener();
+      clearActiveRunProgress();
       clearTournamentTimers(false);
       if (state.spinTimerId) {
         clearTimeout(state.spinTimerId);
@@ -9512,6 +9559,547 @@
     });
     if (updated) saveLocalRankings(next);
     return updated;
+  }
+
+  function findTeamById(teamId) {
+    if (teamId == null) return null;
+    const key = String(teamId);
+    return (DB.teams || []).find((t) => String(t.id) === key) || null;
+  }
+
+  function findPrepEventById(eventId) {
+    if (!eventId) return null;
+    const locs = getPrepLocationsCatalog();
+    for (const loc of locs) {
+      const found = (loc.events || []).find((ev) => ev.id === eventId);
+      if (found) return found;
+    }
+    return null;
+  }
+
+  function serializeSquadForSave(squadObj) {
+    const out = {};
+    Object.entries(squadObj || {}).forEach(([slotId, p]) => {
+      if (!p || p.id == null) return;
+      out[slotId] = {
+        id: String(p.id),
+        teamId: p.teamId ?? null,
+        level: getPlayerLevel(p),
+        xp: p.xp || 0,
+        bonusStats: p.bonusStats ? { ...p.bonusStats } : { for: 0, tec: 0, def: 0, vel: 0, fis: 0 },
+        bonusPower: p.bonusPower || 0,
+        bonusSpd: p.bonusSpd || 0,
+        equippedItems: Array.isArray(p.equippedItems)
+          ? p.equippedItems.map((it) => ({ id: it.id, title: it.title }))
+          : [],
+        keshin: p.keshin ? { name: p.keshin.name, iconKey: p.keshin.iconKey } : null,
+        moveEvoCount: p.moveEvoCount || 0,
+        learnedSecretManual: Boolean(p.learnedSecretManual),
+        learnedLvlMilestones: Array.isArray(p.learnedLvlMilestones) ? [...p.learnedLvlMilestones] : [],
+        moves: p.moves ? JSON.parse(JSON.stringify(p.moves)) : null,
+        hissatsu: p.hissatsu || "",
+        _baseMovesSnapshot: p._baseMovesSnapshot ? JSON.parse(JSON.stringify(p._baseMovesSnapshot)) : null,
+        _baseHissatsuSnapshot: p._baseHissatsuSnapshot !== undefined ? p._baseHissatsuSnapshot : null
+      };
+    });
+    return out;
+  }
+
+  function deserializeSquadFromSave(rawSquad) {
+    const out = {};
+    const idx = buildPlayerLookupIndex();
+    Object.entries(rawSquad || {}).forEach(([slotId, rawP]) => {
+      if (!rawP || rawP.id == null) return;
+      const baseP = idx.byId.get(String(rawP.id));
+      if (!baseP) return;
+      const baseT = findTeamById(rawP.teamId) || findTeamById(baseP.teamId);
+      const p = cloneFreshPlayerForSquad(baseP, baseT, Math.max(1, Number(rawP.level) || 1));
+      if (!p) return;
+      p.xp = Number(rawP.xp) || 0;
+      p.bonusStats = {
+        for: Number(rawP.bonusStats?.for) || 0,
+        tec: Number(rawP.bonusStats?.tec) || 0,
+        def: Number(rawP.bonusStats?.def) || 0,
+        vel: Number(rawP.bonusStats?.vel) || 0,
+        fis: Number(rawP.bonusStats?.fis) || 0
+      };
+      p.bonusPower = Number(rawP.bonusPower) || 0;
+      p.bonusSpd = Number(rawP.bonusSpd) || 0;
+      p.equippedItems = Array.isArray(rawP.equippedItems)
+        ? rawP.equippedItems.map((it) => ({ id: it.id, title: it.title }))
+        : [];
+      p.keshin = rawP.keshin ? { name: rawP.keshin.name, iconKey: rawP.keshin.iconKey } : null;
+      p.moveEvoCount = Number(rawP.moveEvoCount) || 0;
+      p.learnedSecretManual = Boolean(rawP.learnedSecretManual);
+      p.learnedLvlMilestones = Array.isArray(rawP.learnedLvlMilestones) ? [...rawP.learnedLvlMilestones] : [];
+      if (rawP.moves && typeof rawP.moves === "object") {
+        p.moves = JSON.parse(JSON.stringify(rawP.moves));
+      }
+      if (typeof rawP.hissatsu === "string" && rawP.hissatsu) {
+        p.hissatsu = rawP.hissatsu;
+      }
+      if (rawP._baseMovesSnapshot) {
+        p._baseMovesSnapshot = JSON.parse(JSON.stringify(rawP._baseMovesSnapshot));
+      }
+      if (rawP._baseHissatsuSnapshot !== null && rawP._baseHissatsuSnapshot !== undefined) {
+        p._baseHissatsuSnapshot = rawP._baseHissatsuSnapshot;
+      }
+      out[slotId] = p;
+    });
+    return out;
+  }
+
+  function compactPitchStatsForSave(ps) {
+    if (!ps || typeof ps !== "object") return null;
+    const compactPlayers = {};
+    if (ps.playerStats && typeof ps.playerStats === "object") {
+      Object.entries(ps.playerStats).forEach(([uid, st]) => {
+        if (!st) return;
+        compactPlayers[uid] = {
+          uid: st.uid || uid,
+          slotId: st.slotId || "",
+          role: st.role || "MF",
+          id: st.id != null ? String(st.id) : "",
+          name: st.name || "",
+          fullName: st.fullName || st.name || "",
+          element: st.element || "",
+          teamId: st.teamId ?? null,
+          teamName: st.teamName || "",
+          ovr: Number(st.ovr) || 75,
+          goals: Number(st.goals) || 0,
+          assists: Number(st.assists) || 0,
+          passesOk: Number(st.passesOk) || 0,
+          passesTry: Number(st.passesTry) || 0,
+          gkReleases: Number(st.gkReleases) || 0,
+          dribblesOk: Number(st.dribblesOk) || 0,
+          dribblesTry: Number(st.dribblesTry) || 0,
+          steals: Number(st.steals) || 0,
+          blocks: Number(st.blocks) || 0,
+          shots: Number(st.shots) || 0,
+          saves: Number(st.saves) || 0
+        };
+      });
+    }
+    return {
+      userTicks: Number(ps.userTicks) || 0,
+      oppTicks: Number(ps.oppTicks) || 0,
+      userShots: Number(ps.userShots) || 0,
+      oppShots: Number(ps.oppShots) || 0,
+      userPassesOk: Number(ps.userPassesOk) || 0,
+      userPassesTry: Number(ps.userPassesTry) || 0,
+      userGkReleases: Number(ps.userGkReleases) || 0,
+      userDribblesOk: Number(ps.userDribblesOk) || 0,
+      userDribblesTry: Number(ps.userDribblesTry) || 0,
+      userSteals: Number(ps.userSteals) || 0,
+      userBlocks: Number(ps.userBlocks) || 0,
+      userSaves: Number(ps.userSaves) || 0,
+      playerStats: compactPlayers
+    };
+  }
+
+  function rehydratePitchStatsFromSave(rawStats) {
+    if (!rawStats || typeof rawStats !== "object") return null;
+    const playerStats = {};
+    if (rawStats.playerStats && typeof rawStats.playerStats === "object") {
+      Object.entries(rawStats.playerStats).forEach(([uid, st]) => {
+        if (!st) return;
+        const tm = findTeamById(st.teamId);
+        playerStats[uid] = {
+          ...st,
+          sprite: resolveRankingPlayerSprite({ id: st.id, name: st.name, role: st.role }),
+          teamEmblem: tm?.emblem || ""
+        };
+      });
+    }
+    return { ...rawStats, playerStats };
+  }
+
+  function serializeWorldGroupForSave(wg) {
+    if (!wg || typeof wg !== "object") return null;
+    return {
+      groupName: wg.groupName || "Grupo A",
+      opponentIds: (wg.opponents || []).map((o) => o?.id).filter((id) => id != null),
+      otherPairs: wg.otherPairs || [[1, 2], [0, 2], [0, 1]],
+      standings: (wg.standings || []).map(({ emblem, ...rest }) => rest),
+      lastOtherResult: wg.lastOtherResult || ""
+    };
+  }
+
+  function deserializeWorldGroupFromSave(rawWg) {
+    if (!rawWg || typeof rawWg !== "object") return null;
+    return {
+      groupName: rawWg.groupName || "Grupo A",
+      opponents: (rawWg.opponentIds || []).map(findTeamById).filter(Boolean),
+      otherPairs: rawWg.otherPairs || [[1, 2], [0, 2], [0, 1]],
+      standings: (rawWg.standings || []).map((row) => ({
+        ...row,
+        emblem: row.isUser ? (UI.raimonEmblem || "") : (findTeamById(row.id)?.emblem || "")
+      })),
+      lastOtherResult: rawWg.lastOtherResult || ""
+    };
+  }
+
+  function serializePrepForSave(prep) {
+    if (!prep || typeof prep !== "object") return null;
+    return {
+      nextStageIdx: prep.nextStageIdx || 0,
+      phase: prep.phase || "CHOOSE_LOC",
+      locId: prep.locId || null,
+      eventsTotal: prep.eventsTotal || 3,
+      eventsRemaining: prep.eventsRemaining ?? 3,
+      usedEventIdsThisRound: Array.isArray(prep.usedEventIdsThisRound) ? [...prep.usedEventIdsThisRound] : [],
+      appliedMsg: prep.appliedMsg || null,
+      choiceIds: Array.isArray(prep.choices) ? prep.choices.map((c) => c?.id).filter(Boolean) : [],
+      eventId: prep.event?.id || null,
+      affectedPlayers: Array.isArray(prep.affectedPlayers)
+        ? prep.affectedPlayers.map(({ sprite, ...rest }) => rest)
+        : [],
+      recruitCandidate: prep.recruitCandidate
+        ? {
+            playerId: prep.recruitCandidate.player?.id != null ? String(prep.recruitCandidate.player.id) : null,
+            teamId: prep.recruitCandidate.teamId ?? prep.recruitCandidate.team?.id ?? prep.recruitCandidate.player?.teamId ?? null,
+            role: prep.recruitCandidate.role || prep.recruitCandidate.player?.pos || "MF"
+          }
+        : null
+    };
+  }
+
+  function deserializePrepFromSave(rawPrep, t) {
+    if (!rawPrep || typeof rawPrep !== "object") return null;
+    const choices = (rawPrep.choiceIds || []).map(findPrepEventById).filter(Boolean);
+    const event = findPrepEventById(rawPrep.eventId);
+    const affectedPlayers = (rawPrep.affectedPlayers || []).map((ap) => ({
+      ...ap,
+      sprite: resolveRankingPlayerSprite({ name: ap.name, role: ap.role })
+    }));
+    const prep = {
+      nextStageIdx: Number(rawPrep.nextStageIdx) || 0,
+      phase: rawPrep.phase || "CHOOSE_LOC",
+      locId: rawPrep.locId || null,
+      event: event || null,
+      choices,
+      isSpinningSlots: false,
+      slotsSpun: [true, true, true],
+      eventsTotal: Number(rawPrep.eventsTotal) || (t?.prepBonuses?.permanentDoublePrep ? 4 : 3),
+      eventsRemaining: typeof rawPrep.eventsRemaining === "number" ? rawPrep.eventsRemaining : 3,
+      usedEventIdsThisRound: Array.isArray(rawPrep.usedEventIdsThisRound) ? [...rawPrep.usedEventIdsThisRound] : [],
+      appliedMsg: rawPrep.appliedMsg || null,
+      affectedPlayers,
+      clash5v5: null,
+      recruitCandidate: null,
+      riskTargetSlotId: null
+    };
+
+    if (prep.phase === "CLASH_5V5" || prep.phase === "SPINNING_CHOICES") {
+      const loc = getPrepLocationsCatalog().find((x) => x.id === (prep.locId || "riverbank"));
+      if (loc && !loc.isRestLocation) {
+        adjustTeamEnergy(getPrepLocationCost(loc, t));
+      }
+      prep.phase = "CHOOSE_LOC";
+      prep.locId = null;
+      prep.event = null;
+      prep.choices = [];
+    } else if (prep.phase === "PICK_CHOICE" && prep.choices.length === 0) {
+      prep.phase = "CHOOSE_LOC";
+      prep.locId = null;
+      prep.event = null;
+    } else if (prep.phase === "PICK_PLAYER" && !prep.event) {
+      prep.phase = "CHOOSE_LOC";
+      prep.locId = null;
+    } else if (prep.phase === "RECRUIT_OFFER") {
+      const rc = rawPrep.recruitCandidate;
+      const baseP = rc?.playerId ? buildPlayerLookupIndex().byId.get(String(rc.playerId)) : null;
+      const team = findTeamById(rc?.teamId) || findTeamById(baseP?.teamId);
+      if (baseP) {
+        prep.recruitCandidate = {
+          player: baseP,
+          team,
+          teamId: team?.id ?? rc?.teamId ?? baseP.teamId,
+          teamName: team?.name || baseP.teamName || "Time Rival",
+          emblem: team?.emblem || "",
+          role: rc?.role || baseP.pos || "MF"
+        };
+      } else {
+        prep.phase = "DONE";
+        prep.recruitCandidate = null;
+      }
+    }
+    return prep;
+  }
+
+  function clearActiveRunProgress() {
+    try {
+      window.localStorage?.removeItem(ACTIVE_RUN_SAVE_KEY);
+    } catch {
+      // ignora erro de armazenamento privado
+    }
+  }
+
+  function saveActiveRunProgress() {
+    try {
+      if (state.phase === "menu") return;
+      if (state.phase === "draft") {
+        const pickedCount = getPickedCount();
+        if (pickedCount === 0 && !state.currentTeam) return;
+        const stats = calcSquadStats();
+        const diffLabel = state.hideOvrBeforePick ? "Difícil" : "Fácil";
+        const payload = {
+          v: 1,
+          savedAt: new Date().toISOString(),
+          phase: "draft",
+          formation: state.formation || "4-3-3",
+          hideOvrBeforePick: Boolean(state.hideOvrBeforePick),
+          simSpeed: state.simSpeed || 1,
+          rerollsLeft: state.rerollsLeft ?? 0,
+          usedTeamIds: Array.isArray(state.usedTeamIds) ? [...state.usedTeamIds] : [],
+          currentTeamId: state.currentTeam?.id ?? null,
+          squad: serializeSquadForSave(state.squad),
+          preview: {
+            phase: "draft",
+            pickedCount,
+            stageLabel: pickedCount >= 11 ? "Draft 11/11 Pronto" : `Draft (${pickedCount}/11 Escalados)`,
+            metaLine: `${state.formation} • Modo ${diffLabel} • Poder ${Math.round(stats.power || 0).toLocaleString("pt-BR")}`
+          }
+        };
+        window.localStorage?.setItem(ACTIVE_RUN_SAVE_KEY, JSON.stringify(payload));
+        return;
+      }
+
+      if (state.phase === "tournament" && state.tournament) {
+        const t = state.tournament;
+        if (isPermanentRunEnd(t)) {
+          clearActiveRunProgress();
+          return;
+        }
+        const curSt = t.stages?.[t.stageIndex];
+        const isLiveMidMatch = Boolean(!t.prep && curSt && !curSt.finished);
+        const safeEnergy =
+          isLiveMidMatch && typeof t.preMatchTeamEnergy === "number"
+            ? t.preMatchTeamEnergy
+            : getTeamEnergy();
+        const stats = calcSquadStats();
+        const focusStage = t.prep ? t.stages?.[t.prep.nextStageIdx] || curSt : curSt;
+        const stageTitle = focusStage?.stageName || "Torneio";
+        const stageLabel = t.prep
+          ? `Preparação · ${stageTitle}`
+          : curSt?.finished
+          ? `Pós-Jogo · ${stageTitle}`
+          : `Partida · ${stageTitle}`;
+        const metaLine = `Poder ${Math.round(stats.power || 0).toLocaleString("pt-BR")} • Nv. ${stats.avgLevel || 1} • Energia ${Math.round(safeEnergy)}% • ${state.formation}`;
+
+        const compactStages = (t.stages || []).map((s) => ({
+          stageName: s.stageName,
+          oppTeamId: s.oppTeam?.id ?? null,
+          competition: s.competition || "FF",
+          ovrBoost: s.ovrBoost || 0,
+          oppBuffPct: s.oppBuffPct || 0,
+          oppLevel: s.oppLevel || 1,
+          isGroupStage: Boolean(s.isGroupStage),
+          groupRoundIdx: s.groupRoundIdx ?? -1,
+          minute: s.finished ? s.minute : 0,
+          maxMinute: s.finished ? s.maxMinute : 90,
+          userScore: s.finished ? s.userScore || 0 : 0,
+          oppScore: s.finished ? s.oppScore || 0 : 0,
+          goalsUser: s.finished ? (s.goalsUser || []).map(({ sprite, ...g }) => g) : [],
+          goalsOpp: s.finished ? (s.goalsOpp || []).map(({ sprite, ...g }) => g) : [],
+          narration: s.finished
+            ? (s.narration || []).slice(0, 25).map((item) => ({
+                cls: item.cls || "",
+                iconCat: item.iconCat || "FF",
+                text: item.text || ""
+              }))
+            : [],
+          finished: Boolean(s.finished),
+          won: s.finished ? s.won : null,
+          isDraw: s.finished ? Boolean(s.isDraw) : false,
+          penaltiesText: s.finished ? s.penaltiesText || null : null,
+          _groupRecorded: Boolean(s._groupRecorded),
+          _groupSnapshotBefore: s._groupSnapshotBefore ? serializeWorldGroupForSave(s._groupSnapshotBefore) : null,
+          stats: s.finished ? compactPitchStatsForSave(s.pitch?.stats) : null
+        }));
+
+        const payload = {
+          v: 1,
+          savedAt: new Date().toISOString(),
+          phase: "tournament",
+          formation: state.formation || "4-3-3",
+          hideOvrBeforePick: Boolean(state.hideOvrBeforePick),
+          simSpeed: state.simSpeed || 1,
+          usedTeamIds: Array.isArray(state.usedTeamIds) ? [...state.usedTeamIds] : [],
+          squad: serializeSquadForSave(state.squad),
+          tournament: {
+            runId: t.runId,
+            runEditToken: t.runEditToken,
+            rankingSavedSignature: t.rankingSavedSignature || null,
+            rankingStatus: t.rankingStatus || null,
+            rankingTeamName: t.rankingTeamName || "Dream Team",
+            stageIndex: t.stageIndex || 0,
+            worldUnlocked: Boolean(t.worldUnlocked),
+            worldGroup: serializeWorldGroupForSave(t.worldGroup),
+            teamEnergy: safeEnergy,
+            preMatchTeamEnergy: safeEnergy,
+            tactics: { ...(t.tactics || { lane: "balanced", posture: "balanced", intensity: "medium" }) },
+            prepBonuses: {
+              ...(t.prepBonuses || createFreshPrepBonuses()),
+              log: Array.isArray(t.prepBonuses?.log) ? [...t.prepBonuses.log] : []
+            },
+            prep: serializePrepForSave(t.prep),
+            showRunSummary: Boolean(t.showRunSummary),
+            stages: compactStages
+          },
+          preview: {
+            phase: "tournament",
+            stageLabel,
+            metaLine
+          }
+        };
+        window.localStorage?.setItem(ACTIVE_RUN_SAVE_KEY, JSON.stringify(payload));
+      }
+    } catch {
+      // ignora erro de armazenamento privado/quota
+    }
+  }
+
+  function loadActiveRunPreview() {
+    try {
+      const raw = window.localStorage?.getItem(ACTIVE_RUN_SAVE_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (!parsed || parsed.v !== 1 || (parsed.phase !== "draft" && parsed.phase !== "tournament") || !parsed.preview) {
+        return null;
+      }
+      return {
+        preview: parsed.preview,
+        savedAt: parsed.savedAt || "",
+        raw: parsed
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  function resumeSavedRunProgress() {
+    const loaded = loadActiveRunPreview();
+    if (!loaded || !loaded.raw) {
+      clearActiveRunProgress();
+      renderStartMenuScreen();
+      return;
+    }
+    const save = loaded.raw;
+    clearRankingEscListener();
+    clearTournamentTimers(false);
+    if (state.spinTimerId) {
+      clearTimeout(state.spinTimerId);
+      state.spinTimerId = null;
+    }
+    state.isSpinning = false;
+    state.storyLockNotice = false;
+    state.selectedPlayer = null;
+    state.peekField = false;
+    state.swapSlotId = null;
+
+    state.formation = DB.formations?.[save.formation] ? save.formation : "4-3-3";
+    state.hideOvrBeforePick = Boolean(save.hideOvrBeforePick);
+    state.simSpeed = [1, 2, 4].includes(save.simSpeed) ? save.simSpeed : 1;
+    state.usedTeamIds = Array.isArray(save.usedTeamIds) ? [...save.usedTeamIds] : [];
+    state.squad = deserializeSquadFromSave(save.squad);
+
+    if (save.phase === "draft") {
+      state.phase = "draft";
+      state.rerollsLeft = typeof save.rerollsLeft === "number" ? save.rerollsLeft : (state.hideOvrBeforePick ? 0 : 3);
+      state.currentTeam = findTeamById(save.currentTeamId);
+      state.tournament = createFreshTournamentState();
+      if (getPickedCount() < 11 && !state.currentTeam) {
+        spinNextTeam(false);
+      } else {
+        renderAll();
+      }
+      return;
+    }
+
+    if (save.phase === "tournament" && save.tournament) {
+      const rt = save.tournament;
+      const fresh = createFreshTournamentState();
+      const restoredStages = (rt.stages || []).map((rs) => {
+        const oppTeam = findTeamById(rs.oppTeamId) || DB.teams?.[0];
+        const stage = createTournamentStage({
+          stageName: rs.stageName || "Partida",
+          oppTeam,
+          competition: rs.competition || "FF",
+          ovrBoost: rs.ovrBoost || 0,
+          oppBuffPct: rs.oppBuffPct || 0,
+          oppLevel: rs.oppLevel || 1,
+          isGroupStage: Boolean(rs.isGroupStage),
+          groupRoundIdx: rs.groupRoundIdx ?? -1
+        });
+        stage.finished = Boolean(rs.finished);
+        if (stage.finished) {
+          stage.minute = Number(rs.minute) || 90;
+          stage.maxMinute = Number(rs.maxMinute) || 90;
+          stage.userScore = Number(rs.userScore) || 0;
+          stage.oppScore = Number(rs.oppScore) || 0;
+          stage.goalsUser = (rs.goalsUser || []).map((g) => ({
+            ...g,
+            sprite: resolveRankingPlayerSprite({ name: g.name })
+          }));
+          stage.goalsOpp = (rs.goalsOpp || []).map((g) => ({
+            ...g,
+            sprite: resolveRankingPlayerSprite({ name: g.name })
+          }));
+          stage.narration = Array.isArray(rs.narration) ? rs.narration : [];
+          stage.won = rs.won;
+          stage.isDraw = Boolean(rs.isDraw);
+          stage.penaltiesText = rs.penaltiesText || null;
+          stage._groupRecorded = Boolean(rs._groupRecorded);
+          if (rs._groupSnapshotBefore) {
+            stage._groupSnapshotBefore = deserializeWorldGroupFromSave(rs._groupSnapshotBefore);
+          }
+          if (rs.stats) {
+            stage.pitch = { stats: rehydratePitchStatsFromSave(rs.stats) };
+          }
+        }
+        return stage;
+      });
+
+      const restoredT = {
+        ...fresh,
+        runId: rt.runId || fresh.runId,
+        runEditToken: rt.runEditToken || fresh.runEditToken,
+        rankingSavedSignature: rt.rankingSavedSignature || null,
+        rankingStatus: rt.rankingStatus || null,
+        rankingTeamName: sanitizeTeamName(rt.rankingTeamName || getSavedTeamName() || "Dream Team"),
+        stageIndex: Math.max(0, Math.min(restoredStages.length - 1, Number(rt.stageIndex) || 0)),
+        stages: restoredStages,
+        worldUnlocked: Boolean(rt.worldUnlocked),
+        worldGroup: deserializeWorldGroupFromSave(rt.worldGroup),
+        teamEnergy: typeof rt.teamEnergy === "number" ? Math.max(0, Math.min(100, rt.teamEnergy)) : 100,
+        preMatchTeamEnergy: typeof rt.preMatchTeamEnergy === "number" ? rt.preMatchTeamEnergy : undefined,
+        tactics: {
+          lane: ["wings", "balanced", "center"].includes(rt.tactics?.lane) ? rt.tactics.lane : "balanced",
+          posture: ["defensive", "balanced", "offensive"].includes(rt.tactics?.posture) ? rt.tactics.posture : "balanced",
+          intensity: ["low", "medium", "high"].includes(rt.tactics?.intensity) ? rt.tactics.intensity : "medium"
+        },
+        prepBonuses: {
+          ...createFreshPrepBonuses(),
+          ...(rt.prepBonuses || {}),
+          log: Array.isArray(rt.prepBonuses?.log) ? [...rt.prepBonuses.log] : []
+        },
+        showRunSummary: Boolean(rt.showRunSummary)
+      };
+
+      state.phase = "tournament";
+      state.tournament = restoredT;
+      restoredT.prep = deserializePrepFromSave(rt.prep, restoredT);
+
+      const curSt = restoredT.stages[restoredT.stageIndex];
+      if (restoredT.prep || (curSt && curSt.finished)) {
+        renderAll();
+      } else if (curSt && !curSt.finished) {
+        runLiveMatchSimulation(restoredT.stageIndex);
+      } else {
+        openBetweenMatchPrep(restoredT.stageIndex);
+      }
+    }
   }
 
   async function fetchOnlineRankings() {
@@ -12246,6 +12834,7 @@
         const fk = btn.getAttribute("data-tac-formation");
         if (switchTeamFormation(fk)) {
           syncActive("data-tac-formation", fk);
+          saveActiveRunProgress();
           if (typeof onFormationChanged === "function") onFormationChanged(fk);
         }
       });
@@ -12259,6 +12848,7 @@
         rootEl.querySelectorAll("[data-tac-intensity-hint]").forEach((el) => {
           el.textContent = hintTxt;
         });
+        saveActiveRunProgress();
       });
     });
     rootEl.querySelectorAll("[data-tac-posture]").forEach((btn) => {
@@ -12266,6 +12856,7 @@
         const val = btn.getAttribute("data-tac-posture");
         getTactics().posture = val;
         syncActive("data-tac-posture", val);
+        saveActiveRunProgress();
       });
     });
     rootEl.querySelectorAll("[data-tac-lane]").forEach((btn) => {
@@ -12273,6 +12864,7 @@
         const val = btn.getAttribute("data-tac-lane");
         getTactics().lane = val;
         syncActive("data-tac-lane", val);
+        saveActiveRunProgress();
       });
     });
   }
@@ -13049,6 +13641,7 @@
                 const tmp = state.squad[state.swapSlotId];
                 state.squad[state.swapSlotId] = state.squad[slotId];
                 state.squad[slotId] = tmp;
+                saveActiveRunProgress();
               }
               state.swapSlotId = null;
             }
@@ -13615,6 +14208,7 @@
                 state.squad[state.swapSlotId] = state.squad[slotId];
                 state.squad[slotId] = tmp;
                 syncLivePitchNodesFromSquad(false);
+                saveActiveRunProgress();
               }
               state.swapSlotId = null;
             }
@@ -13741,8 +14335,10 @@
       renderStartMenuScreen();
     } else if (state.phase === "tournament") {
       renderTournamentScreen();
+      saveActiveRunProgress();
     } else {
       renderDraftScreen();
+      saveActiveRunProgress();
     }
   }
 
@@ -13795,6 +14391,7 @@
   }
 
   function goToMenu() {
+    saveActiveRunProgress();
     clearRankingEscListener();
     clearTournamentTimers(false);
     if (state.spinTimerId) {
@@ -13891,6 +14488,8 @@
         hideBondPlayersTooltip();
       }
     });
+
+    window.addEventListener("pagehide", () => saveActiveRunProgress());
 
     renderAll();
   }

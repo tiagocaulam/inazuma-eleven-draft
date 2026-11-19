@@ -7767,3 +7767,103 @@ body {
   border-radius: 999px;
 }
 
+/* Banner de Continuar Campanha Salva no Menu Inicial */
+.continue-run-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 11px 13px;
+  margin-bottom: 14px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(21, 128, 61, 0.28), rgba(15, 34, 78, 0.92));
+  border: 1.5px solid rgba(74, 222, 128, 0.62);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
+}
+
+.continue-run-info {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.continue-run-eyebrow {
+  font-size: 0.62rem;
+  font-weight: 900;
+  letter-spacing: 0.5px;
+  color: #86efac;
+  text-transform: uppercase;
+}
+
+.continue-run-title {
+  font-size: 0.9rem;
+  font-weight: 900;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.continue-run-meta {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #cbd5e1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.continue-run-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.continue-run-btn {
+  padding: 7px 14px !important;
+  font-size: 0.78rem !important;
+  white-space: nowrap;
+}
+
+.continue-discard-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: rgba(15, 23, 42, 0.75);
+  color: #94a3b8;
+  font-size: 0.76rem;
+  font-weight: 900;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+.continue-discard-btn:hover {
+  color: #fecaca;
+  border-color: rgba(248, 113, 113, 0.7);
+  background: rgba(153, 27, 27, 0.45);
+}
+
+@media (max-width: 480px) {
+  .continue-run-banner {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    padding: 10px 11px;
+  }
+  .continue-run-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .continue-run-btn {
+    flex: 1;
+    justify-content: center;
+  }
+}
+
