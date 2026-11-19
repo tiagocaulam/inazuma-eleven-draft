@@ -2858,6 +2858,10 @@
       clearTimeout(state.tournament.shotFlightTimer);
       state.tournament.shotFlightTimer = null;
     }
+    const activeClearPitch = state.tournament?.stages?.[state.tournament.stageIndex]?.pitch;
+    if (activeClearPitch && Array.isArray(activeClearPitch.interceptTweens)) {
+      activeClearPitch.interceptTweens = [];
+    }
     if (resolvePending && typeof state.tournament.pendingShotFlightFinish === "function") {
       const sfn = state.tournament.pendingShotFlightFinish;
       state.tournament.pendingShotFlightFinish = null;
@@ -3084,6 +3088,7 @@
     pitch.passTrail = null;
     pitch.dashFx = null;
     pitch.pushTweens = [];
+    pitch.interceptTweens = [];
     pitch.shockFx = null;
     pitch.saveRingFx = null;
     pitch.justKickedOff = true;
@@ -3712,6 +3717,7 @@
       teamConsecutivePasses: 0,
       justKickedOff: true,
       passTrail: null,
+      interceptTweens: [],
       floatBadge: null,
       nodeBadges: {},
       goalFlashSide: null,
@@ -4282,13 +4288,14 @@
     });
   }
 
-  function startBallFlight(pitch, fromX, fromY, toX, toY, durationMs, arcHeight = 2.6, kind = "PASS", trailColor = "#4ade80") {
+  function startBallFlight(pitch, fromX, fromY, toX, toY, durationMs, arcHeight = 2.6, kind = "PASS", trailColor = "#4ade80", opts = null) {
     if (!pitch) return;
     const now = performance.now();
     const dur = Math.max(55, durationMs);
     const isShot = kind === "SHOT" || kind === "GOAL";
     // Disparo direto reto sem arco para chutes a gol
     const actualArc = isShot || kind === "CONTROL" ? 0 : arcHeight;
+    const linearShot = Boolean(opts?.linear);
     pitch.ballFlight = {
       fromX,
       fromY,
@@ -4297,12 +4304,15 @@
       start: now,
       duration: dur,
       arcHeight: actualArc,
-      kind
+      kind,
+      linear: linearShot
     };
     if (kind !== "CONTROL") {
+      const trailFromX = typeof opts?.trailOriginX === "number" ? opts.trailOriginX : fromX;
+      const trailFromY = typeof opts?.trailOriginY === "number" ? opts.trailOriginY : fromY;
       pitch.passTrail = {
-        fromX,
-        fromY,
+        fromX: trailFromX,
+        fromY: trailFromY,
         toX,
         toY,
         curX: fromX,
@@ -4369,6 +4379,16 @@
         const eased = 1 - Math.pow(1 - t, 2.5);
         pt.node.x = pt.fromX + (pt.toX - pt.fromX) * eased;
         pt.node.y = pt.fromY + (pt.toY - pt.fromY) * eased;
+        return t < 1;
+      });
+    }
+
+    if (pitch.interceptTweens && pitch.interceptTweens.length > 0) {
+      pitch.interceptTweens = pitch.interceptTweens.filter((tw) => {
+        const t = Math.min(1, Math.max(0, (now - tw.start) / tw.duration));
+        const eased = 1 - Math.pow(1 - t, 2.4);
+        tw.node.x = tw.fromX + (tw.toX - tw.fromX) * eased;
+        tw.node.y = tw.fromY + (tw.toY - tw.fromY) * eased;
         return t < 1;
       });
     }
@@ -4475,7 +4495,7 @@
       const f = pitch.ballFlight;
       const t = Math.min(1, Math.max(0, (now - f.start) / f.duration));
       const isShot = f.kind === "SHOT" || f.kind === "GOAL";
-      const eased = isShot ? Math.pow(t, 1.18) : (1 - Math.pow(1 - t, 2.1));
+      const eased = isShot ? (f.linear ? t : Math.pow(t, 1.06)) : (1 - Math.pow(1 - t, 2.1));
       pitch.ballX = f.fromX + (f.toX - f.fromX) * eased;
       const verticalArc = isShot ? 0 : Math.sin(t * Math.PI) * (f.arcHeight || 0);
       pitch.ballY = f.fromY + (f.toY - f.fromY) * eased - verticalArc;
@@ -4485,7 +4505,7 @@
         const dx = f.toX - f.fromX;
         const dy = (f.toY - f.fromY) * 0.55;
         const angleDeg = Math.atan2(dy, dx) * (180 / Math.PI);
-        const flightIntensity = Math.sin(t * Math.PI);
+        const flightIntensity = f.linear ? 0.65 + 0.35 * Math.sin(t * Math.PI) : Math.sin(t * Math.PI);
         const stretch = 1.0 + flightIntensity * 0.72;
         const squash = Math.max(0.62, 1.0 - flightIntensity * 0.32);
         ballTransform = `translate(-50%, -50%) rotate(${angleDeg.toFixed(1)}deg) scale(${stretch.toFixed(2)}, ${squash.toFixed(2)})`;
@@ -6174,6 +6194,7 @@
     const dur = state.simSpeed === 4 ? 95 : state.simSpeed === 2 ? 220 : 420;
     pitch.shockFx = { x: centerX, y: centerY, start: now, duration: dur + 120 };
     pitch.pushTweens = [];
+    pitch.interceptTweens = [];
 
     [...pitch.userNodes, ...pitch.oppNodes].forEach((n) => {
       if (n.uid === stealerUid || n.role === "GK") return;
@@ -6675,13 +6696,137 @@
     return true;
   }
 
-  function pointToSegmentDist(px, py, ax, ay, bx, by) {
+  function projectPointOnSegment(px, py, ax, ay, bx, by) {
     const dx = bx - ax;
     const dy = by - ay;
     const lenSq = dx * dx + dy * dy;
-    if (lenSq <= 0.0001) return Math.hypot(px - ax, py - ay);
+    if (lenSq <= 0.0001) {
+      return { x: ax, y: ay, t: 0, dist: Math.hypot(px - ax, py - ay) };
+    }
     const t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / lenSq));
-    return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
+    const x = ax + t * dx;
+    const y = ay + t * dy;
+    return { x, y, t, dist: Math.hypot(px - x, py - y) };
+  }
+
+  function pointToSegmentDist(px, py, ax, ay, bx, by) {
+    return projectPointOnSegment(px, py, ax, ay, bx, by).dist;
+  }
+
+  function pickShotGoalTarget(fromX, fromY, attIsUser) {
+    const goalLineX = attIsUser ? 95.5 : 4.5;
+    const goalX = attIsUser ? 97.2 : 2.8;
+    const aimBias = (fromY - 50) * 0.14;
+    const cornerSpread = (Math.random() - 0.5) * 9.0;
+    let goalY = Math.max(41.5, Math.min(58.5, 50 + aimBias + cornerSpread));
+    const dxTotal = goalX - fromX;
+    if (Math.abs(dxTotal) > 0.5) {
+      const tLine = (goalLineX - fromX) / dxTotal;
+      if (tLine > 0 && tLine < 1) {
+        const yAtLine = fromY + (goalY - fromY) * tLine;
+        if (yAtLine < 40.0 || yAtLine > 60.0) {
+          const clampedLineY = Math.max(40.5, Math.min(59.5, yAtLine));
+          goalY = Math.max(39.0, Math.min(61.0, fromY + (clampedLineY - fromY) / tLine));
+        }
+      }
+    }
+    return { goalX, goalY };
+  }
+
+  function computeGkInterceptOnRay(fromX, fromY, goalX, goalY, attIsUser) {
+    const dx = goalX - fromX;
+    const dy = goalY - fromY;
+    if (Math.abs(dx) < 0.01 && Math.abs(dy) < 0.01) {
+      return { x: goalX, y: goalY, t: 0.5 };
+    }
+    const defaultGkX = attIsUser ? 92.0 : 8.0;
+    const insideBox = attIsUser ? fromX >= defaultGkX - 1.2 : fromX <= defaultGkX + 1.2;
+    let t = insideBox ? 0.42 : (defaultGkX - fromX) / dx;
+    t = Math.max(0.18, Math.min(0.92, t));
+    let ix = fromX + dx * t;
+    let iy = fromY + dy * t;
+    if (!insideBox && (iy < 36.5 || iy > 63.5)) {
+      const nearGkX = attIsUser ? 94.2 : 5.8;
+      if (attIsUser ? fromX < nearGkX - 0.6 : fromX > nearGkX + 0.6) {
+        const nearT = Math.max(0.18, Math.min(0.92, (nearGkX - fromX) / dx));
+        ix = fromX + dx * nearT;
+        iy = fromY + dy * nearT;
+        t = nearT;
+      }
+    }
+    return { x: ix, y: iy, t };
+  }
+
+  function startNodeInterceptTween(pitch, node, toX, toY, durationMs, instant = false) {
+    if (!pitch || !node) return;
+    const minX = node.role === "GK" ? 4.5 : 8;
+    const maxX = node.role === "GK" ? 95.5 : 92;
+    const clampedX = Math.max(minX, Math.min(maxX, toX));
+    const clampedY = Math.max(9, Math.min(91, toY));
+    if (!Array.isArray(pitch.interceptTweens)) pitch.interceptTweens = [];
+    pitch.interceptTweens = pitch.interceptTweens.filter((tw) => tw.node !== node);
+    if (instant || durationMs <= 60) {
+      node.x = clampedX;
+      node.y = clampedY;
+      node.vx = 0;
+      node.vy = 0;
+      return;
+    }
+    pitch.interceptTweens.push({
+      node,
+      fromX: node.x,
+      fromY: node.y,
+      toX: clampedX,
+      toY: clampedY,
+      start: performance.now(),
+      duration: Math.max(80, durationMs)
+    });
+  }
+
+  function pushNodeOffShotRay(pitch, node, rayDx, rayDy, pushDist = 3.0, durationMs = 260) {
+    if (!pitch || !node) return;
+    if (Array.isArray(pitch.interceptTweens)) {
+      pitch.interceptTweens = pitch.interceptTweens.filter((tw) => tw.node !== node);
+    }
+    const len = Math.hypot(rayDx, rayDy) || 1;
+    const dirX = rayDx / len;
+    const dirY = rayDy / len;
+    let perpX = -dirY;
+    let perpY = dirX;
+    const centerOutY = node.y >= 50 ? 1 : -1;
+    if (perpY * centerOutY < 0 || (Math.abs(perpY) < 0.15 && node.y >= 50 && perpX < 0)) {
+      perpX = -perpX;
+      perpY = -perpY;
+    }
+    const pushDirX = perpX * 0.75 + dirX * 0.25;
+    const pushDirY = perpY * 0.75 + dirY * 0.25;
+    const norm = Math.hypot(pushDirX, pushDirY) || 1;
+    const isGk = node.role === "GK";
+    const minX = isGk ? 4.8 : 8;
+    const maxX = isGk ? 95.2 : 92;
+    const minY = isGk ? 35 : 10;
+    const maxY = isGk ? 65 : 90;
+    const toX = Math.max(minX, Math.min(maxX, node.x + (pushDirX / norm) * pushDist));
+    const toY = Math.max(minY, Math.min(maxY, node.y + (pushDirY / norm) * pushDist));
+    if (!Array.isArray(pitch.pushTweens)) pitch.pushTweens = [];
+    pitch.pushTweens = pitch.pushTweens.filter((pt) => pt.node !== node);
+    pitch.pushTweens.push({
+      node,
+      fromX: node.x,
+      fromY: node.y,
+      toX,
+      toY,
+      start: performance.now(),
+      duration: durationMs
+    });
+  }
+
+  function computeShotFlightMs(dist, isContinuation = false, instant = false) {
+    if (instant) return isContinuation ? 50 : 65;
+    if (isContinuation) {
+      return Math.round(Math.max(200, Math.min(720, 80 + dist * 13.5)));
+    }
+    return Math.round(Math.max(250, Math.min(1050, 175 + dist * 13.5)));
   }
 
   function visualPitchDist(ax, ay, bx, by) {
@@ -6694,12 +6839,21 @@
     const origAttNodes = attNodesArg || (origAttIsUser ? pitch.userNodes : pitch.oppNodes);
     const origDefNodes = defNodes || (origAttIsUser ? pitch.oppNodes : pitch.userNodes);
     const effRole = getEffectiveCarrierRole(shooterNode);
-    // Linha de fundo real do campo: 4.5% (esquerda) e 95.5% (direita). O fundo da rede fica a 2.5% e 97.5%.
-    const origGoalX = origAttIsUser ? 96.8 : 3.2;
-    const goalY = 50;
+    const shotOriginX =
+      Number.isFinite(pitch.ballX) && Math.hypot(pitch.ballX - shooterNode.x, pitch.ballY - shooterNode.y) <= 4.5
+        ? pitch.ballX
+        : shooterNode.x;
+    const shotOriginY =
+      Number.isFinite(pitch.ballY) && Math.hypot(pitch.ballX - shooterNode.x, pitch.ballY - shooterNode.y) <= 4.5
+        ? pitch.ballY
+        : shooterNode.y;
+    const origGoal = pickShotGoalTarget(shotOriginX, shotOriginY, origAttIsUser);
+    const origGoalX = origGoal.goalX;
+    const origGoalY = origGoal.goalY;
+    const origTrailOrigin = { x: shotOriginX, y: shotOriginY };
     const origGkNode = origDefNodes.find((n) => n.role === "GK") || origDefNodes[0];
 
-    const shotDist = Math.hypot(shooterNode.x - origGoalX, shooterNode.y - goalY);
+    const shotDist = Math.hypot(shotOriginX - origGoalX, shotOriginY - origGoalY);
     const isLongDist = effRole === "MF" || shotDist > 26;
     const shotInfo = buildShotInfoForNode(shooterNode, Boolean(opts.forceLongShot));
     const isLongShotPlay = Boolean(shotInfo.isLongShotMove && (isLongDist || opts.forceLongShot));
@@ -6755,9 +6909,12 @@
       curGkNode,
       curDefSupport,
       curGoalX,
+      curGoalY,
       weakenedByBlocker,
       specialContext = null,
-      forceInstant = false
+      forceInstant = false,
+      trailOrigin = null,
+      isContinuation = false
     ) => {
       const gkPick = pickStaminaGatedMove(curGkNode, "GK");
       const gkMoveName =
@@ -6784,9 +6941,12 @@
         : logisticWinProb(effectiveShotScore + dominanceShift, gkStopScore, -5.8, 0.03, 0.88);
       const isGoal = Math.random() < goalProb;
 
-      const duelX = curAttIsUser ? 91.5 : 8.5;
-      const duelY = Math.max(41, Math.min(59, 50 + (fromY - 50) * 0.22));
-      const shotGoalY = Math.max(41.5, Math.min(58.5, duelY));
+      const gkHit = computeGkInterceptOnRay(fromX, fromY, curGoalX, curGoalY, curAttIsUser);
+      const duelX = gkHit.x;
+      const duelY = gkHit.y;
+      const shotGoalY = curGoalY;
+      const tOriginX = trailOrigin ? trailOrigin.x : fromX;
+      const tOriginY = trailOrigin ? trailOrigin.y : fromY;
       const instantMode = forceInstant || state.simSpeed !== 1;
 
       pitch.ballMode = "SHOT_FLIGHT";
@@ -6795,9 +6955,15 @@
       pitch.holdBallPos = { x: duelX, y: duelY };
       pitch.lastClashMinute = st.minute;
 
-      const flightMs = instantMode ? 75 : Math.round(Math.max(450, Math.min(1150, 260 + Math.hypot(duelX - fromX, duelY - fromY) * 13.5)));
+      const flightDist = Math.hypot(duelX - fromX, duelY - fromY);
+      const flightMs = computeShotFlightMs(flightDist, isContinuation, instantMode);
       const trailCol = specialContext?.isChain ? "#facc15" : specialContext?.isCounter ? "#38bdf8" : "#f97316";
-      startBallFlight(pitch, fromX, fromY, duelX, duelY, flightMs, weakenedByBlocker ? 1.6 : 2.8, "SHOT", trailCol);
+      startBallFlight(pitch, fromX, fromY, duelX, duelY, flightMs, 0, "SHOT", trailCol, {
+        trailOriginX: tOriginX,
+        trailOriginY: tOriginY,
+        linear: isContinuation
+      });
+      startNodeInterceptTween(pitch, curGkNode, duelX, duelY, Math.round(flightMs * 0.88), instantMode);
       if (!weakenedByBlocker) {
         showPitchBadge(pitch, fromX, fromY, activeShotLabel, specialContext?.isChain ? "badge-goal" : "badge-shot", instantMode ? 600 : 1750, "SH");
       }
@@ -6913,13 +7079,20 @@
       const applyShotImpact = () => {
         const nowInstant = forceInstant || state.simSpeed !== 1;
         if (nowInstant) {
+          pitch.interceptTweens = [];
+          curGkNode.x = Math.max(4.5, Math.min(95.5, duelX));
+          curGkNode.y = Math.max(9, Math.min(91, duelY));
           if (isGoal) {
             commitGoalOutcome();
             pitch.ballMode = "GOAL_NET";
             pitch.carrierUid = null;
             pitch.challengerUid = null;
             pitch.holdBallPos = { x: curGoalX, y: shotGoalY };
-            startBallFlight(pitch, duelX, duelY, curGoalX, shotGoalY, 40, 0.4, "GOAL", "#facc15");
+            startBallFlight(pitch, duelX, duelY, curGoalX, shotGoalY, 45, 0, "GOAL", "#facc15", {
+              trailOriginX: tOriginX,
+              trailOriginY: tOriginY,
+              linear: true
+            });
             pitch.goalFlashSide = gSide;
             pitch.goalFlashUntil = performance.now() + 2200;
             triggerStealShockwave(pitch, curGoalX, shotGoalY, null, null);
@@ -6956,6 +7129,9 @@
           };
 
           if (skipRestart || nowInstant) {
+            pitch.interceptTweens = [];
+            curGkNode.x = Math.max(4.5, Math.min(95.5, duelX));
+            curGkNode.y = Math.max(9, Math.min(91, duelY));
             commitGoalOutcome();
             pitch.goalFlashSide = gSide;
             pitch.goalFlashUntil = performance.now() + (state.simSpeed === 4 ? 700 : 1400);
@@ -6968,20 +7144,28 @@
             return false;
           }
 
+          pitch.interceptTweens = [];
+          curGkNode.x = Math.max(4.5, Math.min(95.5, duelX));
+          curGkNode.y = Math.max(9, Math.min(91, duelY));
           // Animação de GOL no campo pós-resultado do duelo:
-          // 1) Onda de choque atravessando o goleiro EXATAMENTE no corpo dele (curGkNode.x, curGkNode.y)
-          triggerStealShockwave(pitch, curGkNode.x, curGkNode.y, null, curGkNode.uid);
+          // 1) Onda de choque atravessando o goleiro EXATAMENTE no ponto do impacto (duelX, duelY)
+          triggerStealShockwave(pitch, duelX, duelY, null, curGkNode.uid);
           curGkNode.staggerTimer = 1.35;
-          curGkNode.vx = curAttIsUser ? 3.2 : -3.2;
-          showPitchBadge(pitch, curGkNode.x, curGkNode.y, "FURADA!", "badge-shot", 850, "SH");
+          pushNodeOffShotRay(pitch, curGkNode, curGoalX - fromX, shotGoalY - fromY, 2.8, 280);
+          showPitchBadge(pitch, duelX, duelY, "FURADA!", "badge-shot", 850, "SH");
 
-          // 2) Bola atravessa em tiro direto e reto em direção às redes (arcHeight = 0)
-          const netFlightMs = 240;
+          // 2) Bola atravessa de (duelX, duelY) em linha reta contínua até o fundo das redes (curGoalX, shotGoalY)
+          const netDist = Math.hypot(curGoalX - duelX, shotGoalY - duelY);
+          const netFlightMs = Math.round(Math.max(130, Math.min(230, netDist * 24)));
           pitch.ballMode = "GOAL_NET";
           pitch.carrierUid = null;
           pitch.challengerUid = null;
           pitch.holdBallPos = { x: curGoalX, y: shotGoalY };
-          startBallFlight(pitch, curGkNode.x, curGkNode.y, curGoalX, shotGoalY, netFlightMs, 0, "GOAL", "#fde047");
+          startBallFlight(pitch, duelX, duelY, curGoalX, shotGoalY, netFlightMs, 0, "GOAL", "#fde047", {
+            trailOriginX: tOriginX,
+            trailOriginY: tOriginY,
+            linear: true
+          });
           syncLivePitchDOM(st);
 
           // 3) Entrada nas redes com onda de choque e raio fluído exatamente onde a bola entrou na rede (curGoalX, shotGoalY)
@@ -7040,6 +7224,9 @@
         }
 
         // Cenário de DEFESA: transfere sempre a posse limpa para o goleiro (mesmo se mudou para 2x/4x durante o duelo!)
+        pitch.interceptTweens = [];
+        curGkNode.x = Math.max(4.5, Math.min(95.5, duelX));
+        curGkNode.y = Math.max(9, Math.min(91, duelY));
         commitSaveOutcome();
         pitch.ballSide = curAttIsUser ? "opp" : "user";
         pitch.ballMode = "CARRIED";
@@ -7143,31 +7330,41 @@
       curGkNode,
       curDefSupport,
       curGoalX,
+      curGoalY,
       weakenedByBlocker,
       specialContext = null,
-      forceInstant = false
+      forceInstant = false,
+      trailOrigin = null,
+      isContinuation = false
     ) => {
-      const distFromToGoal = Math.hypot(fromX - curGoalX, fromY - goalY);
       const gkElem = curGkNode?.player?.element;
       const shooterDisadv =
         activeShooter.player?.element && gkElem && ELEMENT_ADVANTAGE[gkElem] === activeShooter.player.element;
 
       const chainCandidates = (curAttNodes || [])
-        .filter((n) => {
-          if (n.uid === activeShooter.uid || n.role === "GK" || (n.staggerTimer || 0) > 0 || n.stamina < 48) return false;
-          const nDistGoal = Math.hypot(n.x - curGoalX, n.y - goalY);
-          const nDistFrom = Math.hypot(n.x - fromX, n.y - fromY);
-          if (nDistGoal >= distFromToGoal - 4 || nDistGoal < 5 || nDistFrom < 3.5) return false;
-          return pointToSegmentDist(n.x, n.y, fromX, fromY, curGoalX, goalY) <= 11.5;
+        .filter((n) => n.uid !== activeShooter.uid && n.role !== "GK" && (n.staggerTimer || 0) <= 0 && n.stamina >= 48)
+        .map((n) => {
+          const proj = projectPointOnSegment(n.x, n.y, fromX, fromY, curGoalX, curGoalY);
+          const chainPick = getNodeChainShotMove(n);
+          return { node: n, proj, chainPick };
         })
-        .map((n) => ({ node: n, chainPick: getNodeChainShotMove(n) }))
-        .filter((x) => Boolean(x.chainPick))
-        .sort((a, b) => Math.hypot(a.node.x - fromX, a.node.y - fromY) - Math.hypot(b.node.x - fromX, b.node.y - fromY));
+        .filter(
+          (x) =>
+            Boolean(x.chainPick) &&
+            x.proj.dist <= 9.5 &&
+            x.proj.t >= 0.12 &&
+            x.proj.t <= 0.82 &&
+            Math.hypot(x.proj.x - fromX, x.proj.y - fromY) >= 4.0 &&
+            (curAttIsUser ? x.proj.x <= 87.5 : x.proj.x >= 12.5)
+        )
+        .sort((a, b) => a.proj.t - b.proj.t);
 
       if (chainCandidates.length > 0 && !specialContext?.isChain) {
         const chosen = chainCandidates[0];
         const chainNode = chosen.node;
         const cPick = chosen.chainPick;
+        const chainX = chosen.proj.x;
+        const chainY = chosen.proj.y;
         const cElem = chainNode.player?.element;
         const chainBetterVsGk =
           cElem &&
@@ -7203,13 +7400,23 @@
           };
 
           const chainInstant = forceInstant || state.simSpeed !== 1;
+          const tOriginX = trailOrigin ? trailOrigin.x : fromX;
+          const tOriginY = trailOrigin ? trailOrigin.y : fromY;
+          const chainOrigin = { x: tOriginX, y: tOriginY };
+
           pitch.ballMode = "SHOT_FLIGHT";
           pitch.carrierUid = null;
           pitch.challengerUid = chainNode.uid;
-          pitch.holdBallPos = { x: chainNode.x, y: chainNode.y };
+          pitch.holdBallPos = { x: chainX, y: chainY };
 
-          const leg1Ms = chainInstant ? 45 : 620;
-          startBallFlight(pitch, fromX, fromY, chainNode.x, chainNode.y, leg1Ms, 2.2, "SHOT", "#facc15");
+          const leg1Dist = Math.hypot(chainX - fromX, chainY - fromY);
+          const leg1Ms = computeShotFlightMs(leg1Dist, isContinuation, chainInstant);
+          startBallFlight(pitch, fromX, fromY, chainX, chainY, leg1Ms, 0, "SHOT", "#facc15", {
+            trailOriginX: tOriginX,
+            trailOriginY: tOriginY,
+            linear: isContinuation
+          });
+          startNodeInterceptTween(pitch, chainNode, chainX, chainY, Math.round(leg1Ms * 0.86), chainInstant);
           showNodeBadge(pitch, chainNode.uid, `⚡ Chain Shot! • ${cPick.move}`, "badge-chain", 1600, "SH");
           pitch.ticker = `${st.minute}' CHAIN SHOT! ${activeShooter.player.name} encadeou com ${chainNode.player.name} (${cPick.move})!`;
           prependNarrationLine(
@@ -7228,33 +7435,42 @@
               combinedMove,
               true,
               chainedScore,
-              chainNode.x,
-              chainNode.y,
+              chainX,
+              chainY,
               curAttIsUser,
               curGkNode,
               curDefSupport,
               curGoalX,
+              curGoalY,
               weakenedByBlocker,
               nextCtx,
+              true,
+              chainOrigin,
               true
             );
           }
 
           pauseForPitchBeat(st, "", "", leg1Ms, ovrDiff, (skipRestart) => {
+            pitch.interceptTweens = [];
+            chainNode.x = Math.max(8, Math.min(92, chainX));
+            chainNode.y = Math.max(9, Math.min(91, chainY));
             resolveAgainstGk(
               chainNode,
               combinedMove,
               true,
               chainedScore,
-              chainNode.x,
-              chainNode.y,
+              chainX,
+              chainY,
               curAttIsUser,
               curGkNode,
               curDefSupport,
               curGoalX,
+              curGoalY,
               weakenedByBlocker,
               nextCtx,
-              Boolean(skipRestart || state.simSpeed !== 1)
+              Boolean(skipRestart || state.simSpeed !== 1),
+              chainOrigin,
+              true
             );
           });
           return true;
@@ -7272,23 +7488,37 @@
         curGkNode,
         curDefSupport,
         curGoalX,
+        curGoalY,
         weakenedByBlocker,
         specialContext,
-        forceInstant
+        forceInstant,
+        trailOrigin,
+        isContinuation
       );
     };
 
     // Verifica interceptadores na linha do chute: 1) Counter Shot, 2) Bloqueio de zaga
     const pathEnemies = origDefNodes
       .filter((n) => n.role !== "GK" && (n.staggerTimer || 0) <= 0)
-      .map((n) => ({
-        node: n,
-        distLine: pointToSegmentDist(n.x, n.y, shooterNode.x, shooterNode.y, origGoalX, goalY),
-        distShooter: Math.hypot(n.x - shooterNode.x, n.y - shooterNode.y),
-        distGoal: Math.hypot(n.x - origGoalX, n.y - goalY)
-      }))
-      .filter((b) => b.distLine <= 8.5 && b.distShooter >= 2.5 && b.distGoal < shotDist - 2)
-      .sort((a, b) => a.distShooter - b.distShooter);
+      .map((n) => {
+        const proj = projectPointOnSegment(n.x, n.y, shotOriginX, shotOriginY, origGoalX, origGoalY);
+        return {
+          node: n,
+          proj,
+          distLine: proj.dist,
+          distShooter: Math.hypot(proj.x - shotOriginX, proj.y - shotOriginY),
+          distGoal: Math.hypot(proj.x - origGoalX, proj.y - origGoalY)
+        };
+      })
+      .filter(
+        (b) =>
+          b.distLine <= 8.0 &&
+          b.proj.t >= 0.08 &&
+          b.proj.t <= 0.85 &&
+          b.distShooter >= 3.5 &&
+          (origAttIsUser ? b.proj.x <= 87.5 : b.proj.x >= 12.5)
+      )
+      .sort((a, b) => a.proj.t - b.proj.t);
 
     // 1) COUNTER SHOT (se algum jogador na trajetória tiver técnica de contra-chute)
     const counterCandEntry = pathEnemies
@@ -7310,23 +7540,29 @@
       const counterWinProb = logisticWinProb(counterDuelScore, baseShotScore, -0.3, 0.22, 0.78);
       const counterSuccess = Math.random() < counterWinProb;
 
-      const duelX = counterNode.x;
-      const duelY = counterNode.y;
+      const duelX = counterCandEntry.entry.proj.x;
+      const duelY = counterCandEntry.entry.proj.y;
       pitch.ballMode = "SHOT_FLIGHT";
       pitch.carrierUid = null;
       pitch.challengerUid = counterNode.uid;
       pitch.holdBallPos = { x: duelX, y: duelY };
       pitch.lastClashMinute = st.minute;
 
-      const cFlightMs = state.simSpeed === 1
-        ? Math.round(Math.max(260, Math.min(680, 170 + Math.hypot(duelX - shooterNode.x, duelY - shooterNode.y) * 13)))
-        : 65;
-      startBallFlight(pitch, shooterNode.x, shooterNode.y, duelX, duelY, cFlightMs, 2.5, "SHOT", "#38bdf8");
+      const cFlightMs = computeShotFlightMs(Math.hypot(duelX - shotOriginX, duelY - shotOriginY), false, state.simSpeed !== 1);
+      startBallFlight(pitch, shotOriginX, shotOriginY, duelX, duelY, cFlightMs, 0, "SHOT", "#38bdf8", {
+        trailOriginX: shotOriginX,
+        trailOriginY: shotOriginY,
+        linear: false
+      });
+      startNodeInterceptTween(pitch, counterNode, duelX, duelY, Math.round(cFlightMs * 0.88), state.simSpeed !== 1);
       showNodeBadge(pitch, counterNode.uid, `🔄 Contra-Chute!`, "badge-counter", 1400, cPick.isShCounter ? "SH" : "DF");
       pitch.ticker = `${st.minute}' CONTRA-CHUTE! ${counterNode.player.name} tenta rebater ${shotInfo.label} com ${cPick.move}!`;
       syncLivePitchDOM(st);
 
       const applyCounterImpact = () => {
+        pitch.interceptTweens = [];
+        counterNode.x = Math.max(8, Math.min(92, duelX));
+        counterNode.y = Math.max(9, Math.min(91, duelY));
         if (counterSuccess) {
           counterNode.duelCooldown = 1.6;
           pitch.ballSide = origAttIsUser ? "opp" : "user";
@@ -7349,7 +7585,8 @@
         } else {
           counterNode.staggerTimer = 1.25;
           counterNode.duelCooldown = 1.8;
-          showPitchBadge(pitch, counterNode.x, counterNode.y, "Contra-chute falhou!", "badge-shot", 850, "SH");
+          pushNodeOffShotRay(pitch, counterNode, origGoalX - shotOriginX, origGoalY - shotOriginY, 3.0, 260);
+          showPitchBadge(pitch, duelX, duelY, "Contra-chute falhou!", "badge-shot", 850, "SH");
           prependNarrationLine(
             st,
             "nar-shot",
@@ -7367,7 +7604,7 @@
           const retAttNodes = retAttIsUser ? pitch.userNodes : pitch.oppNodes;
           const retDefNodes = retAttIsUser ? pitch.oppNodes : pitch.userNodes;
           const retGkNode = retDefNodes.find((n) => n.role === "GK") || retDefNodes[0];
-          const retGoalX = retAttIsUser ? 96.8 : 3.2;
+          const retGoal = pickShotGoalTarget(duelX, duelY, retAttIsUser);
           const returnScore = Math.max(baseShotScore, counterDuelScore) + 3.2;
 
           return maybeChainAndResolveGk(
@@ -7381,10 +7618,13 @@
             retAttNodes,
             retGkNode,
             attSupport,
-            retGoalX,
+            retGoal.goalX,
+            retGoal.goalY,
             false,
             { isCounter: true },
-            skipRestart
+            skipRestart,
+            { x: duelX, y: duelY },
+            false
           );
         }
 
@@ -7401,9 +7641,12 @@
           origGkNode,
           defSupport,
           origGoalX,
+          origGoalY,
           true,
           null,
-          skipRestart
+          skipRestart,
+          origTrailOrigin,
+          true
         );
       };
 
@@ -7457,29 +7700,33 @@
 
     // 2) BLOQUEIO NORMAL DE ZAGA
     const laneBlockers = pathEnemies.filter((b) => b.node.role === "DF" && b.distShooter <= 26);
-    const blockerNode = laneBlockers.length > 0 && Math.random() < 0.34 ? laneBlockers[0].node : null;
+    const blockerEntry = laneBlockers.length > 0 && Math.random() < 0.34 ? laneBlockers[0] : null;
 
-    if (!blockerNode) {
+    if (!blockerEntry) {
       maybeChainAndResolveGk(
         shooterNode,
         shotInfo.label,
         shotInfo.isHissatsu,
         baseShotScore,
-        shooterNode.x,
-        shooterNode.y,
+        shotOriginX,
+        shotOriginY,
         origAttIsUser,
         origAttNodes,
         origGkNode,
         defSupport,
         origGoalX,
+        origGoalY,
         false,
         null,
+        false,
+        origTrailOrigin,
         false
       );
       return;
     }
 
-    // Etapa 1: Defensor na linha tenta bloquear o chute!
+    // Etapa 1: Defensor na linha entra no caminho e tenta bloquear o chute!
+    const blockerNode = blockerEntry.node;
     const blockPick = pickStaminaGatedMove(blockerNode, "DF");
     const blockMoveName =
       blockPick.move || (blockPick.exhausted ? "Bloqueio sem técnica (sem energia)" : "Bloqueio de Corpo");
@@ -7490,23 +7737,29 @@
     const passBlockerProb = logisticWinProb(baseShotScore, blockerStopScore, -1.6, 0.38, 0.80);
     const passedBlocker = Math.random() < passBlockerProb;
 
-    const duelX = blockerNode.x;
-    const duelY = blockerNode.y;
+    const duelX = blockerEntry.proj.x;
+    const duelY = blockerEntry.proj.y;
     pitch.ballMode = "SHOT_FLIGHT";
     pitch.carrierUid = null;
     pitch.challengerUid = blockerNode.uid;
     pitch.holdBallPos = { x: duelX, y: duelY };
     pitch.lastClashMinute = st.minute;
 
-    const blockFlightMs = state.simSpeed === 1
-      ? Math.round(Math.max(260, Math.min(680, 170 + Math.hypot(duelX - shooterNode.x, duelY - shooterNode.y) * 13)))
-      : 65;
-    startBallFlight(pitch, shooterNode.x, shooterNode.y, duelX, duelY, blockFlightMs, 2.6, "SHOT", "#f97316");
-    showPitchBadge(pitch, shooterNode.x, shooterNode.y, shotInfo.label, "badge-shot", state.simSpeed === 1 ? 1600 : 600, "SH");
+    const blockFlightMs = computeShotFlightMs(Math.hypot(duelX - shotOriginX, duelY - shotOriginY), false, state.simSpeed !== 1);
+    startBallFlight(pitch, shotOriginX, shotOriginY, duelX, duelY, blockFlightMs, 0, "SHOT", "#f97316", {
+      trailOriginX: shotOriginX,
+      trailOriginY: shotOriginY,
+      linear: false
+    });
+    startNodeInterceptTween(pitch, blockerNode, duelX, duelY, Math.round(blockFlightMs * 0.88), state.simSpeed !== 1);
+    showPitchBadge(pitch, shotOriginX, shotOriginY, shotInfo.label, "badge-shot", state.simSpeed === 1 ? 1600 : 600, "SH");
     pitch.ticker = `${st.minute}' CHUTE! ${shooterNode.player.name} (${shotInfo.label}) enfrenta bloqueio de ${blockerNode.player.name}!`;
     syncLivePitchDOM(st);
 
     const applyBlockerImpact = () => {
+      pitch.interceptTweens = [];
+      blockerNode.x = Math.max(8, Math.min(92, duelX));
+      blockerNode.y = Math.max(9, Math.min(91, duelY));
       if (!passedBlocker) {
         pitch.ballSide = origAttIsUser ? "opp" : "user";
         pitch.ballMode = "CARRIED";
@@ -7541,7 +7794,8 @@
       } else {
         blockerNode.staggerTimer = 1.25;
         blockerNode.duelCooldown = 1.8;
-        showPitchBadge(pitch, blockerNode.x, blockerNode.y, "Desviou (-Força)", "badge-shot", 850, "DF");
+        pushNodeOffShotRay(pitch, blockerNode, origGoalX - shotOriginX, origGoalY - shotOriginY, 3.0, 260);
+        showPitchBadge(pitch, duelX, duelY, "Desviou (-Força)", "badge-shot", 850, "DF");
         pitch.ticker = `${st.minute}' ${shooterNode.player.name} furou o bloqueio de ${blockerNode.player.name} — bola vai para o gol!`;
         prependNarrationLine(
           st,
@@ -7565,7 +7819,7 @@
         return true;
       }
 
-      // Chute passou pelo defensor com força reduzida -> pode virar Chain Shot ou ir direto ao goleiro!
+      // Chute passou pelo defensor mantendo a mesma linha para o gol -> pode virar Chain Shot ou ir direto ao goleiro!
       const weakenedScore = baseShotScore - 5.2;
       return maybeChainAndResolveGk(
         shooterNode,
@@ -7579,9 +7833,12 @@
         origGkNode,
         defSupport,
         origGoalX,
+        origGoalY,
         true,
         null,
-        skipRestart
+        skipRestart,
+        origTrailOrigin,
+        true
       );
     };
 
@@ -12077,6 +12334,7 @@
       teamConsecutivePasses: 0,
       justKickedOff: true,
       passTrail: null,
+      interceptTweens: [],
       floatBadge: null,
       nodeBadges: {},
       goalFlashSide: null,
