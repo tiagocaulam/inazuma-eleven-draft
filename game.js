@@ -3833,7 +3833,7 @@
     return 1.24 * clamped - 0.24 * clamped * clamped;
   }
 
-  function computeNodeRoleTarget(node, pitch, carrier, chaserUid, coverUid, deepestOppDefX, deepestOwnDefX) {
+  function computeNodeRoleTarget(node, pitch, carrier, chaserUid, coverUid, deepestOppDefX, deepestOwnDefX, isGkHolding = false, gkMarkMap = null) {
     const isUser = node.side === "user";
     const dir = isUser ? 1 : -1;
     const ownGoalX = isUser ? 4 : 96;
@@ -3946,20 +3946,31 @@
       return { tx: gx, ty: gy, sprint: 0.9 };
     }
 
-    // 4) Defendendo: marcador principal fecha o portador e o 2º marcador faz dobra de marcação no terço final!
+    // 4) Defendendo: quando o goleiro rival segura a bola, fecha linhas de passe sem invadir a área; caso contrário fecha o portador!
     if (!inPossession) {
+      if (isGkHolding) {
+        const mark = gkMarkMap && gkMarkMap[node.uid];
+        if (mark && node.staggerTimer <= 0) {
+          return {
+            tx: mark.tx,
+            ty: mark.ty,
+            sprint: 1.02
+          };
+        }
+        // Demais defensores sem marcação individual caem para o reposicionamento tático na seção 5
+      }
       const targetAnchorX = carrier ? carrier.x + (carrier.vx || 0) * 0.22 : ballX;
       const targetAnchorY = carrier ? carrier.y + (carrier.vy || 0) * 0.22 : ballY;
       const dangerousZone = isUser ? ballX <= 42 : ballX >= 58;
 
-      if (chaserUid === node.uid && node.staggerTimer <= 0) {
+      if (!isGkHolding && chaserUid === node.uid && node.staggerTimer <= 0) {
         return {
           tx: Math.max(8, Math.min(92, targetAnchorX)),
           ty: Math.max(10, Math.min(90, targetAnchorY)),
           sprint: 1.08
         };
       }
-      if (coverUid === node.uid && node.staggerTimer <= 0) {
+      if (!isGkHolding && coverUid === node.uid && node.staggerTimer <= 0) {
         // Se o adversário estiver perigoso próximo à área, o segundo zagueiro fecha junto em dobra de marcação!
         if (dangerousZone) {
           const flankOffset = carrier && carrier.y < 50 ? 3.5 : -3.5;
@@ -4123,6 +4134,14 @@
       const runY = node.baseY + Math.sin(t * 1.55 + node.wanderPhase) * 12;
       return { tx: lineX, ty: Math.max(24, Math.min(76, runY)), sprint: 1.0 };
     } else {
+      if (isGkHolding) {
+        const holdX = isUser ? Math.min(72, Math.max(46, ballX - 20)) : Math.max(28, Math.min(54, ballX + 20));
+        return {
+          tx: holdX,
+          ty: Math.max(20, Math.min(80, node.baseY * 0.7 + ballY * 0.3)),
+          sprint: 0.9
+        };
+      }
       return {
         tx: Math.max(18, Math.min(82, ballX + dir * 4)),
         ty: Math.max(26, Math.min(74, ballY * 0.55 + node.baseY * 0.45)),
@@ -4135,7 +4154,9 @@
     if (!pitch) return;
     const carrier = findPitchNode(pitch, pitch.carrierUid);
     const attIsUser = pitch.ballSide === "user";
+    const attNodes = attIsUser ? pitch.userNodes : pitch.oppNodes;
     const defNodes = attIsUser ? pitch.oppNodes : pitch.userNodes;
+    const isGkHolding = Boolean(carrier && carrier.role === "GK" && pitch.ballMode === "CARRIED");
 
     const userBackLine = Math.min(...pitch.userNodes.filter((n) => n.role !== "GK").map((n) => n.x));
     const oppBackLine = Math.max(...pitch.oppNodes.filter((n) => n.role !== "GK").map((n) => n.x));
@@ -4150,18 +4171,91 @@
       : pitch.passState
       ? pitch.passState.toY
       : pitch.ballY;
-    const rankedDefs = defNodes
-      .filter((d) => d.role !== "GK" && (d.staggerTimer || 0) <= 0)
-      .map((d) => ({
-        uid: d.uid,
-        dist: Math.hypot(d.x - (carrier ? carrier.x : ballRefX), (d.y - (carrier ? carrier.y : ballRefY)) * 1.1)
-      }))
-      .sort((a, b) => a.dist - b.dist);
 
-    const chaserUid = rankedDefs[0]?.uid || null;
-    const coverUid = rankedDefs[1]?.uid || null;
-    pitch.chaserUid = chaserUid;
-    pitch.challengerUid = carrier && chaserUid && rankedDefs[0].dist < 10 ? chaserUid : null;
+    const gkSafeMinX = attIsUser ? 22 : 10;
+    const gkSafeMaxX = attIsUser ? 90 : 78;
+    const enforceGkSafeTarget = (rawX, rawY) => {
+      let sx = Math.max(gkSafeMinX, Math.min(gkSafeMaxX, rawX));
+      let sy = Math.max(10, Math.min(90, rawY));
+      if (carrier) {
+        const dx = sx - carrier.x;
+        const dy = sy - carrier.y;
+        const d = Math.hypot(dx, dy);
+        if (d < 13 && Math.abs(dy) < 13) {
+          const awayX = attIsUser ? 1 : -1;
+          const reqDx = Math.sqrt(Math.max(0, 13.2 * 13.2 - dy * dy));
+          sx = carrier.x + awayX * reqDx;
+          sx = Math.max(10, Math.min(90, Math.max(gkSafeMinX, Math.min(gkSafeMaxX, sx))));
+        }
+      }
+      return { tx: Number(sx.toFixed(1)), ty: Number(sy.toFixed(1)) };
+    };
+
+    let chaserUid = null;
+    let coverUid = null;
+    let gkMarkMap = null;
+
+    if (isGkHolding) {
+      pitch.chaserUid = null;
+      pitch.challengerUid = null;
+
+      // Marcadores saem de cima do goleiro e fecham os possíveis receptores do passe curto/médio
+      const rolePri = (r) => (r === "DF" ? 0 : r === "MF" ? 1 : 2);
+      const gkOutlets = attNodes
+        .filter((n) => n.role !== "GK")
+        .map((n) => ({
+          node: n,
+          pri: rolePri(n.role),
+          dGk: Math.hypot(n.x - carrier.x, n.y - carrier.y)
+        }))
+        .sort((a, b) => a.pri - b.pri || a.dGk - b.dGk)
+        .map((e) => e.node);
+
+      const pressCandidates = defNodes
+        .filter((d) => d.role !== "GK")
+        .map((d) => ({
+          node: d,
+          dGk: Math.hypot(d.x - carrier.x, d.y - carrier.y)
+        }))
+        .sort((a, b) => a.dGk - b.dGk)
+        .map((e) => e.node);
+
+      const maxMarkers = pitch.is5v5 ? 2 : 4;
+      const outletPool = gkOutlets.slice(0, Math.min(gkOutlets.length, maxMarkers + 2));
+      const usedOutlets = new Set();
+      gkMarkMap = {};
+
+      pressCandidates.slice(0, maxMarkers).forEach((marker) => {
+        let bestOutlet = null;
+        let bestDist = Infinity;
+        outletPool.forEach((out) => {
+          if (usedOutlets.has(out.uid)) return;
+          const dist = Math.hypot(out.x - marker.x, out.y - marker.y);
+          if (dist < bestDist) {
+            bestDist = dist;
+            bestOutlet = out;
+          }
+        });
+        if (!bestOutlet) return;
+        usedOutlets.add(bestOutlet.uid);
+        const rawTx = bestOutlet.x * 0.84 + carrier.x * 0.16;
+        const rawTy = bestOutlet.y * 0.84 + carrier.y * 0.16;
+        gkMarkMap[marker.uid] = enforceGkSafeTarget(rawTx, rawTy);
+      });
+    } else {
+      const rankedDefs = defNodes
+        .filter((d) => d.role !== "GK" && (d.staggerTimer || 0) <= 0)
+        .map((d) => ({
+          uid: d.uid,
+          dist: Math.hypot(d.x - (carrier ? carrier.x : ballRefX), (d.y - (carrier ? carrier.y : ballRefY)) * 1.1)
+        }))
+        .sort((a, b) => a.dist - b.dist);
+
+      chaserUid = rankedDefs[0]?.uid || null;
+      coverUid = rankedDefs[1]?.uid || null;
+      pitch.chaserUid = chaserUid;
+      pitch.challengerUid = carrier && chaserUid && rankedDefs[0].dist < 10 ? chaserUid : null;
+    }
 
     if (pitch.ballMode === "LOOSE_BALL" && pitch.looseState) {
       const attTeamNodes = attIsUser ? pitch.userNodes : pitch.oppNodes;
@@ -4191,7 +4285,9 @@
           chaserUid,
           coverUid,
           deepestOppDef,
-          deepestOwnDef
+          deepestOwnDef,
+          isGkHolding,
+          gkMarkMap
         );
         node.targetX = aim.tx;
         node.targetY = aim.ty;
@@ -4207,7 +4303,7 @@
           const tac = getTactics();
           if (tac.posture === "defensive") {
             node.targetX = Math.max(10, node.targetX - 7);
-          } else if (tac.posture === "offensive") {
+          } else if (tac.posture === "offensive" && !(isGkHolding && pitch.ballSide !== "user")) {
             const maxAttackX =
               pitch.ballSide === "user" && (node.role === "FW" || node.tacticalRole === "WING" || node.tacticalRole === "ST")
                 ? Math.min(89, Math.max(52, deepestOppDef - 0.6))
@@ -4223,13 +4319,20 @@
           }
         } else if (node.side === "opp" && node.role !== "GK" && !pitch.is5v5 && node.uid !== pitch.carrierUid && !isBallChaser) {
           const oppPost = getOpponentDynamicPosture();
-          if (oppPost === "offensive") {
+          if (oppPost === "offensive" && !(isGkHolding && pitch.ballSide !== "opp")) {
             const minOppX =
               pitch.ballSide === "opp" && (node.role === "FW" || node.tacticalRole === "WING" || node.tacticalRole === "ST")
                 ? Math.max(11, Math.min(48, deepestOppDef + 0.6))
                 : 10;
             node.targetX = Math.max(minOppX, node.targetX - 5);
           } else if (oppPost === "defensive") node.targetX = Math.min(90, node.targetX + 5);
+        }
+
+        // Garantia final: enquanto um goleiro segura a bola, nenhum marcador entra na área ou cola nele
+        if (isGkHolding && node.role !== "GK" && node.side !== pitch.ballSide) {
+          const safe = enforceGkSafeTarget(node.targetX, node.targetY);
+          node.targetX = safe.tx;
+          node.targetY = safe.ty;
         }
       });
     };
@@ -7136,15 +7239,21 @@
             pitch.ballSide = curAttIsUser ? "opp" : "user";
             pitch.ballMode = "CARRIED";
             pitch.carrierUid = curGkNode.uid;
+            pitch.chaserUid = null;
             pitch.challengerUid = null;
             pitch.holdBallPos = null;
             curGkNode.carryTime = 0;
             curGkNode.decisionTimer = 0.35;
             curGkNode.duelCooldown = 1.8;
+            if (activeShooter) {
+              activeShooter.vx = (activeShooter.vx || 0) * 0.2;
+              activeShooter.vy = (activeShooter.vy || 0) * 0.2;
+            }
             pitch.ballFlight = null;
             pitch.ballX = curGkNode.x + (curGkNode.side === "user" ? 1.9 : -1.9);
             pitch.ballY = curGkNode.y + 1.0;
             pitch.passTrail = null;
+            recomputePitchTargets(pitch);
             triggerSaveImplosion(pitch, duelX, duelY);
             showPitchBadge(pitch, curGkNode.x, curGkNode.y, gkMoveName, "badge-steal", 900, "GK");
             showNodeBadge(pitch, curGkNode.uid, `Defendeu • ${gkMoveName}`, "badge-steal", 900, "GK");
@@ -7263,15 +7372,21 @@
         pitch.ballSide = curAttIsUser ? "opp" : "user";
         pitch.ballMode = "CARRIED";
         pitch.carrierUid = curGkNode.uid;
+        pitch.chaserUid = null;
         pitch.challengerUid = null;
         pitch.holdBallPos = null;
         curGkNode.carryTime = 0;
         curGkNode.decisionTimer = 0.4;
         curGkNode.duelCooldown = 1.8;
+        if (activeShooter) {
+          activeShooter.vx = (activeShooter.vx || 0) * 0.2;
+          activeShooter.vy = (activeShooter.vy || 0) * 0.2;
+        }
         pitch.ballFlight = null;
         pitch.ballX = curGkNode.x + (curGkNode.side === "user" ? 1.9 : -1.9);
         pitch.ballY = curGkNode.y + 0.8;
         pitch.passTrail = null;
+        recomputePitchTargets(pitch);
 
         triggerSaveImplosion(pitch, curGkNode.x, curGkNode.y);
         showPitchBadge(pitch, curGkNode.x, curGkNode.y, `DEFESA! • ${gkMoveName}`, "badge-steal", 1100, "GK");
@@ -8258,7 +8373,7 @@
         }
 
         if (carrier.role === "GK") {
-          if (carrier.carryTime >= 0.45) {
+          if (carrier.carryTime >= 0.72) {
             launchContinuousPass(st, pitch, carrier, attNodes, defNodes, true, true);
           }
           return;
