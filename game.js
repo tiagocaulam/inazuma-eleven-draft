@@ -5228,9 +5228,12 @@
   }
 
   const PENALTY_CORNERS = [
-    { id: 0, label: "Canto Esquerdo", short: "Esquerda", x: 19, y: 54, diveCls: "dive-left" },
-    { id: 1, label: "Meio do Gol", short: "Centro", x: 50, y: 46, diveCls: "dive-center" },
-    { id: 2, label: "Canto Direito", short: "Direita", x: 81, y: 54, diveCls: "dive-right" }
+    { id: 0, label: "Canto Superior Esquerdo", short: "Sup. Esq.", x: 19, y: 28, col: 0, diveCls: "dive-left" },
+    { id: 1, label: "Centro Alto", short: "Centro Alto", x: 50, y: 28, col: 1, diveCls: "dive-center" },
+    { id: 2, label: "Canto Superior Direito", short: "Sup. Dir.", x: 81, y: 28, col: 2, diveCls: "dive-right" },
+    { id: 3, label: "Canto Inferior Esquerdo", short: "Inf. Esq.", x: 19, y: 74, col: 0, diveCls: "dive-left" },
+    { id: 4, label: "Centro Baixo", short: "Centro Baixo", x: 50, y: 74, col: 1, diveCls: "dive-center" },
+    { id: 5, label: "Canto Inferior Direito", short: "Inf. Dir.", x: 81, y: 74, col: 2, diveCls: "dive-right" }
   ];
 
   function createPenaltyShootoutState(st) {
@@ -5394,21 +5397,21 @@
     const kicker = getCurrentPenaltyKicker(pen, isUserKicking ? "user" : "opp");
     const keeper = isUserKicking ? pen.oppGk : pen.userGk;
 
-    // Cobrança direta (sem técnicas): batedor escolhe 1 de 3 cantos; goleiro tenta adivinhar (~33%)
-    const shootCorner = Math.floor(Math.random() * 3);
+    // Cobrança direta (sem técnicas): batedor escolhe 1 de 6 quadrantes; goleiro tenta adivinhar (~33%)
+    const shootCorner = Math.floor(Math.random() * PENALTY_CORNERS.length);
     const kickerOvr = kicker?.effOvr || kicker?.player?.ovr || 85;
     const keeperOvr = keeper?.effOvr || keeper?.player?.ovr || 85;
     const gkGuessProb = Math.max(0.28, Math.min(0.39, 1 / 3 + (keeperOvr - kickerOvr) * 0.004));
     const gkGuessedRight = Math.random() < gkGuessProb;
     let diveCorner = shootCorner;
     if (!gkGuessedRight) {
-      const others = [0, 1, 2].filter((c) => c !== shootCorner);
+      const others = PENALTY_CORNERS.map((c) => c.id).filter((id) => id !== shootCorner);
       diveCorner = others[Math.floor(Math.random() * others.length)];
     }
     const isGoal = !gkGuessedRight;
     const shootInfo = PENALTY_CORNERS[shootCorner] || PENALTY_CORNERS[0];
     const diveInfo = PENALTY_CORNERS[diveCorner] || PENALTY_CORNERS[0];
-    const shotBallY = shootCorner === 1 ? Math.round(34 + Math.random() * 20) : Math.round(34 + Math.random() * 34);
+    const shotBallY = Math.round(shootInfo.y + (Math.random() - 0.5) * 6);
 
     if (isUserKicking) {
       pen.userTaken++;
