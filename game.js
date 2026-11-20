@@ -3421,7 +3421,7 @@
           `120' FIM DA PRORROGAÇÃO! Empate em ${st.userScore} x ${st.oppScore} — Decisão por Pênaltis!`,
           null,
           null,
-          "SH"
+          null
         );
         showRefereeWhistleModal(st, "PENALTIES", () => {
           renderTournamentScreen();
@@ -5227,13 +5227,10 @@
     `;
   }
 
-  const PENALTY_ZONES = [
-    { id: 0, label: "Sup. Esq.", x: 20, y: 27, col: 0 },
-    { id: 1, label: "Centro Alto", x: 50, y: 27, col: 1 },
-    { id: 2, label: "Sup. Dir.", x: 80, y: 27, col: 2 },
-    { id: 3, label: "Inf. Esq.", x: 20, y: 74, col: 0 },
-    { id: 4, label: "Centro Baixo", x: 50, y: 74, col: 1 },
-    { id: 5, label: "Inf. Dir.", x: 80, y: 74, col: 2 }
+  const PENALTY_CORNERS = [
+    { id: 0, label: "Canto Esquerdo", short: "Esquerda", x: 19, y: 54, diveCls: "dive-left" },
+    { id: 1, label: "Meio do Gol", short: "Centro", x: 50, y: 46, diveCls: "dive-center" },
+    { id: 2, label: "Canto Direito", short: "Direita", x: 81, y: 54, diveCls: "dive-right" }
   ];
 
   function createPenaltyShootoutState(st) {
@@ -5260,7 +5257,6 @@
       oppGoals: 0,
       userTaken: 0,
       oppTaken: 0,
-      lastDiveZone: null,
       lastAnim: null
     };
   }
@@ -5366,7 +5362,7 @@
       `${st.won ? "VITÓRIA NOS PÊNALTIS!" : "DERROTA NOS PÊNALTIS!"} ${st.penaltiesText}!`,
       null,
       null,
-      "SH"
+      null
     );
     awardPostMatchExperience(st);
     if (isTournamentRunTerminal(state.tournament)) {
@@ -5375,48 +5371,44 @@
     renderTournamentScreen();
   }
 
-  function resolvePenaltyTurn(st, chosenZone, isAuto = false) {
-    const pen = st.penalties;
-    if (!pen || st.finished || (pen.phase !== "USER_KICK" && pen.phase !== "USER_SAVE")) return;
+  function scheduleNextPenaltyStep(st) {
+    const pen = st?.penalties;
+    if (!pen || st.finished || pen.phase !== "PREP_KICK") return;
+    if (state.tournament.penTimerId) {
+      clearTimeout(state.tournament.penTimerId);
+      state.tournament.penTimerId = null;
+    }
+    const prepMs = state.simSpeed === 4 ? 220 : state.simSpeed === 2 ? 420 : 680;
+    state.tournament.penTimerId = setTimeout(() => {
+      state.tournament.penTimerId = null;
+      resolvePenaltyKick(st, false);
+    }, prepMs);
+  }
+
+  function resolvePenaltyKick(st, isAuto = false) {
+    const pen = st?.penalties;
+    if (!pen || st.finished || (!isAuto && pen.phase !== "PREP_KICK")) return;
 
     const pitch = st.pitch;
-    const support = pitch?.matchSupport || { userTeamSupport: 0, oppTeamSupport: 0 };
-    const isUserKicking = pen.phase === "USER_KICK";
+    const isUserKicking = pen.activeSide === "user";
     const kicker = getCurrentPenaltyKicker(pen, isUserKicking ? "user" : "opp");
     const keeper = isUserKicking ? pen.oppGk : pen.userGk;
 
-    const aiPickZone = () => {
-      const pool = PENALTY_ZONES.map((z) => z.id).filter((id) => id !== pen.lastDiveZone || Math.random() < 0.35);
-      return pool[Math.floor(Math.random() * pool.length)];
-    };
-
-    const shootZone = isUserKicking ? chosenZone : aiPickZone();
-    const diveZone = isUserKicking ? aiPickZone() : chosenZone;
-    pen.lastDiveZone = diveZone;
-
-    const shootInfo = PENALTY_ZONES[shootZone] || PENALTY_ZONES[0];
-    const diveInfo = PENALTY_ZONES[diveZone] || PENALTY_ZONES[0];
-
-    const kickerSupp = isUserKicking ? support.userTeamSupport : support.oppTeamSupport;
-    const keeperSupp = isUserKicking ? support.oppTeamSupport : support.userTeamSupport;
-    const shotScore = calcNodeDuelScore(kicker, kickerSupp * 0.5, keeper?.player?.element, "SH");
-    const gkScore = calcNodeDuelScore(keeper, keeperSupp * 0.5, kicker?.player?.element, "GK");
-
-    let isGoal = false;
-    if (shootZone === diveZone) {
-      // Mesmo canto escolhido pelo goleiro: disputa direta entre técnica de chute e defesa!
-      const saveProb = logisticWinProb(gkScore, shotScore, 3.4, 0.54, 0.86);
-      isGoal = Math.random() >= saveProb;
-    } else if (shootInfo.col === diveInfo.col) {
-      // Mesmo lado, altura diferente: chance pequena de defesa com a ponta dos dedos
-      isGoal = Math.random() >= 0.16;
-    } else {
-      // Canto oposto: chance alta de gol (pequeno risco de trave/defesa impossível)
-      isGoal = Math.random() < 0.94;
+    // Cobrança direta (sem técnicas): batedor escolhe 1 de 3 cantos; goleiro tenta adivinhar (~33%)
+    const shootCorner = Math.floor(Math.random() * 3);
+    const kickerOvr = kicker?.effOvr || kicker?.player?.ovr || 85;
+    const keeperOvr = keeper?.effOvr || keeper?.player?.ovr || 85;
+    const gkGuessProb = Math.max(0.28, Math.min(0.39, 1 / 3 + (keeperOvr - kickerOvr) * 0.004));
+    const gkGuessedRight = Math.random() < gkGuessProb;
+    let diveCorner = shootCorner;
+    if (!gkGuessedRight) {
+      const others = [0, 1, 2].filter((c) => c !== shootCorner);
+      diveCorner = others[Math.floor(Math.random() * others.length)];
     }
-
-    const shotLabel = buildGoalShotLabel(kicker.player).label;
-    const gkMove = pickPlayerMove(keeper.player, "GK") || "Ponte de Reflexo";
+    const isGoal = !gkGuessedRight;
+    const shootInfo = PENALTY_CORNERS[shootCorner] || PENALTY_CORNERS[0];
+    const diveInfo = PENALTY_CORNERS[diveCorner] || PENALTY_CORNERS[0];
+    const shotBallY = shootCorner === 1 ? Math.round(34 + Math.random() * 20) : Math.round(34 + Math.random() * 34);
 
     if (isUserKicking) {
       pen.userTaken++;
@@ -5424,18 +5416,19 @@
       pen.userKicks.push({
         kickerName: kicker.player.name,
         sprite: kicker.player.sprite,
-        zone: shootZone,
+        corner: shootCorner,
+        diveCorner,
         outcome: isGoal ? "GOAL" : "SAVED"
       });
       prependNarrationLine(
         st,
         isGoal ? "nar-goal-user" : "nar-save",
         isGoal
-          ? `[Pênalti ${pen.userTaken}] ${kicker.player.name} mandou 【${shotLabel}】 no ${shootInfo.label} e marcou! (${pen.userGoals} x ${pen.oppGoals})`
-          : `[Pênalti ${pen.userTaken}] ${keeper.player.name} acertou o ${diveInfo.label} com 【${gkMove}】 e pegou o chute de ${kicker.player.name}!`,
+          ? `[Pênalti ${pen.userTaken}] ${kicker.player.name} bateu no ${shootInfo.label} (${keeper.player.name} pulou no ${diveInfo.label}) — GOOOL! (${pen.userGoals} x ${pen.oppGoals})`
+          : `[Pênalti ${pen.userTaken}] ${kicker.player.name} bateu no ${shootInfo.label}, mas ${keeper.player.name} adivinhou o canto e defendeu! (${pen.userGoals} x ${pen.oppGoals})`,
         { name: kicker.player.name, sprite: kicker.player.sprite, side: "user" },
         { name: keeper.player.name, sprite: keeper.player.sprite, side: "opp" },
-        isGoal ? "SH" : "GK"
+        null
       );
     } else {
       pen.oppTaken++;
@@ -5444,18 +5437,19 @@
       pen.oppKicks.push({
         kickerName: kicker.player.name,
         sprite: kicker.player.sprite,
-        zone: shootZone,
+        corner: shootCorner,
+        diveCorner,
         outcome: isGoal ? "GOAL" : "SAVED"
       });
       prependNarrationLine(
         st,
         isGoal ? "nar-goal-opp" : "nar-save",
         isGoal
-          ? `[Pênalti ${pen.oppTaken}] ${kicker.player.name} bateu com 【${shotLabel}】 no ${shootInfo.label} e superou ${keeper.player.name}. (${pen.userGoals} x ${pen.oppGoals})`
-          : `[DEFESA DE ${keeper.player.name.toUpperCase()}!] ${keeper.player.name} voou no ${diveInfo.label} com 【${gkMove}】 e defendeu o pênalti de ${kicker.player.name}!`,
+          ? `[Pênalti ${pen.oppTaken}] ${kicker.player.name} bateu no ${shootInfo.label} (${keeper.player.name} pulou no ${diveInfo.label}) — Gol rival. (${pen.userGoals} x ${pen.oppGoals})`
+          : `[DEFESA DE ${keeper.player.name.toUpperCase()}!] ${keeper.player.name} acertou o ${diveInfo.label} e defendeu o pênalti de ${kicker.player.name}! (${pen.userGoals} x ${pen.oppGoals})`,
         { name: keeper.player.name, sprite: keeper.player.sprite, side: "user" },
         { name: kicker.player.name, sprite: kicker.player.sprite, side: "opp" },
-        "GK"
+        null
       );
     }
 
@@ -5465,43 +5459,49 @@
         return;
       }
       pen.activeSide = isUserKicking ? "opp" : "user";
-      pen.phase = pen.activeSide === "user" ? "USER_KICK" : "USER_SAVE";
+      pen.phase = "PREP_KICK";
       return;
     }
 
     pen.phase = "RESULT_BEAT";
     pen.lastAnim = {
       isUserKicking,
-      shootZone,
-      diveZone,
+      shootCorner,
+      diveCorner,
       shootInfo,
       diveInfo,
+      shotBallY,
       isGoal,
       kicker,
       keeper,
-      shotLabel,
-      gkMove
+      kickNum: isUserKicking ? pen.userTaken : pen.oppTaken
     };
 
     renderTournamentScreen();
 
-    // Dispara transição suave da bola e do ícone do goleiro no frame seguinte!
+    // Dispara transição do batedor, bola e goleiro no frame seguinte!
     setTimeout(() => {
+      if (st.finished || st.penalties !== pen || pen.phase !== "RESULT_BEAT") return;
       const gkEl = document.getElementById("pen-gk-actor");
       const ballEl = document.getElementById("pen-ball-actor");
+      const kickerEl = document.getElementById("pen-kicker-actor");
+      if (kickerEl) {
+        kickerEl.classList.add("is-strike");
+      }
       if (gkEl) {
         gkEl.style.left = `${diveInfo.x}%`;
         gkEl.style.top = `${diveInfo.y}%`;
-        gkEl.classList.add(diveInfo.col === 0 ? "dive-left" : diveInfo.col === 2 ? "dive-right" : "dive-center");
+        gkEl.classList.add(diveInfo.diveCls);
       }
       if (ballEl) {
         ballEl.style.left = `${shootInfo.x}%`;
-        ballEl.style.top = `${shootInfo.y}%`;
+        ballEl.style.top = `${shotBallY}%`;
         ballEl.classList.add(isGoal ? "ball-goal" : "ball-saved");
       }
     }, 35);
 
     if (state.tournament.penTimerId) clearTimeout(state.tournament.penTimerId);
+    const beatMs = state.simSpeed === 4 ? 580 : state.simSpeed === 2 ? 1050 : 1650;
     state.tournament.penTimerId = setTimeout(() => {
       state.tournament.penTimerId = null;
       if (isPenaltyShootoutDecided(pen)) {
@@ -5510,9 +5510,10 @@
       }
       pen.lastAnim = null;
       pen.activeSide = isUserKicking ? "opp" : "user";
-      pen.phase = pen.activeSide === "user" ? "USER_KICK" : "USER_SAVE";
+      pen.phase = "PREP_KICK";
       renderTournamentScreen();
-    }, 1500);
+      scheduleNextPenaltyStep(st);
+    }, beatMs);
   }
 
   function autoResolveRemainingPenalties(st) {
@@ -5524,7 +5525,7 @@
     }
     if (pen.phase === "ORDER") {
       pen.activeSide = pen.firstSide;
-      pen.phase = pen.activeSide === "user" ? "USER_KICK" : "USER_SAVE";
+      pen.phase = "PREP_KICK";
     } else if (pen.phase === "RESULT_BEAT") {
       if (isPenaltyShootoutDecided(pen)) {
         finishPenaltyShootout(st);
@@ -5533,21 +5534,20 @@
       const wasUserKicking = pen.lastAnim ? pen.lastAnim.isUserKicking : pen.activeSide === "user";
       pen.lastAnim = null;
       pen.activeSide = wasUserKicking ? "opp" : "user";
-      pen.phase = pen.activeSide === "user" ? "USER_KICK" : "USER_SAVE";
+      pen.phase = "PREP_KICK";
     }
     let guard = 0;
-    while (!st.finished && guard < 40) {
+    while (!st.finished && guard < 60) {
       guard++;
-      const z = Math.floor(Math.random() * 6);
-      resolvePenaltyTurn(st, z, true);
+      resolvePenaltyKick(st, true);
     }
     if (!st.finished) {
       if (pen.userGoals === pen.oppGoals) {
         pen.userTaken++;
         pen.userGoals++;
         pen.oppTaken++;
-        pen.userKicks.push({ kickerName: "Desempate", sprite: pen.userOrder?.[0]?.player?.sprite || "", zone: 0, outcome: "GOAL" });
-        pen.oppKicks.push({ kickerName: "Desempate", sprite: pen.oppOrder?.[0]?.player?.sprite || "", zone: 0, outcome: "SAVED" });
+        pen.userKicks.push({ kickerName: "Desempate", sprite: pen.userOrder?.[0]?.player?.sprite || "", corner: 0, diveCorner: 2, outcome: "GOAL" });
+        pen.oppKicks.push({ kickerName: "Desempate", sprite: pen.oppOrder?.[0]?.player?.sprite || "", corner: 0, diveCorner: 0, outcome: "SAVED" });
       }
       finishPenaltyShootout(st);
     }
@@ -5574,7 +5574,8 @@
     if (pen.phase === "ORDER") {
       const rowsHTML = pen.userOrder
         .map((n, idx) => {
-          const bestShot = pickPlayerMove(n.player, "SH") || n.player.hissatsu || "Chute Direto";
+          const pLvl = n.level || getPlayerLevel(n.player);
+          const attrs = n.attrs || calcPlayerAttributes(n.player, n.role, pLvl);
           const isTop5 = idx < 5;
           const isSwapSelected = pen.swapIdx === idx;
           return `
@@ -5583,7 +5584,7 @@
               <img class="pen-order-avatar" src="${n.player.sprite || ""}" alt="${n.player.name}" />
               <div class="pen-order-meta">
                 <strong>${n.player.name} <small>(${n.label} · OVR ${n.effOvr})</small></strong>
-                <span>${bestShot}</span>
+                <span>FOR ${attrs.for} · TEC ${attrs.tec} · Nv. ${pLvl}</span>
               </div>
               <span class="pen-order-tag">${isTop5 ? "Titular" : "Alternada"}</span>
               <div class="pen-order-arrows">
@@ -5599,9 +5600,9 @@
         <div id="live-pitch-box" class="live-pitch-card pen-shootout-card">
           <div class="pen-header-row">
             <div>
-              <span class="pen-eyebrow">${moveIconHTML("SH")} DECISÃO POR PÊNALTIS</span>
+              <span class="pen-eyebrow">⚽ DECISÃO POR PÊNALTIS</span>
               <h4>Defina a Ordem dos Batedores</h4>
-              <p>Use as setas ▲▼ ou clique em dois jogadores para trocar a posição da lista.</p>
+              <p>Defina a ordem dos batedores (cobranças diretas, sem técnicas). Depois, acompanhe a disputa na simulação.</p>
             </div>
             <button type="button" class="ie-cmd-btn" id="btn-pen-first-toggle" style="font-size:0.7rem; padding:6px 10px;">
               <span>Inicia: ${pen.firstSide === "user" ? "Dream Team" : st.oppTeam.name}</span>
@@ -5612,10 +5613,10 @@
 
           <div class="pen-footer-actions">
             <button type="button" class="ie-cmd-btn ie-cmd-green" id="btn-pen-start-shootout" style="flex:1;">
-              <span>Confirmar Ordem e Ir para as Cobranças</span>
+              <span>Confirmar Ordem e Acompanhar Pênaltis</span>
             </button>
             <button type="button" class="ie-cmd-btn" id="btn-pen-auto-finish" style="font-size:0.72rem;">
-              <span>Simular Auto</span>
+              <span>Simular Direto</span>
             </button>
           </div>
         </div>
@@ -5623,36 +5624,45 @@
     }
 
     const isBeat = pen.phase === "RESULT_BEAT" && pen.lastAnim;
-    const isUserKicking = isBeat ? pen.lastAnim.isUserKicking : pen.phase === "USER_KICK";
+    const isUserKicking = isBeat ? pen.lastAnim.isUserKicking : pen.activeSide === "user";
     const kicker = isBeat ? pen.lastAnim.kicker : getCurrentPenaltyKicker(pen, isUserKicking ? "user" : "opp");
     const keeper = isBeat ? pen.lastAnim.keeper : (isUserKicking ? pen.oppGk : pen.userGk);
-    const kickNum = isUserKicking ? (isBeat ? pen.userTaken : pen.userTaken + 1) : (isBeat ? pen.oppTaken : pen.oppTaken + 1);
-    const modeTitle = isUserKicking ? "SUA VEZ DE CHUTAR" : "SUA VEZ DE DEFENDER";
+    const kickNum = isBeat
+      ? pen.lastAnim.kickNum
+      : isUserKicking
+      ? pen.userTaken + 1
+      : pen.oppTaken + 1;
+    const kickSideTitle = isUserKicking ? "DREAM TEAM" : st.oppTeam.name.toUpperCase();
+    const modeTitle = isBeat
+      ? pen.lastAnim.isGoal
+        ? "⚽ GOOOL!"
+        : "🧤 DEFENDEU!"
+      : `COBRANÇA ${kickNum} • ${kickSideTitle}`;
     const modeSub = isBeat
       ? pen.lastAnim.isGoal
-        ? `GOOOL! ${pen.lastAnim.kicker.player.name} venceu ${pen.lastAnim.keeper.player.name} (${pen.lastAnim.shotLabel})!`
-        : `DEFENDEU ${pen.lastAnim.keeper.player.name.toUpperCase()}! ${pen.lastAnim.gkMove} parou ${pen.lastAnim.kicker.player.name}!`
-      : isUserKicking
-      ? `Escolha 1 dos 6 cantos do gol para ${kicker.player.name} bater o ${kickNum}º pênalti.`
-      : `Escolha onde o goleiro ${keeper.player.name} vai pular para defender!`;
+        ? `${pen.lastAnim.kicker.player.name} bateu no ${pen.lastAnim.shootInfo.label} e ${pen.lastAnim.keeper.player.name} pulou no ${pen.lastAnim.diveInfo.label}!`
+        : `${pen.lastAnim.keeper.player.name} adivinhou o ${pen.lastAnim.diveInfo.label} e defendeu a cobrança de ${pen.lastAnim.kicker.player.name}!`
+      : `${kicker.player.name} caminha para a marca da cal contra ${keeper.player.name}...`;
 
-    const zonesHTML = PENALTY_ZONES.map((z) => {
-      const shootHere = isBeat && pen.lastAnim.shootZone === z.id;
-      const diveHere = isBeat && pen.lastAnim.diveZone === z.id;
-      const zCls = [
-        "pen-zone-btn",
-        isUserKicking ? "mode-shoot" : "mode-save",
+    const sectorsHTML = PENALTY_CORNERS.map((c) => {
+      const shootHere = isBeat && pen.lastAnim.shootCorner === c.id;
+      const diveHere = isBeat && pen.lastAnim.diveCorner === c.id;
+      const sCls = [
+        "pen-sector",
         shootHere ? (pen.lastAnim.isGoal ? "was-goal" : "was-shot") : "",
         diveHere ? "was-dive" : ""
       ]
         .filter(Boolean)
         .join(" ");
       return `
-        <button type="button" class="${zCls}" data-pen-zone="${z.id}" ${isBeat ? "disabled" : ""}>
-          <span>${z.label}</span>
-        </button>
+        <div class="${sCls}">
+          <span>${c.short}</span>
+        </div>
       `;
     }).join("");
+
+    const kickerShortName = (kicker.player.name || "").split(" ").slice(-1)[0];
+    const keeperShortName = (keeper.player.name || "").split(" ").slice(-1)[0];
 
     return `
       <div id="live-pitch-box" class="live-pitch-card pen-shootout-card ${isUserKicking ? "poss-user" : "poss-opp"}">
@@ -5696,38 +5706,44 @@
 
         <div class="pen-goal-stage">
           <div class="pen-goal-frame">
-            <div class="pen-goal-grid">${zonesHTML}</div>
+            <div class="pen-goal-grid">${sectorsHTML}</div>
 
-            <div id="pen-gk-actor" class="pen-gk-actor ${isUserKicking ? "side-opp" : "side-user"}" style="left:50%; top:65%;">
+            <div id="pen-gk-actor" class="pen-gk-actor ${isUserKicking ? "side-opp" : "side-user"}" style="left:50%; top:58%;">
               <img src="${keeper.player.sprite || ""}" alt="${keeper.player.name}" />
-              <span>${keeper.player.name.split(" ").slice(-1)[0]}</span>
+              <span>${keeperShortName}</span>
             </div>
 
-            <div id="pen-ball-actor" class="pen-ball-actor" style="left:50%; top:104%;">
+            <div id="pen-ball-actor" class="pen-ball-actor" style="left:50%; top:102%;">
               ${buildMiniBallSVG("pen-ball-svg")}
             </div>
 
             ${
               isBeat
                 ? `<div class="pen-result-pop ${pen.lastAnim.isGoal ? "is-goal" : "is-save"}">
-                    ${moveIconHTML(pen.lastAnim.isGoal ? "SH" : "GK")}
-                    <span>${pen.lastAnim.isGoal ? "GOOOL!" : "DEFENDEU!"}</span>
+                    <span>${pen.lastAnim.isGoal ? "⚽ GOOOL!" : "🧤 DEFENDEU!"}</span>
                   </div>`
                 : ""
             }
           </div>
           <div class="pen-turf-strip">
             <span class="pen-spot-dot"></span>
+            <div id="pen-kicker-actor" class="pen-kicker-actor ${isUserKicking ? "side-user" : "side-opp"}">
+              <img src="${kicker.player.sprite || ""}" alt="${kicker.player.name}" />
+              <span>${kickerShortName}</span>
+            </div>
           </div>
         </div>
 
         <div class="pen-footer-actions">
-          <span class="pen-hint-txt">
-            ${isUserKicking ? "Clique no setor para finalizar" : `Clique onde ${keeper.player.name} deve defender`}
-          </span>
-          <button type="button" class="ie-cmd-btn" id="btn-pen-auto-finish" style="font-size:0.68rem; padding:5px 10px;">
-            <span>Simular Restante</span>
-          </button>
+          <span class="pen-hint-txt">Simulando cobrança a cobrança (sem técnicas)</span>
+          <div style="display:flex; align-items:center; gap:6px;">
+            <button type="button" class="ie-cmd-btn" id="btn-pen-speed" style="font-size:0.68rem; padding:5px 10px;">
+              <span>Vel: ${state.simSpeed}x</span>
+            </button>
+            <button type="button" class="ie-cmd-btn" id="btn-pen-auto-finish" style="font-size:0.68rem; padding:5px 10px;">
+              <span>Simular Restante</span>
+            </button>
+          </div>
         </div>
       </div>
     `;
@@ -5781,17 +5797,22 @@
     if (startPenBtn) {
       startPenBtn.addEventListener("click", () => {
         pen.activeSide = pen.firstSide;
-        pen.phase = pen.activeSide === "user" ? "USER_KICK" : "USER_SAVE";
+        pen.phase = "PREP_KICK";
+        pen.lastAnim = null;
         renderTournamentScreen();
+        scheduleNextPenaltyStep(st);
       });
     }
 
-    document.querySelectorAll("[data-pen-zone]").forEach((zoneBtn) => {
-      zoneBtn.addEventListener("click", () => {
-        const zoneId = Number(zoneBtn.getAttribute("data-pen-zone"));
-        resolvePenaltyTurn(st, zoneId, false);
+    const penSpeedBtn = document.getElementById("btn-pen-speed");
+    if (penSpeedBtn) {
+      penSpeedBtn.addEventListener("click", () => {
+        state.simSpeed = state.simSpeed === 1 ? 2 : state.simSpeed === 2 ? 4 : 1;
+        document.querySelectorAll("#btn-pen-speed span, #btn-toggle-speed span").forEach((el) => {
+          el.textContent = `Vel: ${state.simSpeed}x`;
+        });
       });
-    });
+    }
 
     const autoBtn = document.getElementById("btn-pen-auto-finish");
     if (autoBtn) {
@@ -14244,7 +14265,7 @@
         ${
           st.penaltiesText
             ? `<div style="text-align:center; background:rgba(250,204,21,0.15); border:1px solid #facc15; padding:6px; border-radius:8px; font-weight:800; color:#fde047; font-size:0.82rem;">
-                ${moveIconHTML("SH")} ${st.penaltiesText}
+                ⚽ ${st.penaltiesText}
               </div>`
             : ""
         }
