@@ -9368,6 +9368,9 @@
               <button type="button" class="ie-cmd-btn ranking-refresh-btn" id="btn-refresh-ranking" title="Atualizar ranking">
                 <span>↻ Atualizar</span>
               </button>
+              <button type="button" class="ie-cmd-btn" id="btn-clear-local-ranking" style="padding:5px 10px; font-size:0.72rem; background:rgba(239, 68, 68, 0.25); border:1px solid #ef4444; color:#fca5a5;" title="Limpar histórico local do navegador">
+                <span>Limpar Local</span>
+              </button>
               <button type="button" class="ie-cmd-btn" id="btn-close-ranking-modal" style="padding:5px 12px; font-size:0.74rem; background:#334155;">
                 <span>Fechar ✕</span>
               </button>
@@ -9454,6 +9457,7 @@
     const openRankingBtn = document.getElementById("btn-open-ranking-modal");
     const closeRankingBtn = document.getElementById("btn-close-ranking-modal");
     const refreshRankingBtn = document.getElementById("btn-refresh-ranking");
+    const clearLocalRankingBtn = document.getElementById("btn-clear-local-ranking");
     let rankingFilter = "all";
     let cachedRankingEntries = [];
     const expandedRankingIds = new Set();
@@ -9511,6 +9515,14 @@
     }
     if (refreshRankingBtn) {
       refreshRankingBtn.addEventListener("click", loadAndRenderRankingModal);
+    }
+    if (clearLocalRankingBtn) {
+      clearLocalRankingBtn.addEventListener("click", () => {
+        try {
+          window.localStorage?.removeItem(RANKING_LOCAL_KEY);
+        } catch {}
+        loadAndRenderRankingModal();
+      });
     }
     if (rankingModal) {
       rankingModal.addEventListener("click", (e) => {
