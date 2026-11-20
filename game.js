@@ -864,15 +864,15 @@
     // 2. Crescimento por Nível (escala pelo OVR base e pela função do atleta!)
     // Jogadores de OVR maior ganham mais pontos de atributo a cada nível!
     const lvlSteps = Math.max(0, lvl - 1);
-    const ovrGrowthScale = 1.15 + Math.pow(Math.max(0, effOvr - 60) / 16, 1.45);
+    const ovrGrowthScale = 1.05 + Math.pow(Math.max(0, effOvr - 60) / 18, 1.35);
     const roleWeights =
       role === "FW"
-        ? { for: 1.35, tec: 1.05, def: 0.65, vel: 1.15, fis: 0.95 }
+        ? { for: 1.20, tec: 0.95, def: 0.60, vel: 1.05, fis: 0.85 }
         : role === "MF"
-        ? { for: 0.95, tec: 1.35, def: 0.85, vel: 1.15, fis: 0.95 }
+        ? { for: 0.85, tec: 1.20, def: 0.78, vel: 1.05, fis: 0.88 }
         : role === "DF"
-        ? { for: 0.70, tec: 0.90, def: 1.35, vel: 0.95, fis: 1.20 }
-        : { for: 0.75, tec: 0.95, def: 1.40, vel: 0.75, fis: 1.25 };
+        ? { for: 0.65, tec: 0.82, def: 1.20, vel: 0.88, fis: 1.10 }
+        : { for: 0.68, tec: 0.85, def: 1.25, vel: 0.70, fis: 1.12 };
 
     const bStats = player.bonusStats || {};
     const keshinBonus = player.keshin ? 4 : 0;
@@ -945,10 +945,10 @@
     `;
   }
 
-  // Quanto maior o OVR do jogador, MAIS PODER ele recebe a cada Nível!
+  // Quanto maior o OVR do jogador, MAIS PODER ele recebe a cada Nível (curva calibrada contra bola de neve)!
   function calcPowerPerLevel(effOvr) {
     const clamped = Math.max(55, Math.min(99, effOvr || 75));
-    return Math.max(6, Math.round(6 + Math.pow((clamped - 60) / 10, 2.25)));
+    return Math.max(5, Math.round(5 + Math.pow((clamped - 60) / 10, 1.78) * 1.10));
   }
 
   function calcBasePlayerPowerAtLevel1(effOvr) {
@@ -965,15 +965,15 @@
     const pwrPerLvl = calcPowerPerLevel(effOvr);
     const levelPwr = (lvl - 1) * pwrPerLvl;
     const itemPwr = player.bonusPower || 0;
-    const keshinPwr = player.keshin ? 38 : 0;
-    const evoPwr = (player.moveEvoCount || 0) * 22;
-    const manualPwr = player.learnedSecretManual ? 28 : 0;
+    const keshinPwr = player.keshin ? 32 : 0;
+    const evoPwr = (player.moveEvoCount || 0) * 16;
+    const manualPwr = player.learnedSecretManual ? 22 : 0;
     const isSquadMember = state.phase === "tournament" && Object.values(state.squad).some((sp) => sp && sp.id === player.id);
     const pb = isSquadMember ? state.tournament?.prepBonuses || {} : {};
     let roleScalablePwr = 0;
-    if (role === "FW" || role === "MF") roleScalablePwr += (pb.wingExplosionLvl || 0) * 6;
+    if (role === "FW" || role === "MF") roleScalablePwr += (pb.wingExplosionLvl || 0) * 5;
     if (role === "MF") roleScalablePwr += (pb.midSynergyLvl || 0) * 5;
-    if (role === "GK" || role === "DF") roleScalablePwr += (pb.defBlockLvl || 0) * 6;
+    if (role === "GK" || role === "DF") roleScalablePwr += (pb.defBlockLvl || 0) * 5;
     return Math.round(basePwr + levelPwr + itemPwr + keshinPwr + evoPwr + manualPwr + roleScalablePwr + (extraComboPower || 0));
   }
 
@@ -1489,8 +1489,9 @@
         });
       }
 
-      if (oppLevel > 1) {
-        bondsPower += Math.round((oppLevel - 1) * 6);
+      if (oppLevel > 1 || oppStageIdx > 0) {
+        bondsPower += Math.round(Math.max(0, oppLevel - 1) * 9 + Math.max(0, oppStageIdx) * 13);
+        chem += Math.min(26, Math.round(Math.max(0, oppStageIdx) * 2.6));
       }
 
       chem = Math.min(100, Math.max(0, chem));
@@ -1658,7 +1659,7 @@
     // Combo 4: Esquadrão Equipado (3 ou mais jogadores distintos equipados com itens)
     const uniqueEquippedPlayers = mergeUnique(equippedPlayersList);
     if (uniqueEquippedPlayers.length >= 3) {
-      const cPwr = uniqueEquippedPlayers.length * 16;
+      const cPwr = uniqueEquippedPlayers.length * 14;
       bondsPower += cPwr;
       activeCombos.push({
         label: `🎒 Arsenal (${uniqueEquippedPlayers.length}x: +${cPwr})`,
@@ -1674,7 +1675,7 @@
     boostedElemsList.forEach((bEl) => {
       const elCnt = elemTotalsInSquad[bEl] || 0;
       if (elCnt >= 3) {
-        const cPwr = elCnt * 18;
+        const cPwr = elCnt * 14;
         chem += 6;
         bondsPower += cPwr;
         activeCombos.push({
@@ -1775,8 +1776,8 @@
     return { formSlots: best.formSlots, assignments: best.assignments };
   }
 
-  // Tabela de Nível dos Times Adversários por Fase (calibrada com evolução real de Keshin/Técnicas da CPU + Energia!)
-  const STAGE_OPPONENT_LEVELS = [3, 4, 5, 7, 9, 10, 11, 13, 14, 15, 17];
+  // Tabela de Nível dos Times Adversários por Fase (calibrada com evolução real de Keshin/Técnicas/Manual da CPU!)
+  const STAGE_OPPONENT_LEVELS = [2, 3, 4, 5, 7, 8, 9, 10, 11, 12, 13];
 
   function getStageOpponentBuff(stageIdx) {
     const idx = Math.max(0, stageIdx || 0);
@@ -1898,10 +1899,11 @@
 
     ranked.sort((a, b) => b.starScore - a.starScore);
 
-    // Quantos craques rivais têm Keshin (desde o começo!), técnicas evoluídas e bônus de item
+    // Quantos craques rivais têm Keshin (desde o começo!), Manual Secreto, técnicas evoluídas e bônus de item
     const keshinCount = sIdx <= 1 ? 1 : sIdx <= 4 ? 2 : sIdx <= 7 ? 3 : 4;
-    const evoCount = sIdx === 0 ? 1 : sIdx <= 2 ? 2 : sIdx <= 4 ? 4 : sIdx <= 7 ? 6 : 8;
-    const equipCount = sIdx === 0 ? 2 : sIdx <= 3 ? 4 : 6;
+    const evoCount = sIdx === 0 ? 1 : sIdx <= 2 ? 2 : sIdx === 3 ? 3 : sIdx <= 5 ? 4 : sIdx <= 8 ? 6 : 8;
+    const equipCount = sIdx === 0 ? 1 : sIdx <= 2 ? 2 : sIdx <= 4 ? 4 : sIdx <= 7 ? 6 : 8;
+    const manualCount = sIdx >= 9 ? 2 : sIdx >= 5 ? 1 : 0;
 
     const idSeed = String(oppTeam?.id || oppTeam?.name || "opp")
       .split("")
@@ -1915,15 +1917,17 @@
         const chosenK = pool[(idSeed + idx + sIdx) % pool.length];
         p.keshin = { name: chosenK.name, icon: UI[chosenK.iconKey] || UI.keshinIcon };
       }
-      if (idx < evoCount) {
+      if (idx < manualCount) {
+        applySecretManualMastery(p, role);
+      } else if (idx < evoCount) {
         evolvePlayerPrimaryMove(p, role);
-        if (sIdx >= 4 && idx < 2) {
-          evolvePlayerPrimaryMove(p, role);
-        }
+      }
+      if (sIdx >= 6 && idx < 2) {
+        evolvePlayerPrimaryMove(p, role);
       }
       if (idx < equipCount) {
-        p.bonusPower = (p.bonusPower || 0) + 10 + sIdx * 4;
-        const statBoost = 2 + Math.floor(sIdx / 2);
+        p.bonusPower = (p.bonusPower || 0) + 10 + sIdx * 3;
+        const statBoost = 2 + Math.floor(sIdx * 0.5);
         if (role === "FW") { p.bonusStats.for += statBoost; p.bonusStats.vel += statBoost; }
         else if (role === "MF") { p.bonusStats.tec += statBoost; p.bonusStats.vel += statBoost; }
         else { p.bonusStats.def += statBoost; p.bonusStats.fis += statBoost; }
@@ -2489,8 +2493,8 @@
     const tiers = [
       domestic.filter((t) => t.baseOvr <= 81),
       domestic.filter((t) => t.baseOvr >= 82 && t.baseOvr <= 85),
-      domestic.filter((t) => t.baseOvr >= 86 && t.baseOvr <= 89),
-      domestic.filter((t) => t.baseOvr >= 89)
+      domestic.filter((t) => t.baseOvr >= 86 && t.baseOvr <= 88),
+      domestic.filter((t) => t.baseOvr >= 88 && t.baseOvr <= 91)
     ];
 
     const stageNames = [
@@ -2617,13 +2621,13 @@
     const worldPool = DB.teams.filter((tm) => WORLD_TEAM_IDS.has(tm.id));
     const usedWorld = new Set();
 
-    // 3 Seleções para o Grupo A do Mundial (FFI)
+    // 3 Seleções para o Grupo A do Mundial (FFI) — progressão monotônica (sem queda pós-FF!)
     const grpOpp1 = pickPoolTeam(
-      [worldPool.filter((tm) => tm.baseOvr <= 87), worldPool],
+      [worldPool.filter((tm) => tm.baseOvr >= 86 && tm.baseOvr <= 88), worldPool.filter((tm) => tm.baseOvr <= 88), worldPool],
       usedWorld
     );
     const grpOpp2 = pickPoolTeam(
-      [worldPool.filter((tm) => tm.baseOvr >= 86 && tm.baseOvr <= 89), worldPool],
+      [worldPool.filter((tm) => tm.baseOvr >= 87 && tm.baseOvr <= 89), worldPool],
       usedWorld
     );
     const grpOpp3 = pickPoolTeam(
@@ -2698,19 +2702,19 @@
     const koSpecs = [
       {
         stageName: "Oitavas do Mundial",
-        pools: [worldPool.filter((tm) => tm.baseOvr <= 88), worldPool]
+        pools: [worldPool.filter((tm) => tm.baseOvr >= 87 && tm.baseOvr <= 89), worldPool.filter((tm) => tm.baseOvr >= 86), worldPool]
       },
       {
         stageName: "Quartas do Mundial",
-        pools: [worldPool.filter((tm) => tm.baseOvr >= 87 && tm.baseOvr <= 90), worldPool]
+        pools: [worldPool.filter((tm) => tm.baseOvr >= 88 && tm.baseOvr <= 90), worldPool]
       },
       {
         stageName: "Semifinal Mundial",
-        pools: [worldPool.filter((tm) => tm.baseOvr >= 89 && tm.baseOvr <= 91), worldPool]
+        pools: [worldPool.filter((tm) => tm.baseOvr >= 90 && tm.baseOvr <= 91), worldPool.filter((tm) => tm.baseOvr >= 89), worldPool]
       },
       {
         stageName: "Final Mundial (FFI)",
-        pools: [worldPool.filter((tm) => tm.baseOvr >= 90), worldPool]
+        pools: [worldPool.filter((tm) => tm.baseOvr >= 91), worldPool.filter((tm) => tm.baseOvr >= 90), worldPool]
       }
     ];
 
@@ -3482,8 +3486,8 @@
     if (!node) return 75;
     // Penalidade de cansaço quando a energia cai na zona vermelha (< 45%)
     const fatiguePenalty = node.stamina < 45 ? Math.min(5.0, 1.4 + (45 - node.stamina) * 0.09) : 0;
-    const keshinBonus = node.player?.keshin ? 3.2 : 0;
-    const evoBonus = node.player?.moveEvoCount ? Math.min(2.2, node.player.moveEvoCount * 1.1) : 0;
+    const keshinBonus = node.player?.keshin ? 1.5 : 0;
+    const evoBonus = node.player?.moveEvoCount ? Math.min(1.4, node.player.moveEvoCount * 0.7) : 0;
 
     // Poder individual e Status Base crescentes com o Nível (FOR, TEC, DEF, VEL, FIS)
     const pLvl = node.level || getPlayerLevel(node.player);
@@ -3498,16 +3502,17 @@
     const roleOrAction = actionKind || node.role || "MF";
     let statSpecBonus = 0;
     if (roleOrAction === "SH" || roleOrAction === "FW") {
-      statSpecBonus = (attrs.for - 82) * 0.14 + (attrs.tec - 82) * 0.05;
+      statSpecBonus = (attrs.for - 82) * 0.045 + (attrs.tec - 82) * 0.02;
     } else if (roleOrAction === "OF" || roleOrAction === "MF") {
-      statSpecBonus = (attrs.tec - 82) * 0.13 + (attrs.vel - 82) * 0.07;
+      statSpecBonus = (attrs.tec - 82) * 0.045 + (attrs.vel - 82) * 0.025;
     } else if (roleOrAction === "DF") {
-      statSpecBonus = (attrs.def - 82) * 0.14 + (attrs.fis - 82) * 0.06;
+      statSpecBonus = (attrs.def - 82) * 0.045 + (attrs.fis - 82) * 0.02;
     } else if (roleOrAction === "GK") {
-      statSpecBonus = (attrs.def - 82) * 0.15 + (attrs.fis - 82) * 0.06;
+      statSpecBonus = (attrs.def - 82) * 0.05 + (attrs.fis - 82) * 0.02;
     }
 
-    const powerScore = 54 + (indivPwr - 75) * 0.21 + (node.effOvr - 80) * 0.42 + statSpecBonus;
+    const logPwrScore = Math.log(Math.max(40, indivPwr) / 100) * 16.5;
+    const powerScore = 54 + logPwrScore + (node.effOvr - 80) * 0.15 + statSpecBonus;
 
     let tacticalAndEnergyAdj = 0;
     if (node.side === "user") {
@@ -3559,11 +3564,11 @@
     );
   }
 
-  function logisticWinProb(atkScore, defScore, baseShift = 0, minP = 0.04, maxP = 0.94) {
-    // Curva logística mais íngreme (0.165) e faixa ampliada (-32..+32):
-    // Quando um time/jogador tem muito mais Poder e Status, vence com consistência esmagadora!
-    const diff = Math.max(-32, Math.min(32, atkScore - defScore)) + baseShift;
-    const p = 1 / (1 + Math.exp(-diff * 0.165));
+  function logisticWinProb(atkScore, defScore, baseShift = 0, minP = 0.06, maxP = 0.90) {
+    // Curva logística calibrada (0.12) e faixa -24..+24:
+    // Mantém vantagem clara de Poder/Combos sem travar duelos nos extremos!
+    const diff = Math.max(-24, Math.min(24, atkScore - defScore)) + baseShift;
+    const p = 1 / (1 + Math.exp(-diff * 0.12));
     return Math.max(minP, Math.min(maxP, p));
   }
 
@@ -5281,11 +5286,11 @@
   function awardPostMatchExperience(st) {
     if (!st || st.isGoldenGoal5v5 || st._postMatchXpAwarded) return;
     st._postMatchXpAwarded = true;
-    const baseXp = st.won ? 85 : st.isDraw ? 55 : 32;
-    const cleanSheetBonus = st.won && st.oppScore === 0 ? 12 : 0;
-    const marginBonus = st.won && (st.userScore - st.oppScore) >= 2 ? 10 : 0;
+    const baseXp = st.won ? 92 : st.isDraw ? 62 : 38;
+    const cleanSheetBonus = st.won && st.oppScore === 0 ? 10 : 0;
+    const marginBonus = st.won && (st.userScore - st.oppScore) >= 2 ? 8 : 0;
     const xpSpiritLvl = Math.min(3, state.tournament?.prepBonuses?.xpSpiritLvl || 0);
-    const xpMult = [1, 1.25, 1.5, 1.8][xpSpiritLvl] || 1;
+    const xpMult = [1, 1.18, 1.35, 1.55][xpSpiritLvl] || 1;
 
     const pStats = st.pitch?.stats?.playerStats || {};
     const leveledNames = [];
@@ -5298,13 +5303,13 @@
       const uid = `u_${slot.id}`;
       const ps = pStats[uid] || {};
       const perfXp =
-        (ps.goals || 0) * 16 +
-        (ps.assists || 0) * 12 +
-        Math.min(4, ps.saves || 0) * 9 +
-        Math.min(4, ps.steals || 0) * 8 +
-        Math.min(3, ps.blocks || 0) * 7 +
-        Math.min(5, ps.passesOk || 0) * 3 +
-        Math.min(4, ps.dribblesOk || 0) * 4;
+        (ps.goals || 0) * 12 +
+        (ps.assists || 0) * 10 +
+        Math.min(4, ps.saves || 0) * 7 +
+        Math.min(4, ps.steals || 0) * 6 +
+        Math.min(3, ps.blocks || 0) * 6 +
+        Math.min(5, ps.passesOk || 0) * 2.5 +
+        Math.min(4, ps.dribblesOk || 0) * 3;
       const gained = Math.round((baseXp + cleanSheetBonus + marginBonus + perfXp) * xpMult);
       minXpGained = Math.min(minXpGained, gained);
       maxXpGained = Math.max(maxXpGained, gained);
@@ -6157,11 +6162,14 @@
     if (st.isGoldenGoal5v5) {
       const uPwrAvg = pitch.userNodes.reduce((s, n) => s + (n.indivPower || 120), 0) / Math.max(1, pitch.userNodes.length);
       const oPwrAvg = pitch.oppNodes.reduce((s, n) => s + (n.indivPower || 120), 0) / Math.max(1, pitch.oppNodes.length);
-      const pwrEdge = (uPwrAvg - oPwrAvg) * 0.08;
+      const avgPwr5 = Math.max(80, (uPwrAvg + oPwrAvg) * 0.5);
+      const relPwrDiff5 = (uPwrAvg - oPwrAvg) / avgPwr5;
+      const pwrEdge = relPwrDiff5 * 8.0;
       pitch.matchSupport = {
-        userTeamSupport: 2.2 + Math.max(-5, Math.min(8, pwrEdge)),
-        oppTeamSupport: 2.0 + Math.max(-5, Math.min(8, -pwrEdge)),
+        userTeamSupport: 2.0 + Math.max(-3.0, Math.min(4.0, pwrEdge)),
+        oppTeamSupport: 2.0 + Math.max(-3.0, Math.min(4.0, -pwrEdge)),
         powerDiff: Math.round((uPwrAvg - oPwrAvg) * 5),
+        relPwrDiff: relPwrDiff5,
         ovrDiff: Math.round((uPwrAvg - oPwrAvg) / 10)
       };
       pitch.matchSupportInitialized = true;
@@ -6171,18 +6179,21 @@
     const userStats = calcSquadStats();
     const oppStats = calcOpponentStats(st.oppTeam, stageIdx);
     const powerDiff = userStats.power - oppStats.power;
-    // Vantagem de Poder do Time gera suporte equilibrado nos duelos (evita bola de neve extrema!)
-    const userPwrBonus = powerDiff > 0 ? Math.min(7.5, (powerDiff / 150) * 1.1) : 0;
-    const oppPwrBonus = powerDiff < 0 ? Math.min(7.5, (Math.abs(powerDiff) / 150) * 1.1) : 0;
+    // Vantagem proporcional (relativa ao nível da fase) gera suporte equilibrado nos duelos!
+    const avgPwr = Math.max(1000, (userStats.power + oppStats.power) * 0.5);
+    const relPwrDiff = powerDiff / avgPwr;
+    const userPwrBonus = relPwrDiff > 0 ? Math.min(3.0, relPwrDiff * 9.5) : 0;
+    const oppPwrBonus = relPwrDiff < 0 ? Math.min(3.0, Math.abs(relPwrDiff) * 9.5) : 0;
 
     pitch.matchSupport = {
       userTeamSupport:
-        (userStats.chem / 100) * 4.2 +
+        (userStats.chem / 100) * 3.4 +
         userPwrBonus,
       oppTeamSupport:
-        (oppStats.chem / 100) * 4.2 +
+        (oppStats.chem / 100) * 3.4 +
         oppPwrBonus,
       powerDiff,
+      relPwrDiff,
       ovrDiff: userStats.ovr - oppStats.ovr
     };
     pitch.matchSupportInitialized = true;
@@ -6929,16 +6940,13 @@
           ? Math.min(7.5, 1.5 + (st.minute - 7) * 0.7)
           : 1.5
         : 0;
-      // Domínio moderado na finalização: Poder maior ajuda sem anular o goleiro rival
-      const rawPwrDiff = pitch.matchSupport?.powerDiff || 0;
-      const attPowerDiff = curAttIsUser ? rawPwrDiff : -rawPwrDiff;
-      const dominanceShift =
-        attPowerDiff >= 0
-          ? Math.min(5.0, (attPowerDiff / 240) * 1.45)
-          : Math.max(-5.0, (attPowerDiff / 220) * 1.65);
+      // Domínio proporcional na finalização: vantagem ajuda sem anular o goleiro rival
+      const rawRelDiff = pitch.matchSupport?.relPwrDiff || 0;
+      const attRelDiff = curAttIsUser ? rawRelDiff : -rawRelDiff;
+      const dominanceShift = Math.max(-1.8, Math.min(1.8, attRelDiff * 6.0));
       const goalProb = st.isGoldenGoal5v5
-        ? logisticWinProb(effectiveShotScore + goldenBias + dominanceShift * 0.6, gkStopScore, -3.6, 0.10, 0.86)
-        : logisticWinProb(effectiveShotScore + dominanceShift, gkStopScore, -5.8, 0.03, 0.88);
+        ? logisticWinProb(effectiveShotScore + goldenBias + dominanceShift * 0.6, gkStopScore, -3.2, 0.12, 0.78)
+        : logisticWinProb(effectiveShotScore + dominanceShift, gkStopScore, -4.0, 0.10, 0.64);
       const isGoal = Math.random() < goalProb;
 
       const gkHit = computeGkInterceptOnRay(fromX, fromY, curGoalX, curGoalY, curAttIsUser);
@@ -8213,10 +8221,10 @@
 
       // 2) Decisão tática contínua do portador (Passe, Condução, Long Shot ou Chute)
       if (carrier.decisionTimer <= 0) {
-        const rawPwrDiff = pitch.matchSupport?.powerDiff || 0;
-        const sidePwrDiff = attIsUser ? rawPwrDiff : -rawPwrDiff;
-        // Time com Poder muito superior pensa e executa jogadas até 30% mais rápido!
-        const tempoFactor = sidePwrDiff >= 250 ? 0.72 : sidePwrDiff <= -250 ? 1.18 : 1.0;
+        const rawRelDiff = pitch.matchSupport?.relPwrDiff || 0;
+        const sideRelDiff = attIsUser ? rawRelDiff : -rawRelDiff;
+        // Time com vantagem proporcional clara pensa e executa jogadas com mais ritmo
+        const tempoFactor = sideRelDiff >= 0.14 ? 0.82 : sideRelDiff <= -0.14 ? 1.12 : 1.0;
         carrier.decisionTimer = (0.22 + Math.random() * 0.13) * tempoFactor;
 
         if (pitch.justKickedOff) {
@@ -8280,8 +8288,8 @@
         const mustShoot =
           (inPenaltyX && centralLane) ||
           goalDist <= 22 ||
-          (inFinalThird && blockingDefs === 0 && goalDist <= 30 && roll < (sidePwrDiff >= 200 ? 0.74 : 0.56)) ||
-          (effRoleOrPos(carrier) === "FW" && goalDist <= 32 && roll < (sidePwrDiff >= 200 ? 0.52 : 0.34));
+          (inFinalThird && blockingDefs === 0 && goalDist <= 30 && roll < (sideRelDiff >= 0.14 ? 0.72 : 0.56)) ||
+          (effRoleOrPos(carrier) === "FW" && goalDist <= 32 && roll < (sideRelDiff >= 0.14 ? 0.50 : 0.34));
 
         if (mustShoot) {
           // Inteligência elemental: em desvantagem contra o GK, tenta acionar um colega antes de forçar o chute
@@ -11354,15 +11362,15 @@
     if (ev.kind === "PASSIVE_DOUBLE_EVENT") return `<span class="b-tech">4 Ações</span> • <span class="b-chem">-3% Custo</span>`;
     if (ev.kind === "PASSIVE_LATE_RESIST") return `<span class="b-chem">-50% Desgaste (75'+)</span>`;
     if (ev.kind === "STREET_5V5") return `<span class="b-lvl">+120–150 XP</span> • <span class="b-chem">+15% Energia</span>`;
-    if (ev.id === "elem_crest_boost") return `<span class="b-lvl">+1 Nv</span> • <span class="b-pwr">+16 Poder</span> (Elemento)`;
+    if (ev.id === "elem_crest_boost") return `<span class="b-lvl">+1 Nv</span> • <span class="b-pwr">+12 Poder</span> (Elemento)`;
     if (ev.id === "elem_resonance_tome") return `<span class="b-lvl">+1 Nv (Todos)</span> • <span class="b-chem">+6% Quím</span>`;
-    if (ev.id === "captain_armband") return `<span class="b-lvl">+2 Níveis</span> • <span class="b-chem">+8% Quím</span>`;
-    if (ev.id === "secret_hissatsu_mastery") return `<span class="b-lvl">+2 Níveis</span> • <span class="b-tech">Técnica Suprema</span>`;
-    if (ev.kind === "KESHIN_PICK") return `<span class="b-lvl">+2 Níveis</span> • <span class="b-tech">Desperta Keshin</span>`;
-    if (ev.kind === "EVO_PICK") return `<span class="b-lvl">+${ev.levelGain || 2} Níveis</span> • <span class="b-tech">Evolui Técnica</span>`;
-    if (ev.id === "river_xp") return `<span class="b-lvl">+1 Nível (Todos)</span> • <span class="b-pwr">+25 Poder</span>`;
+    if (ev.id === "captain_armband") return `<span class="b-lvl">+1 Nível</span> • <span class="b-chem">+8% Quím</span>`;
+    if (ev.id === "secret_hissatsu_mastery") return `<span class="b-lvl">+1 Nível</span> • <span class="b-tech">Técnica Suprema</span>`;
+    if (ev.kind === "KESHIN_PICK") return `<span class="b-lvl">+1 Nível</span> • <span class="b-tech">Desperta Keshin</span>`;
+    if (ev.kind === "EVO_PICK") return `<span class="b-lvl">+${ev.levelGain || 1} Nível</span> • <span class="b-tech">Evolui Técnica</span>`;
+    if (ev.id === "river_xp") return `<span class="b-lvl">+1 Nível (Todos)</span> • <span class="b-pwr">+16 Poder</span>`;
     if (ev.id === "river_tactics") return `<span class="b-lvl">+1 Nv Meias</span> • <span class="b-chem">+8% Quím</span>`;
-    if (ev.id === "river_shot") return `<span class="b-lvl">+1 Nv Atacantes</span> • <span class="b-pwr">+28 Poder</span>`;
+    if (ev.id === "river_shot") return `<span class="b-lvl">+1 Nv Atacantes</span> • <span class="b-pwr">+18 Poder</span>`;
     if (ev.kind === "SCALABLE_BUFF") {
       const curLvl = state.tournament?.prepBonuses?.[ev.buffKey] || 0;
       const nextLvl = Math.min(ev.maxLevel || 3, curLvl + 1);
@@ -11380,7 +11388,7 @@
         return `<span class="b-pwr">+${val} Duelo Técnica</span>`;
       }
       if (ev.buffKey === "xpSpiritLvl") {
-        const pct = [0, 25, 50, 80][nextLvl] || 80;
+        const pct = [0, 18, 35, 55][nextLvl] || 55;
         return `<span class="b-lvl">+${pct}% XP Pós-Jogo</span>`;
       }
       if (ev.buffKey === "passBypassLvl") {
@@ -11448,10 +11456,10 @@
           : `Bônus em duelos de técnica sobe de <span class="b-pwr">+${prevV}</span> para <span class="b-pwr">+${nextV}</span>.`;
       }
       if (ev.buffKey === "xpSpiritLvl") {
-        const curP = [0, 25, 50, 80][curLvl] || 0;
-        const nextP = [0, 25, 50, 80][nextLvl] || 80;
+        const curP = [0, 18, 35, 55][curLvl] || 0;
+        const nextP = [0, 18, 35, 55][nextLvl] || 55;
         return curLvl === 0
-          ? `Elenco ganha <span class="b-lvl">+25% XP</span> extra após cada partida.`
+          ? `Elenco ganha <span class="b-lvl">+18% XP</span> extra após cada partida.`
           : `Bônus de XP pós-jogo sobe de <span class="b-lvl">+${curP}%</span> para <span class="b-lvl">+${nextP}%</span>.`;
       }
       if (ev.buffKey === "passBypassLvl") {
@@ -11520,12 +11528,12 @@
             kind: "ITEM_PICK",
             targetRoles: ["FW", "MF"],
             levelGain: 1,
-            indivPower: 38,
+            indivPower: 26,
             spdBoost: 3,
-            teamPower: 20,
+            teamPower: 14,
             teamChem: 0,
             weight: 2.1,
-            summary: `<span class="b-lvl">+1 Nível</span> e <span class="b-pwr">+38 Poder</span> para 1 Atacante ou Meia. Comba com Luvas Lendárias (<span class="b-pwr">+65 Poder</span>).`
+            summary: `<span class="b-lvl">+1 Nível</span> e <span class="b-pwr">+26 Poder</span> para 1 Atacante ou Meia. Comba com Luvas Lendárias (<span class="b-pwr">+65 Poder</span>).`
           },
           {
             id: "glove_legend",
@@ -11534,11 +11542,11 @@
             kind: "ITEM_PICK",
             targetRoles: ["GK"],
             levelGain: 1,
-            indivPower: 42,
-            teamPower: 22,
+            indivPower: 28,
+            teamPower: 14,
             teamChem: 0,
             weight: 1.9,
-            summary: `<span class="b-lvl">+1 Nível</span> e <span class="b-pwr">+42 Poder</span> no Goleiro. Comba com Chuteiras Lendárias (<span class="b-pwr">+65</span>) e Travas (<span class="b-pwr">+55</span>).`
+            summary: `<span class="b-lvl">+1 Nível</span> e <span class="b-pwr">+28 Poder</span> no Goleiro. Comba com Chuteiras Lendárias (<span class="b-pwr">+65</span>) e Travas (<span class="b-pwr">+55</span>).`
           },
           {
             id: "shoes_thunder",
@@ -11547,12 +11555,12 @@
             kind: "ITEM_PICK",
             targetRoles: ["FW", "MF", "DF"],
             levelGain: 1,
-            indivPower: 30,
+            indivPower: 22,
             spdBoost: 5,
-            teamPower: 18,
+            teamPower: 12,
             teamChem: 0,
             weight: 2.2,
-            summary: `<span class="b-lvl">+1 Nível</span>, <span class="b-pwr">+30 Poder</span> e <span class="b-chem">+5 VEL</span> para 1 jogador de linha. Comba com Braçadeira/Insígnia.`
+            summary: `<span class="b-lvl">+1 Nível</span>, <span class="b-pwr">+22 Poder</span> e <span class="b-chem">+5 VEL</span> para 1 jogador de linha. Comba com Braçadeira/Insígnia.`
           },
           {
             id: "spike_block",
@@ -11561,11 +11569,11 @@
             kind: "ITEM_PICK",
             targetRoles: ["DF"],
             levelGain: 1,
-            indivPower: 36,
-            teamPower: 18,
+            indivPower: 24,
+            teamPower: 12,
             teamChem: 0,
             weight: 1.9,
-            summary: `<span class="b-lvl">+1 Nível</span> e <span class="b-pwr">+36 Poder</span> para 1 Zagueiro. Comba com Luvas Lendárias (<span class="b-pwr">+55 Poder</span>).`
+            summary: `<span class="b-lvl">+1 Nível</span> e <span class="b-pwr">+24 Poder</span> para 1 Zagueiro. Comba com Luvas Lendárias (<span class="b-pwr">+55 Poder</span>).`
           },
           {
             id: "captain_armband",
@@ -11573,12 +11581,12 @@
             icon: UI.captain || UI.itemBraceletFortune,
             kind: "ITEM_PICK",
             targetRoles: ["GK", "DF", "MF", "FW"],
-            levelGain: 2,
-            indivPower: 32,
-            teamPower: 25,
+            levelGain: 1,
+            indivPower: 24,
+            teamPower: 16,
             teamChem: 8,
             weight: 1.8,
-            summary: `<span class="b-lvl">+2 Níveis</span> no líder, <span class="b-chem">+8% Química</span> e <span class="b-pwr">+57 Poder total</span>. Comba com Chuteiras do Trovão.`
+            summary: `<span class="b-lvl">+1 Nível</span> no líder, <span class="b-chem">+8% Química</span> e <span class="b-pwr">+40 Poder total</span>. Comba com Chuteiras do Trovão.`
           },
           {
             id: "elem_crest_boost",
@@ -11586,11 +11594,11 @@
             icon: UI.elemFire || UI.itemPendantLightning,
             kind: "ELEM_BOOST_PICK",
             levelGain: 1,
-            indivPower: 16,
-            teamPower: 15,
+            indivPower: 12,
+            teamPower: 12,
             teamChem: 5,
             weight: 2.0,
-            summary: `Todos os titulares do <span class="b-tech">mesmo elemento</span> ganham <span class="b-lvl">+1 Nível</span> e <span class="b-pwr">+16 Poder</span> cada.`
+            summary: `Todos os titulares do <span class="b-tech">mesmo elemento</span> ganham <span class="b-lvl">+1 Nível</span> e <span class="b-pwr">+12 Poder</span> cada.`
           },
           {
             id: "misanga_friend",
@@ -11599,11 +11607,11 @@
             kind: "ITEM_PICK",
             targetRoles: ["GK", "DF", "MF", "FW"],
             levelGain: 1,
-            indivPower: 28,
-            teamPower: 20,
+            indivPower: 20,
+            teamPower: 14,
             teamChem: 8,
             weight: 1.7,
-            summary: `<span class="b-lvl">+1 Nível</span> e <span class="b-pwr">+28 Poder</span> em 1 titular e <span class="b-chem">+8% Química</span>. Conta para Arsenal.`
+            summary: `<span class="b-lvl">+1 Nível</span> e <span class="b-pwr">+20 Poder</span> em 1 titular e <span class="b-chem">+8% Química</span>. Conta para Arsenal.`
           },
           {
             id: "energy_drink",
@@ -11646,7 +11654,7 @@
             maxLevel: 3,
             teamPower: 12,
             weight: 1.8,
-            summary: `Aumenta o XP ganho pelo elenco após cada partida em <span class="b-lvl">+25% / +50% / +80%</span>.`
+            summary: `Aumenta o XP ganho pelo elenco após cada partida em <span class="b-lvl">+18% / +35% / +55%</span>.`
           }
         ]
       },
@@ -11681,11 +11689,11 @@
             kind: "COLLECTIVE",
             applyRoles: ["GK", "DF", "MF", "FW"],
             levelGain: 1,
-            teamPower: 25,
+            teamPower: 16,
             teamChem: 4,
             xpGain: 90,
             weight: 2.1,
-            summary: `Todos os 11 titulares sobem <span class="b-lvl">+1 Nível</span>, ganham <span class="b-chem">+4% Química</span> e <span class="b-pwr">+25 Poder</span>.`
+            summary: `Todos os 11 titulares sobem <span class="b-lvl">+1 Nível</span>, ganham <span class="b-chem">+4% Química</span> e <span class="b-pwr">+16 Poder</span>.`
           },
           {
             id: "river_tactics",
@@ -11694,12 +11702,12 @@
             kind: "COLLECTIVE",
             applyRoles: ["MF"],
             levelGain: 1,
-            indivPower: 16,
-            teamPower: 30,
+            indivPower: 12,
+            teamPower: 18,
             teamChem: 8,
             xpGain: 80,
             weight: 1.9,
-            summary: `Todos os Meias sobem <span class="b-lvl">+1 Nível</span> e <span class="b-pwr">+16 Poder</span> • <span class="b-chem">+8% Química</span> • <span class="b-pwr">+30 Poder</span>.`
+            summary: `Todos os Meias sobem <span class="b-lvl">+1 Nível</span> e <span class="b-pwr">+12 Poder</span> • <span class="b-chem">+8% Química</span> • <span class="b-pwr">+18 Poder</span>.`
           },
           {
             id: "river_shot",
@@ -11708,12 +11716,12 @@
             kind: "COLLECTIVE",
             applyRoles: ["FW"],
             levelGain: 1,
-            indivPower: 18,
-            teamPower: 28,
+            indivPower: 14,
+            teamPower: 18,
             teamChem: 0,
             xpGain: 80,
             weight: 1.8,
-            summary: `Todos os Atacantes sobem <span class="b-lvl">+1 Nível</span> e <span class="b-pwr">+18 Poder</span> • <span class="b-pwr">+28 Poder Coletivo</span>.`
+            summary: `Todos os Atacantes sobem <span class="b-lvl">+1 Nível</span> e <span class="b-pwr">+14 Poder</span> • <span class="b-pwr">+18 Poder Coletivo</span>.`
           },
           {
             id: "wing_explosion_upgrade",
@@ -11722,7 +11730,7 @@
             kind: "SCALABLE_BUFF",
             buffKey: "wingExplosionLvl",
             maxLevel: 3,
-            teamPower: 14,
+            teamPower: 12,
             weight: 1.8,
             summary: `<span class="b-chem">+3 VEL e +3 FOR</span> acumulados por nível nos Atacantes e Meias.`
           },
@@ -11756,7 +11764,7 @@
             kind: "SCALABLE_BUFF",
             buffKey: "dribbleEdgeLvl",
             maxLevel: 3,
-            teamPower: 14,
+            teamPower: 12,
             weight: 1.8,
             summary: `Força extra nos dribles (<span class="b-pwr">+1.2 / +2.4 / +3.6</span>) e bônus no corredor tático.`
           }
@@ -11783,36 +11791,36 @@
             title: "Manual Secreto de Inazuma",
             icon: UI.manualInazuma || UI.manualSkill,
             kind: "EVO_PICK",
-            levelGain: 2,
-            indivPower: 45,
-            teamPower: 25,
+            levelGain: 1,
+            indivPower: 22,
+            teamPower: 15,
             xpGain: 95,
             weight: 2.5,
-            summary: `1 titular aprende uma <span class="b-tech">técnica suprema</span>, sobe <span class="b-lvl">+2 Níveis</span> e ganha <span class="b-pwr">+45 Poder</span>.`
+            summary: `1 titular aprende uma <span class="b-tech">técnica suprema</span>, sobe <span class="b-lvl">+1 Nível</span> e ganha <span class="b-pwr">+22 Poder</span>.`
           },
           {
             id: "keshin_awaken",
             title: "Despertar Incorporação",
             icon: UI.keshinPegasus || UI.keshinIcon,
             kind: "KESHIN_PICK",
-            levelGain: 2,
-            indivPower: 42,
-            teamPower: 25,
+            levelGain: 1,
+            indivPower: 18,
+            teamPower: 15,
             xpGain: 95,
             weight: 2.4,
-            summary: `1 titular desperta um <span class="b-tech">Espírito Guerreiro</span> (<span class="b-pwr">+3.2 nos duelos</span>), sobe <span class="b-lvl">+2 Níveis</span> e ganha <span class="b-pwr">+42 Poder</span>.`
+            summary: `1 titular desperta um <span class="b-tech">Espírito Guerreiro</span> (<span class="b-pwr">+1.5 nos duelos</span>), sobe <span class="b-lvl">+1 Nível</span> e ganha <span class="b-pwr">+18 Poder</span>.`
           },
           {
             id: "evo_move",
             title: "Evoluir Técnica (G2/Shin)",
             icon: UI.manualSkill || UI.manualKeshin,
             kind: "EVO_PICK",
-            levelGain: 2,
-            indivPower: 34,
-            teamPower: 22,
+            levelGain: 1,
+            indivPower: 16,
+            teamPower: 14,
             xpGain: 85,
             weight: 2.2,
-            summary: `Evolua a técnica principal de 1 titular e suba <span class="b-lvl">+2 Níveis</span> e <span class="b-pwr">+34 Poder</span>.`
+            summary: `Evolua a técnica principal de 1 titular e suba <span class="b-lvl">+1 Nível</span> e <span class="b-pwr">+16 Poder</span>.`
           },
           {
             id: "endurance_upgrade",
@@ -11821,7 +11829,7 @@
             kind: "SCALABLE_BUFF",
             buffKey: "enduranceLvl",
             maxLevel: 3,
-            teamPower: 14,
+            teamPower: 10,
             weight: 2.0,
             summary: `Reduz em <span class="b-chem">-8% / -15% / -22%</span> o gasto das técnicas e o desgaste do time em campo.`
           },
@@ -11832,7 +11840,7 @@
             kind: "COLLECTIVE",
             applyRoles: ["GK", "DF", "MF", "FW"],
             levelGain: 1,
-            teamPower: 25,
+            teamPower: 16,
             teamChem: 6,
             xpGain: 85,
             elemResonance: true,
@@ -11846,7 +11854,7 @@
             kind: "SCALABLE_BUFF",
             buffKey: "defBlockLvl",
             maxLevel: 3,
-            teamPower: 14,
+            teamPower: 12,
             weight: 1.9,
             summary: `<span class="b-pwr">+3 DEF e +3 FIS</span> acumulados por nível no Goleiro e Zagueiros.`
           },
@@ -11857,7 +11865,7 @@
             kind: "SCALABLE_BUFF",
             buffKey: "hissatsuMasteryLvl",
             maxLevel: 3,
-            teamPower: 15,
+            teamPower: 12,
             weight: 1.9,
             summary: `Força extra nos duelos ao usar técnicas (<span class="b-pwr">+0.8 / +1.6 / +2.5</span>).`
           },
@@ -11868,7 +11876,7 @@
             kind: "SCALABLE_BUFF",
             buffKey: "counterShotLvl",
             maxLevel: 3,
-            teamPower: 14,
+            teamPower: 12,
             weight: 1.8,
             summary: `Aumenta em <span class="b-tech">+12% / +24% / +35%</span> a chance de Contra-Chute e sua força.`
           }
@@ -12148,6 +12156,10 @@
     return learned;
   }
 
+  function getXpForNextLevel(lvl) {
+    return Math.round(100 + (Math.max(1, Math.round(lvl || 1)) - 1) * 11);
+  }
+
   function gainPlayerXp(player, amount, slotRole = null) {
     if (!player || !amount) return { xpGained: 0, levelsGained: 0, currentXp: 0, learnedMoves: [] };
     if (getPlayerLevel(player) >= 30) {
@@ -12156,8 +12168,10 @@
     }
     player.xp = (player.xp || 0) + amount;
     let levelsGained = 0;
-    while (player.xp >= 100 && getPlayerLevel(player) < 30) {
-      player.xp -= 100;
+    while (getPlayerLevel(player) < 30) {
+      const need = getXpForNextLevel(getPlayerLevel(player));
+      if (player.xp < need) break;
+      player.xp -= need;
       player.level = getPlayerLevel(player) + 1;
       levelsGained++;
     }
@@ -12595,7 +12609,7 @@
         const val = [0, 0.8, 1.6, 2.5][nextL] || 2.5;
         effectTxt = `<span class="b-pwr">+${val} de força extra</span> nos duelos ao usar técnicas`;
       } else if (key === "xpSpiritLvl") {
-        const pct = [0, 25, 50, 80][nextL] || 80;
+        const pct = [0, 18, 35, 55][nextL] || 55;
         effectTxt = `<span class="b-lvl">+${pct}% XP</span> ganho após cada partida oficial`;
       } else if (key === "passBypassLvl") {
         const pct = [0, 15, 28, 40][nextL] || 40;
@@ -12730,7 +12744,7 @@
     let msg = "";
     const affectedPlayers = [];
     const lvlGain = event.levelGain || event.ovrBoost || 1;
-    const indivPwrGain = event.indivPower || 28;
+    const indivPwrGain = event.indivPower || 20;
     const prevLvl = getPlayerLevel(player);
     const beforePwr = calcIndividualPlayerPower(player, slot.role, prevLvl);
 
@@ -13539,11 +13553,11 @@
                     const p = state.squad[slot.id];
                     const curOvr = getEffectiveOvr(p, slot.role);
                     const curLvl = getPlayerLevel(p);
-                    const lvlGain = ev.levelGain || ev.ovrBoost || 2;
+                    const lvlGain = ev.levelGain || ev.ovrBoost || 1;
                     const nextLvl = curLvl + lvlGain;
                     const curPwr = calcIndividualPlayerPower(p, slot.role, curLvl);
                     const pwrPerLvl = calcPowerPerLevel(curOvr);
-                    const extraItemPwr = (ev.indivPower || 35) + (ev.kind === "KESHIN_PICK" ? 38 : ev.id === "secret_hissatsu_mastery" ? 50 : ev.kind === "EVO_PICK" ? 22 : 0);
+                    const extraItemPwr = (ev.indivPower || 20) + (ev.kind === "KESHIN_PICK" ? 32 : ev.id === "secret_hissatsu_mastery" ? 38 : ev.kind === "EVO_PICK" ? 16 : 0);
                     const nextPwr = curPwr + lvlGain * pwrPerLvl + extraItemPwr;
                     const extraInfo =
                       ev.kind === "ELEM_BOOST_PICK"
