@@ -3053,7 +3053,6 @@
       n.vy = 0;
       n.duelCooldown = 0.6;
       n.staggerTimer = 0;
-      n.shockBlinkTimer = 0;
       n.receiveDashUntil = 0;
       n.carryTime = 0;
       n.decisionTimer = 0.25;
@@ -3628,7 +3627,6 @@
         targetSprint: 0.9,
         duelCooldown: 0,
         staggerTimer: 0,
-        shockBlinkTimer: 0,
         receiveDashUntil: 0,
         carryTime: 0,
         decisionTimer: 0.25 + (idx % 3) * 0.08,
@@ -3676,7 +3674,6 @@
         targetSprint: 0.9,
         duelCooldown: 0,
         staggerTimer: 0,
-        shockBlinkTimer: 0,
         receiveDashUntil: 0,
         carryTime: 0,
         decisionTimer: 0.25 + (idx % 3) * 0.08,
@@ -4518,12 +4515,8 @@
           simClock < node.receiveDashUntil &&
           pitch.carrierUid !== node.uid
         );
-        const isRecovering = Boolean(
-          !st?.finished && ((node.staggerTimer || 0) > 0 || (node.shockBlinkTimer || 0) > 0)
-        );
         el.classList.toggle("is-dashing", isDribbleDash);
         el.classList.toggle("is-receiving-dash", isReceiveDash);
-        el.classList.toggle("is-recovering", isRecovering);
         if (node.player?.formSprites) {
           const nextSprite = resolveDynamicNodeSprite(node, pitch);
           if (nextSprite && node._renderedSprite !== nextSprite) {
@@ -5180,10 +5173,6 @@
         el.classList.toggle("has-ball", node.uid === pitch.carrierUid);
         el.classList.toggle("is-challenger", node.uid === pitch.challengerUid);
         el.classList.toggle("is-tired", node.stamina < 45);
-        el.classList.toggle(
-          "is-recovering",
-          Boolean(!st?.finished && ((node.staggerTimer || 0) > 0 || (node.shockBlinkTimer || 0) > 0))
-        );
 
         const stamBar = el.querySelector(".pitch-token-stamina-fill");
         if (stamBar) {
@@ -6360,7 +6349,6 @@
       n.vx = Math.cos(angle) * 7.5;
       n.vy = Math.sin(angle) * 7.5;
       n.duelCooldown = Math.max(n.duelCooldown || 0, 0.75);
-      n.shockBlinkTimer = Math.max(n.shockBlinkTimer || 0, 0.75);
       pitch.pushTweens.push({
         node: n,
         fromX: n.x,
@@ -6427,8 +6415,6 @@
     spendStamina(marker, dfPick.cost);
     carrier.duelCooldown = 1.45;
     marker.duelCooldown = 1.45;
-    carrier.shockBlinkTimer = 1.45;
-    marker.shockBlinkTimer = 1.45;
 
     if (attIsUser) {
       pitch.stats.userDribblesTry++;
@@ -7779,7 +7765,6 @@
         counterNode.y = Math.max(9, Math.min(91, duelY));
         if (counterSuccess) {
           counterNode.duelCooldown = 1.2;
-          counterNode.shockBlinkTimer = 1.2;
           pitch.ballSide = origAttIsUser ? "opp" : "user";
           if (!origAttIsUser) {
             pitch.stats.userShots++;
@@ -7800,7 +7785,6 @@
         } else {
           counterNode.staggerTimer = 0.95;
           counterNode.duelCooldown = 1.35;
-          counterNode.shockBlinkTimer = 1.35;
           pushNodeOffShotRay(pitch, counterNode, origGoalX - shotOriginX, origGoalY - shotOriginY, 3.0, 260);
           showPitchBadge(pitch, duelX, duelY, "Contra-chute falhou!", "badge-shot", 850, "SH");
           prependNarrationLine(
@@ -7990,7 +7974,6 @@
         blockerNode.carryTime = 0;
         blockerNode.decisionTimer = 0.35;
         blockerNode.duelCooldown = 1.25;
-        blockerNode.shockBlinkTimer = 1.25;
         pitch.ballFlight = null;
         pitch.ballX = blockerNode.x + (blockerNode.side === "user" ? 1.9 : -1.9);
         pitch.ballY = blockerNode.y + 1.0;
@@ -8016,7 +7999,6 @@
       } else {
         blockerNode.staggerTimer = 0.95;
         blockerNode.duelCooldown = 1.35;
-        blockerNode.shockBlinkTimer = 1.35;
         pushNodeOffShotRay(pitch, blockerNode, origGoalX - shotOriginX, origGoalY - shotOriginY, 3.0, 260);
         showPitchBadge(pitch, duelX, duelY, "Desviou (-Força)", "badge-shot", 850, "DF");
         pitch.ticker = `${st.minute}' ${shooterNode.player.name} furou o bloqueio de ${blockerNode.player.name} — bola vai para o gol!`;
@@ -8124,7 +8106,6 @@
     allNodes.forEach((n) => {
       if (n.duelCooldown > 0) n.duelCooldown = Math.max(0, n.duelCooldown - dt);
       if (n.staggerTimer > 0) n.staggerTimer = Math.max(0, n.staggerTimer - dt);
-      if (n.shockBlinkTimer > 0) n.shockBlinkTimer = Math.max(0, n.shockBlinkTimer - dt);
     });
 
     // Avança minutos do relógio e recupera energia fora da posse
@@ -8301,10 +8282,8 @@
             if (Math.random() < burstChance) {
               spendStamina(carrier, 2.5);
               carrier.duelCooldown = 0.95;
-              carrier.shockBlinkTimer = 0.95;
               closestDef.duelCooldown = 1.35;
               closestDef.staggerTimer = 0.55;
-              closestDef.shockBlinkTimer = 1.35;
               const dir = attIsUser ? 1 : -1;
               const startX = carrier.x;
               const startY = carrier.y;
@@ -8371,10 +8350,8 @@
             if (Math.random() < recoveryChance) {
               spendStamina(closestDef, 2.5);
               closestDef.duelCooldown = 0.95;
-              closestDef.shockBlinkTimer = 0.95;
               carrier.duelCooldown = 1.35;
               carrier.staggerTimer = 0.55;
-              carrier.shockBlinkTimer = 1.35;
               pitch.ballSide = closestDef.side;
               pitch.ballMode = "CARRIED";
               pitch.carrierUid = closestDef.uid;
@@ -8618,7 +8595,6 @@
         n.vy = 0;
         n.duelCooldown = 0.9;
         n.staggerTimer = 0;
-        n.shockBlinkTimer = 0;
         n.receiveDashUntil = 0;
         let toX = n.x;
         let toY = n.y;
@@ -8766,7 +8742,6 @@
         );
         if (interceptor) {
           interceptor.duelCooldown = 1.25;
-          interceptor.shockBlinkTimer = Math.max(interceptor.shockBlinkTimer || 0, 1.25);
           const passScore = calcNodeDuelScore(ps.passerNode, attSupport, interceptor?.player?.element, "OF");
           const defScore = calcNodeDuelScore(interceptor, defSupport, ps.passerNode?.player?.element, "DF");
 
@@ -12539,7 +12514,6 @@
         targetSprint: 0.95,
         duelCooldown: 0,
         staggerTimer: 0,
-        shockBlinkTimer: 0,
         receiveDashUntil: 0,
         carryTime: 0,
         decisionTimer: 0.2 + (idx % 3) * 0.08,

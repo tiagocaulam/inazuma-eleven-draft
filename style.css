@@ -3068,25 +3068,6 @@ body {
   box-shadow: 0 0 14px rgba(56, 189, 248, 0.92), 0 0 24px rgba(14, 165, 233, 0.55) !important;
 }
 
-@keyframes tokenRecoverBlink {
-  0%, 100% {
-    opacity: 1;
-    filter: brightness(1.06);
-  }
-  50% {
-    opacity: 0.32;
-    filter: saturate(0.45) brightness(0.82);
-  }
-}
-
-.pitch-player-token.is-recovering .pitch-token-avatar {
-  animation: tokenRecoverBlink 0.28s steps(2, end) infinite;
-}
-
-.pitch-player-token.is-recovering.has-ball .pitch-token-avatar {
-  animation: tokenRecoverBlink 0.34s ease-in-out infinite;
-}
-
 .pitch-shockwave {
   position: absolute;
   transform: translate(-50%, -50%);
