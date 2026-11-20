@@ -3053,6 +3053,7 @@
       n.vy = 0;
       n.duelCooldown = 0.6;
       n.staggerTimer = 0;
+      n.shockBlinkTimer = 0;
       n.receiveDashUntil = 0;
       n.carryTime = 0;
       n.decisionTimer = 0.25;
@@ -3627,6 +3628,7 @@
         targetSprint: 0.9,
         duelCooldown: 0,
         staggerTimer: 0,
+        shockBlinkTimer: 0,
         receiveDashUntil: 0,
         carryTime: 0,
         decisionTimer: 0.25 + (idx % 3) * 0.08,
@@ -3674,6 +3676,7 @@
         targetSprint: 0.9,
         duelCooldown: 0,
         staggerTimer: 0,
+        shockBlinkTimer: 0,
         receiveDashUntil: 0,
         carryTime: 0,
         decisionTimer: 0.25 + (idx % 3) * 0.08,
@@ -4515,8 +4518,12 @@
           simClock < node.receiveDashUntil &&
           pitch.carrierUid !== node.uid
         );
+        const isRecovering = Boolean(
+          !st?.finished && ((node.staggerTimer || 0) > 0 || (node.shockBlinkTimer || 0) > 0)
+        );
         el.classList.toggle("is-dashing", isDribbleDash);
         el.classList.toggle("is-receiving-dash", isReceiveDash);
+        el.classList.toggle("is-recovering", isRecovering);
         if (node.player?.formSprites) {
           const nextSprite = resolveDynamicNodeSprite(node, pitch);
           if (nextSprite && node._renderedSprite !== nextSprite) {
@@ -4910,7 +4917,7 @@
       const forwardGain = attIsUser ? n.targetX - carrier.x : carrier.x - n.targetX;
       const dist = Math.hypot(n.targetX - carrier.x, n.targetY - carrier.y);
       const forwardFactor =
-        forwardGain >= 5 ? 2.5 : forwardGain >= 0 ? 1.55 : forwardGain >= -6 ? 0.52 : 0.14;
+        forwardGain >= 5 ? 2.05 : forwardGain >= 0 ? 1.60 : forwardGain >= -6 ? 0.78 : 0.18;
       const distFactor = dist >= 9 && dist <= 40 ? 1.45 : dist < 6 ? 0.35 : 0.8;
 
       const laneMidX = (carrier.x + n.targetX) * 0.5;
@@ -4930,7 +4937,7 @@
         (laneDefDist >= 8 ? 1.35 : laneDefDist < 4.0 ? 0.45 : 0.95);
       const staminaW = n.stamina >= 45 ? 1.15 : 0.55;
       const antiPingPongW = pitch && pitch.lastPasserUid === n.uid ? 0.40 : 1.0;
-      const wingSwitchW = Math.abs(n.targetY - carrier.y) >= 18 && forwardGain >= 0 && minDefDist >= 8 ? 1.45 : 1.0;
+      const wingSwitchW = Math.abs(n.targetY - carrier.y) >= 16 && forwardGain >= -3 && minDefDist >= 7.5 ? 1.65 : 1.0;
       const skillW = Math.pow(Math.max(55, n.effOvr) / 80, 0.85);
       let tacticLaneW = 1.0;
       if (attIsUser && !pitch?.is5v5) {
@@ -5173,6 +5180,10 @@
         el.classList.toggle("has-ball", node.uid === pitch.carrierUid);
         el.classList.toggle("is-challenger", node.uid === pitch.challengerUid);
         el.classList.toggle("is-tired", node.stamina < 45);
+        el.classList.toggle(
+          "is-recovering",
+          Boolean(!st?.finished && ((node.staggerTimer || 0) > 0 || (node.shockBlinkTimer || 0) > 0))
+        );
 
         const stamBar = el.querySelector(".pitch-token-stamina-fill");
         if (stamBar) {
@@ -6348,6 +6359,8 @@
 
       n.vx = Math.cos(angle) * 7.5;
       n.vy = Math.sin(angle) * 7.5;
+      n.duelCooldown = Math.max(n.duelCooldown || 0, 0.75);
+      n.shockBlinkTimer = Math.max(n.shockBlinkTimer || 0, 0.75);
       pitch.pushTweens.push({
         node: n,
         fromX: n.x,
@@ -6412,8 +6425,10 @@
 
     spendStamina(carrier, ofPick.cost);
     spendStamina(marker, dfPick.cost);
-    carrier.duelCooldown = 2.4;
-    marker.duelCooldown = 2.4;
+    carrier.duelCooldown = 1.45;
+    marker.duelCooldown = 1.45;
+    carrier.shockBlinkTimer = 1.45;
+    marker.shockBlinkTimer = 1.45;
 
     if (attIsUser) {
       pitch.stats.userDribblesTry++;
@@ -6478,7 +6493,7 @@
       carrier.vy = dodgeSign * 6.5;
       carrier.carryTime = 0.35;
       carrier.decisionTimer = 0.32;
-      marker.staggerTimer = 1.65;
+      marker.staggerTimer = 1.15;
       marker.vx *= 0.15;
       marker.vy *= 0.15;
 
@@ -6513,7 +6528,7 @@
       marker.carryTime = 0;
       marker.decisionTimer = 0.25;
       marker.vx = -dir * marker.maxSpeed * 0.85;
-      carrier.staggerTimer = 1.45;
+      carrier.staggerTimer = 1.05;
       carrier.vx *= 0.15;
       carrier.vy *= 0.15;
       const stealFootX = marker.x + (marker.side === "user" ? 1.9 : -1.9);
@@ -6589,7 +6604,7 @@
       passOptions.forceSpacePass ||
       isOneTwoPass ||
       passOptions.isReturnOneTwo ||
-      (!isGkOutlet && !safeRestart && isReceiverOnside && (effRole === "MF" || effRole === "FW") && (forwardSpace >= 5 || fwdDistToCarrier >= 4) && Math.random() < 0.65)
+      (!isGkOutlet && !safeRestart && isReceiverOnside && (effRole === "MF" || effRole === "FW") && (forwardSpace >= 5 || fwdDistToCarrier >= 4) && Math.random() < 0.42)
     );
 
     const isThroughBall = Boolean(wantsSpacePass && !wasOffsideAtPassTime);
@@ -6600,7 +6615,7 @@
     if (isThroughBall) {
       // Projeta a bola à frente no espaço vazio para o recebedor avançar com dash e buscar!
       const passerSkill = Math.max(50, Math.min(99, carrier.effOvr || 75));
-      const spaceLeadDist = 8.0 + (passerSkill / 100) * 6.0; // 8.0 a 14.0 unidades de avanço
+      const spaceLeadDist = 6.5 + (passerSkill / 100) * 5.0; // 6.5 a 11.5 unidades de avanço
 
       let projX = receiver.x + fwdDir * spaceLeadDist;
       if (attIsUser) {
@@ -6970,6 +6985,58 @@
   function visualPitchDist(ax, ay, bx, by) {
     // Compensa proporção do campo expandido (largura vs altura visual) para colisões fiéis ao tamanho dos ícones
     return Math.hypot(ax - bx, (ay - by) * 0.52);
+  }
+
+  function selectShotBlockerEntry(pathEnemies) {
+    if (!Array.isArray(pathEnemies) || pathEnemies.length === 0) return null;
+    const laneBlockers = pathEnemies.filter((b) => {
+      const role = b.node?.role;
+      if (role === "DF") return b.distShooter <= 34 && b.distLine <= 8.5;
+      if (role === "MF") return b.distShooter <= 30 && b.distLine <= 6.8;
+      if (role === "FW") return b.distShooter <= 24 && b.distLine <= 4.5;
+      return false;
+    });
+    if (laneBlockers.length === 0) return null;
+
+    const scored = laneBlockers.map((entry) => {
+      const blockPick = pickStaminaGatedMove(entry.node, "DF");
+      return {
+        entry,
+        blockPick,
+        hasDfTech: Boolean(blockPick.move),
+        priorityScore:
+          (entry.node.role === "DF" ? 0 : entry.node.role === "MF" ? 1.5 : 3.0) +
+          entry.distLine +
+          entry.proj.t * 4.0
+      };
+    });
+    scored.sort((a, b) => a.priorityScore - b.priorityScore);
+
+    const techBlockers = scored.filter((c) => c.hasDfTech);
+    const bodyBlockers = scored.filter((c) => !c.hasDfTech);
+    let primary = null;
+    let triggerProb = 0;
+
+    if (techBlockers.length > 0) {
+      primary = techBlockers[0];
+      const base = primary.entry.distLine <= 4.5 ? 0.74 : 0.56;
+      const extra = techBlockers.length >= 2 ? 0.18 : laneBlockers.length >= 2 ? 0.10 : 0;
+      triggerProb = Math.min(0.94, base + extra);
+    } else if (bodyBlockers.length > 0) {
+      primary = bodyBlockers[0];
+      triggerProb =
+        laneBlockers.length >= 2
+          ? (primary.entry.distLine <= 3.5 ? 0.34 : 0.22)
+          : (primary.entry.distLine <= 3.5 ? 0.20 : 0.11);
+    }
+
+    if (!primary || Math.random() >= triggerProb) return null;
+    return {
+      entry: primary.entry,
+      blockPick: primary.blockPick,
+      laneCount: laneBlockers.length,
+      hasDfTech: primary.hasDfTech
+    };
   }
 
   function launchContinuousShot(st, pitch, shooterNode, defNodes, attSupport, defSupport, ovrDiff, attNodesArg = null, opts = {}) {
@@ -7659,11 +7726,11 @@
       })
       .filter(
         (b) =>
-          b.distLine <= 8.0 &&
-          b.proj.t >= 0.08 &&
-          b.proj.t <= 0.85 &&
-          b.distShooter >= 3.5 &&
-          (origAttIsUser ? b.proj.x <= 87.5 : b.proj.x >= 12.5)
+          b.distLine <= 8.5 &&
+          b.proj.t >= 0.04 &&
+          b.proj.t <= 0.88 &&
+          b.distShooter >= 1.8 &&
+          (origAttIsUser ? b.proj.x <= 88.0 : b.proj.x >= 12.0)
       )
       .sort((a, b) => a.proj.t - b.proj.t);
 
@@ -7711,7 +7778,8 @@
         counterNode.x = Math.max(8, Math.min(92, duelX));
         counterNode.y = Math.max(9, Math.min(91, duelY));
         if (counterSuccess) {
-          counterNode.duelCooldown = 1.6;
+          counterNode.duelCooldown = 1.2;
+          counterNode.shockBlinkTimer = 1.2;
           pitch.ballSide = origAttIsUser ? "opp" : "user";
           if (!origAttIsUser) {
             pitch.stats.userShots++;
@@ -7730,8 +7798,9 @@
             "SH"
           );
         } else {
-          counterNode.staggerTimer = 1.25;
-          counterNode.duelCooldown = 1.8;
+          counterNode.staggerTimer = 0.95;
+          counterNode.duelCooldown = 1.35;
+          counterNode.shockBlinkTimer = 1.35;
           pushNodeOffShotRay(pitch, counterNode, origGoalX - shotOriginX, origGoalY - shotOriginY, 3.0, 260);
           showPitchBadge(pitch, duelX, duelY, "Contra-chute falhou!", "badge-shot", 850, "SH");
           prependNarrationLine(
@@ -7845,11 +7914,10 @@
       return;
     }
 
-    // 2) BLOQUEIO NORMAL DE ZAGA
-    const laneBlockers = pathEnemies.filter((b) => b.node.role === "DF" && b.distShooter <= 26);
-    const blockerEntry = laneBlockers.length > 0 && Math.random() < 0.34 ? laneBlockers[0] : null;
+    // 2) BLOQUEIO DE CHUTE (prioriza jogadores com técnica de DF na linha do chute)
+    const blockerChoice = selectShotBlockerEntry(pathEnemies);
 
-    if (!blockerEntry) {
+    if (!blockerChoice) {
       maybeChainAndResolveGk(
         shooterNode,
         shotInfo.label,
@@ -7872,15 +7940,21 @@
       return;
     }
 
-    // Etapa 1: Defensor na linha entra no caminho e tenta bloquear o chute!
+    // Etapa 1: Jogador na linha do chute entra na frente e tenta bloquear!
+    const blockerEntry = blockerChoice.entry;
     const blockerNode = blockerEntry.node;
-    const blockPick = pickStaminaGatedMove(blockerNode, "DF");
+    const blockPick = blockerChoice.blockPick;
     const blockMoveName =
       blockPick.move || (blockPick.exhausted ? "Bloqueio sem técnica (sem energia)" : "Bloqueio de Corpo");
+    const blockRoleLabel = blockerNode.role === "DF" ? "ZAGA • BLOQUEIO" : "BLOQUEIO";
+    const blockNarTag = blockerNode.role === "DF" ? "[Bloqueio da Zaga]" : "[Bloqueio]";
     spendStamina(blockerNode, blockPick.cost);
 
+    const wallSupportBonus = blockerChoice.laneCount >= 2 && blockerChoice.hasDfTech ? 1.2 : 0;
     const blockerStopScore =
-      calcNodeDuelScore(blockerNode, defSupport, shooterNode?.player?.element, "DF") + blockPick.duelBonus;
+      calcNodeDuelScore(blockerNode, defSupport, shooterNode?.player?.element, "DF") +
+      blockPick.duelBonus +
+      wallSupportBonus;
     const passBlockerProb = logisticWinProb(baseShotScore, blockerStopScore, -1.6, 0.38, 0.80);
     const passedBlocker = Math.random() < passBlockerProb;
 
@@ -7915,7 +7989,8 @@
         pitch.holdBallPos = null;
         blockerNode.carryTime = 0;
         blockerNode.decisionTimer = 0.35;
-        blockerNode.duelCooldown = 1.8;
+        blockerNode.duelCooldown = 1.25;
+        blockerNode.shockBlinkTimer = 1.25;
         pitch.ballFlight = null;
         pitch.ballX = blockerNode.x + (blockerNode.side === "user" ? 1.9 : -1.9);
         pitch.ballY = blockerNode.y + 1.0;
@@ -7933,14 +8008,15 @@
         prependNarrationLine(
           st,
           "nar-steal",
-          `${st.minute}' [Bloqueio da Zaga] ${blockerNode.player.name} entrou na frente com 【${blockMoveName}】 e bloqueou 【${shotInfo.label}】 de ${shooterNode.player.name}!`,
+          `${st.minute}' ${blockNarTag} ${blockerNode.player.name} entrou na frente com 【${blockMoveName}】 e bloqueou 【${shotInfo.label}】 de ${shooterNode.player.name}!`,
           { name: blockerNode.player.name, sprite: blockerNode.player.sprite, side: blockerNode.side },
           { name: shooterNode.player.name, sprite: shooterNode.player.sprite, side: shooterNode.side },
           "DF"
         );
       } else {
-        blockerNode.staggerTimer = 1.25;
-        blockerNode.duelCooldown = 1.8;
+        blockerNode.staggerTimer = 0.95;
+        blockerNode.duelCooldown = 1.35;
+        blockerNode.shockBlinkTimer = 1.35;
         pushNodeOffShotRay(pitch, blockerNode, origGoalX - shotOriginX, origGoalY - shotOriginY, 3.0, 260);
         showPitchBadge(pitch, duelX, duelY, "Desviou (-Força)", "badge-shot", 850, "DF");
         pitch.ticker = `${st.minute}' ${shooterNode.player.name} furou o bloqueio de ${blockerNode.player.name} — bola vai para o gol!`;
@@ -8006,15 +8082,15 @@
           dir: origAttIsUser ? "ltr" : "rtl",
           userPlayer: origAttIsUser
             ? { name: shooterNode.player.name, sprite: resolveDynamicNodeSprite(shooterNode, pitch), roleText: "CHUTE" }
-            : { name: blockerNode.player.name, sprite: resolveDynamicNodeSprite(blockerNode, pitch), roleText: "ZAGA • BLOQUEIO" },
+            : { name: blockerNode.player.name, sprite: resolveDynamicNodeSprite(blockerNode, pitch), roleText: blockRoleLabel },
           oppPlayer: origAttIsUser
-            ? { name: blockerNode.player.name, sprite: resolveDynamicNodeSprite(blockerNode, pitch), roleText: "ZAGA • BLOQUEIO" }
+            ? { name: blockerNode.player.name, sprite: resolveDynamicNodeSprite(blockerNode, pitch), roleText: blockRoleLabel }
             : { name: shooterNode.player.name, sprite: resolveDynamicNodeSprite(shooterNode, pitch), roleText: "CHUTE" },
           topMoveName: shotInfo.label,
           bottomMoveName: blockMoveName,
           bottomIcon: "DF",
           outcomePositive: passedBlocker ? origAttIsUser : !origAttIsUser,
-          resultBannerText: passedBlocker ? "PASSOU • PERDEU FORÇA!" : "BLOQUEADO PELA ZAGA!"
+          resultBannerText: passedBlocker ? "PASSOU • PERDEU FORÇA!" : "CHUTE BLOQUEADO!"
         },
         applyBlockerImpact,
         ovrDiff,
@@ -8048,6 +8124,7 @@
     allNodes.forEach((n) => {
       if (n.duelCooldown > 0) n.duelCooldown = Math.max(0, n.duelCooldown - dt);
       if (n.staggerTimer > 0) n.staggerTimer = Math.max(0, n.staggerTimer - dt);
+      if (n.shockBlinkTimer > 0) n.shockBlinkTimer = Math.max(0, n.shockBlinkTimer - dt);
     });
 
     // Avança minutos do relógio e recupera energia fora da posse
@@ -8213,19 +8290,21 @@
         });
 
         // Quando o marcador se aproxima, avalia diferencial de velocidade (Arranque / Recuperação Veloz), Tabela ou Duelo
-        if (closestDef && carrier.carryTime >= 0.25) {
+        if (closestDef && carrier.carryTime >= 0.16) {
           const carrierSpd = getEffectiveMatchSpeed(carrier);
           const defSpd = getEffectiveMatchSpeed(closestDef);
           const spdDiff = carrierSpd - defSpd;
 
           // 1. ⚡ Arranque Veloz: Atacante descansado com vantagem de velocidade (spdDiff >= +6) deixa o marcador na poeira
-          if (carrier.stamina >= 45 && spdDiff >= 6 && closestDist <= 5.8 && closestDist > 3.25) {
+          if (carrier.stamina >= 45 && spdDiff >= 6 && closestDist <= 6.0 && closestDist > 3.65) {
             const burstChance = Math.min(0.68, 0.35 + (spdDiff - 6) * 0.04);
             if (Math.random() < burstChance) {
               spendStamina(carrier, 2.5);
-              carrier.duelCooldown = 1.35;
-              closestDef.duelCooldown = 2.1;
-              closestDef.staggerTimer = 0.65;
+              carrier.duelCooldown = 0.95;
+              carrier.shockBlinkTimer = 0.95;
+              closestDef.duelCooldown = 1.35;
+              closestDef.staggerTimer = 0.55;
+              closestDef.shockBlinkTimer = 1.35;
               const dir = attIsUser ? 1 : -1;
               const startX = carrier.x;
               const startY = carrier.y;
@@ -8287,13 +8366,15 @@
           }
 
           // 2. ⚡ Recuperação Veloz: Marcador descansado com vantagem de velocidade (spdDiff <= -6) engole a distância na corrida
-          if (closestDef.stamina >= 45 && spdDiff <= -6 && closestDist <= 5.0 && closestDist > 2.8) {
+          if (closestDef.stamina >= 45 && spdDiff <= -6 && closestDist <= 5.4 && closestDist > 3.1) {
             const recoveryChance = Math.min(0.65, 0.32 + (Math.abs(spdDiff) - 6) * 0.04);
             if (Math.random() < recoveryChance) {
               spendStamina(closestDef, 2.5);
-              closestDef.duelCooldown = 1.35;
-              carrier.duelCooldown = 2.1;
-              carrier.staggerTimer = 0.65;
+              closestDef.duelCooldown = 0.95;
+              closestDef.shockBlinkTimer = 0.95;
+              carrier.duelCooldown = 1.35;
+              carrier.staggerTimer = 0.55;
+              carrier.shockBlinkTimer = 1.35;
               pitch.ballSide = closestDef.side;
               pitch.ballMode = "CARRIED";
               pitch.carrierUid = closestDef.uid;
@@ -8337,21 +8418,21 @@
             }
           }
 
-          // 3) Quando o marcador se aproxima perigosamente (entre 3.4 e 6.2 unidades visuais),
+          // 3) Quando o marcador se aproxima perigosamente (entre 3.75 e 6.3 unidades visuais),
           // jogadores técnicos têm chance de TABELAR de primeira sem confronto!
-          if (closestDist <= 6.2 && closestDist > 3.35 && carrier.carryTime >= 0.35) {
+          if (closestDist <= 6.3 && closestDist > 3.75 && carrier.carryTime >= 0.32) {
             const passReceiver = pickPassReceiver(attNodes, defNodes, carrier, false, pitch);
             const hasTeammateNear = passReceiver && Math.hypot(passReceiver.x - carrier.x, passReceiver.y - carrier.y) <= 32;
             const skillBonus = carrier.effOvr >= 80 ? 0.36 : 0.22;
             if (hasTeammateNear && Math.random() < skillBonus) {
-              carrier.duelCooldown = 1.4;
-              closestDef.duelCooldown = 1.4;
+              carrier.duelCooldown = 0.9;
+              closestDef.duelCooldown = 0.9;
               launchContinuousPass(st, pitch, carrier, attNodes, defNodes, true, false, true);
               return;
             }
           }
 
-          if (closestDist <= 3.35) {
+          if (closestDist <= 3.75) {
             resolvePhysicalDribbleClash(st, pitch, carrier, closestDef, attSupport, defSupport, ovrDiff);
             return;
           }
@@ -8381,8 +8462,8 @@
 
         const oppGoalX = attIsUser ? 96 : 4;
         const goalDist = Math.hypot(carrier.x - oppGoalX, carrier.y - 50);
-        const inPenaltyX = attIsUser ? carrier.x >= 72 : carrier.x <= 28;
-        const centralLane = carrier.y >= 24 && carrier.y <= 76;
+        const inPenaltyX = attIsUser ? carrier.x >= 77 : carrier.x <= 23;
+        const centralLane = carrier.y >= 26 && carrier.y <= 74;
         const inFinalThird = attIsUser ? carrier.x >= 58 : carrier.x <= 42;
 
         const oppGk = defNodes.find((d) => d.role === "GK");
@@ -8396,14 +8477,20 @@
           return fwd && el && oppGkElem && ELEMENT_ADVANTAGE[oppGkElem] !== el;
         });
 
+        const oppOutfieldDefs = defNodes.filter((d) => d.role !== "GK");
         let nearestDefDist = 99;
         let blockingDefs = 0;
-        defNodes.forEach((d) => {
-          if (d.role === "GK") return;
+        oppOutfieldDefs.forEach((d) => {
           const dd = visualPitchDist(d.x, d.y, carrier.x, carrier.y);
           if (dd < nearestDefDist) nearestDefDist = dd;
           const isAhead = attIsUser ? d.x >= carrier.x - 1 : d.x <= carrier.x + 1;
           if (isAhead && Math.abs(d.y - carrier.y) <= 13 && Math.abs(d.x - carrier.x) <= 16) blockingDefs++;
+        });
+        const hasOpenAttackSupport = attNodes.some((n) => {
+          if (n.uid === carrier.uid || n.role === "GK") return false;
+          const fwd = attIsUser ? n.x >= 56 : n.x <= 44;
+          if (!fwd) return false;
+          return !oppOutfieldDefs.some((d) => visualPitchDist(d.x, d.y, n.x, n.y) < 6.5);
         });
 
         const roll = Math.random();
@@ -8424,11 +8511,19 @@
           return;
         }
 
-        const mustShoot =
-          (inPenaltyX && centralLane) ||
-          goalDist <= 22 ||
-          (inFinalThird && blockingDefs === 0 && goalDist <= 30 && roll < (sideRelDiff >= 0.14 ? 0.72 : 0.56)) ||
-          (effRoleOrPos(carrier) === "FW" && goalDist <= 32 && roll < (sideRelDiff >= 0.14 ? 0.50 : 0.34));
+        const clearBoxShot = inPenaltyX && centralLane && (blockingDefs === 0 || (blockingDefs === 1 && goalDist <= 21));
+        const pointBlankShot = goalDist <= 18.5;
+        const openFinalThirdShot =
+          inFinalThird &&
+          blockingDefs === 0 &&
+          goalDist <= 27 &&
+          roll < (sideRelDiff >= 0.14 ? 0.56 : 0.42);
+        const fwOpportunityShot =
+          effRoleOrPos(carrier) === "FW" &&
+          goalDist <= 29 &&
+          blockingDefs <= 1 &&
+          roll < (blockingDefs === 0 ? (sideRelDiff >= 0.14 ? 0.44 : 0.30) : 0.16);
+        const mustShoot = pointBlankShot || clearBoxShot || openFinalThirdShot || fwOpportunityShot;
 
         if (mustShoot) {
           // Inteligência elemental: em desvantagem contra o GK, tenta acionar um colega antes de forçar o chute
@@ -8436,12 +8531,16 @@
             launchContinuousPass(st, pitch, carrier, attNodes, defNodes, true, false);
             return;
           }
+          // Se houver marcação fechando o ângulo e um colega livre no ataque, trabalha mais um passe em vez de chutar no muro
+          if (goalDist > 15 && blockingDefs >= 1 && hasOpenAttackSupport && Math.random() < 0.38) {
+            launchContinuousPass(st, pitch, carrier, attNodes, defNodes, false, false);
+            return;
+          }
           launchContinuousShot(st, pitch, carrier, defNodes, attSupport, defSupport, ovrDiff, attNodes);
           return;
         }
 
         // Procura enfiada de bola / passe no espaço vazio se houver companheiro bem desmarcado em posição legal
-        const oppOutfieldDefs = defNodes.filter((d) => d.role !== "GK");
         const oppDefLineX = oppOutfieldDefs.length > 0
           ? (attIsUser ? Math.max(...oppOutfieldDefs.map((d) => d.x)) : Math.min(...oppOutfieldDefs.map((d) => d.x)))
           : (attIsUser ? 84 : 16);
@@ -8456,7 +8555,7 @@
           return isLegal && fwdGain >= 3 && openGrass >= 5;
         });
 
-        if (throughCandidate && carrier.carryTime >= 0.38 && nearestDefDist >= 3.6 && roll < 0.44) {
+        if (throughCandidate && carrier.carryTime >= 0.42 && nearestDefDist >= 3.8 && roll < 0.30) {
           launchContinuousPass(st, pitch, carrier, attNodes, defNodes, true, false, false, {
             targetReceiver: throughCandidate,
             forceSpacePass: true
@@ -8466,11 +8565,12 @@
 
         const tiredPass = carrier.stamina < 45 && roll < 0.65;
         const pressPass = nearestDefDist < 7.8 && roll < 0.50;
-        const flowPass = carrier.carryTime >= 1.15 && roll < (carrier.role === "DF" ? 0.64 : 0.40);
-        const forceRecycle = carrier.carryTime >= 2.8;
+        const crowdedRecycle = blockingDefs >= 1 && inFinalThird && carrier.carryTime >= 0.45 && roll < 0.44;
+        const flowPass = carrier.carryTime >= 0.95 && roll < (carrier.role === "DF" ? 0.62 : 0.46);
+        const forceRecycle = carrier.carryTime >= 2.6;
 
-        if (tiredPass || pressPass || flowPass || forceRecycle) {
-          const strictFwd = inFinalThird || carrier.role === "DF";
+        if (tiredPass || pressPass || crowdedRecycle || flowPass || forceRecycle) {
+          const strictFwd = carrier.role === "DF" || (inFinalThird && blockingDefs === 0);
           launchContinuousPass(st, pitch, carrier, attNodes, defNodes, strictFwd, false);
           return;
         }
@@ -8518,6 +8618,7 @@
         n.vy = 0;
         n.duelCooldown = 0.9;
         n.staggerTimer = 0;
+        n.shockBlinkTimer = 0;
         n.receiveDashUntil = 0;
         let toX = n.x;
         let toY = n.y;
@@ -8618,7 +8719,7 @@
       pitch.looseState = null;
       catcher.receiveDashUntil = 0;
       catcher.carryTime = 0;
-      catcher.decisionTimer = playMeta.isOneTwoPass ? 0.05 : 0.22;
+      catcher.decisionTimer = playMeta.isOneTwoPass ? 0.08 : 0.30;
       // NUNCA teletransporta a bola ao recebedor: mantém pitch.ballX/Y onde houve o contato real;
       // CARRIED desliza suavemente a bola do ponto de domínio para o pé de condução!
 
@@ -8628,7 +8729,7 @@
         const runnerOnside =
           pitch.is5v5 || !isNodeOffside(runner, catcher, attIsUser, defNodes);
         if (runnerFwd && runnerOnside && Math.hypot(runner.x - catcher.x, runner.y - catcher.y) <= 32) {
-          catcher.duelCooldown = 1.0;
+          catcher.duelCooldown = 0.65;
           launchContinuousPass(st, pitch, catcher, attNodes, defNodes, true, false, false, {
             targetReceiver: runner,
             forceSpacePass: true,
@@ -8661,18 +8762,19 @@
             d.role !== "GK" &&
             d.staggerTimer <= 0 &&
             d.duelCooldown <= 0 &&
-            visualPitchDist(d.x, d.y, pitch.ballX, pitch.ballY) <= 2.1
+            visualPitchDist(d.x, d.y, pitch.ballX, pitch.ballY) <= 2.45
         );
         if (interceptor) {
-          interceptor.duelCooldown = 2.0;
+          interceptor.duelCooldown = 1.25;
+          interceptor.shockBlinkTimer = Math.max(interceptor.shockBlinkTimer || 0, 1.25);
           const passScore = calcNodeDuelScore(ps.passerNode, attSupport, interceptor?.player?.element, "OF");
           const defScore = calcNodeDuelScore(interceptor, defSupport, ps.passerNode?.player?.element, "DF");
 
           const passerOvr = ps.passerNode?.effOvr || 75;
           const defOvr = interceptor.effOvr || 75;
           const ovrAdvantage = passerOvr - defOvr;
-          const powerWhiffChance = ovrAdvantage >= 6 ? Math.min(0.72, 0.35 + (ovrAdvantage - 6) * 0.04) : 0.08;
-          const rawSuccessProb = Math.max(0.06, Math.min(0.42, 0.28 + (defScore - passScore) * 0.022));
+          const powerWhiffChance = ovrAdvantage >= 6 ? Math.min(0.45, 0.22 + (ovrAdvantage - 6) * 0.03) : 0.06;
+          const rawSuccessProb = Math.max(0.10, Math.min(0.48, 0.32 + (defScore - passScore) * 0.022));
           let finalInterceptProb = Math.random() < powerWhiffChance ? 0 : rawSuccessProb;
           if (attIsUser && finalInterceptProb > 0) {
             const pbLvl = state.tournament?.prepBonuses?.passBypassLvl || 0;
@@ -12437,6 +12539,7 @@
         targetSprint: 0.95,
         duelCooldown: 0,
         staggerTimer: 0,
+        shockBlinkTimer: 0,
         receiveDashUntil: 0,
         carryTime: 0,
         decisionTimer: 0.2 + (idx % 3) * 0.08,
