@@ -1128,6 +1128,18 @@ function openBetweenMatchPrep(nextStageIdx, opts = {}) {
   renderAll();
 }
 
+function isPrepNightTime(t = state.tournament) {
+  const prep = t?.prep;
+  if (!prep) return false;
+  if ((prep.eventsRemaining || 0) <= 0) return true;
+  const curE = Math.round(getTeamEnergy());
+  const nonRestCosts = getPrepLocationsCatalog()
+    .filter((l) => !l.isRestLocation)
+    .map((l) => getPrepLocationCost(l, t));
+  const cheapestCost = nonRestCosts.length > 0 ? Math.min(...nonRestCosts) : 0;
+  return curE < cheapestCost;
+}
+
 function startPrepLocationTripleSlot(locId) {
   const t = state.tournament;
   if (!t.prep) return;
@@ -1140,6 +1152,11 @@ function startPrepLocationTripleSlot(locId) {
   }
 
   if (loc.isRestLocation) {
+    if (!isPrepNightTime(t)) {
+      t.prep.energyNotice = "A Sede do Clube abre à noite! Use suas ações na cidade primeiro.";
+      renderTournamentScreen();
+      return;
+    }
     if (t.prep.restUsedThisRound) {
       t.prep.energyNotice = "Você já usou o descanso gratuito na Sede do Clube antes desta partida.";
       renderTournamentScreen();
@@ -2003,6 +2020,7 @@ function buildBetweenMatchPrepHTML(t, stats) {
       : `Escolha até ${totActions} ações na cidade ou vá direto para a partida:`;
 
     const snackActive = (t.nextMatchEnergyMul || 1) < 1;
+    const isNight = isPrepNightTime(t);
     topBannerHTML = `
       <div class="prep-top-banner">
         <div style="flex:1; min-width:220px;">
@@ -2016,7 +2034,7 @@ function buildBetweenMatchPrepHTML(t, stats) {
         </div>
         <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
           <span class="prep-xp-pill">Ações: ${remActions}/${totActions}</span>
-          <span class="prep-xp-pill">Sede: ${prep.restUsedThisRound ? "Usada" : "1x Grátis"}</span>
+          <span class="prep-xp-pill">Sede: ${prep.restUsedThisRound ? "Usada" : isNight ? "🌙 Liberada (Grátis)" : "🔒 À Noite"}</span>
           <button class="ie-cmd-btn ie-cmd-green" id="btn-prep-proceed">
             <span>Ir para ${nextStage.stageName} →</span>
           </button>
@@ -2025,41 +2043,51 @@ function buildBetweenMatchPrepHTML(t, stats) {
     `;
 
     const mapImgSrc = UI.inazumaMap || UI.locTown || UI.stadiumBg;
+    const mapHeaderTxt = !isNight
+      ? `☀️ Dia • Onde quer ir? • ${remActions} ${remActions === 1 ? "ação restante" : "ações restantes"}`
+      : !prep.restUsedThisRound
+      ? "🌙 Anoiteceu! Visite a Sede do Clube (grátis) para descansar"
+      : "🌙 Noite encerrada • Ajuste táticas ou inicie a partida";
     const mapStageHTML = mapImgSrc
       ? `
-        <div class="prep-inazuma-map-stage">
+        <div class="prep-inazuma-map-stage ${isNight ? "is-night-mode" : ""}">
           <img class="prep-inazuma-map-img" src="${mapImgSrc}" alt="Mapa da Cidade de Inazuma" />
           <div class="prep-inazuma-map-shade"></div>
           <div class="prep-map-header-tag">
-            <span>${remActions > 0 ? `Onde quer ir? • ${remActions} ${remActions === 1 ? "ação restante" : "ações restantes"}` : "Ações encerradas • Ajuste táticas ou inicie a partida"}</span>
+            <span>${mapHeaderTxt}</span>
           </div>
+          ${isNight ? '<div class="prep-map-moon-badge" title="Noite em Inazuma"><span>🌙</span><span>Noite</span></div>' : ""}
           <div class="prep-map-footer-tag">
             ${UI.iconDestVR ? `<img src="${UI.iconDestVR}" alt="" />` : "⚡"}
-            <span>Inazuma</span>
+            <span>${isNight ? "Noite em Inazuma" : "Inazuma"}</span>
           </div>
           ${locations
             .map(
               (loc) => {
                 const reqCost = getPrepLocationCost(loc, t);
                 const isNoActions = remActions <= 0;
+                const isRestLockedDay = Boolean(loc.isRestLocation && !isNight);
                 const isRestUsed = Boolean(loc.isRestLocation && prep.restUsedThisRound);
+                const isRestReadyNight = Boolean(loc.isRestLocation && isNight && !isRestUsed);
                 const isDisabled = loc.isRestLocation
-                  ? isRestUsed
+                  ? (isRestLockedDay || isRestUsed)
                   : (isNoActions || curTeamEnergy < reqCost);
                 const pinTitle = loc.isRestLocation
-                  ? isRestUsed
+                  ? isRestLockedDay
+                    ? `${loc.title} — Abre à noite após usar suas ações`
+                    : isRestUsed
                     ? `${loc.title} — Descanso gratuito já usado nesta rodada`
-                    : `${loc.title} — 1x Grátis (não gasta ação)`
+                    : `${loc.title} — 1x Grátis à noite (não gasta ação)`
                   : isNoActions
                   ? `${loc.title} — Ações desta rodada encerradas`
                   : isDisabled
                   ? `${loc.title} — Energia insuficiente (precisa de ${reqCost}%)`
                   : `${loc.title} — ${loc.sub}`;
                 const energyBadge = loc.isRestLocation
-                  ? `<span class="pin-energy-tag is-gain">${isRestUsed ? "Usado" : "1x Grátis"}</span>`
+                  ? `<span class="pin-energy-tag is-gain">${isRestUsed ? "Usado" : isRestLockedDay ? "🌙 À Noite" : "🌙 Grátis"}</span>`
                   : `<span class="pin-energy-tag is-cost">-${reqCost}%</span>`;
                 return `
-            <div class="prep-map-pin ${loc.isRestLocation ? "is-rest-pin" : ""} ${isDisabled ? "is-disabled" : ""}" data-prep-loc="${loc.id}" style="left:${loc.mapX || 50}%; top:${loc.mapY || 50}%;" title="${pinTitle}">
+            <div class="prep-map-pin ${loc.isRestLocation ? "is-rest-pin" : ""} ${isRestReadyNight ? "is-night-highlight" : ""} ${isDisabled ? "is-disabled" : ""}" data-prep-loc="${loc.id}" style="left:${loc.mapX || 50}%; top:${loc.mapY || 50}%;" title="${pinTitle}">
               <div class="prep-map-pin-orb">
                 ${loc.badgeIcon ? `<img class="pin-main-icon" src="${loc.badgeIcon}" alt="${loc.title}" />` : ""}
                 ${loc.subIcon ? `<span class="prep-map-pin-sub"><img src="${loc.subIcon}" alt="" /></span>` : ""}
@@ -2426,18 +2454,34 @@ function buildBetweenMatchPrepHTML(t, stats) {
               </div>
             </div>
             <div style="display:flex; flex-direction:column; gap:8px;">
-              ${(prep.lastActionWasFreeRest ? prep.eventsRemaining > 0 : prep.eventsRemaining > 1) ? `
+              ${(() => {
+                const minCityCost = Math.min(...locations.filter((l) => !l.isRestLocation).map((l) => getPrepLocationCost(l, t)));
+                const cantAffordMoreCity = curTeamEnergy < minCityCost;
+                const entersNightNow = !prep.lastActionWasFreeRest && !prep.restUsedThisRound && (prep.eventsRemaining === 1 || cantAffordMoreCity);
+                const hasMoreDayActions = prep.lastActionWasFreeRest ? (prep.eventsRemaining > 0 && !cantAffordMoreCity) : (prep.eventsRemaining > 1 && !cantAffordMoreCity);
+                if (hasMoreDayActions) {
+                  return `
                 <button class="ie-cmd-btn ie-cmd-gold" id="btn-prep-second-event">
                   <span>Voltar para o Mapa →</span>
+                </button>`;
+                }
+                if (entersNightNow) {
+                  return `
+                <button class="ie-cmd-btn ie-cmd-gold" id="btn-prep-second-event">
+                  <span>🌙 Anoitecer • Ir para a Sede →</span>
                 </button>
-              ` : `
+                <button class="ie-cmd-btn ie-cmd-green" id="btn-prep-proceed" style="font-size:0.76rem; padding:7px 14px;">
+                  <span>Ir para ${nextStage.stageName} →</span>
+                </button>`;
+                }
+                return `
                 <button class="ie-cmd-btn ie-cmd-green" id="btn-prep-proceed">
                   <span>Ir para ${nextStage.stageName} →</span>
                 </button>
                 <button class="ie-cmd-btn ie-cmd-gold" id="btn-prep-second-event" style="font-size:0.76rem; padding:7px 14px;">
                   <span>Ajustar Escalação / Mapa</span>
-                </button>
-              `}
+                </button>`;
+              })()}
             </div>
           </div>
           ${affectedCardsHTML}
