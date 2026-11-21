@@ -228,7 +228,7 @@ function showRefereeWhistleModal(st, type, onProceed) {
     ? "FIM DE JOGO • EMPATE!"
     : `VITÓRIA DE ${st.oppTeam?.name || "ADVERSÁRIO"}!`;
 
-  const restBonus = (t?.prepBonuses?.restLvl || 0) * 3;
+  const restBonus = (t?.prepBonuses?.restLvl || 0) * 4;
   const subtitleText = isHalftime
     ? `O árbitro apita o intervalo! Ambos os times recuperam fôlego (+${35 + restBonus}% linha / +${45 + restBonus}% goleiro).`
     : isExtraTime
@@ -354,7 +354,7 @@ function showRefereeWhistleModal(st, type, onProceed) {
 
 function applyIntervalStaminaRecharge(st, fieldGain, gkGain) {
   const restLvl = state.tournament?.prepBonuses?.restLvl || 0;
-  const restBonus = restLvl * 3;
+  const restBonus = restLvl * 4;
   const result = {
     userField: fieldGain + restBonus,
     userGk: gkGain + restBonus,

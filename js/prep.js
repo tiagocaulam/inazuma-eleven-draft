@@ -14,9 +14,9 @@ function getPrepBuffPill(ev) {
   if (ev.shortDesc) return ev.shortDesc;
   if (ev.kind === "PASSIVE_DOUBLE_EVENT") return `<span class="b-tech">4 Ações</span> • <span class="b-chem">-3% Custo</span>`;
   if (ev.kind === "PASSIVE_LATE_RESIST") return `<span class="b-chem">-50% Desgaste (75'+)</span>`;
-  if (ev.kind === "STREET_5V5") return `<span class="b-lvl">+120–150 XP</span> • <span class="b-chem">+15% Energia</span>`;
-  if (ev.id === "elem_crest_boost") return `<span class="b-lvl">+1 Nv</span> • <span class="b-pwr">+12 Poder</span> (Elemento)`;
-  if (ev.id === "elem_resonance_tome") return `<span class="b-lvl">+1 Nv (Todos)</span> • <span class="b-chem">+6% Quím</span>`;
+  if (ev.kind === "STREET_5V5") return `<span class="b-lvl">+95–115 XP</span> • <span class="b-chem">+15% Energia</span>`;
+  if (ev.id === "elem_crest_boost") return `<span class="b-lvl">+125 XP</span> • <span class="b-pwr">+12 Poder</span> (Elemento)`;
+  if (ev.id === "elem_resonance_tome") return `<span class="b-lvl">+105 XP (Todos)</span> • <span class="b-chem">+6% Quím</span>`;
   if (ev.id === "captain_armband") return `<span class="b-lvl">+1 Nível</span> • <span class="b-chem">+8% Quím</span>`;
   if (ev.id === "secret_hissatsu_mastery") return `<span class="b-lvl">+1 Nível</span> • <span class="b-tech">Técnica Suprema</span>`;
   if (ev.kind === "KESHIN_PICK") return `<span class="b-lvl">+1 Nível</span> • <span class="b-tech">Desperta Keshin</span>`;
@@ -27,8 +27,11 @@ function getPrepBuffPill(ev) {
   if (ev.kind === "SCALABLE_BUFF") {
     const curLvl = state.tournament?.prepBonuses?.[ev.buffKey] || 0;
     const nextLvl = Math.min(ev.maxLevel || 3, curLvl + 1);
-    if (ev.buffKey === "efficiencyLvl") return `<span class="b-chem">-${nextLvl * 2}% Custo na Cidade</span>`;
-    if (ev.buffKey === "restLvl") return `<span class="b-chem">Descanso +${35 + nextLvl * 7}%</span> • <span class="b-lvl">+${nextLvl * 3}% Intervalo</span>`;
+    if (ev.buffKey === "efficiencyLvl") {
+      const disc = [0, 4, 7, 10][nextLvl] || 10;
+      return `<span class="b-chem">-${disc}% Custo na Cidade</span>`;
+    }
+    if (ev.buffKey === "restLvl") return `<span class="b-chem">Sono +${45 + nextLvl * 7}%</span> • <span class="b-lvl">+${35 + nextLvl * 10} XP Tática</span> • <span class="b-lvl">+${nextLvl * 4}% Intervalo</span>`;
     if (ev.buffKey === "enduranceLvl") {
       const pct = [0, 8, 15, 22][nextLvl] || 22;
       return `<span class="b-chem">-${pct}% Gasto em Campo</span>`;
@@ -59,14 +62,14 @@ function getPrepBuffPill(ev) {
   }
   if (ev.kind === "REST_ACTIVE") {
     if (ev.restMode === "TACTICAL") {
-      return `<span class="b-chem">+${ev.energyGain || 25}% Energia</span> • <span class="b-lvl">+35 XP</span>`;
+      return `<span class="b-chem">+${ev.energyGain || 25}% Energia</span> • <span class="b-lvl">+${ev.xpGain || 35} XP</span>`;
     }
     if (ev.restMode === "SNACK") {
       return `<span class="b-chem">+${ev.energyGain || 30}% Energia</span> • <span class="b-tech">-20% Gasto</span>`;
     }
     return `<span class="b-chem">+${ev.energyGain || 45}% Energia</span>`;
   }
-  if (ev.kind === "ENERGY_DRINK") return `<span class="b-chem">+${ev.energyGain || 22}% Energia</span> • <span class="b-pwr">+${ev.teamPower || 10} Poder</span>`;
+  if (ev.kind === "ENERGY_DRINK") return `<span class="b-chem">+${ev.energyGain || 35}% Energia</span> • <span class="b-pwr">+${ev.teamPower || 14} Poder</span>`;
   if (ev.levelGain && ev.indivPower) return `<span class="b-lvl">+${ev.levelGain} Nv</span> • <span class="b-pwr">+${ev.indivPower} Poder</span>`;
   if (ev.levelGain) return `<span class="b-lvl">+${ev.levelGain} Nível(is)</span>`;
   if (ev.teamPower) return `<span class="b-pwr">+${ev.teamPower} Poder</span>`;
@@ -79,14 +82,16 @@ function getPrepChoiceSummary(ev) {
     const curLvl = state.tournament?.prepBonuses?.[ev.buffKey] || 0;
     const nextLvl = Math.min(ev.maxLevel || 3, curLvl + 1);
     if (ev.buffKey === "efficiencyLvl") {
+      const prevD = [0, 4, 7, 10][curLvl] || 0;
+      const nextD = [0, 4, 7, 10][nextLvl] || 10;
       return curLvl === 0
-        ? `Reduz em <span class="b-chem">2%</span> o custo de energia dos locais da cidade.`
-        : `Aumenta o desconto nos locais de <span class="b-chem">-${curLvl * 2}%</span> para <span class="b-chem">-${nextLvl * 2}%</span>.`;
+        ? `Reduz em <span class="b-chem">4%</span> o custo de energia dos locais da cidade.`
+        : `Aumenta o desconto nos locais de <span class="b-chem">-${prevD}%</span> para <span class="b-chem">-${nextD}%</span>.`;
     }
     if (ev.buffKey === "restLvl") {
       return curLvl === 0
-        ? `Descansar recupera <span class="b-chem">+42%</span> de energia e atletas ganham <span class="b-lvl">+3% fôlego</span> nos intervalos.`
-        : `Evolui Descansar para <span class="b-chem">+${35 + nextLvl * 7}%</span> e bônus nos intervalos para <span class="b-lvl">+${nextLvl * 3}%</span>.`;
+        ? `Sede dá <span class="b-chem">+7% Energia</span> (Sono +52%), Análise Tática sobe para <span class="b-lvl">+45 XP</span> e intervalos dão <span class="b-lvl">+4% fôlego</span>.`
+        : `Sede sobe para <span class="b-chem">+${45 + nextLvl * 7}%</span> no Sono, <span class="b-lvl">+${35 + nextLvl * 10} XP</span> na Tática e <span class="b-lvl">+${nextLvl * 4}% fôlego</span> nos intervalos.`;
     }
     if (ev.buffKey === "enduranceLvl") {
       const prevP = [0, 8, 15, 22][curLvl] || 0;
@@ -150,10 +155,12 @@ function getPrepChoiceSummary(ev) {
 }
 
 function getPrepLocationsCatalog() {
+  const restLvlCur = state?.tournament?.prepBonuses?.restLvl || 0;
   const restBase = typeof getRestEnergyGain === "function" ? getRestEnergyGain(state?.tournament) : 35;
   const fullRestGain = restBase + 10;
   const tacticalRestGain = Math.max(20, restBase - 10);
   const snackRestGain = Math.max(25, restBase - 5);
+  const tacticalRestXp = 35 + restLvlCur * 10;
   return [
     {
       id: "town",
@@ -264,7 +271,7 @@ function getPrepLocationsCatalog() {
           teamPower: 12,
           teamChem: 5,
           weight: 2.0,
-          summary: `Todos os titulares do <span class="b-tech">mesmo elemento</span> ganham <span class="b-lvl">+1 Nível</span> e <span class="b-pwr">+12 Poder</span> cada.`
+          summary: `Todos os titulares do <span class="b-tech">mesmo elemento</span> ganham <span class="b-lvl">+125 XP</span> e <span class="b-pwr">+12 Poder</span> cada.`
         },
         {
           id: "misanga_friend",
@@ -284,10 +291,10 @@ function getPrepLocationsCatalog() {
           title: "Bebida Energética Raijin",
           icon: UI.sportsDrink || UI.onigiriIcon || UI.itemPendantLightning,
           kind: "ENERGY_DRINK",
-          energyGain: 22,
-          teamPower: 10,
+          energyGain: 35,
+          teamPower: 14,
           weight: 2.3,
-          summary: `Recupera <span class="b-chem">+22% de Energia do Time</span> na hora e garante <span class="b-pwr">+10 Poder</span>.`
+          summary: `Recupera <span class="b-chem">+35% de Energia do Time</span> na hora e garante <span class="b-pwr">+14 Poder</span>.`
         },
         {
           id: "efficiency_upgrade",
@@ -298,7 +305,7 @@ function getPrepLocationsCatalog() {
           maxLevel: 3,
           teamPower: 10,
           weight: 1.9,
-          summary: `Reduz em <span class="b-chem">-2 pontos por nível</span> (-2% / -4% / -6%) o custo de energia dos locais da cidade.`
+          summary: `Reduz o custo de energia dos locais da cidade em <span class="b-chem">-4% / -7% / -10%</span>.`
         },
         {
           id: "rest_upgrade",
@@ -309,7 +316,7 @@ function getPrepLocationsCatalog() {
           maxLevel: 3,
           teamPower: 10,
           weight: 1.8,
-          summary: `Descansar na Sede sobe para <span class="b-chem">+42% / +49% / +56%</span> e recupera <span class="b-lvl">+3% / +6% / +9% fôlego</span> nos intervalos.`
+          summary: `Sede dá <span class="b-chem">+7% Energia</span>, Análise Tática dá <span class="b-lvl">+10 XP</span> extras (<span class="b-lvl">+45/+55/+65 XP</span>) e intervalos dão <span class="b-lvl">+4%/+8%/+12%</span> fôlego.`
         },
         {
           id: "xp_spirit_upgrade",
@@ -432,7 +439,7 @@ function getPrepLocationsCatalog() {
           maxLevel: 3,
           teamPower: 12,
           weight: 1.8,
-          summary: `Força extra nos dribles (<span class="b-pwr">+1.2 / +2.4 / +3.6</span>) e bônus no corredor tático.`
+          summary: `Força extra nos dribles (<span class="b-pwr">+0.9 / +1.8 / +2.7</span>) e bônus no corredor tático.`
         }
       ]
     },
@@ -580,7 +587,8 @@ function getPrepLocationsCatalog() {
           kind: "REST_ACTIVE",
           restMode: "TACTICAL",
           energyGain: tacticalRestGain,
-          summary: `Recupera <span class="b-chem">+${tacticalRestGain}% de Energia</span> e concede <span class="b-lvl">+35 XP</span> para os 11 titulares.`
+          xpGain: tacticalRestXp,
+          summary: `Recupera <span class="b-chem">+${tacticalRestGain}% de Energia</span> e concede <span class="b-lvl">+${tacticalRestXp} XP</span> para os 11 titulares.`
         },
         {
           id: "rest_manager_snack",
@@ -1236,19 +1244,20 @@ function handleChoosePrepOption(choiceEvent) {
 
     if (choiceEvent.restMode === "TACTICAL") {
       gain = Math.max(20, base - 10);
+      const tacticalXp = 35 + (t.prepBonuses?.restLvl || 0) * 10;
       getSlots().forEach((slot) => {
         const p = state.squad[slot.id];
         if (!p) return;
         const prevLvl = getPlayerLevel(p);
         const beforePwr = calcIndividualPlayerPower(p, slot.role, prevLvl);
-        const xpRes = gainPlayerXp(p, 35, slot.role);
+        const xpRes = gainPlayerXp(p, tacticalXp, slot.role);
         const newLvl = getPlayerLevel(p);
         const afterPwr = calcIndividualPlayerPower(p, slot.role, newLvl);
         affected.push({
           name: p.name,
           role: slot.role,
           sprite: getPlayerFormSprite(p, slot.role),
-          xpGained: 35,
+          xpGained: tacticalXp,
           prevLevel: prevLvl,
           newLevel: newLvl,
           levelsGained: Math.max(0, newLvl - prevLvl),
@@ -1257,8 +1266,8 @@ function handleChoosePrepOption(choiceEvent) {
           learnedMoves: xpRes.learnedMoves || []
         });
       });
-      t.prepBonuses.xp += 35;
-      extraTxt = ` e <span class="b-lvl">+35 XP</span> para os 11 titulares`;
+      t.prepBonuses.xp += tacticalXp;
+      extraTxt = ` e <span class="b-lvl">+${tacticalXp} XP</span> para os 11 titulares`;
     } else if (choiceEvent.restMode === "SNACK") {
       gain = Math.max(25, base - 5);
       t.nextMatchEnergyMul = 0.80;
@@ -1307,9 +1316,9 @@ function handleChoosePrepOption(choiceEvent) {
   // 2.5 Bebida Energética
   if (choiceEvent.kind === "ENERGY_DRINK") {
     const prevE = Math.round(getTeamEnergy());
-    const gain = choiceEvent.energyGain || 22;
+    const gain = choiceEvent.energyGain || 35;
     const nextE = Math.round(adjustTeamEnergy(gain));
-    const pwr = choiceEvent.teamPower || 10;
+    const pwr = choiceEvent.teamPower || 14;
     t.prepBonuses.power += pwr;
     t.prepBonuses.log.push(`${choiceEvent.title} (+${gain}% Energia)`);
     prep.phase = "DONE";
@@ -1360,8 +1369,12 @@ function handleChoosePrepOption(choiceEvent) {
     };
 
     let effectTxt = "";
-    if (key === "efficiencyLvl") effectTxt = `<span class="b-chem">-${nextL * 2}% custo de energia</span> nos locais da cidade`;
-    else if (key === "restLvl") effectTxt = `Descansar agora recupera <span class="b-chem">+${35 + nextL * 7}% de Energia</span> e <span class="b-lvl">+${nextL * 3}% fôlego nos intervalos</span>`;
+    if (key === "efficiencyLvl") {
+      const disc = [0, 4, 7, 10][nextL] || 10;
+      effectTxt = `<span class="b-chem">-${disc}% custo de energia</span> nos locais da cidade`;
+    } else if (key === "restLvl") {
+      effectTxt = `Sono da Sede agora recupera <span class="b-chem">+${45 + nextL * 7}% Energia</span>, Análise Tática dá <span class="b-lvl">+${35 + nextL * 10} XP</span> e intervalos recuperam <span class="b-lvl">+${nextL * 4}% fôlego</span>`;
+    }
     else if (key === "enduranceLvl") {
       const pct = [0, 8, 15, 22][nextL] || 22;
       effectTxt = `<span class="b-chem">-${pct}% gasto de energia</span> em técnicas e desgaste de campo`;

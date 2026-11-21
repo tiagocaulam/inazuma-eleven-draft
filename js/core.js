@@ -604,7 +604,7 @@ function getPrepLocationCost(loc, t = state.tournament) {
   if (baseCost <= 0) return 0;
   const bonuses = t?.prepBonuses || {};
   const passDiscount = bonuses.permanentDoublePrep ? 3 : 0;
-  const effDiscount = (bonuses.efficiencyLvl || 0) * 2;
+  const effDiscount = [0, 4, 7, 10][Math.min(3, bonuses.efficiencyLvl || 0)] || 0;
   return Math.max(5, baseCost - passDiscount - effDiscount);
 }
 
