@@ -1,6 +1,14 @@
 // ============================================================================
 // PREPARAÇÃO ENTRE PARTIDAS: LOCAIS DE INAZUMA + ROLETA + BOOSTS REAIS
 // ============================================================================
+const PREP_SVG_SUN = `<svg class="prep-inline-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4" fill="#fde047" stroke="#facc15"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" stroke="#fde047"/></svg>`;
+const PREP_SVG_MOON = `<svg class="prep-inline-svg" viewBox="0 0 24 24" fill="#fef08a" stroke="#fde047" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>`;
+const PREP_SVG_LOCK = `<svg class="prep-inline-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2" fill="rgba(250,204,21,0.18)"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>`;
+
+function prepAssetIconHTML(src, alt = "") {
+  return src ? `<img class="prep-inline-asset" src="${src}" alt="${alt}" />` : "";
+}
+
 function getPrepBuffPill(ev) {
   if (!ev) return "";
   if (ev.shortDesc) return ev.shortDesc;
@@ -553,13 +561,13 @@ function getPrepLocationsCatalog() {
       resultEyebrow: "Sede do Clube • Escolha 1 Rotina (Grátis — não gasta ação)",
       banner: UI.locTown || UI.stadiumBg,
       badgeIcon: UI.raimonEmblem || UI.iconDestVR || UI.ffLogo,
-      subIcon: UI.itemPendantLightning || UI.tpPendant,
+      subIcon: UI.onigiriIcon || UI.sportsDrink || UI.tpPendant,
       desc: "1 visita gratuita antes de cada partida (não consome ação): escolha entre Sono Completo, Análise Tática (+XP) ou Lanche das Gerentes (-20% gasto no próximo jogo).",
       events: [
         {
           id: "rest_full_sleep",
           title: "Sono Completo na Sede",
-          icon: UI.raimonEmblem || UI.iconDestVR || UI.ffLogo,
+          icon: UI.sportsDrink || UI.raimonEmblem || UI.ffLogo,
           kind: "REST_ACTIVE",
           restMode: "FULL",
           energyGain: fullRestGain,
@@ -577,7 +585,7 @@ function getPrepLocationsCatalog() {
         {
           id: "rest_manager_snack",
           title: "Lanche Especial das Gerentes",
-          icon: UI.itemPendantLightning || UI.tpPendant,
+          icon: UI.onigiriIcon || UI.itemPendantLightning || UI.tpPendant,
           kind: "REST_ACTIVE",
           restMode: "SNACK",
           energyGain: snackRestGain,
@@ -1095,12 +1103,12 @@ function openBetweenMatchPrep(nextStageIdx, opts = {}) {
   let autoRestMsg = null;
   if (opts && opts.worldFullRest) {
     t.teamEnergy = 100;
-    autoRestMsg = "✈️ Viagem para a Ilha Liocott: Energia do elenco restaurada para 100%!";
+    autoRestMsg = `${prepAssetIconHTML(UI.ffLogo, "Mundial")} Viagem para a Ilha Liocott: Energia do elenco restaurada para 100%!`;
   } else if (nextStageIdx > 0) {
     const prevE = Math.round(getTeamEnergy());
     const nextE = Math.round(adjustTeamEnergy(20));
     if (nextE > prevE) {
-      autoRestMsg = `🛌 Descanso entre rodadas: +${nextE - prevE}% de Energia (${prevE}% ➔ ${nextE}%).`;
+      autoRestMsg = `${prepAssetIconHTML(UI.sportsDrink || UI.raimonEmblem, "Energia")} Descanso entre rodadas: +${nextE - prevE}% de Energia (${prevE}% ➔ ${nextE}%).`;
     }
   }
   // Até 3 ações por preparação na cidade (ou 4 com a passiva permanente do treinador)
@@ -2023,18 +2031,18 @@ function buildBetweenMatchPrepHTML(t, stats) {
     const isNight = isPrepNightTime(t);
     topBannerHTML = `
       <div class="prep-top-banner">
-        <div style="flex:1; min-width:220px;">
+        <div class="prep-banner-main">
           <h3 style="font-size:1.0rem; font-weight:900; color:#fff; margin:0 0 6px 0;">
             ${prepHeadline}
           </h3>
           ${buildTeamEnergyBarHTML(false)}
-          ${prep.autoRestMsg ? `<div style="margin-top:6px; font-size:0.74rem; font-weight:800; color:#86efac;">${prep.autoRestMsg}</div>` : ""}
-          ${snackActive ? `<div style="margin-top:4px; font-size:0.72rem; font-weight:800; color:#93c5fd;">🍙 Lanche Ativo (-20% gasto de energia no próximo jogo)</div>` : ""}
-          ${prep.energyNotice ? `<div style="margin-top:6px; font-size:0.74rem; font-weight:800; color:#fde047;">⚠️ ${prep.energyNotice}</div>` : ""}
+          ${prep.autoRestMsg ? `<div class="prep-banner-notice is-rest">${prep.autoRestMsg}</div>` : ""}
+          ${snackActive ? `<div class="prep-banner-notice is-snack">${prepAssetIconHTML(UI.onigiriIcon || UI.tpPendant, "Lanche")} Lanche Ativo (-20% gasto de energia no próximo jogo)</div>` : ""}
+          ${prep.energyNotice ? `<div class="prep-banner-notice is-warn">${prepAssetIconHTML(UI.whistleIcon || UI.refereeWhistle, "Aviso")} ${prep.energyNotice}</div>` : ""}
         </div>
-        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+        <div class="prep-banner-actions">
           <span class="prep-xp-pill">Ações: ${remActions}/${totActions}</span>
-          <span class="prep-xp-pill">Sede: ${prep.restUsedThisRound ? "Usada" : isNight ? "🌙 Liberada (Grátis)" : "🔒 À Noite"}</span>
+          <span class="prep-xp-pill">Sede: ${prep.restUsedThisRound ? "Usada" : isNight ? `${PREP_SVG_MOON} Liberada` : `${PREP_SVG_LOCK} À Noite`}</span>
           <button class="ie-cmd-btn ie-cmd-green" id="btn-prep-proceed">
             <span>Ir para ${nextStage.stageName} →</span>
           </button>
@@ -2044,21 +2052,21 @@ function buildBetweenMatchPrepHTML(t, stats) {
 
     const mapImgSrc = UI.inazumaMap || UI.locTown || UI.stadiumBg;
     const mapHeaderTxt = !isNight
-      ? `☀️ Dia • Onde quer ir? • ${remActions} ${remActions === 1 ? "ação restante" : "ações restantes"}`
+      ? `${PREP_SVG_SUN}<span>Dia • ${remActions} ${remActions === 1 ? "ação restante" : "ações restantes"}</span>`
       : !prep.restUsedThisRound
-      ? "🌙 Anoiteceu! Visite a Sede do Clube (grátis) para descansar"
-      : "🌙 Noite encerrada • Ajuste táticas ou inicie a partida";
+      ? `${PREP_SVG_MOON}<span>Anoiteceu • Visite a Sede do Clube</span>`
+      : `${PREP_SVG_MOON}<span>Noite encerrada • Pronto para jogar</span>`;
     const mapStageHTML = mapImgSrc
       ? `
         <div class="prep-inazuma-map-stage ${isNight ? "is-night-mode" : ""}">
           <img class="prep-inazuma-map-img" src="${mapImgSrc}" alt="Mapa da Cidade de Inazuma" />
           <div class="prep-inazuma-map-shade"></div>
           <div class="prep-map-header-tag">
-            <span>${mapHeaderTxt}</span>
+            ${mapHeaderTxt}
           </div>
-          ${isNight ? '<div class="prep-map-moon-badge" title="Noite em Inazuma"><span>🌙</span><span>Noite</span></div>' : ""}
+          ${isNight ? `<div class="prep-map-moon-badge" title="Noite em Inazuma">${PREP_SVG_MOON}<span>Noite</span></div>` : ""}
           <div class="prep-map-footer-tag">
-            ${UI.iconDestVR ? `<img src="${UI.iconDestVR}" alt="" />` : "⚡"}
+            ${UI.iconDestVR ? `<img src="${UI.iconDestVR}" alt="" />` : PREP_SVG_SUN}
             <span>${isNight ? "Noite em Inazuma" : "Inazuma"}</span>
           </div>
           ${locations
@@ -2084,7 +2092,7 @@ function buildBetweenMatchPrepHTML(t, stats) {
                   ? `${loc.title} — Energia insuficiente (precisa de ${reqCost}%)`
                   : `${loc.title} — ${loc.sub}`;
                 const energyBadge = loc.isRestLocation
-                  ? `<span class="pin-energy-tag is-gain">${isRestUsed ? "Usado" : isRestLockedDay ? "🌙 À Noite" : "🌙 Grátis"}</span>`
+                  ? `<span class="pin-energy-tag is-gain">${isRestUsed ? "Usado" : isRestLockedDay ? "À Noite" : "Grátis"}</span>`
                   : `<span class="pin-energy-tag is-cost">-${reqCost}%</span>`;
                 return `
             <div class="prep-map-pin ${loc.isRestLocation ? "is-rest-pin" : ""} ${isRestReadyNight ? "is-night-highlight" : ""} ${isDisabled ? "is-disabled" : ""}" data-prep-loc="${loc.id}" style="left:${loc.mapX || 50}%; top:${loc.mapY || 50}%;" title="${pinTitle}">
@@ -2155,6 +2163,7 @@ function buildBetweenMatchPrepHTML(t, stats) {
             </div>
           </div>
         </div>
+        ${activeLoc?.isRestLocation ? `<div class="prep-rest-energy-preview">${buildTeamEnergyBarHTML(false)}</div>` : ""}
         <div class="prep-triple-cols-grid">
           ${slotColsHTML}
         </div>
@@ -2453,7 +2462,7 @@ function buildBetweenMatchPrepHTML(t, stats) {
                 <span class="prep-summary-stat-pill">Energia <span class="b-chem">${Math.round(getTeamEnergy())}%</span></span>
               </div>
             </div>
-            <div style="display:flex; flex-direction:column; gap:8px;">
+            <div class="prep-reward-actions">
               ${(() => {
                 const minCityCost = Math.min(...locations.filter((l) => !l.isRestLocation).map((l) => getPrepLocationCost(l, t)));
                 const cantAffordMoreCity = curTeamEnergy < minCityCost;
@@ -2468,10 +2477,7 @@ function buildBetweenMatchPrepHTML(t, stats) {
                 if (entersNightNow) {
                   return `
                 <button class="ie-cmd-btn ie-cmd-gold" id="btn-prep-second-event">
-                  <span>🌙 Anoitecer • Ir para a Sede →</span>
-                </button>
-                <button class="ie-cmd-btn ie-cmd-green" id="btn-prep-proceed" style="font-size:0.76rem; padding:7px 14px;">
-                  <span>Ir para ${nextStage.stageName} →</span>
+                  <span>${PREP_SVG_MOON} Anoitecer • Ir para a Sede →</span>
                 </button>`;
                 }
                 return `
