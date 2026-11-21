@@ -768,7 +768,8 @@ function advanceToWorldCup() {
   t.stageIndex = 4;
   t.showRunSummary = false;
 
-  openBetweenMatchPrep(4);
+  t.teamEnergy = 100;
+  openBetweenMatchPrep(4, { worldFullRest: true });
 }
 
 function buildGoalShotLabel(scorer) {

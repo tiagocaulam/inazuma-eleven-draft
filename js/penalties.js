@@ -56,7 +56,7 @@ function getCurrentPenaltyKicker(pen, side) {
 function awardPostMatchExperience(st) {
   if (!st || st.isGoldenGoal5v5 || st._postMatchXpAwarded) return;
   st._postMatchXpAwarded = true;
-  const baseXp = st.won ? 76 : st.isDraw ? 54 : 36;
+  const baseXp = st.won ? 88 : st.isDraw ? 62 : 42;
   const cleanSheetBonus = st.won && st.oppScore === 0 ? 6 : 0;
   const marginBonus = st.won && (st.userScore - st.oppScore) >= 2 ? 5 : 0;
   const xpSpiritLvl = Math.min(3, state.tournament?.prepBonuses?.xpSpiritLvl || 0);

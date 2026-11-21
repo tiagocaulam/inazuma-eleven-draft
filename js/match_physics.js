@@ -2206,9 +2206,10 @@ function stepContinuousPhysics(st, pitch, dt) {
         const hasLateRes = Boolean(state.tournament?.prepBonuses?.lateMatchNoStaminaLoss && st.minute >= 75);
         const lateDrainMul = hasLateRes ? 0.5 : 1;
         const etDrainMul = st.minute > 90 ? 0.60 : 1;
-        const perMinDrain = tac.intensity === "high" ? 0.76 : tac.intensity === "low" ? 0.24 : 0.46;
+        const perMinDrain = tac.intensity === "high" ? 0.62 : tac.intensity === "low" ? 0.22 : 0.38;
         const stamMul = state.tournament?.prepBonuses?.staminaMul || 1;
-        adjustTeamEnergy(-(perMinDrain * stamMul * lateDrainMul * etDrainMul));
+        const snackMul = state.tournament?.nextMatchEnergyMul || 1;
+        adjustTeamEnergy(-(perMinDrain * stamMul * lateDrainMul * etDrainMul * snackMul));
         syncTeamEnergyBarDOM("live", st.minute);
       }
       if (pitch.ballSide === "user") pitch.stats.userTicks++;

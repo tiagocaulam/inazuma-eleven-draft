@@ -298,7 +298,10 @@ function renderTournamentScreen() {
     const secondEventBtn = document.getElementById("btn-prep-second-event");
     if (secondEventBtn) {
       secondEventBtn.addEventListener("click", () => {
-        t.prep.eventsRemaining = Math.max(0, (t.prep.eventsRemaining || 1) - 1);
+        if (!t.prep.lastActionWasFreeRest) {
+          t.prep.eventsRemaining = Math.max(0, (t.prep.eventsRemaining || 1) - 1);
+        }
+        t.prep.lastActionWasFreeRest = false;
         t.prep.phase = "CHOOSE_LOC";
         t.prep.locId = null;
         t.prep.choices = null;

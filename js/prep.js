@@ -49,6 +49,15 @@ function getPrepBuffPill(ev) {
       return `<span class="b-pwr">+${val} Força Drible</span>`;
     }
   }
+  if (ev.kind === "REST_ACTIVE") {
+    if (ev.restMode === "TACTICAL") {
+      return `<span class="b-chem">+${ev.energyGain || 25}% Energia</span> • <span class="b-lvl">+35 XP</span>`;
+    }
+    if (ev.restMode === "SNACK") {
+      return `<span class="b-chem">+${ev.energyGain || 30}% Energia</span> • <span class="b-tech">-20% Gasto</span>`;
+    }
+    return `<span class="b-chem">+${ev.energyGain || 45}% Energia</span>`;
+  }
   if (ev.kind === "ENERGY_DRINK") return `<span class="b-chem">+${ev.energyGain || 22}% Energia</span> • <span class="b-pwr">+${ev.teamPower || 10} Poder</span>`;
   if (ev.levelGain && ev.indivPower) return `<span class="b-lvl">+${ev.levelGain} Nv</span> • <span class="b-pwr">+${ev.indivPower} Poder</span>`;
   if (ev.levelGain) return `<span class="b-lvl">+${ev.levelGain} Nível(is)</span>`;
@@ -133,6 +142,10 @@ function getPrepChoiceSummary(ev) {
 }
 
 function getPrepLocationsCatalog() {
+  const restBase = typeof getRestEnergyGain === "function" ? getRestEnergyGain(state?.tournament) : 35;
+  const fullRestGain = restBase + 10;
+  const tacticalRestGain = Math.max(20, restBase - 10);
+  const snackRestGain = Math.max(25, restBase - 5);
   return [
     {
       id: "town",
@@ -530,18 +543,47 @@ function getPrepLocationsCatalog() {
     {
       id: "rest",
       title: "Sede do Clube",
-      sub: "Descanso & Recuperação",
-      mapLabel: "Descansar",
+      sub: "1x Grátis • Não gasta ação",
+      mapLabel: "Sede (Grátis)",
       mapX: 19,
       mapY: 46,
-      energyGain: 35,
+      energyGain: fullRestGain,
       isRestLocation: true,
-      cta: "Descansar (+35%)",
+      cta: "Visitar Sede (Grátis)",
+      resultEyebrow: "Sede do Clube • Escolha 1 Rotina (Grátis — não gasta ação)",
       banner: UI.locTown || UI.stadiumBg,
       badgeIcon: UI.raimonEmblem || UI.iconDestVR || UI.ffLogo,
       subIcon: UI.itemPendantLightning || UI.tpPendant,
-      desc: "Recupera +35% de Energia do Time de forma bruta (máximo 100%).",
-      events: []
+      desc: "1 visita gratuita antes de cada partida (não consome ação): escolha entre Sono Completo, Análise Tática (+XP) ou Lanche das Gerentes (-20% gasto no próximo jogo).",
+      events: [
+        {
+          id: "rest_full_sleep",
+          title: "Sono Completo na Sede",
+          icon: UI.raimonEmblem || UI.iconDestVR || UI.ffLogo,
+          kind: "REST_ACTIVE",
+          restMode: "FULL",
+          energyGain: fullRestGain,
+          summary: `Recupera <span class="b-chem">+${fullRestGain}% de Energia</span> (máx. 100%). Ideal para voltar ao verde com folga.`
+        },
+        {
+          id: "rest_tactical_video",
+          title: "Análise Tática do Treinador",
+          icon: UI.manualInazuma || UI.ffLogo,
+          kind: "REST_ACTIVE",
+          restMode: "TACTICAL",
+          energyGain: tacticalRestGain,
+          summary: `Recupera <span class="b-chem">+${tacticalRestGain}% de Energia</span> e concede <span class="b-lvl">+35 XP</span> para os 11 titulares.`
+        },
+        {
+          id: "rest_manager_snack",
+          title: "Lanche Especial das Gerentes",
+          icon: UI.itemPendantLightning || UI.tpPendant,
+          kind: "REST_ACTIVE",
+          restMode: "SNACK",
+          energyGain: snackRestGain,
+          summary: `Recupera <span class="b-chem">+${snackRestGain}% de Energia</span> e reduz em <span class="b-tech">20% o gasto de energia</span> na próxima partida.`
+        }
+      ]
     }
   ];
 }
@@ -1024,7 +1066,7 @@ function initStreet5v5PitchState(miniSt, c5) {
   return pitch;
 }
 
-function openBetweenMatchPrep(nextStageIdx) {
+function openBetweenMatchPrep(nextStageIdx, opts = {}) {
   clearTournamentTimers(false);
   const t = state.tournament;
   if (!t.prepBonuses) {
@@ -1049,6 +1091,18 @@ function openBetweenMatchPrep(nextStageIdx) {
       log: []
     };
   }
+  t.nextMatchEnergyMul = 1;
+  let autoRestMsg = null;
+  if (opts && opts.worldFullRest) {
+    t.teamEnergy = 100;
+    autoRestMsg = "✈️ Viagem para a Ilha Liocott: Energia do elenco restaurada para 100%!";
+  } else if (nextStageIdx > 0) {
+    const prevE = Math.round(getTeamEnergy());
+    const nextE = Math.round(adjustTeamEnergy(20));
+    if (nextE > prevE) {
+      autoRestMsg = `🛌 Descanso entre rodadas: +${nextE - prevE}% de Energia (${prevE}% ➔ ${nextE}%).`;
+    }
+  }
   // Até 3 ações por preparação na cidade (ou 4 com a passiva permanente do treinador)
   const allowedEvents = t.prepBonuses.permanentDoublePrep ? 4 : 3;
 
@@ -1062,6 +1116,9 @@ function openBetweenMatchPrep(nextStageIdx) {
     slotsSpun: [false, false, false],
     eventsTotal: allowedEvents,
     eventsRemaining: allowedEvents,
+    restUsedThisRound: false,
+    lastActionWasFreeRest: false,
+    autoRestMsg,
     usedEventIdsThisRound: [],
     appliedMsg: null,
     clash5v5: null,
@@ -1074,11 +1131,6 @@ function openBetweenMatchPrep(nextStageIdx) {
 function startPrepLocationTripleSlot(locId) {
   const t = state.tournament;
   if (!t.prep) return;
-  if ((t.prep.eventsRemaining || 0) <= 0) {
-    t.prep.energyNotice = "Suas ações desta preparação acabaram! Ajuste Táticas/Escalação ou inicie a partida.";
-    renderTournamentScreen();
-    return;
-  }
   const loc = getPrepLocationsCatalog().find((x) => x.id === locId);
   if (!loc) return;
 
@@ -1088,26 +1140,23 @@ function startPrepLocationTripleSlot(locId) {
   }
 
   if (loc.isRestLocation) {
-    const prevE = Math.round(getTeamEnergy());
-    if (prevE >= 100) {
-      t.prep.energyNotice = "Sua Energia já está em 100%! Escolha outro local na cidade.";
+    if (t.prep.restUsedThisRound) {
+      t.prep.energyNotice = "Você já usou o descanso gratuito na Sede do Clube antes desta partida.";
       renderTournamentScreen();
       return;
     }
     t.prep.energyNotice = null;
-    const gain = getRestEnergyGain(t);
-    const nextE = Math.round(adjustTeamEnergy(gain));
     t.prep.locId = locId;
-    t.prep.event = {
-      id: "club_rest",
-      title: "Descanso na Sede do Clube",
-      icon: loc.badgeIcon
-    };
-    t.prep.phase = "DONE";
-    t.prep.affectedPlayers = [];
-    t.prep.appliedMsg = `O elenco descansou na Sede do Clube e recuperou <span class="b-chem">+${gain}% de Energia</span> (${prevE}% ➔ ${nextE}%).`;
-    t.prepBonuses.log.push(`Descanso (+${gain}% Energia)`);
-    renderAll();
+    t.prep.phase = "PICK_CHOICE";
+    t.prep.choices = [...loc.events];
+    t.prep.appliedMsg = null;
+    renderTournamentScreen();
+    return;
+  }
+
+  if ((t.prep.eventsRemaining || 0) <= 0) {
+    t.prep.energyNotice = "Suas ações desta preparação acabaram! Ajuste Táticas/Escalação ou inicie a partida.";
+    renderTournamentScreen();
     return;
   }
 
@@ -1144,12 +1193,62 @@ function handleChoosePrepOption(choiceEvent) {
   const t = state.tournament;
   const prep = t.prep;
   if (!prep || !choiceEvent) return;
+  prep.lastActionWasFreeRest = false;
   prep.event = choiceEvent;
   if (choiceEvent.id) {
     if (!Array.isArray(prep.usedEventIdsThisRound)) prep.usedEventIdsThisRound = [];
     if (!prep.usedEventIdsThisRound.includes(choiceEvent.id)) {
       prep.usedEventIdsThisRound.push(choiceEvent.id);
     }
+  }
+
+  if (choiceEvent.kind === "REST_ACTIVE") {
+    const base = getRestEnergyGain(t);
+    const prevE = Math.round(getTeamEnergy());
+    let gain = base + 10;
+    let extraTxt = "";
+    const affected = [];
+
+    if (choiceEvent.restMode === "TACTICAL") {
+      gain = Math.max(20, base - 10);
+      getSlots().forEach((slot) => {
+        const p = state.squad[slot.id];
+        if (!p) return;
+        const prevLvl = getPlayerLevel(p);
+        const beforePwr = calcIndividualPlayerPower(p, slot.role, prevLvl);
+        const xpRes = gainPlayerXp(p, 35, slot.role);
+        const newLvl = getPlayerLevel(p);
+        const afterPwr = calcIndividualPlayerPower(p, slot.role, newLvl);
+        affected.push({
+          name: p.name,
+          role: slot.role,
+          sprite: getPlayerFormSprite(p, slot.role),
+          xpGained: 35,
+          prevLevel: prevLvl,
+          newLevel: newLvl,
+          levelsGained: Math.max(0, newLvl - prevLvl),
+          pwrGained: Math.max(0, afterPwr - beforePwr),
+          newPwr: afterPwr,
+          learnedMoves: xpRes.learnedMoves || []
+        });
+      });
+      t.prepBonuses.xp += 35;
+      extraTxt = ` e <span class="b-lvl">+35 XP</span> para os 11 titulares`;
+    } else if (choiceEvent.restMode === "SNACK") {
+      gain = Math.max(25, base - 5);
+      t.nextMatchEnergyMul = 0.80;
+      extraTxt = ` e <span class="b-tech">-20% gasto de energia</span> na próxima partida`;
+    }
+
+    const nextE = Math.round(adjustTeamEnergy(gain));
+    prep.restUsedThisRound = true;
+    prep.lastActionWasFreeRest = true;
+    prep.phase = "DONE";
+    prep.affectedPlayers = affected;
+    prep.appliedMsg = `${choiceEvent.title}: <span class="b-chem">+${gain}% Energia</span> (${prevE}% ➔ ${nextE}%)${extraTxt}. <span style="color:#93c5fd;">(Ação gratuita!)</span>`;
+    t.prepBonuses.log.push(`${choiceEvent.title} (+${gain}% Energia)`);
+    renderAll();
+    return;
   }
 
   // 1. Passiva Permanente: Passe Livre do Treinador (+1 ação extra e -3% custo de energia em todas as rodadas)
@@ -1903,6 +2002,7 @@ function buildBetweenMatchPrepHTML(t, stats) {
       ? "Prepare a seleção para a estreia na Fase de Grupos do Mundial!"
       : `Escolha até ${totActions} ações na cidade ou vá direto para a partida:`;
 
+    const snackActive = (t.nextMatchEnergyMul || 1) < 1;
     topBannerHTML = `
       <div class="prep-top-banner">
         <div style="flex:1; min-width:220px;">
@@ -1910,10 +2010,13 @@ function buildBetweenMatchPrepHTML(t, stats) {
             ${prepHeadline}
           </h3>
           ${buildTeamEnergyBarHTML(false)}
+          ${prep.autoRestMsg ? `<div style="margin-top:6px; font-size:0.74rem; font-weight:800; color:#86efac;">${prep.autoRestMsg}</div>` : ""}
+          ${snackActive ? `<div style="margin-top:4px; font-size:0.72rem; font-weight:800; color:#93c5fd;">🍙 Lanche Ativo (-20% gasto de energia no próximo jogo)</div>` : ""}
           ${prep.energyNotice ? `<div style="margin-top:6px; font-size:0.74rem; font-weight:800; color:#fde047;">⚠️ ${prep.energyNotice}</div>` : ""}
         </div>
         <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
           <span class="prep-xp-pill">Ações: ${remActions}/${totActions}</span>
+          <span class="prep-xp-pill">Sede: ${prep.restUsedThisRound ? "Usada" : "1x Grátis"}</span>
           <button class="ie-cmd-btn ie-cmd-green" id="btn-prep-proceed">
             <span>Ir para ${nextStage.stageName} →</span>
           </button>
@@ -1938,19 +2041,22 @@ function buildBetweenMatchPrepHTML(t, stats) {
             .map(
               (loc) => {
                 const reqCost = getPrepLocationCost(loc, t);
-                const restGain = getRestEnergyGain(t);
                 const isNoActions = remActions <= 0;
-                const isFullEnergyRest = Boolean(loc.isRestLocation && curTeamEnergy >= 100);
-                const isDisabled = isNoActions || isFullEnergyRest || (!loc.isRestLocation && curTeamEnergy < reqCost);
-                const pinTitle = isNoActions
+                const isRestUsed = Boolean(loc.isRestLocation && prep.restUsedThisRound);
+                const isDisabled = loc.isRestLocation
+                  ? isRestUsed
+                  : (isNoActions || curTeamEnergy < reqCost);
+                const pinTitle = loc.isRestLocation
+                  ? isRestUsed
+                    ? `${loc.title} — Descanso gratuito já usado nesta rodada`
+                    : `${loc.title} — 1x Grátis (não gasta ação)`
+                  : isNoActions
                   ? `${loc.title} — Ações desta rodada encerradas`
-                  : isFullEnergyRest
-                  ? `${loc.title} — Energia já está em 100%`
                   : isDisabled
                   ? `${loc.title} — Energia insuficiente (precisa de ${reqCost}%)`
                   : `${loc.title} — ${loc.sub}`;
                 const energyBadge = loc.isRestLocation
-                  ? `<span class="pin-energy-tag is-gain">+${restGain}%</span>`
+                  ? `<span class="pin-energy-tag is-gain">${isRestUsed ? "Usado" : "1x Grátis"}</span>`
                   : `<span class="pin-energy-tag is-cost">-${reqCost}%</span>`;
                 return `
             <div class="prep-map-pin ${loc.isRestLocation ? "is-rest-pin" : ""} ${isDisabled ? "is-disabled" : ""}" data-prep-loc="${loc.id}" style="left:${loc.mapX || 50}%; top:${loc.mapY || 50}%;" title="${pinTitle}">
@@ -2320,7 +2426,7 @@ function buildBetweenMatchPrepHTML(t, stats) {
               </div>
             </div>
             <div style="display:flex; flex-direction:column; gap:8px;">
-              ${prep.eventsRemaining > 1 ? `
+              ${(prep.lastActionWasFreeRest ? prep.eventsRemaining > 0 : prep.eventsRemaining > 1) ? `
                 <button class="ie-cmd-btn ie-cmd-gold" id="btn-prep-second-event">
                   <span>Voltar para o Mapa →</span>
                 </button>

@@ -1774,7 +1774,7 @@ function getOpponentSlotAssignments(oppTeam) {
 }
 
 // Tabela de Nível dos Times Adversários por Fase (calibrada com evolução real de Keshin/Técnicas/Manual da CPU!)
-const STAGE_OPPONENT_LEVELS = [2, 3, 5, 6, 8, 9, 11, 12, 14, 15, 17];
+const STAGE_OPPONENT_LEVELS = [2, 3, 4, 5, 6, 7, 9, 11, 13, 15, 17];
 
 function getStageOpponentBuff(stageIdx) {
   const idx = Math.max(0, stageIdx || 0);
@@ -1896,10 +1896,10 @@ function getEvolvedOpponentRoster(oppTeam, stageIdx) {
   ranked.sort((a, b) => b.starScore - a.starScore);
 
   // Quantos craques rivais têm Keshin (desde o começo!), Manual Secreto, técnicas evoluídas e bônus de item
-  const keshinCount = sIdx <= 1 ? 1 : sIdx <= 3 ? 2 : sIdx <= 6 ? 3 : sIdx <= 8 ? 4 : 5;
-  const evoCount = sIdx === 0 ? 1 : sIdx <= 2 ? 2 : sIdx === 3 ? 4 : sIdx <= 5 ? 5 : sIdx <= 8 ? 8 : 10;
-  const equipCount = sIdx === 0 ? 1 : sIdx <= 2 ? 3 : sIdx <= 4 ? 5 : sIdx <= 7 ? 8 : 11;
-  const manualCount = sIdx >= 9 ? 4 : sIdx >= 7 ? 3 : sIdx >= 5 ? 2 : sIdx >= 3 ? 1 : 0;
+  const keshinCount = sIdx <= 1 ? 1 : sIdx <= 4 ? 2 : sIdx <= 7 ? 3 : sIdx <= 8 ? 4 : 5;
+  const evoCount = sIdx === 0 ? 1 : sIdx <= 2 ? 2 : sIdx <= 4 ? 3 : sIdx <= 6 ? 5 : sIdx <= 8 ? 8 : 10;
+  const equipCount = sIdx === 0 ? 1 : sIdx <= 2 ? 3 : sIdx <= 5 ? 5 : sIdx <= 7 ? 8 : 11;
+  const manualCount = sIdx >= 9 ? 4 : sIdx >= 8 ? 3 : sIdx >= 6 ? 2 : sIdx >= 4 ? 1 : 0;
 
   const idSeed = String(oppTeam?.id || oppTeam?.name || "opp")
     .split("")
