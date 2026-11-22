@@ -1951,25 +1951,55 @@ function getIntensityHintText(intensity) {
   return "Média (~41%/jogo): ritmo equilibrado entre técnica, ativação de Keshin e gasto de energia.";
 }
 
-function getFullTacticsSummaryHTML(tac) {
+function getTacticsSingleHints(tac) {
   const postureMap = {
-    defensive: "Recuado (+6% chance defensiva, bloco mais baixo)",
-    balanced: "Equilibrado (sem bônus nem penalidade)",
-    offensive: "Avançado (+5% chance ofensiva, linha alta e -4% defesa)"
+    defensive: "Recuado: +6% defesa, bloco baixo",
+    balanced: "Equilibrado: sem bônus ou penalidade",
+    offensive: "Avançado: +5% ataque, linha alta (-4% def)"
   };
   const laneMap = {
-    wings: "Pontas (foco nas alas, escala com VEL)",
-    balanced: "Livre (jogadores escolhem o melhor espaço)",
-    center: "Meio (infiltração central, escala com TEC)"
+    wings: "Pontas: foco nas alas (escala com VEL)",
+    balanced: "Livre: escolhem o melhor espaço",
+    center: "Meio: infiltração central (escala com TEC)"
   };
   const styleMap = {
-    possession: "Posse (tabelas curtas, -14% interceptação, menos desgaste)",
-    free: "Instinto (cada jogador segue 100% sua personalidade)",
-    vertical: "Vertical (enfiadas rápidas nas costas da zaga e chutes diretos)"
+    possession: "Posse: tabelas curtas e menos desgaste",
+    free: "Instinto: cada jogador segue sua personalidade",
+    vertical: "Vertical: enfiadas rápidas e chutes diretos"
   };
+  return {
+    intensity: getIntensityHintText(tac.intensity),
+    posture: postureMap[tac.posture] || postureMap.balanced,
+    lane: laneMap[tac.lane] || laneMap.balanced,
+    style: styleMap[tac.style] || styleMap.free
+  };
+}
+
+function buildPrepTacticsTriggerBarHTML(t) {
+  const tac = getTactics();
+  const hCatalog = typeof HISSATSU_TACTICS_CATALOG === "object" ? HISSATSU_TACTICS_CATALOG : {};
+  const activeHissatsu = hCatalog[tac.hissatsuTactic] || hCatalog.route_of_sky;
+  const capObj = typeof getActiveTeamCaptain === "function" ? getActiveTeamCaptain() : null;
+  const intLabel = tac.intensity === "high" ? "Alta" : tac.intensity === "low" ? "Baixa" : "Média";
   return `
-    <span><strong>Intensidade:</strong> ${getIntensityHintText(tac.intensity)}</span>
-    <span><strong>Postura:</strong> ${postureMap[tac.posture] || postureMap.balanced} • <strong>Ataque:</strong> ${laneMap[tac.lane] || laneMap.balanced} • <strong>Estilo:</strong> ${styleMap[tac.style] || styleMap.free}</span>
+    <div class="prep-tactics-launch-bar">
+      <div class="prep-tactics-launch-info">
+        <div class="prep-tactics-launch-title">Estratégia &amp; Time</div>
+        <div class="prep-tactics-launch-pills">
+          <span class="prep-tac-chip">Esforço: <strong>${intLabel}</strong></span>
+          <span class="prep-tac-chip">Tática: <strong>${activeHissatsu?.name || "Rota do Céu"}</strong></span>
+          ${capObj ? `<span class="prep-tac-chip">${captainIconHTML("inline-ui-icon")} Cap: <strong>${capObj.player.name}</strong></span>` : ""}
+        </div>
+      </div>
+      <div class="prep-tactics-launch-btns">
+        <button type="button" class="ie-cmd-btn ie-cmd-blue" id="btn-open-tactics-modal">
+          <span>⚙️ Táticas &amp; Líderes</span>
+        </button>
+        <button type="button" class="ie-cmd-btn ie-cmd-gold" id="btn-open-squad-modal">
+          <span>Escalação (${state.formation})</span>
+        </button>
+      </div>
+    </div>
   `;
 }
 
@@ -1978,6 +2008,7 @@ function buildTacticsControlBarHTML(showSquadBtn = false) {
   const pillBtn = (attr, val, label, active) =>
     `<button type="button" class="tac-pill-btn ${active ? "is-active" : ""}" ${attr}="${val}">${label}</button>`;
 
+  const hints = getTacticsSingleHints(tac);
   const hCatalog = typeof HISSATSU_TACTICS_CATALOG === "object" ? HISSATSU_TACTICS_CATALOG : {};
   const activeHissatsu = hCatalog[tac.hissatsuTactic] || hCatalog.route_of_sky;
 
@@ -1990,57 +2021,61 @@ function buildTacticsControlBarHTML(showSquadBtn = false) {
   const acePlayer = starters.find((x) => x.player.id === tac.acePlayerId)?.player || null;
 
   return `
-    <div class="tactics-control-bar">
-      <div class="tac-row-main">
-        <div class="tac-group">
-          <span class="tac-label">Intensidade</span>
-          <div class="tac-pills">
-            ${pillBtn("data-tac-intensity", "low", "Baixa", tac.intensity === "low")}
-            ${pillBtn("data-tac-intensity", "medium", "Média", tac.intensity === "medium")}
-            ${pillBtn("data-tac-intensity", "high", "Alta", tac.intensity === "high")}
+    <div class="tactics-control-bar is-clean-modal-tac">
+      <div class="tac-cards-grid">
+        <div class="tac-setting-card">
+          <div class="tac-setting-top">
+            <span class="tac-label">Intensidade</span>
+            <div class="tac-pills">
+              ${pillBtn("data-tac-intensity", "low", "Baixa", tac.intensity === "low")}
+              ${pillBtn("data-tac-intensity", "medium", "Média", tac.intensity === "medium")}
+              ${pillBtn("data-tac-intensity", "high", "Alta", tac.intensity === "high")}
+            </div>
           </div>
+          <div class="tac-setting-hint" data-tac-hint-intensity>${hints.intensity}</div>
         </div>
-        <div class="tac-group">
-          <span class="tac-label">Postura</span>
-          <div class="tac-pills">
-            ${pillBtn("data-tac-posture", "defensive", "Recuado", tac.posture === "defensive")}
-            ${pillBtn("data-tac-posture", "balanced", "Equilibrado", tac.posture === "balanced")}
-            ${pillBtn("data-tac-posture", "offensive", "Avançado", tac.posture === "offensive")}
-          </div>
-        </div>
-        <div class="tac-group">
-          <span class="tac-label">Ataque</span>
-          <div class="tac-pills">
-            ${pillBtn("data-tac-lane", "wings", "Pontas", tac.lane === "wings")}
-            ${pillBtn("data-tac-lane", "balanced", "Livre", tac.lane === "balanced")}
-            ${pillBtn("data-tac-lane", "center", "Meio", tac.lane === "center")}
-          </div>
-        </div>
-        <div class="tac-group">
-          <span class="tac-label">Estilo</span>
-          <div class="tac-pills">
-            ${pillBtn("data-tac-style", "possession", "Posse", tac.style === "possession")}
-            ${pillBtn("data-tac-style", "free", "Instinto", tac.style === "free")}
-            ${pillBtn("data-tac-style", "vertical", "Vertical", tac.style === "vertical")}
-          </div>
-        </div>
-        ${showSquadBtn ? `
-          <div class="tac-group tac-squad-group">
-            <button type="button" class="ie-cmd-btn ie-cmd-gold tac-squad-btn" id="btn-open-squad-modal">
-              <span>Ver Escalação (${state.formation})</span>
-            </button>
-          </div>
-        ` : ""}
-      </div>
 
-      <div class="tac-intensity-hint tac-live-summary" data-tac-full-summary>
-        ${getFullTacticsSummaryHTML(tac)}
+        <div class="tac-setting-card">
+          <div class="tac-setting-top">
+            <span class="tac-label">Postura</span>
+            <div class="tac-pills">
+              ${pillBtn("data-tac-posture", "defensive", "Recuado", tac.posture === "defensive")}
+              ${pillBtn("data-tac-posture", "balanced", "Equilibrado", tac.posture === "balanced")}
+              ${pillBtn("data-tac-posture", "offensive", "Avançado", tac.posture === "offensive")}
+            </div>
+          </div>
+          <div class="tac-setting-hint" data-tac-hint-posture>${hints.posture}</div>
+        </div>
+
+        <div class="tac-setting-card">
+          <div class="tac-setting-top">
+            <span class="tac-label">Ataque</span>
+            <div class="tac-pills">
+              ${pillBtn("data-tac-lane", "wings", "Pontas", tac.lane === "wings")}
+              ${pillBtn("data-tac-lane", "balanced", "Livre", tac.lane === "balanced")}
+              ${pillBtn("data-tac-lane", "center", "Meio", tac.lane === "center")}
+            </div>
+          </div>
+          <div class="tac-setting-hint" data-tac-hint-lane>${hints.lane}</div>
+        </div>
+
+        <div class="tac-setting-card">
+          <div class="tac-setting-top">
+            <span class="tac-label">Estilo</span>
+            <div class="tac-pills">
+              ${pillBtn("data-tac-style", "possession", "Posse", tac.style === "possession")}
+              ${pillBtn("data-tac-style", "free", "Instinto", tac.style === "free")}
+              ${pillBtn("data-tac-style", "vertical", "Vertical", tac.style === "vertical")}
+            </div>
+          </div>
+          <div class="tac-setting-hint" data-tac-hint-style>${hints.style}</div>
+        </div>
       </div>
 
       <div class="tac-extra-grid">
         <div class="tac-extra-card">
           <div class="tac-extra-head">
-            <span class="tac-label">Tática Especial (ative 1x ao vivo durante o jogo)</span>
+            <span class="tac-label">Tática Especial (1x ao vivo no jogo)</span>
           </div>
           <div class="tac-pills tac-hissatsu-pills">
             ${Object.values(hCatalog)
@@ -2097,12 +2132,12 @@ function bindTacticsControls(rootEl, onFormationChanged = null) {
       b.classList.toggle("is-active", b.getAttribute(attr) === val);
     });
   };
-  const syncSummary = () => {
-    const tac = getTactics();
-    const html = getFullTacticsSummaryHTML(tac);
-    rootEl.querySelectorAll("[data-tac-full-summary]").forEach((el) => {
-      el.innerHTML = html;
-    });
+  const syncHints = () => {
+    const hints = getTacticsSingleHints(getTactics());
+    rootEl.querySelectorAll("[data-tac-hint-intensity]").forEach((el) => { el.textContent = hints.intensity; });
+    rootEl.querySelectorAll("[data-tac-hint-posture]").forEach((el) => { el.textContent = hints.posture; });
+    rootEl.querySelectorAll("[data-tac-hint-lane]").forEach((el) => { el.textContent = hints.lane; });
+    rootEl.querySelectorAll("[data-tac-hint-style]").forEach((el) => { el.textContent = hints.style; });
   };
   rootEl.querySelectorAll("[data-tac-formation]").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -2119,7 +2154,7 @@ function bindTacticsControls(rootEl, onFormationChanged = null) {
       const val = btn.getAttribute("data-tac-intensity");
       getTactics().intensity = val;
       syncActive("data-tac-intensity", val);
-      syncSummary();
+      syncHints();
       saveActiveRunProgress();
     });
   });
@@ -2128,7 +2163,7 @@ function bindTacticsControls(rootEl, onFormationChanged = null) {
       const val = btn.getAttribute("data-tac-posture");
       getTactics().posture = val;
       syncActive("data-tac-posture", val);
-      syncSummary();
+      syncHints();
       saveActiveRunProgress();
     });
   });
@@ -2137,7 +2172,7 @@ function bindTacticsControls(rootEl, onFormationChanged = null) {
       const val = btn.getAttribute("data-tac-lane");
       getTactics().lane = val;
       syncActive("data-tac-lane", val);
-      syncSummary();
+      syncHints();
       saveActiveRunProgress();
     });
   });
@@ -2146,7 +2181,7 @@ function bindTacticsControls(rootEl, onFormationChanged = null) {
       const val = btn.getAttribute("data-tac-style");
       getTactics().style = val;
       syncActive("data-tac-style", val);
-      syncSummary();
+      syncHints();
       saveActiveRunProgress();
     });
   });
@@ -2499,7 +2534,7 @@ function buildBetweenMatchPrepHTML(t, stats) {
     bodyHTML = `
       ${mapStageHTML}
       ${buildActiveScalableBuffsHTML(t)}
-      ${buildTacticsControlBarHTML(true)}
+      ${buildPrepTacticsTriggerBarHTML(t)}
       ${buildOpponentScoutCardHTML(nextStage, prep.nextStageIdx)}
     `;
   } else if (prep.phase === "PICK_CHOICE" || prep.phase === "SPINNING_CHOICES") {

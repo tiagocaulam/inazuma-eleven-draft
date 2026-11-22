@@ -2640,6 +2640,7 @@ function syncLivePitchDOM(st) {
   syncNodeBadgesDOM(pitch, performance.now());
 
   const hBtn = document.getElementById("btn-activate-hissatsu-tactic");
+  const hHint = document.getElementById("pitch-coach-hint");
   if (hBtn && !pitch.is5v5) {
     const hObj = HISSATSU_TACTICS_CATALOG?.[tacNow.hissatsuTactic] || HISSATSU_TACTICS_CATALOG?.route_of_sky;
     if ((pitch.hissatsuTacticTimer || 0) > 0) {
@@ -2648,16 +2649,18 @@ function syncLivePitchDOM(st) {
       hBtn.classList.remove("is-tactic-used");
       hBtn.disabled = true;
       hBtn.innerHTML = `<span>⚡ ${hObj?.name || "Tática"} (${remMin}')</span>`;
+      if (hHint) hHint.textContent = "Efeito ativo em campo!";
     } else if (pitch.hissatsuTacticUsed) {
       hBtn.classList.remove("is-tactic-active");
       hBtn.classList.add("is-tactic-used");
       hBtn.disabled = true;
-      hBtn.innerHTML = `<span>✓ Tática Usada</span>`;
+      hBtn.innerHTML = `<span>✓ ${hObj?.name || "Tática"} Usada</span>`;
+      if (hHint) hHint.textContent = "Já utilizada nesta partida";
     } else {
       hBtn.classList.remove("is-tactic-active", "is-tactic-used");
       hBtn.disabled = false;
-      hBtn.innerHTML = `<span>⚡ ${hObj?.name || "Tática Especial"}</span>`;
-      hBtn.title = `${hObj?.name || "Tática Especial"} (1x/jogo): ${hObj?.shortEffect || ""}`;
+      hBtn.innerHTML = `<span>⚡ Ativar Tática: ${hObj?.name || "Rota do Céu"}</span>`;
+      if (hHint) hHint.textContent = hObj?.shortEffect || "";
     }
   }
 

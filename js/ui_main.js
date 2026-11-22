@@ -83,15 +83,29 @@ function buildUserSquadModalHTML(stats, t) {
         <div class="live-tactics-modal-head">
           <div>
             <div style="font-size:0.68rem; font-weight:900; color:#4ade80; text-transform:uppercase;">Dream Team • Formação ${state.formation}</div>
-            <h4 style="margin:0; font-size:1rem; font-weight:900; color:#fff;">Escalação &amp; Posições (<span id="squad-modal-pwr-val">${stats.power.toLocaleString("pt-BR")}</span> Poder)</h4>
+            <h4 style="margin:0; font-size:1rem; font-weight:900; color:#fff;">Táticas &amp; Escalação (<span id="squad-modal-pwr-val">${stats.power.toLocaleString("pt-BR")}</span> Poder)</h4>
           </div>
           <button type="button" class="ie-cmd-btn" id="btn-close-squad-modal" style="padding:5px 12px; font-size:0.74rem; background:#334155;">
             <span>Fechar ✕</span>
           </button>
         </div>
-        ${buildFormationSelectorStripHTML()}
-        <div id="squad-pitch-modal-body">
-          ${buildPitchHTML(true)}
+
+        <div class="modal-collapse-section" id="squad-collapse-section">
+          <button type="button" class="modal-collapse-header" id="btn-toggle-squad-collapse">
+            <span>⚽ Escalação &amp; Formação (${state.formation})</span>
+            <span class="modal-collapse-chevron" id="squad-collapse-chevron">Recolher ▲</span>
+          </button>
+          <div class="modal-collapse-body" id="squad-collapse-body">
+            ${buildFormationSelectorStripHTML()}
+            <div id="squad-pitch-modal-body">
+              ${buildPitchHTML(true)}
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-tactics-section">
+          <div class="modal-section-subhead">⚙️ Táticas, Capitão &amp; Tática Especial</div>
+          ${buildTacticsControlBarHTML(false)}
         </div>
       </div>
     </div>
@@ -199,7 +213,17 @@ function renderTournamentScreen() {
 
     const squadModal = document.getElementById("squad-overview-modal");
     const openSquadBtn = document.getElementById("btn-open-squad-modal");
+    const openTacModalBtn = document.getElementById("btn-open-tactics-modal");
     const closeSquadBtn = document.getElementById("btn-close-squad-modal");
+    const collapseBody = document.getElementById("squad-collapse-body");
+    const collapseChevron = document.getElementById("squad-collapse-chevron");
+    const collapseBtn = document.getElementById("btn-toggle-squad-collapse");
+
+    const setSquadCollapsed = (collapsed) => {
+      if (collapseBody) collapseBody.classList.toggle("is-collapsed", collapsed);
+      if (collapseChevron) collapseChevron.textContent = collapsed ? "Expandir ▼" : "Recolher ▲";
+    };
+
     const bindSquadModalPitch = () => {
       const pitchBody = document.getElementById("squad-pitch-modal-body");
       if (!pitchBody) return;
@@ -231,15 +255,27 @@ function renderTournamentScreen() {
       if (squadModal) squadModal.classList.remove("is-open");
       renderTournamentScreen();
     };
-    if (openSquadBtn && squadModal) {
-      openSquadBtn.addEventListener("click", () => {
-        state.swapSlotId = null;
-        const pitchBody = document.getElementById("squad-pitch-modal-body");
-        if (pitchBody) {
-          pitchBody.innerHTML = buildPitchHTML(true);
-          bindSquadModalPitch();
-        }
-        squadModal.classList.add("is-open");
+    const openUnifiedModal = (expandSquad) => {
+      if (!squadModal) return;
+      state.swapSlotId = null;
+      const pitchBody = document.getElementById("squad-pitch-modal-body");
+      if (pitchBody) {
+        pitchBody.innerHTML = buildPitchHTML(true);
+        bindSquadModalPitch();
+      }
+      setSquadCollapsed(!expandSquad);
+      squadModal.classList.add("is-open");
+    };
+    if (openSquadBtn) {
+      openSquadBtn.addEventListener("click", () => openUnifiedModal(true));
+    }
+    if (openTacModalBtn) {
+      openTacModalBtn.addEventListener("click", () => openUnifiedModal(false));
+    }
+    if (collapseBtn && collapseBody) {
+      collapseBtn.addEventListener("click", () => {
+        const nextCollapsed = !collapseBody.classList.contains("is-collapsed");
+        setSquadCollapsed(nextCollapsed);
       });
     }
     if (closeSquadBtn && squadModal) {

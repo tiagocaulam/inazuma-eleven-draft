@@ -20,8 +20,10 @@ function buildLivePitchBoxHTML(st, oppTeam, stats = calcSquadStats(), oppStats =
         node.stamina >= 70 ? "#4ade80" : node.stamina >= 45 ? "#facc15" : "#ef4444";
 
       const initSprite = resolveDynamicNodeSprite(node, pitch);
+      const keshinCls = node.keshinState === "ACTIVE" ? "is-keshin-active" : node.keshinState === "EXHAUSTED" ? "is-keshin-exhausted" : "";
       return `
-        <div id="pnode-${node.uid}" class="pitch-player-token ${sideCls} ${ballCls} ${chalCls} ${tiredCls}" style="left:${node.x}%; top:${node.y}%;">
+        <div id="pnode-${node.uid}" class="pitch-player-token ${sideCls} ${ballCls} ${chalCls} ${tiredCls} ${keshinCls}" style="left:${node.x}%; top:${node.y}%;">
+          <div class="keshin-flame-aura" aria-hidden="true"></div>
           <div id="pbadge-${node.uid}" class="pitch-token-action-badge"></div>
           <img class="pitch-token-avatar" src="${initSprite}" alt="${shortName}" />
           <div class="pitch-token-stamina">
@@ -75,22 +77,6 @@ function buildLivePitchBoxHTML(st, oppTeam, stats = calcSquadStats(), oppStats =
             <span class="tv-clock-pill" id="live-clock-text">${st.minute}'</span>
           </div>
           <div class="pitch-tv-controls-bug">
-            ${(() => {
-              const tacNow = getTactics();
-              const hObj = HISSATSU_TACTICS_CATALOG?.[tacNow.hissatsuTactic] || HISSATSU_TACTICS_CATALOG?.route_of_sky;
-              const isUsed = Boolean(pitch.hissatsuTacticUsed);
-              const isActive = (pitch.hissatsuTacticTimer || 0) > 0;
-              const label = isActive
-                ? `⚡ ${hObj?.name || "Tática"} (${Math.max(1, Math.ceil((pitch.hissatsuTacticTimer || 0) * 1.45))}')`
-                : isUsed
-                ? "✓ Tática Usada"
-                : `⚡ ${hObj?.name || "Tática Especial"}`;
-              return `
-                <button type="button" class="ie-cmd-btn pitch-hud-btn pitch-tactic-btn ${isActive ? "is-tactic-active" : ""} ${isUsed && !isActive ? "is-tactic-used" : ""}" id="btn-activate-hissatsu-tactic" ${isUsed || isActive ? "disabled" : ""} title="${hObj?.name || "Tática Especial"} (1x/jogo): ${hObj?.shortEffect || ""}">
-                  <span>${label}</span>
-                </button>
-              `;
-            })()}
             <button type="button" class="ie-cmd-btn pitch-hud-btn" id="btn-toggle-speed">
               <span>Vel: ${state.simSpeed}x</span>
             </button>
@@ -176,6 +162,30 @@ function buildLivePitchBoxHTML(st, oppTeam, stats = calcSquadStats(), oppStats =
         <div id="pitch-center-callout" class="pitch-center-callout" style="display:none;"></div>
         <div id="shot-clash-slot" class="pitch-clash-modal" style="display:none;"></div>
       </div>
+
+      ${
+        !st.isGoldenGoal5v5
+          ? (() => {
+              const tacNow = getTactics();
+              const hObj = HISSATSU_TACTICS_CATALOG?.[tacNow.hissatsuTactic] || HISSATSU_TACTICS_CATALOG?.route_of_sky;
+              const isUsed = Boolean(pitch.hissatsuTacticUsed);
+              const isActive = (pitch.hissatsuTacticTimer || 0) > 0;
+              const label = isActive
+                ? `⚡ ${hObj?.name || "Tática"} (${Math.max(1, Math.ceil((pitch.hissatsuTacticTimer || 0) * 1.45))}')`
+                : isUsed
+                ? `✓ ${hObj?.name || "Tática"} Usada`
+                : `⚡ Ativar Tática: ${hObj?.name || "Rota do Céu"}`;
+              return `
+                <div class="pitch-coach-bar">
+                  <button type="button" class="ie-cmd-btn pitch-tactic-btn ${isActive ? "is-tactic-active" : ""} ${isUsed && !isActive ? "is-tactic-used" : ""}" id="btn-activate-hissatsu-tactic" ${isUsed || isActive ? "disabled" : ""}>
+                    <span>${label}</span>
+                  </button>
+                  <span class="pitch-coach-hint" id="pitch-coach-hint">${isActive ? "Efeito ativo em campo!" : isUsed ? "Já utilizada nesta partida" : (hObj?.shortEffect || "")}</span>
+                </div>
+              `;
+            })()
+          : ""
+      }
 
       <div class="pitch-live-stats" id="pitch-live-stats">
         <div class="pitch-stat-pill"><small>Posse</small><strong>${userPoss}% - ${100 - userPoss}%</strong></div>

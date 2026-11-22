@@ -8259,50 +8259,195 @@ body {
 }
 
 /* ==========================================================================
-   TÁTICAS AVANÇADAS (ESTILO, TÁTICA ESPECIAL, CAPITÃO, CAMISA 10 E SCOUT)
+   BARRA COMPACTA DE ESTRATÉGIA NA PREPARAÇÃO + MODAL UNIFICADO COM COLAPSO
    ========================================================================== */
-.tac-row-main {
+.prep-tactics-launch-bar {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: 8px 12px;
-  width: 100%;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  padding: 10px 12px;
+  margin: 6px 0 8px 0;
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(13, 28, 66, 0.92), rgba(8, 17, 42, 0.96));
+  border: 1.5px solid rgba(59, 130, 246, 0.4);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
 }
 
-.tac-live-summary {
+.prep-tactics-launch-info {
   display: flex;
   flex-direction: column;
-  gap: 3px;
-  width: 100%;
-  background: rgba(15, 23, 42, 0.72);
-  border: 1px solid rgba(96, 165, 250, 0.25);
-  border-radius: 8px;
-  padding: 6px 10px;
-  font-size: 0.7rem;
-  line-height: 1.35;
-  color: #e2e8f0;
+  gap: 5px;
+  min-width: 0;
+  flex: 1 1 220px;
 }
 
-.tac-live-summary strong {
+.prep-tactics-launch-title {
+  font-size: 0.7rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #93c5fd;
+}
+
+.prep-tactics-launch-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.prep-tac-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #cbd5e1;
+  background: rgba(15, 23, 42, 0.75);
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 999px;
+  padding: 3px 9px;
+}
+
+.prep-tac-chip strong {
   color: #fde047;
+}
+
+.prep-tactics-launch-btns {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.ie-cmd-blue {
+  background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%);
+  border: 1.5px solid #60a5fa;
+  color: #fff;
+}
+
+.ie-cmd-blue:hover {
+  filter: brightness(1.1);
+}
+
+.modal-collapse-section {
+  display: flex;
+  flex-direction: column;
+  border-radius: 10px;
+  border: 1px solid rgba(59, 130, 246, 0.35);
+  background: rgba(9, 19, 46, 0.72);
+  overflow: hidden;
+  margin-bottom: 10px;
+}
+
+.modal-collapse-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 9px 12px;
+  background: rgba(15, 34, 78, 0.85);
+  border: none;
+  color: #f8fafc;
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.modal-collapse-header:hover {
+  background: rgba(23, 48, 106, 0.92);
+}
+
+.modal-collapse-chevron {
+  font-size: 0.7rem;
+  font-weight: 800;
+  color: #fde047;
+}
+
+.modal-collapse-body {
+  padding: 8px 10px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.modal-collapse-body.is-collapsed {
+  display: none;
+}
+
+.modal-tactics-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.modal-section-subhead {
+  font-size: 0.76rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #fde047;
+}
+
+/* Cards limpos e respirados dentro do Modal de Táticas */
+.tactics-control-bar.is-clean-modal-tac {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+.tac-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  width: 100%;
+}
+
+.tac-setting-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 9px 11px;
+  border-radius: 10px;
+  background: rgba(11, 22, 52, 0.82);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+.tac-setting-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tac-setting-hint {
+  font-size: 0.69rem;
+  color: #cbd5e1;
+  line-height: 1.35;
 }
 
 .tac-extra-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  gap: 8px;
   width: 100%;
-  margin-top: 4px;
 }
 
 .tac-extra-card {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  background: rgba(11, 22, 52, 0.78);
+  gap: 7px;
+  background: rgba(11, 22, 52, 0.82);
   border: 1px solid rgba(59, 130, 246, 0.32);
   border-radius: 10px;
-  padding: 9px 11px;
+  padding: 10px 11px;
 }
 
 .tac-extra-head {
@@ -8314,12 +8459,13 @@ body {
 
 .tac-hissatsu-pills {
   flex-wrap: wrap;
+  gap: 5px;
 }
 
 .tac-extra-desc {
   font-size: 0.7rem;
   color: #cbd5e1;
-  line-height: 1.35;
+  line-height: 1.4;
 }
 
 .tac-extra-desc strong {
@@ -8327,22 +8473,22 @@ body {
 }
 
 .tac-leaders-card {
-  gap: 8px;
+  gap: 10px;
 }
 
 .tac-leader-row {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 5px;
 }
 
 .tac-select {
   width: 100%;
-  background: rgba(15, 23, 42, 0.92);
+  background: rgba(15, 23, 42, 0.94);
   color: #f8fafc;
   border: 1px solid rgba(96, 165, 250, 0.45);
   border-radius: 7px;
-  padding: 5px 8px;
+  padding: 6px 9px;
   font-family: inherit;
   font-size: 0.74rem;
   font-weight: 800;
@@ -8356,9 +8502,9 @@ body {
 }
 
 .tac-aura-note {
-  font-size: 0.68rem;
+  font-size: 0.69rem;
   color: #bae6fd;
-  line-height: 1.3;
+  line-height: 1.35;
 }
 
 .tac-aura-note strong {
@@ -8424,14 +8570,35 @@ body {
   color: #fff;
 }
 
-/* Botão Ao Vivo de Tática Especial no HUD do Campo */
+/* Barra do Técnico abaixo do Campo Ao Vivo (fora do placar!) */
+.pitch-coach-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 7px 10px;
+  margin-top: 6px;
+  border-radius: 9px;
+  background: rgba(9, 20, 48, 0.88);
+  border: 1px solid rgba(56, 189, 248, 0.32);
+}
+
+.pitch-coach-hint {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #bae6fd;
+  line-height: 1.3;
+  flex: 1 1 180px;
+}
+
 .pitch-tactic-btn {
   background: linear-gradient(135deg, #4f46e5 0%, #0284c7 100%) !important;
   border: 1.5px solid #7dd3fc !important;
   color: #fff !important;
   box-shadow: 0 0 12px rgba(56, 189, 248, 0.45);
-  font-size: 0.68rem !important;
-  padding: 4px 9px !important;
+  font-size: 0.72rem !important;
+  padding: 5px 12px !important;
 }
 
 .pitch-tactic-btn:hover:not(:disabled) {
@@ -8460,73 +8627,119 @@ body {
 }
 
 /* ==========================================================================
-   KESHIN ATIVA EM CAMPO: AURA AZUL-VIOLETA FLAMEJANTE
+   KESHIN ATIVA EM CAMPO: CHAMA ROXA-AZULADA AO REDOR DO JOGADOR
    ========================================================================== */
-@keyframes keshinFlameAura {
-  0% {
-    transform: translate(-50%, -50%) scale(0.95) rotate(-4deg);
-    opacity: 0.86;
-    box-shadow:
-      0 0 10px 3px rgba(56, 189, 248, 0.85),
-      0 0 20px 6px rgba(139, 92, 246, 0.78),
-      0 -6px 18px 3px rgba(168, 85, 247, 0.72);
-  }
-  50% {
-    transform: translate(-50%, -54%) scale(1.12) rotate(4deg);
-    opacity: 1;
-    box-shadow:
-      0 0 14px 5px rgba(96, 165, 250, 0.95),
-      0 0 28px 9px rgba(147, 51, 234, 0.88),
-      0 -10px 24px 5px rgba(56, 189, 248, 0.82);
-  }
-  100% {
-    transform: translate(-50%, -50%) scale(0.98) rotate(-3deg);
-    opacity: 0.88;
-    box-shadow:
-      0 0 12px 4px rgba(129, 140, 248, 0.9),
-      0 0 22px 7px rgba(168, 85, 247, 0.8),
-      0 -7px 20px 4px rgba(37, 99, 235, 0.75);
-  }
+.pitch-player-token {
+  overflow: visible;
 }
 
-.pitch-token.is-keshin-active {
-  z-index: 24 !important;
+.pitch-player-token .pitch-token-avatar,
+.pitch-player-token .pitch-token-stamina,
+.pitch-player-token .pitch-token-name {
+  position: relative;
+  z-index: 3;
 }
 
-.pitch-token.is-keshin-active::before {
+.keshin-flame-aura {
+  display: none;
+  position: absolute;
+  left: 50%;
+  top: 14px;
+  width: 44px;
+  height: 50px;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.pitch-player-token.is-keshin-active {
+  z-index: 12 !important;
+}
+
+.pitch-player-token.is-keshin-active .keshin-flame-aura {
+  display: block;
+  border-radius: 50% 50% 45% 45% / 62% 62% 38% 38%;
+  background: radial-gradient(
+    ellipse at 50% 62%,
+    rgba(96, 165, 250, 0.92) 0%,
+    rgba(147, 51, 234, 0.88) 42%,
+    rgba(107, 33, 168, 0.55) 72%,
+    transparent 100%
+  );
+  filter: drop-shadow(0 0 8px #a855f7) drop-shadow(0 0 14px #38bdf8);
+  animation: keshinFlameRise 0.58s ease-in-out infinite alternate;
+}
+
+.pitch-player-token.is-keshin-active .keshin-flame-aura::before,
+.pitch-player-token.is-keshin-active .keshin-flame-aura::after {
   content: "";
   position: absolute;
   left: 50%;
-  top: 44%;
-  width: 44px;
-  height: 48px;
-  border-radius: 50% 50% 44% 44% / 58% 58% 42% 42%;
-  background: radial-gradient(circle at 50% 60%, rgba(56, 189, 248, 0.55) 0%, rgba(139, 92, 246, 0.62) 48%, rgba(88, 28, 135, 0.1) 82%, transparent 100%);
+  top: 50%;
+  border-radius: 48% 52% 40% 40% / 68% 68% 32% 32%;
   pointer-events: none;
-  z-index: -1;
-  animation: keshinFlameAura 0.75s ease-in-out infinite;
 }
 
-.pitch-token.is-keshin-active .pitch-token-avatar {
-  filter: drop-shadow(0 0 7px #38bdf8) drop-shadow(0 0 13px #9333ea) brightness(1.1);
+.pitch-player-token.is-keshin-active .keshin-flame-aura::before {
+  width: 36px;
+  height: 46px;
+  background: linear-gradient(180deg, rgba(192, 132, 252, 0.9) 0%, rgba(59, 130, 246, 0.55) 60%, transparent 100%);
+  transform: translate(-50%, -58%) rotate(-8deg);
+  animation: keshinTongueLeft 0.45s ease-in-out infinite alternate;
 }
 
-.pitch-token.is-captain-node .pitch-token-name {
-  border: 1px solid rgba(250, 204, 21, 0.75);
+.pitch-player-token.is-keshin-active .keshin-flame-aura::after {
+  width: 34px;
+  height: 44px;
+  background: linear-gradient(180deg, rgba(56, 189, 248, 0.85) 0%, rgba(147, 51, 234, 0.6) 65%, transparent 100%);
+  transform: translate(-50%, -58%) rotate(9deg);
+  animation: keshinTongueRight 0.52s ease-in-out infinite alternate;
+}
+
+@keyframes keshinFlameRise {
+  0% {
+    transform: translate(-50%, -48%) scale(0.96, 0.94);
+    opacity: 0.88;
+  }
+  100% {
+    transform: translate(-50%, -56%) scale(1.12, 1.18);
+    opacity: 1;
+  }
+}
+
+@keyframes keshinTongueLeft {
+  0% { transform: translate(-54%, -54%) rotate(-12deg) scaleY(0.92); }
+  100% { transform: translate(-48%, -64%) rotate(-4deg) scaleY(1.14); }
+}
+
+@keyframes keshinTongueRight {
+  0% { transform: translate(-46%, -54%) rotate(12deg) scaleY(0.94); }
+  100% { transform: translate(-52%, -64%) rotate(4deg) scaleY(1.16); }
+}
+
+.pitch-player-token.is-keshin-active .pitch-token-avatar {
+  border-color: #c084fc !important;
+  box-shadow: 0 0 12px #a855f7, 0 0 20px #38bdf8 !important;
+  filter: brightness(1.12);
+}
+
+.pitch-player-token.is-captain-node .pitch-token-name {
+  border: 1px solid rgba(250, 204, 21, 0.85);
   color: #fef08a;
 }
 
-.pitch-token.is-marked-opp::after {
+.pitch-player-token.is-marked-opp::after {
   content: "";
   position: absolute;
   left: 50%;
-  top: 44%;
+  top: 14px;
   width: 34px;
   height: 34px;
   transform: translate(-50%, -50%);
-  border: 1.5px dashed rgba(248, 113, 113, 0.85);
+  border: 1.5px dashed rgba(248, 113, 113, 0.9);
   border-radius: 50%;
   pointer-events: none;
+  z-index: 2;
 }
 
 .pitch-token-action-badge.badge-keshin {
@@ -8537,8 +8750,16 @@ body {
 }
 
 @media (max-width: 720px) {
+  .tac-cards-grid,
   .tac-extra-grid {
     grid-template-columns: 1fr;
+  }
+  .prep-tactics-launch-btns {
+    width: 100%;
+  }
+  .prep-tactics-launch-btns .ie-cmd-btn {
+    flex: 1 1 auto;
+    justify-content: center;
   }
 }
 
