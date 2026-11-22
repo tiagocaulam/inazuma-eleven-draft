@@ -3258,7 +3258,8 @@ function stepContinuousPhysics(st, pitch, dt) {
     pitch.looseState = null;
     catcher.receiveDashUntil = 0;
     catcher.carryTime = 0;
-    catcher.decisionTimer = playMeta.isOneTwoPass ? 0.08 : 0.30;
+    catcher.duelCooldown = playMeta.isGkOutlet ? 0.65 : 0.25;
+    catcher.decisionTimer = playMeta.isGkOutlet ? 0.14 : playMeta.isOneTwoPass ? 0.08 : 0.30;
     // NUNCA teletransporta a bola ao recebedor: mantém pitch.ballX/Y onde houve o contato real;
     // CARRIED desliza suavemente a bola do ponto de domínio para o pé de condução!
 

@@ -2388,8 +2388,9 @@ function pickPassReceiver(nodes, defNodes, carrier, strictForward = false, pitch
         if (ld < laneDefDist) laneDefDist = ld;
       });
     }
+    const isGkPass = carrier.role === "GK";
     const openFactor =
-      (minDefDist >= 12 ? 2.4 : minDefDist >= 8 ? 1.75 : minDefDist >= 5.5 ? 1.0 : 0.42) *
+      (minDefDist >= 12 ? (isGkPass ? 3.2 : 2.4) : minDefDist >= 8 ? (isGkPass ? 2.1 : 1.75) : minDefDist >= 5.5 ? (isGkPass ? 0.85 : 1.0) : (isGkPass ? 0.18 : 0.42)) *
       (laneDefDist >= 8 ? 1.35 : laneDefDist < 4.0 ? 0.45 : 0.95);
     const staminaW = n.stamina >= 45 ? 1.15 : 0.55;
     const antiPingPongW = pitch && pitch.lastPasserUid === n.uid ? 0.40 : 1.0;
