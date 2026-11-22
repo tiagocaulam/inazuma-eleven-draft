@@ -50,14 +50,30 @@ function renderDraftWheelAndRoster(animateWheel = false) {
   const team = state.currentTeam || DB.teams[0];
 
   // Monta a tira da roleta com 28 itens onde o item #22 é o time sorteado!
+  // Gera tira sem repetir times nem emblemas em posições próximas/adjacentes
   const targetIdx = 22;
-  const stripTeams = [];
+  const stripTeams = new Array(28).fill(null);
+  stripTeams[targetIdx] = team;
+  const matchesDuplicate = (a, b) => Boolean(a && b && (a.id === b.id || (a.emblem && b.emblem && a.emblem === b.emblem)));
   for (let i = 0; i < 28; i++) {
-    if (i === targetIdx) {
-      stripTeams.push(team);
-    } else {
-      stripTeams.push(DB.teams[Math.floor(Math.random() * DB.teams.length)]);
+    if (i === targetIdx) continue;
+    let candidates = DB.teams.filter((cand) => {
+      if (i >= 20 && i <= 24 && matchesDuplicate(cand, team)) return false;
+      for (let d = 1; d <= 5; d++) {
+        if (i - d >= 0 && matchesDuplicate(cand, stripTeams[i - d])) return false;
+        if (i + d < 28 && matchesDuplicate(cand, stripTeams[i + d])) return false;
+      }
+      return true;
+    });
+    if (candidates.length === 0) {
+      candidates = DB.teams.filter((cand) => {
+        const prev = i > 0 ? stripTeams[i - 1] : null;
+        const next = i < 27 ? stripTeams[i + 1] : null;
+        return !matchesDuplicate(cand, prev) && !matchesDuplicate(cand, next);
+      });
     }
+    if (candidates.length === 0) candidates = DB.teams;
+    stripTeams[i] = candidates[Math.floor(Math.random() * candidates.length)];
   }
 
   const posOrder = { GK: 1, DF: 2, MF: 3, FW: 4 };
@@ -193,12 +209,15 @@ function renderDraftWheelAndRoster(animateWheel = false) {
       <div class="wheel-strip" id="wheel-strip">
         ${stripTeams
           .map(
-            (t) => `
-          <div class="wheel-item">
+            (t) => {
+              const shortWheelName = String(t.name || "").replace(/^Protocolo Ômega/i, "Prot. Ômega");
+              return `
+          <div class="wheel-item" title="${t.name}">
             <img src="${t.emblem}" alt="${t.name}" />
-            <span>${t.name}</span>
+            <span>${shortWheelName}</span>
           </div>
-        `
+        `;
+            }
           )
           .join("")}
       </div>

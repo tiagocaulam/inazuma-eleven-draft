@@ -8476,6 +8476,156 @@ body {
   gap: 6px;
 }
 
+.tac-hissatsu-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.tac-hissatsu-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  padding: 8px 9px;
+  border-radius: 9px;
+  background: rgba(15, 29, 66, 0.85);
+  border: 1px solid rgba(96, 165, 250, 0.28);
+  color: #e2e8f0;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: transform 0.12s ease, border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.tac-hissatsu-card:hover {
+  border-color: rgba(125, 211, 252, 0.65);
+  background: rgba(23, 44, 96, 0.92);
+  transform: translateY(-1px);
+}
+
+.tac-hissatsu-card.is-active {
+  background: linear-gradient(135deg, rgba(29, 78, 216, 0.92) 0%, rgba(14, 116, 144, 0.88) 100%);
+  border-color: #fde047;
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.35), inset 0 0 0 1px rgba(253, 224, 71, 0.25);
+}
+
+.tac-hissatsu-card-top {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  width: 100%;
+}
+
+.tac-hissatsu-ico {
+  width: 15px;
+  height: 15px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.tac-hissatsu-tag {
+  font-size: 0.56rem;
+  font-weight: 900;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(56, 189, 246, 0.16);
+  color: #7dd3fc;
+}
+
+.tac-hissatsu-card.is-def .tac-hissatsu-tag {
+  background: rgba(34, 197, 94, 0.18);
+  color: #86efac;
+}
+
+.tac-hissatsu-card.is-volt .tac-hissatsu-tag {
+  background: rgba(250, 204, 21, 0.18);
+  color: #fde047;
+}
+
+.tac-hissatsu-card.is-team .tac-hissatsu-tag {
+  background: rgba(168, 85, 247, 0.22);
+  color: #d8b4fe;
+}
+
+.tac-hissatsu-active-dot {
+  margin-left: auto;
+  font-size: 0.54rem;
+  font-weight: 900;
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: #fde047;
+  color: #0f172a;
+}
+
+.tac-hissatsu-name {
+  font-size: 0.76rem;
+  font-weight: 900;
+  color: #fff;
+  line-height: 1.2;
+}
+
+.tac-hissatsu-brief {
+  font-size: 0.64rem;
+  font-weight: 600;
+  color: #93c5fd;
+  line-height: 1.25;
+}
+
+.tac-archetype-chip {
+  display: inline-block;
+  font-size: 0.6rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.35px;
+  padding: 1px 6px;
+  border-radius: 5px;
+  background: rgba(250, 204, 21, 0.18);
+  border: 1px solid rgba(250, 204, 21, 0.45);
+  color: #fde047;
+  margin-right: 4px;
+  vertical-align: middle;
+}
+
+.btn-inline-flex {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  vertical-align: middle;
+}
+
+.tactics-clip-svg,
+.live-clip-svg {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+}
+
+.prep-early-rest-warn {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(120, 53, 15, 0.35);
+  border: 1px solid rgba(251, 191, 36, 0.45);
+  color: #fef3c7;
+  font-size: 0.72rem;
+  line-height: 1.38;
+}
+
+.prep-early-rest-warn svg {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: #fde047;
+}
+
 .tac-hissatsu-pills {
   flex-wrap: wrap;
   gap: 5px;
@@ -8822,6 +8972,15 @@ body {
   .pitch-coach-bar {
     flex-direction: column;
     align-items: stretch;
+    gap: 5px;
+    padding: 6px 8px;
+  }
+  .pitch-coach-hint {
+    flex: 0 1 auto;
+    width: 100%;
+    min-height: 0;
+    font-size: 0.66rem;
+    text-align: center;
   }
   .pitch-tactic-btn {
     width: 100%;
@@ -8862,6 +9021,12 @@ body {
   }
   .clash-fighter.is-trio-coop .clash-coop-partner.is-bottom {
     margin-top: -4px;
+  }
+}
+
+@media (max-width: 480px) {
+  .tac-hissatsu-grid {
+    grid-template-columns: 1fr;
   }
 }
 

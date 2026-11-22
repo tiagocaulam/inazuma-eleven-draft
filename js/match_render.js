@@ -190,6 +190,7 @@ function showRefereeWhistleModal(st, type, onProceed) {
   }
 
   const isHalftime = type === "HALFTIME";
+  const isEtHalftime = type === "ET_HALFTIME";
   const isExtraTime = type === "EXTRA_TIME";
   const isPenalties = type === "PENALTIES";
   const isFulltime = type === "FULLTIME";
@@ -207,17 +208,21 @@ function showRefereeWhistleModal(st, type, onProceed) {
 
   const headerBadge = isHalftime
     ? "INTERVALO • FIM DO 1º TEMPO"
+    : isEtHalftime
+    ? "INTERVALO DA PRORROGAÇÃO • 105'"
     : isExtraTime
     ? "FIM DO TEMPO NORMAL • PRORROGAÇÃO"
     : isPenalties
     ? "FIM DA PRORROGAÇÃO • PÊNALTIS"
     : "APITO FINAL • FIM DE JOGO";
 
-  const minuteText = isHalftime ? "45'" : isExtraTime ? "90'" : isPenalties ? "120'" : `${st.minute}'`;
+  const minuteText = isHalftime ? "45'" : isEtHalftime ? "105'" : isExtraTime ? "90'" : isPenalties ? "120'" : `${st.minute}'`;
   const soundText = isFulltime || isPenalties ? "⚡ FIIII-FIII-FIIIIII! ⚡" : "⚡ FIIII-FIIII! ⚡";
 
   const mainTitle = isHalftime
     ? "FIM DO PRIMEIRO TEMPO!"
+    : isEtHalftime
+    ? "VIRADA DA PRORROGAÇÃO!"
     : isExtraTime
     ? "EMPATE NO TEMPO NORMAL!"
     : isPenalties
@@ -231,6 +236,8 @@ function showRefereeWhistleModal(st, type, onProceed) {
   const restBonus = (t?.prepBonuses?.restLvl || 0) * 4;
   const subtitleText = isHalftime
     ? `O árbitro apita o intervalo! Ambos os times recuperam fôlego (+${35 + restBonus}% linha / +${45 + restBonus}% goleiro).`
+    : isEtHalftime
+    ? `Fim do 1º tempo extra! Ambos os times recuperam fôlego (+${18 + restBonus}% linha / +${25 + restBonus}% goleiro) para os 15' finais.`
     : isExtraTime
     ? `O empate persiste aos 90'! Ambos os times recuperam +${30 + restBonus}% de fôlego para a Prorrogação!`
     : isPenalties
@@ -241,6 +248,8 @@ function showRefereeWhistleModal(st, type, onProceed) {
 
   const buttonText = isHalftime
     ? "⚡ Iniciar 2º Tempo ▶"
+    : isEtHalftime
+    ? "⚡ Iniciar 2º Tempo Extra ▶"
     : isExtraTime
     ? "⚡ Iniciar Prorrogação ▶"
     : isPenalties
@@ -468,6 +477,8 @@ function handleMinuteEndBoundaries(st, ovrDiff) {
 
   if (st.minute === 105 && !st.etHalftimeHandled && st.maxMinute === 120) {
     st.etHalftimeHandled = true;
+    clearTournamentTimers(false);
+    st.running = false;
     const rec = applyIntervalStaminaRecharge(st, 18, 25);
     const restNote = rec.restBonus > 0 ? ` (+${rec.restBonus}% Descanso)` : "";
     if (st.pitch) {
@@ -483,6 +494,11 @@ function handleMinuteEndBoundaries(st, ovrDiff) {
       null,
       "FF"
     );
+    showRefereeWhistleModal(st, "ET_HALFTIME", () => {
+      st.running = true;
+      runLiveMatchSimulation(st);
+    });
+    return true;
   }
 
   if (st.minute >= st.maxMinute) {
@@ -635,17 +651,44 @@ function calcNodeDuelScore(node, teamSupportBonus, opponentElem = null, actionKi
         tacticalAndEnergyAdj += 0.6;
       }
 
-      // Aura do Capitão do Time
+      // Aura do Capitão do Time (proximidade <= 24u + buff após passe do Capitão)
       if (typeof getActiveTeamCaptain === "function" && typeof getCaptainAuraInfo === "function") {
         const capObj = getActiveTeamCaptain();
         if (capObj) {
-          const aura = getCaptainAuraInfo(capObj.player, capObj.role);
+          const capTacRole = capObj.player?.id && capObj.player.id === getTactics().acePlayerId ? "CAMISA_10" : "NONE";
+          const aura = getCaptainAuraInfo(capObj.player, capObj.role, capTacRole);
           const isTrailing = (activeStage?.userScore || 0) < (activeStage?.oppScore || 0);
-          const isDrawingOrTrailing = (activeStage?.userScore || 0) <= (activeStage?.oppScore || 0);
-          if (aura.type === "WARRIOR" && (isTrailing || curMin >= 70) && (roleOrAction === "DF" || roleOrAction === "GK")) {
-            tacticalAndEnergyAdj += 1.3;
-          } else if (aura.type === "DECISIVE" && roleOrAction === "SH") {
-            tacticalAndEnergyAdj += (isDrawingOrTrailing && curMin >= 60) ? 1.5 : 0.9;
+          const capNode = livePitch?.userNodes?.find((un) => un.player?.id === capObj.player.id) || null;
+          const capDist = capNode
+            ? (typeof visualPitchDist === "function"
+              ? visualPitchDist(capNode.x, capNode.y, node.x, node.y)
+              : Math.hypot(capNode.x - node.x, capNode.y - node.y))
+            : 999;
+          const nearCap = Boolean(capNode && (capNode.uid === node.uid || capDist <= 24));
+          const hasCapPass = Boolean((node.captainPassBuffTimer || 0) > 0 && node.captainPassAuraType === aura.type);
+
+          if (aura.type === "EGO_STRIKER") {
+            if (hasCapPass && roleOrAction === "SH") tacticalAndEnergyAdj += 1.65;
+            else if (nearCap && (roleOrAction === "SH" || roleOrAction === "OF")) tacticalAndEnergyAdj += 1.25;
+            else if (roleOrAction === "SH") tacticalAndEnergyAdj += 0.45;
+          } else if (aura.type === "STRATEGIST") {
+            if (hasCapPass && (roleOrAction === "SH" || roleOrAction === "OF")) tacticalAndEnergyAdj += 1.35;
+            else if (nearCap && (roleOrAction === "OF" || roleOrAction === "SH")) tacticalAndEnergyAdj += 0.85;
+          } else if (aura.type === "PACE_LEADER") {
+            if (hasCapPass && (roleOrAction === "OF" || roleOrAction === "SH")) tacticalAndEnergyAdj += 1.30;
+            else if (nearCap && (roleOrAction === "OF" || roleOrAction === "DF")) tacticalAndEnergyAdj += 0.90;
+          } else if (aura.type === "WARRIOR") {
+            if (nearCap && (roleOrAction === "DF" || roleOrAction === "GK")) {
+              tacticalAndEnergyAdj += (isTrailing || curMin >= 70) ? 1.50 : 1.05;
+            } else if (hasCapPass) {
+              tacticalAndEnergyAdj += 0.95;
+            }
+          } else if (aura.type === "KEEPER_WALL") {
+            if (nearCap && (roleOrAction === "GK" || roleOrAction === "DF")) tacticalAndEnergyAdj += 1.25;
+            else if (hasCapPass && roleOrAction === "DF") tacticalAndEnergyAdj += 0.95;
+          } else if (aura.type === "COLLECTIVE") {
+            if (hasCapPass) tacticalAndEnergyAdj += 1.20;
+            else if (nearCap) tacticalAndEnergyAdj += 0.75;
           }
         }
       }
@@ -726,10 +769,21 @@ function spendStamina(node, cost) {
     }
     if (typeof getActiveTeamCaptain === "function" && typeof getCaptainAuraInfo === "function") {
       const capObj = getActiveTeamCaptain();
-      const aura = capObj ? getCaptainAuraInfo(capObj.player, capObj.role) : null;
+      const capTacRole = capObj?.player?.id && capObj.player.id === tac.acePlayerId ? "CAMISA_10" : "NONE";
+      const aura = capObj ? getCaptainAuraInfo(capObj.player, capObj.role, capTacRole) : null;
       const isTrailing = (activeStage?.userScore || 0) < (activeStage?.oppScore || 0);
-      if (aura?.type === "WARRIOR" && (isTrailing || curMinute >= 70)) {
-        extraMul *= 0.90;
+      const capNode = lp?.userNodes?.find((un) => un.player?.id === capObj?.player?.id) || null;
+      const capDist = capNode
+        ? (typeof visualPitchDist === "function"
+          ? visualPitchDist(capNode.x, capNode.y, node.x, node.y)
+          : Math.hypot(capNode.x - node.x, capNode.y - node.y))
+        : 999;
+      const nearCap = Boolean(capNode && (capNode.uid === node.uid || capDist <= 24));
+      const hasCapPass = Boolean((node.captainPassBuffTimer || 0) > 0 && node.captainPassAuraType === aura?.type);
+      if (aura?.type === "WARRIOR" && (hasCapPass || (nearCap && (isTrailing || curMinute >= 70)))) {
+        extraMul *= hasCapPass ? 0.85 : 0.88;
+      } else if (aura?.type === "KEEPER_WALL" && (nearCap || hasCapPass)) {
+        extraMul *= 0.88;
       }
     }
   }
@@ -1297,11 +1351,35 @@ function computeNodeRoleTarget(node, pitch, carrier, chaserUid, coverUid, deepes
         };
       }
     }
+    // Antecipação em voo de passe: defensor mais próximo fecha a linha do passe no ponto futuro!
+    if (
+      pitch.ballMode === "PASS_FLIGHT" &&
+      pitch.passState &&
+      !pitch.passState.isSafeProtectedPass &&
+      (chaserUid === node.uid || coverUid === node.uid) &&
+      node.staggerTimer <= 0
+    ) {
+      const ps = pitch.passState;
+      const predFrac = chaserUid === node.uid ? 0.65 : 0.85;
+      const cutX = (ps.fromX ?? ballX) * (1 - predFrac) + (ps.toX ?? ballX) * predFrac;
+      const cutY = (ps.fromY ?? ballY) * (1 - predFrac) + (ps.toY ?? ballY) * predFrac;
+      return {
+        tx: Math.max(8, Math.min(92, cutX)),
+        ty: Math.max(10, Math.min(90, cutY)),
+        sprint: Math.min(1.38, 1.06 + prof.combativeness * 0.16 + prof.vision * 0.14)
+      };
+    }
+
     const targetAnchorX = carrier ? carrier.x + (carrier.vx || 0) * 0.22 : ballX;
     const targetAnchorY = carrier ? carrier.y + (carrier.vy || 0) * 0.22 : ballY;
     const dangerousZone = isUser ? ballX <= 42 : ballX >= 58;
     const isPressingMarked = Boolean(isUser && markedNode && carrier && carrier.uid === markedNode.uid);
     const pressSprint = 1.04 + prof.combativeness * 0.16 + (isPressingMarked ? 0.08 : 0);
+
+    // Previsão de alvo de passe: encontra o atacante rival livre mais perigoso para fechar a linha
+    const dangerOpp = oppNodes
+      .filter((o) => o.role !== "GK" && (!carrier || o.uid !== carrier.uid))
+      .sort((a, b) => Math.hypot(a.x - ownGoalX, a.y - 50) - Math.hypot(b.x - ownGoalX, b.y - 50))[0] || null;
 
     if (!isGkHolding && chaserUid === node.uid && node.staggerTimer <= 0) {
       return {
@@ -1317,6 +1395,15 @@ function computeNodeRoleTarget(node, pitch, carrier, chaserUid, coverUid, deepes
           tx: Math.max(8, Math.min(92, targetAnchorX + (isUser ? -1.8 : 1.8))),
           ty: Math.max(12, Math.min(88, targetAnchorY + flankOffset)),
           sprint: Math.max(1.04, pressSprint * 0.97)
+        };
+      }
+      if (dangerOpp && carrier) {
+        const laneX = carrier.x * 0.42 + dangerOpp.x * 0.46 + ownGoalX * 0.12;
+        const laneY = carrier.y * 0.40 + dangerOpp.y * 0.48 + 50 * 0.12;
+        return {
+          tx: Math.max(8, Math.min(92, laneX)),
+          ty: Math.max(12, Math.min(88, laneY)),
+          sprint: 0.98 + prof.combativeness * 0.10 + prof.vision * 0.06
         };
       }
       return {
@@ -1335,14 +1422,14 @@ function computeNodeRoleTarget(node, pitch, carrier, chaserUid, coverUid, deepes
         sprint: 1.05 + prof.combativeness * 0.1
       };
     }
-    // 3º marcador combativo fecha linha de passe / ajuda na pressão em zona perigosa
-    if (!isGkHolding && pressSupportUid === node.uid && dangerousZone && node.staggerTimer <= 0) {
-      const cutX = targetAnchorX * 0.62 + ownGoalX * 0.38;
-      const cutY = targetAnchorY * 0.65 + (node.baseY < 50 ? 32 : 68) * 0.35;
+    // 3º marcador combativo fecha linha de passe do atacante mais perigoso ou ajuda na dobra!
+    if (!isGkHolding && pressSupportUid === node.uid && (dangerousZone || dangerOpp) && node.staggerTimer <= 0) {
+      const refX = dangerOpp && carrier ? (carrier.x * 0.35 + dangerOpp.x * 0.50 + ownGoalX * 0.15) : (targetAnchorX * 0.62 + ownGoalX * 0.38);
+      const refY = dangerOpp && carrier ? (carrier.y * 0.35 + dangerOpp.y * 0.50 + 50 * 0.15) : (targetAnchorY * 0.65 + (node.baseY < 50 ? 32 : 68) * 0.35);
       return {
-        tx: Math.max(10, Math.min(90, cutX)),
-        ty: Math.max(12, Math.min(88, cutY)),
-        sprint: 0.98 + prof.combativeness * 0.1
+        tx: Math.max(10, Math.min(90, refX)),
+        ty: Math.max(12, Math.min(88, refY)),
+        sprint: 0.99 + prof.combativeness * 0.12
       };
     }
   }

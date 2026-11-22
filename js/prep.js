@@ -57,7 +57,7 @@ function getPrepScopeLabel(ev) {
   if (ev.kind === "SCALABLE_BUFF") {
     const map = {
       efficiencyLvl: "Na Cidade",
-      restLvl: "Sede & Intervalo",
+      restLvl: "Dormitório & Intervalo",
       enduranceLvl: "Em Campo",
       wingExplosionLvl: "ATQ & MEI",
       midSynergyLvl: "Meias & Química",
@@ -220,7 +220,7 @@ function getPrepChoiceSummary(ev) {
       return `Deixa todas as visitas na cidade mais baratas em energia (<span class="b-chem">-${nextD}%</span>), permitindo treinar mais antes de cada jogo.`;
     }
     if (ev.buffKey === "restLvl") {
-      return `Melhora o descanso gratuito na Sede (<span class="b-chem">Sono +${45 + nextLvl * 7}%</span> e <span class="b-lvl">Tática +${35 + nextLvl * 10} XP</span>) e recupera <span class="b-lvl">+${nextLvl * 4}% de fôlego</span> no intervalo das partidas.`;
+      return `Melhora o descanso gratuito no Dormitório (<span class="b-chem">Sono +${45 + nextLvl * 7}%</span> e <span class="b-lvl">Tática +${35 + nextLvl * 10} XP</span>) e recupera <span class="b-lvl">+${nextLvl * 4}% de fôlego</span> no intervalo das partidas.`;
     }
     if (ev.buffKey === "enduranceLvl") {
       const nextP = [0, 8, 15, 22][nextLvl] || 22;
@@ -422,7 +422,7 @@ function getPrepLocationsCatalog() {
           maxLevel: 3,
           teamPower: 10,
           weight: 1.8,
-          summary: `Melhora o descanso gratuito na Sede (<span class="b-chem">+7% Energia</span> e <span class="b-lvl">+10 XP</span> na Tática) e recupera mais fôlego no intervalo.`
+          summary: `Melhora o descanso gratuito no Dormitório (<span class="b-chem">+7% Energia</span> e <span class="b-lvl">+10 XP</span> na Tática) e recupera mais fôlego no intervalo.`
         },
         {
           id: "xp_spirit_upgrade",
@@ -663,28 +663,28 @@ function getPrepLocationsCatalog() {
     },
     {
       id: "rest",
-      title: "Sede do Clube",
-      sub: "1x Grátis • Não gasta ação",
-      mapLabel: "Sede (Grátis)",
+      title: "Dormitório do Clube",
+      sub: "1x Grátis • Encerra o dia",
+      mapLabel: "Dormitório (Grátis)",
       mapX: 19,
       mapY: 46,
       energyGain: fullRestGain,
       isRestLocation: true,
-      cta: "Visitar Sede (Grátis)",
-      resultEyebrow: "Sede do Clube • Escolha 1 Rotina (Grátis — não gasta ação)",
+      cta: "Visitar Dormitório (Grátis)",
+      resultEyebrow: "Dormitório do Clube • Escolha 1 Rotina (Grátis — encerra o dia)",
       banner: UI.locTown || UI.stadiumBg,
       badgeIcon: UI.raimonEmblem || UI.iconDestVR || UI.ffLogo,
       subIcon: UI.onigiriIcon || UI.sportsDrink || UI.tpPendant,
-      desc: "1 visita gratuita antes de cada partida (não consome ação): escolha entre Sono Completo, Análise Tática (+XP) ou Lanche das Gerentes (-20% gasto no próximo jogo).",
+      desc: "Descanso gratuito para conservar energia antes do jogo: se visitado antes de gastar todas as ações, encerra o dia e prepara o time para a próxima partida.",
       events: [
         {
           id: "rest_full_sleep",
-          title: "Sono Completo na Sede",
+          title: "Sono Completo no Dormitório",
           icon: UI.sportsDrink || UI.raimonEmblem || UI.ffLogo,
           kind: "REST_ACTIVE",
           restMode: "FULL",
           energyGain: fullRestGain,
-          summary: `A maior recuperação de energia da Sede (<span class="b-chem">+${fullRestGain}%</span>, máx. 100%). Ideal para voltar ao verde com folga antes da partida.`
+          summary: `A maior recuperação de energia do Dormitório (<span class="b-chem">+${fullRestGain}%</span>, máx. 100%). Ideal para voltar ao verde com folga antes da partida.`
         },
         {
           id: "rest_tactical_video",
@@ -1217,12 +1217,12 @@ function openBetweenMatchPrep(nextStageIdx, opts = {}) {
   let autoRestMsg = null;
   if (opts && opts.worldFullRest) {
     t.teamEnergy = 100;
-    autoRestMsg = `${prepAssetIconHTML(UI.ffLogo, "Mundial")} Viagem para a Ilha Liocott: Energia do elenco restaurada para 100%!`;
+    autoRestMsg = `${prepAssetIconHTML(UI.ffLogo, "")} Viagem para a Ilha Liocott: Energia do elenco restaurada para 100%!`;
   } else if (nextStageIdx > 0) {
     const prevE = Math.round(getTeamEnergy());
     const nextE = Math.round(adjustTeamEnergy(20));
     if (nextE > prevE) {
-      autoRestMsg = `${prepAssetIconHTML(UI.sportsDrink || UI.raimonEmblem, "Energia")} Descanso entre rodadas: +${nextE - prevE}% de Energia (${prevE}% ➔ ${nextE}%).`;
+      autoRestMsg = `${prepAssetIconHTML(UI.sportsDrink || UI.raimonEmblem, "")} Você recuperou +${nextE - prevE}% de Energia entre as partidas (${prevE}% ➔ ${nextE}%).`;
     }
   }
   // Até 3 ações por preparação na cidade (ou 4 com a passiva permanente do treinador)
@@ -1277,13 +1277,8 @@ function startPrepLocationTripleSlot(locId) {
   }
 
   if (loc.isRestLocation) {
-    if (!isPrepNightTime(t)) {
-      t.prep.energyNotice = "A Sede do Clube abre à noite! Use suas ações na cidade primeiro.";
-      renderTournamentScreen();
-      return;
-    }
     if (t.prep.restUsedThisRound) {
-      t.prep.energyNotice = "Você já usou o descanso gratuito na Sede do Clube antes desta partida.";
+      t.prep.energyNotice = "Você já descansou no Dormitório do Clube antes desta partida.";
       renderTournamentScreen();
       return;
     }
@@ -1304,7 +1299,7 @@ function startPrepLocationTripleSlot(locId) {
 
   const reqCost = getPrepLocationCost(loc, t);
   if (reqCost > 0 && getTeamEnergy() < reqCost) {
-    t.prep.energyNotice = `Energia insuficiente para ${loc.title} (precisa de ${reqCost}% — descanse na Sede do Clube!).`;
+    t.prep.energyNotice = `Energia insuficiente para ${loc.title} (precisa de ${reqCost}% — descanse no Dormitório do Clube!).`;
     renderTournamentScreen();
     return;
   }
@@ -1484,7 +1479,7 @@ function handleChoosePrepOption(choiceEvent) {
       const disc = [0, 4, 7, 10][nextL] || 10;
       effectTxt = `<span class="b-chem">-${disc}% custo de energia</span> nos locais da cidade`;
     } else if (key === "restLvl") {
-      effectTxt = `Sono da Sede agora recupera <span class="b-chem">+${45 + nextL * 7}% Energia</span>, Análise Tática dá <span class="b-lvl">+${35 + nextL * 10} XP</span> e intervalos recuperam <span class="b-lvl">+${nextL * 4}% fôlego</span>`;
+      effectTxt = `Sono do Dormitório agora recupera <span class="b-chem">+${45 + nextL * 7}% Energia</span>, Análise Tática dá <span class="b-lvl">+${35 + nextL * 10} XP</span> e intervalos recuperam <span class="b-lvl">+${nextL * 4}% fôlego</span>`;
     }
     else if (key === "enduranceLvl") {
       const pct = [0, 8, 15, 22][nextL] || 22;
@@ -1726,15 +1721,20 @@ function applyPrepPlayerReward(slotId) {
     msg = `${player.name} equipou <span class="b-tech">${event.title}</span> (<span class="b-lvl">Nv. ${prevLvl} → Nv. ${newLvl}</span> • <span class="b-pwr">+${pwrDelta} Poder</span>).`;
   } else if (event.kind === "KESHIN_PICK") {
     if (!player.keshin) {
-      const pool = CANONICAL_KESHINS[slot.role] || CANONICAL_KESHINS.MF;
-      const chosenK = pool[Math.floor(Math.random() * pool.length)];
-      player.keshin = { name: chosenK.name, iconKey: chosenK.iconKey, icon: UI[chosenK.iconKey] || UI.keshinIcon };
+      const usedKeshins = new Set(
+        Object.values(state.squad || {})
+          .filter((sp) => sp && sp.keshin && sp.keshin.name)
+          .map((sp) => sp.keshin.name)
+      );
+      const chosenK = pickCanonicalKeshinForPlayer(player, slot.role, usedKeshins, null);
+      player.keshin = chosenK;
       player.level = prevLvl + lvlGain;
       player.bonusPower = (player.bonusPower || 0) + indivPwrGain;
       const newLvl = getPlayerLevel(player);
       const learnedMoves = checkAndLearnLevelMoves(player, slot.role);
       const afterPwr = calcIndividualPlayerPower(player, slot.role, newLvl);
       const pwrDelta = Math.max(0, afterPwr - beforePwr);
+      const moveSuffix = chosenK.move ? ` • ${chosenK.move}` : "";
       affectedPlayers.push({
         name: player.name,
         role: slot.role,
@@ -1744,10 +1744,10 @@ function applyPrepPlayerReward(slotId) {
         levelsGained: Math.max(0, newLvl - prevLvl),
         pwrGained: pwrDelta,
         newPwr: afterPwr,
-        extraBadge: `Keshin: ${chosenK.name}`,
+        extraBadge: `Keshin: ${chosenK.name}${moveSuffix}`,
         learnedMoves
       });
-      msg = `${player.name} despertou <span class="b-tech">${chosenK.name}</span> (<span class="b-lvl">Nv. ${prevLvl} → Nv. ${newLvl}</span> • <span class="b-pwr">+${pwrDelta} Poder</span>).`;
+      msg = `${player.name} despertou <span class="b-tech">${chosenK.name}</span>${chosenK.move ? ` (Hissatsu: <strong>${chosenK.move}</strong>)` : ""} (<span class="b-lvl">Nv. ${prevLvl} → Nv. ${newLvl}</span> • <span class="b-pwr">+${pwrDelta} Poder</span>).`;
     } else {
       msg = `${player.name} já possui a Incorporação ${player.keshin.name}.`;
     }
@@ -2002,10 +2002,10 @@ function buildPrepTacticsTriggerBarHTML(t) {
       </div>
       <div class="prep-tactics-launch-btns">
         <button type="button" class="ie-cmd-btn ie-cmd-blue" id="btn-open-tactics-modal">
-          <span>⚙️ Táticas &amp; Líderes</span>
+          <span class="btn-inline-flex">${typeof buildClipboardIconSVG === "function" ? buildClipboardIconSVG("tactics-clip-svg inline-ui-icon") : ""} Táticas &amp; Líderes</span>
         </button>
         <button type="button" class="ie-cmd-btn ie-cmd-gold" id="btn-open-squad-modal">
-          <span>Escalação (${state.formation})</span>
+          <span class="btn-inline-flex">${typeof formationIconHTML === "function" ? formationIconHTML("inline-ui-icon") : ""} Escalação (${state.formation})</span>
         </button>
       </div>
     </div>
@@ -2026,8 +2026,16 @@ function buildTacticsControlBarHTML(showSquadBtn = false, isLiveMatch = false) {
     .map((s) => ({ slot: s, player: state.squad?.[s.id] }))
     .filter((x) => Boolean(x.player));
   const capObj = typeof getActiveTeamCaptain === "function" ? getActiveTeamCaptain() : null;
-  const capAura = capObj && typeof getCaptainAuraInfo === "function" ? getCaptainAuraInfo(capObj.player, capObj.role) : null;
+  const capTacRole = capObj?.player?.id && capObj.player.id === tac.acePlayerId ? "CAMISA_10" : "NONE";
+  const capAura = capObj && typeof getCaptainAuraInfo === "function" ? getCaptainAuraInfo(capObj.player, capObj.role, capTacRole) : null;
   const acePlayer = starters.find((x) => x.player.id === tac.acePlayerId)?.player || null;
+
+  const TACTIC_CARD_META = {
+    route_of_sky: { tag: "ATAQUE", tone: "is-sky", icon: UI.moveOF || UI.iconDestVR, brief: "Passes rasgam a marcação" },
+    catenaccio: { tag: "DEFESA", tone: "is-def", icon: UI.moveDF || UI.itemSpikeBlock, brief: "Trava a zaga + contra-ataque" },
+    lightning_press: { tag: "PRESSÃO", tone: "is-volt", icon: UI.itemShoesThunder || UI.moveOF, brief: "Marcação alta e roubos" },
+    raimon_harmony: { tag: "SINERGIA", tone: "is-team", icon: UI.raimonEmblem || UI.ffLogo, brief: "Buff coletivo e fôlego" }
+  };
 
   const extraPreMatchHTML = isLiveMatch
     ? ""
@@ -2037,9 +2045,23 @@ function buildTacticsControlBarHTML(showSquadBtn = false, isLiveMatch = false) {
           <div class="tac-extra-head">
             <span class="tac-label">Tática Especial (1x ao vivo no jogo)</span>
           </div>
-          <div class="tac-pills tac-hissatsu-pills">
+          <div class="tac-hissatsu-grid">
             ${Object.values(hCatalog)
-              .map((ht) => pillBtn("data-tac-hissatsu", ht.id, ht.name, tac.hissatsuTactic === ht.id))
+              .map((ht) => {
+                const isActive = tac.hissatsuTactic === ht.id;
+                const meta = TACTIC_CARD_META[ht.id] || { tag: "TÁTICA", tone: "is-sky", icon: UI.ffLogo, brief: "" };
+                return `
+                  <button type="button" class="tac-hissatsu-card ${meta.tone} ${isActive ? "is-active" : ""}" data-tac-hissatsu="${ht.id}">
+                    <div class="tac-hissatsu-card-top">
+                      ${meta.icon ? `<img class="tac-hissatsu-ico" src="${meta.icon}" alt="" />` : ""}
+                      <span class="tac-hissatsu-tag">${meta.tag}</span>
+                      ${isActive ? `<span class="tac-hissatsu-active-dot">ATIVA</span>` : ""}
+                    </div>
+                    <div class="tac-hissatsu-name">${ht.name}</div>
+                    <div class="tac-hissatsu-brief">${meta.brief}</div>
+                  </button>
+                `;
+              })
               .join("")}
           </div>
           <div class="tac-extra-desc" data-tac-hissatsu-desc>
@@ -2059,7 +2081,7 @@ function buildTacticsControlBarHTML(showSquadBtn = false, isLiveMatch = false) {
                 .join("")}
             </select>
             <div class="tac-aura-note" data-tac-captain-aura>
-              ${capAura ? `<strong>Aura: ${capAura.name}</strong> — ${capAura.shortEffect}` : ""}
+              ${capAura ? `<span class="tac-archetype-chip">${capAura.archetypeLabel || "Líder"}</span> <strong>Aura: ${capAura.name}</strong> — ${capAura.shortEffect}` : ""}
             </div>
           </div>
 
@@ -2207,20 +2229,36 @@ function bindTacticsControls(rootEl, onFormationChanged = null) {
       if (!hObj) return;
       getTactics().hissatsuTactic = val;
       syncActive("data-tac-hissatsu", val);
+      rootEl.querySelectorAll(".tac-hissatsu-card").forEach((card) => {
+        const isOn = card.getAttribute("data-tac-hissatsu") === val;
+        const dot = card.querySelector(".tac-hissatsu-active-dot");
+        if (isOn && !dot) {
+          card.querySelector(".tac-hissatsu-card-top")?.insertAdjacentHTML("beforeend", `<span class="tac-hissatsu-active-dot">ATIVA</span>`);
+        } else if (!isOn && dot) {
+          dot.remove();
+        }
+      });
       rootEl.querySelectorAll("[data-tac-hissatsu-desc]").forEach((el) => {
         el.innerHTML = `<strong>${hObj.name}:</strong> ${hObj.desc}`;
       });
       saveActiveRunProgress();
     });
   });
+  const refreshCapAuraInRoot = () => {
+    const capObj = getActiveTeamCaptain();
+    const tac = getTactics();
+    const tacRole = capObj?.player?.id && capObj.player.id === tac.acePlayerId ? "CAMISA_10" : "NONE";
+    const aura = capObj ? getCaptainAuraInfo(capObj.player, capObj.role, tacRole) : null;
+    rootEl.querySelectorAll("[data-tac-captain-aura]").forEach((el) => {
+      el.innerHTML = aura
+        ? `<span class="tac-archetype-chip">${aura.archetypeLabel || "Líder"}</span> <strong>Aura: ${aura.name}</strong> — ${aura.shortEffect}`
+        : "";
+    });
+  };
   rootEl.querySelectorAll("[data-tac-captain]").forEach((sel) => {
     sel.addEventListener("change", () => {
       getTactics().captainPlayerId = sel.value || null;
-      const capObj = getActiveTeamCaptain();
-      const aura = capObj ? getCaptainAuraInfo(capObj.player, capObj.role) : null;
-      rootEl.querySelectorAll("[data-tac-captain-aura]").forEach((el) => {
-        el.innerHTML = aura ? `<strong>Aura: ${aura.name}</strong> — ${aura.shortEffect}` : "";
-      });
+      refreshCapAuraInRoot();
       saveActiveRunProgress();
     });
   });
@@ -2233,6 +2271,7 @@ function bindTacticsControls(rootEl, onFormationChanged = null) {
           ? `O time procura mais <strong>${chosen.name}</strong> nos passes decisivos e finalizações.`
           : "Passes distribuídos conforme espaço livre e personalidade.";
       });
+      refreshCapAuraInRoot();
       saveActiveRunProgress();
     });
   });
@@ -2280,7 +2319,7 @@ function buildActiveScalableBuffsHTML(t) {
       label: "Descanso",
       fullTitle: "Descanso Aprimorado",
       stat: (l) => `Sono +${45 + l * 7}% • Tática +${35 + l * 10} XP • +${l * 4}% Intervalo`,
-      desc: () => "Melhora a recuperação gratuita na Sede do Clube, aumenta o XP da Análise Tática e recupera mais fôlego no intervalo."
+      desc: () => "Melhora a recuperação gratuita no Dormitório do Clube, aumenta o XP da Análise Tática e recupera mais fôlego no intervalo."
     },
     {
       key: "enduranceLvl",
@@ -2484,12 +2523,12 @@ function buildBetweenMatchPrepHTML(t, stats) {
           </h3>
           ${buildTeamEnergyBarHTML(false)}
           ${prep.autoRestMsg ? `<div class="prep-banner-notice is-rest">${prep.autoRestMsg}</div>` : ""}
-          ${snackActive ? `<div class="prep-banner-notice is-snack">${prepAssetIconHTML(UI.onigiriIcon || UI.tpPendant, "Lanche")} Lanche Ativo (-20% gasto de energia no próximo jogo)</div>` : ""}
-          ${prep.energyNotice ? `<div class="prep-banner-notice is-warn">${prepAssetIconHTML(UI.whistleIcon || UI.refereeWhistle, "Aviso")} ${prep.energyNotice}</div>` : ""}
+          ${snackActive ? `<div class="prep-banner-notice is-snack">${prepAssetIconHTML(UI.onigiriIcon || UI.tpPendant, "")} Lanche Ativo (-20% gasto de energia no próximo jogo)</div>` : ""}
+          ${prep.energyNotice ? `<div class="prep-banner-notice is-warn">${prepAssetIconHTML(UI.whistleIcon || UI.refereeWhistle, "")} ${prep.energyNotice}</div>` : ""}
         </div>
         <div class="prep-banner-actions">
           <span class="prep-xp-pill">Ações: ${remActions}/${totActions}</span>
-          <span class="prep-xp-pill">Sede: ${prep.restUsedThisRound ? "Usada" : isNight ? `${PREP_SVG_MOON} Liberada` : `${PREP_SVG_LOCK} À Noite`}</span>
+          <span class="prep-xp-pill">Dormitório: ${prep.restUsedThisRound ? "Usado" : isNight ? `${PREP_SVG_MOON} Liberado` : "Disponível"}</span>
           <button class="ie-cmd-btn ie-cmd-green" id="btn-prep-proceed">
             <span>Ir para ${nextStage.stageName} →</span>
           </button>
@@ -2501,7 +2540,7 @@ function buildBetweenMatchPrepHTML(t, stats) {
     const mapHeaderTxt = !isNight
       ? `${PREP_SVG_SUN}<span>Dia • ${remActions} ${remActions === 1 ? "ação restante" : "ações restantes"}</span>`
       : !prep.restUsedThisRound
-      ? `${PREP_SVG_MOON}<span>Anoiteceu • Visite a Sede do Clube</span>`
+      ? `${PREP_SVG_MOON}<span>Anoiteceu • Visite o Dormitório do Clube</span>`
       : `${PREP_SVG_MOON}<span>Noite encerrada • Pronto para jogar</span>`;
     const mapStageHTML = mapImgSrc
       ? `
@@ -2521,30 +2560,31 @@ function buildBetweenMatchPrepHTML(t, stats) {
               (loc) => {
                 const reqCost = getPrepLocationCost(loc, t);
                 const isNoActions = remActions <= 0;
-                const isRestLockedDay = Boolean(loc.isRestLocation && !isNight);
                 const isRestUsed = Boolean(loc.isRestLocation && prep.restUsedThisRound);
+                const isRestReady = Boolean(loc.isRestLocation && !isRestUsed);
+                const isRestEarlyDay = Boolean(loc.isRestLocation && !isNight && !isRestUsed);
                 const isRestReadyNight = Boolean(loc.isRestLocation && isNight && !isRestUsed);
                 const isDisabled = loc.isRestLocation
-                  ? (isRestLockedDay || isRestUsed)
+                  ? isRestUsed
                   : (isNoActions || curTeamEnergy < reqCost);
                 const pinTitle = loc.isRestLocation
-                  ? isRestLockedDay
-                    ? `${loc.title} — Abre à noite após usar suas ações`
-                    : isRestUsed
-                    ? `${loc.title} — Descanso gratuito já usado nesta rodada`
-                    : `${loc.title} — 1x Grátis à noite (não gasta ação)`
+                  ? isRestUsed
+                    ? `${loc.title} — Descanso já utilizado nesta rodada`
+                    : isRestEarlyDay
+                    ? `${loc.title} — Grátis: encerra as ações restantes do dia para conservar energia`
+                    : `${loc.title} — Descanso noturno gratuito para preparar o elenco`
                   : isNoActions
                   ? `${loc.title} — Ações desta rodada encerradas`
                   : isDisabled
                   ? `${loc.title} — Energia insuficiente (precisa de ${reqCost}%)`
                   : `${loc.title} — ${loc.sub}`;
                 const energyBadge = loc.isRestLocation
-                  ? `<span class="pin-energy-tag is-gain">${isRestUsed ? "Usado" : isRestLockedDay ? "À Noite" : "Grátis"}</span>`
+                  ? `<span class="pin-energy-tag is-gain">${isRestUsed ? "Usado" : isRestEarlyDay ? "Encerra Dia" : "Grátis"}</span>`
                   : `<span class="pin-energy-tag is-cost">-${reqCost}%</span>`;
                 return `
-            <div class="prep-map-pin ${loc.isRestLocation ? "is-rest-pin" : ""} ${isRestReadyNight ? "is-night-highlight" : ""} ${isDisabled ? "is-disabled" : ""}" data-prep-loc="${loc.id}" style="left:${loc.mapX || 50}%; top:${loc.mapY || 50}%;" title="${pinTitle}">
+            <div class="prep-map-pin ${loc.isRestLocation ? "is-rest-pin" : ""} ${isRestReadyNight ? "is-night-highlight" : isRestReady ? "is-rest-open" : ""} ${isDisabled ? "is-disabled" : ""}" data-prep-loc="${loc.id}" style="left:${loc.mapX || 50}%; top:${loc.mapY || 50}%;" title="${pinTitle}">
               <div class="prep-map-pin-orb">
-                ${loc.badgeIcon ? `<img class="pin-main-icon" src="${loc.badgeIcon}" alt="${loc.title}" />` : ""}
+                ${loc.badgeIcon ? `<img class="pin-main-icon" src="${loc.badgeIcon}" alt="" />` : ""}
                 ${loc.subIcon ? `<span class="prep-map-pin-sub"><img src="${loc.subIcon}" alt="" /></span>` : ""}
                 ${energyBadge}
               </div>
@@ -2581,7 +2621,7 @@ function buildBetweenMatchPrepHTML(t, stats) {
       } else if (chosenWinner.kind === "ENERGY_DRINK") {
         badgeTxt = "CONSUMÍVEL";
       } else if (chosenWinner.kind === "REST_ACTIVE") {
-        badgeTxt = "SEDE GRÁTIS";
+        badgeTxt = "DORMITÓRIO GRÁTIS";
       } else if (chosenWinner.kind === "STREET_5V5") {
         badgeTxt = "DESAFIO 5x5";
       } else if (chosenWinner.kind === "KESHIN_PICK") {
@@ -2630,7 +2670,21 @@ function buildBetweenMatchPrepHTML(t, stats) {
             </div>
           </div>
         </div>
-        ${activeLoc?.isRestLocation ? `<div class="prep-rest-energy-preview">${buildTeamEnergyBarHTML(false)}</div>` : ""}
+        ${activeLoc?.isRestLocation ? `
+          <div class="prep-rest-energy-preview">
+            ${buildTeamEnergyBarHTML(false)}
+            ${!isPrepNightTime(t) ? `
+              <div class="prep-early-rest-warn">
+                ${PREP_SVG_MOON} <span><strong>Encerrar o dia e descansar agora?</strong> Você ainda tem ${remActions} ${remActions === 1 ? "ação disponível" : "ações disponíveis"} na cidade — escolher uma rotina no Dormitório encerra o dia para preparar a equipe diretamente para a partida.</span>
+              </div>
+            ` : ""}
+            <div style="display:flex; justify-content:flex-end; margin-top:6px;">
+              <button type="button" class="ie-cmd-btn" id="btn-prep-cancel-rest" style="padding:5px 12px; font-size:0.72rem; background:#334155;">
+                <span>← Voltar ao Mapa</span>
+              </button>
+            </div>
+          </div>
+        ` : ""}
         <div class="prep-triple-cols-grid">
           ${slotColsHTML}
         </div>
@@ -2953,7 +3007,7 @@ function buildBetweenMatchPrepHTML(t, stats) {
                 if (entersNightNow) {
                   return `
                 <button class="ie-cmd-btn ie-cmd-gold" id="btn-prep-second-event">
-                  <span>${PREP_SVG_MOON} Anoitecer • Ir para a Sede →</span>
+                  <span>${PREP_SVG_MOON} Anoitecer • Ir para o Dormitório →</span>
                 </button>`;
                 }
                 return `

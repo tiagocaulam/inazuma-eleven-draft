@@ -84,7 +84,8 @@ function syncTacticsLeadersDOM(rootEl) {
     .map((s) => ({ slot: s, player: state.squad?.[s.id] }))
     .filter((x) => Boolean(x.player));
   const capObj = typeof getActiveTeamCaptain === "function" ? getActiveTeamCaptain() : null;
-  const capAura = capObj && typeof getCaptainAuraInfo === "function" ? getCaptainAuraInfo(capObj.player, capObj.role) : null;
+  const capTacRole = capObj?.player?.id && capObj.player.id === tac.acePlayerId ? "CAMISA_10" : "NONE";
+  const capAura = capObj && typeof getCaptainAuraInfo === "function" ? getCaptainAuraInfo(capObj.player, capObj.role, capTacRole) : null;
   const aceEntry = starters.find((x) => x.player.id === tac.acePlayerId && x.slot.role !== "GK") || null;
   if (tac.acePlayerId && !aceEntry) {
     tac.acePlayerId = null;
@@ -101,7 +102,7 @@ function syncTacticsLeadersDOM(rootEl) {
   }
   const capAuraEl = rootEl.querySelector("[data-tac-captain-aura]");
   if (capAuraEl && capAura) {
-    capAuraEl.innerHTML = `<strong>Aura: ${capAura.name}</strong> — ${capAura.shortEffect}`;
+    capAuraEl.innerHTML = `<span class="tac-archetype-chip">${capAura.archetypeLabel || "Líder"}</span> <strong>Aura: ${capAura.name}</strong> — ${capAura.shortEffect}`;
   }
 
   const aceSel = rootEl.querySelector("[data-tac-ace]");
@@ -126,34 +127,31 @@ function syncTacticsLeadersDOM(rootEl) {
 }
 
 function buildUserSquadModalHTML(stats, t) {
+  const clipIcon = typeof buildClipboardIconSVG === "function" ? buildClipboardIconSVG("tactics-clip-svg inline-ui-icon") : "";
+  const formIcon = typeof formationIconHTML === "function" ? formationIconHTML("inline-ui-icon") : "";
   return `
     <div class="live-tactics-modal-backdrop" id="squad-overview-modal">
       <div class="live-tactics-modal-card squad-overview-modal-card">
         <div class="live-tactics-modal-head">
           <div>
-            <div style="font-size:0.68rem; font-weight:900; color:#4ade80; text-transform:uppercase;">Dream Team • Formação <span id="squad-modal-form-val">${state.formation}</span></div>
-            <h4 style="margin:0; font-size:1rem; font-weight:900; color:#fff;">Táticas &amp; Escalação (<span id="squad-modal-pwr-val">${stats.power.toLocaleString("pt-BR")}</span> Poder)</h4>
+            <div id="squad-modal-eyebrow" style="font-size:0.68rem; font-weight:900; color:#4ade80; text-transform:uppercase;">Dream Team • Formação <span id="squad-modal-form-val">${state.formation}</span></div>
+            <h4 id="squad-modal-title" style="margin:0; font-size:1rem; font-weight:900; color:#fff;">Escalação (<span id="squad-modal-pwr-val">${stats.power.toLocaleString("pt-BR")}</span> Poder)</h4>
           </div>
           <button type="button" class="ie-cmd-btn" id="btn-close-squad-modal" style="padding:5px 12px; font-size:0.74rem; background:#334155;">
             <span>Fechar ✕</span>
           </button>
         </div>
 
-        <div class="modal-collapse-section" id="squad-collapse-section">
-          <button type="button" class="modal-collapse-header" id="btn-toggle-squad-collapse">
-            <span>⚽ Escalação &amp; Formação (<span id="squad-collapse-form-val">${state.formation}</span>)</span>
-            <span class="modal-collapse-chevron" id="squad-collapse-chevron">Recolher ▲</span>
-          </button>
-          <div class="modal-collapse-body" id="squad-collapse-body">
-            ${buildFormationSelectorStripHTML()}
-            <div id="squad-pitch-modal-body">
-              ${buildPitchHTML(true)}
-            </div>
+        <div id="modal-panel-squad">
+          <div class="modal-section-subhead">${formIcon} Escalação &amp; Formação (<span id="squad-collapse-form-val">${state.formation}</span>)</div>
+          ${buildFormationSelectorStripHTML()}
+          <div id="squad-pitch-modal-body">
+            ${buildPitchHTML(true)}
           </div>
         </div>
 
-        <div class="modal-tactics-section">
-          <div class="modal-section-subhead">⚙️ Táticas, Capitão &amp; Tática Especial</div>
+        <div id="modal-panel-tactics" class="modal-tactics-section">
+          <div class="modal-section-subhead">${clipIcon} Prancheta Tática • Capitão &amp; Tática Especial</div>
           ${buildTacticsControlBarHTML(false, false)}
         </div>
       </div>
@@ -257,14 +255,10 @@ function renderTournamentScreen() {
     const openSquadBtn = document.getElementById("btn-open-squad-modal");
     const openTacModalBtn = document.getElementById("btn-open-tactics-modal");
     const closeSquadBtn = document.getElementById("btn-close-squad-modal");
-    const collapseBody = document.getElementById("squad-collapse-body");
-    const collapseChevron = document.getElementById("squad-collapse-chevron");
-    const collapseBtn = document.getElementById("btn-toggle-squad-collapse");
-
-    const setSquadCollapsed = (collapsed) => {
-      if (collapseBody) collapseBody.classList.toggle("is-collapsed", collapsed);
-      if (collapseChevron) collapseChevron.textContent = collapsed ? "Expandir ▼" : "Recolher ▲";
-    };
+    const panelSquad = document.getElementById("modal-panel-squad");
+    const panelTactics = document.getElementById("modal-panel-tactics");
+    const modalEyebrow = document.getElementById("squad-modal-eyebrow");
+    const modalTitle = document.getElementById("squad-modal-title");
 
     const bindSquadModalPitch = () => {
       const pitchBody = document.getElementById("squad-pitch-modal-body");
@@ -299,29 +293,39 @@ function renderTournamentScreen() {
       if (squadModal) squadModal.classList.remove("is-open");
       renderTournamentScreen();
     };
-    const openUnifiedModal = (expandSquad) => {
+    const openSplitModal = (mode) => {
       if (!squadModal) return;
       state.swapSlotId = null;
-      const pitchBody = document.getElementById("squad-pitch-modal-body");
-      if (pitchBody) {
-        pitchBody.innerHTML = buildPitchHTML(true);
-        bindSquadModalPitch();
+      const isTactics = mode === "tactics";
+      if (panelSquad) panelSquad.style.display = isTactics ? "none" : "block";
+      if (panelTactics) panelTactics.style.display = isTactics ? "block" : "none";
+      if (modalEyebrow) {
+        modalEyebrow.innerHTML = isTactics
+          ? `Dream Team • Comando Tático`
+          : `Dream Team • Formação <span id="squad-modal-form-val">${state.formation}</span>`;
       }
-      syncTacticsLeadersDOM(squadModal);
-      setSquadCollapsed(!expandSquad);
+      if (modalTitle) {
+        const curPwr = calcSquadStats().power.toLocaleString("pt-BR");
+        modalTitle.innerHTML = isTactics
+          ? `Táticas, Capitão &amp; Especial`
+          : `Escalação em Campo (<span id="squad-modal-pwr-val">${curPwr}</span> Poder)`;
+      }
+      if (!isTactics) {
+        const pitchBody = document.getElementById("squad-pitch-modal-body");
+        if (pitchBody) {
+          pitchBody.innerHTML = buildPitchHTML(true);
+          bindSquadModalPitch();
+        }
+      } else {
+        syncTacticsLeadersDOM(squadModal);
+      }
       squadModal.classList.add("is-open");
     };
     if (openSquadBtn) {
-      openSquadBtn.addEventListener("click", () => openUnifiedModal(true));
+      openSquadBtn.addEventListener("click", () => openSplitModal("squad"));
     }
     if (openTacModalBtn) {
-      openTacModalBtn.addEventListener("click", () => openUnifiedModal(false));
-    }
-    if (collapseBtn && collapseBody) {
-      collapseBtn.addEventListener("click", () => {
-        const nextCollapsed = !collapseBody.classList.contains("is-collapsed");
-        setSquadCollapsed(nextCollapsed);
-      });
+      openTacModalBtn.addEventListener("click", () => openSplitModal("tactics"));
     }
     if (closeSquadBtn && squadModal) {
       closeSquadBtn.addEventListener("click", closeSquadModal);
@@ -354,7 +358,10 @@ function renderTournamentScreen() {
       const collapseFormEl = document.getElementById("squad-collapse-form-val");
       if (collapseFormEl) collapseFormEl.textContent = state.formation;
       const openBtnSpan = openSquadBtn?.querySelector("span");
-      if (openBtnSpan) openBtnSpan.textContent = `Escalação (${state.formation})`;
+      if (openBtnSpan) {
+        const formIcon = typeof formationIconHTML === "function" ? formationIconHTML("inline-ui-icon") : "";
+        openBtnSpan.innerHTML = `${formIcon} Escalação (${state.formation})`;
+      }
       const pwrVal = document.getElementById("squad-modal-pwr-val");
       if (pwrVal) pwrVal.textContent = calcSquadStats().power.toLocaleString("pt-BR");
       syncTacticsLeadersDOM(squadModal);
@@ -372,6 +379,18 @@ function renderTournamentScreen() {
         renderAll();
       });
     });
+
+    const cancelRestBtn = document.getElementById("btn-prep-cancel-rest");
+    if (cancelRestBtn) {
+      cancelRestBtn.addEventListener("click", () => {
+        t.prep.phase = "CHOOSE_LOC";
+        t.prep.locId = null;
+        t.prep.choices = [];
+        t.prep.energyNotice = null;
+        saveActiveRunProgress();
+        renderTournamentScreen();
+      });
+    }
 
     container.querySelectorAll("[data-prep-choice-idx]").forEach((cardEl) => {
       cardEl.addEventListener("click", (e) => {
@@ -745,7 +764,7 @@ function renderTournamentScreen() {
           <div class="live-tactics-modal-head">
             <div>
               <div style="font-size:0.68rem; font-weight:900; color:#facc15; text-transform:uppercase;">Jogo Pausado</div>
-              <h4 style="margin:0; font-size:1rem; font-weight:900; color:#fff;">⚙️ Ajustes da Partida (<span id="live-tactics-modal-min">${st.minute}'</span>)</h4>
+              <h4 style="margin:0; font-size:1rem; font-weight:900; color:#fff;"><span class="btn-inline-flex">${typeof buildClipboardIconSVG === "function" ? buildClipboardIconSVG("tactics-clip-svg inline-ui-icon") : ""} Prancheta Tática (<span id="live-tactics-modal-min">${st.minute}'</span>)</span></h4>
             </div>
             <button type="button" class="ie-cmd-btn ie-cmd-green" id="btn-close-live-tactics">
               <span>Retomar ▶</span>
@@ -764,7 +783,7 @@ function renderTournamentScreen() {
           </div>
           ${buildTeamEnergyBarHTML(true, st.minute, "live-modal")}
           <div class="modal-tactics-section">
-            <div class="modal-section-subhead">⚙️ Comandos ao Vivo</div>
+            <div class="modal-section-subhead">${typeof buildClipboardIconSVG === "function" ? buildClipboardIconSVG("tactics-clip-svg inline-ui-icon") : ""} Comandos Táticos ao Vivo</div>
             ${buildTacticsControlBarHTML(false, true)}
           </div>
           <div class="modal-collapse-section" id="live-squad-collapse-section">

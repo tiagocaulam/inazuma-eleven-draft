@@ -80,8 +80,8 @@ function buildLivePitchBoxHTML(st, oppTeam, stats = calcSquadStats(), oppStats =
             <button type="button" class="ie-cmd-btn pitch-hud-btn" id="btn-toggle-speed">
               <span>Vel: ${state.simSpeed}x</span>
             </button>
-            <button type="button" class="ie-cmd-btn ie-cmd-gold pitch-hud-btn" id="btn-open-live-tactics" title="Pausar e ajustar Táticas">
-              <span>⚙️</span>
+            <button type="button" class="ie-cmd-btn ie-cmd-gold pitch-hud-btn" id="btn-open-live-tactics" title="Prancheta Tática (Pausar)">
+              <span class="btn-inline-flex">${typeof buildClipboardIconSVG === "function" ? buildClipboardIconSVG("live-clip-svg") : ""}</span>
             </button>
           </div>
         `
@@ -759,7 +759,27 @@ function getUserCaptainAuraType(pitch) {
   if (!pitch || pitch.is5v5) return null;
   if (typeof getActiveTeamCaptain !== "function" || typeof getCaptainAuraInfo !== "function") return null;
   const capObj = getActiveTeamCaptain();
-  return capObj ? getCaptainAuraInfo(capObj.player, capObj.role).type : null;
+  if (!capObj) return null;
+  const tacRole = capObj.player?.id && capObj.player.id === getTactics().acePlayerId ? "CAMISA_10" : "NONE";
+  return getCaptainAuraInfo(capObj.player, capObj.role, tacRole).type;
+}
+
+function isPlayThreateningBoundary(st) {
+  const pitch = st?.pitch;
+  if (!pitch || st.isGoldenGoal5v5) return false;
+  if (pitch.ballMode === "SHOT_FLIGHT" || pitch.ballMode === "GOAL_NET") return true;
+  const ballX = pitch.ballX ?? 50;
+  if (pitch.ballMode === "PASS_FLIGHT" && pitch.passState) {
+    const toX = pitch.passState.toX ?? ballX;
+    return pitch.ballSide === "user" ? toX >= 68 : toX <= 32;
+  }
+  if (pitch.ballMode === "CARRIED") {
+    return pitch.ballSide === "user" ? ballX >= 68 : ballX <= 32;
+  }
+  if (pitch.ballMode === "LOOSE_BALL") {
+    return ballX >= 76 || ballX <= 24;
+  }
+  return false;
 }
 
 function triggerCatenaccioCounterIfActive(pitch) {
@@ -778,13 +798,38 @@ function formatPtShotArticle(label) {
 
 function resolveGkRushClash(st, pitch, carrier, oppGk, attSupport, defSupport, ovrDiff) {
   const gkPick = pickStaminaGatedMove(oppGk, "GK");
+  const gkDist = visualPitchDist(oppGk.x, oppGk.y, carrier.x, carrier.y);
+  const handGrabSure = gkDist <= 4.1;
+
+  let gkWon = handGrabSure;
+  if (!handGrabSure) {
+    const ofPick = pickStaminaGatedMove(carrier, "OF");
+    const gkScore = calcNodeDuelScore(oppGk, defSupport, carrier?.player?.element, "GK") + gkPick.duelBonus + 2.4;
+    const attScore = calcNodeDuelScore(carrier, attSupport, oppGk?.player?.element, "OF") + ofPick.duelBonus;
+    gkWon = Math.random() < logisticWinProb(gkScore, attScore, 1.4, 0.52, 0.94);
+    spendStamina(carrier, Math.max(1.5, ofPick.cost * 0.4));
+  }
 
   spendStamina(oppGk, Math.max(1.5, gkPick.cost * 0.35));
   oppGk.duelCooldown = 1.35;
   carrier.duelCooldown = 1.1;
   oppGk.isGkRushing = false;
-  carrier.staggerTimer = 0.72;
 
+  if (!gkWon) {
+    const dodgeSign = carrier.y >= oppGk.y ? 1 : -1;
+    const dir = carrier.side === "user" ? 1 : -1;
+    carrier.x = Math.max(8, Math.min(92, carrier.x + dir * 2.2));
+    carrier.y = Math.max(14, Math.min(86, carrier.y + dodgeSign * 4.4));
+    carrier.decisionTimer = 0.06;
+    oppGk.staggerTimer = 0.72;
+    showNodeBadge(pitch, carrier.uid, "Passou pelo Goleiro!", "badge-dribble", 1300, "OF");
+    pitch.ticker = `${st.minute}' ${carrier.player.name} tirou do alcance de ${oppGk.player.name} na área!`;
+    syncLivePitchDOM(st);
+    pauseForPitchBeat(st, "", "", 650, ovrDiff);
+    return;
+  }
+
+  carrier.staggerTimer = 0.72;
   pitch.ballSide = oppGk.side;
   pitch.ballMode = "CARRIED";
   pitch.carrierUid = oppGk.uid;
@@ -809,7 +854,7 @@ function resolveGkRushClash(st, pitch, carrier, oppGk, attSupport, defSupport, o
   }
 
   triggerStealShockwave(pitch, oppGk.x, oppGk.y, oppGk.uid, carrier.uid);
-  showNodeBadge(pitch, oppGk.uid, "Saída Corajosa!", "badge-save", 1600, "GK");
+  showNodeBadge(pitch, oppGk.uid, handGrabSure ? "Pegou com as mãos!" : "Saída Corajosa!", "badge-save", 1600, "GK");
   showNodeBadge(pitch, carrier.uid, "Abafado!", "badge-lost", 1500);
   if (oppGk.side === "user") {
     pitch.stats.userSaves++;
@@ -818,11 +863,11 @@ function resolveGkRushClash(st, pitch, carrier, oppGk, attSupport, defSupport, o
   } else {
     pitch.catenaccioCounterTimer = 0;
   }
-  pitch.ticker = `${st.minute}' ${oppGk.player.name} saiu nos pés de ${carrier.player.name} dentro da área e ficou com a bola!`;
+  pitch.ticker = `${st.minute}' ${oppGk.player.name} saiu na área e agarrou a bola com as mãos dos pés de ${carrier.player.name}!`;
   prependNarrationLine(
     st,
     "nar-save",
-    `${st.minute}' [Saída do Goleiro] ${oppGk.player.name} avançou com coragem dentro da área, fechou o ângulo e abafou ${carrier.player.name} antes do chute!`,
+    `${st.minute}' [Saída do Goleiro] ${oppGk.player.name} fechou o espaço na área e agarrou a bola com as mãos antes de ${carrier.player.name} finalizar!`,
     { name: oppGk.player.name, sprite: oppGk.player.sprite, side: oppGk.side },
     { name: carrier.player.name, sprite: carrier.player.sprite, side: carrier.side },
     "GK"
@@ -877,12 +922,16 @@ function launchContinuousPass(st, pitch, carrier, attNodes, defNodes, strictForw
     (!isGkOutlet && !safeRestart && isReceiverOnside && (effRole === "MF" || effRole === "FW") && (forwardSpace >= 5 || fwdDistToCarrier >= 4) && Math.random() < Math.min(0.85, spaceRollProb))
   );
 
-  const isThroughBall = Boolean(wantsSpacePass && !wasOffsideAtPassTime);
+  const isThroughBall = Boolean(wantsSpacePass && !wasOffsideAtPassTime && !passOptions.isCross);
 
   let leadX;
   let leadY;
 
-  if (isThroughBall) {
+  if (passOptions.isCross) {
+    const crossBoxX = attIsUser ? Math.max(77, Math.min(90, receiver.x + 2.2)) : Math.min(23, Math.max(10, receiver.x - 2.2));
+    leadX = Number.isFinite(crossBoxX) ? crossBoxX : (attIsUser ? 83 : 17);
+    leadY = Math.max(24, Math.min(76, receiver.y * 0.72 + 50 * 0.28));
+  } else if (isThroughBall) {
     // Projeta a bola à frente no espaço vazio para o recebedor avançar com dash e buscar!
     const passerSkill = Math.max(50, Math.min(99, carrier.effOvr || 75));
     const spaceLeadDist = 6.5 + (passerSkill / 100) * 5.0; // 6.5 a 11.5 unidades de avanço
@@ -957,6 +1006,7 @@ function launchContinuousPass(st, pitch, carrier, attNodes, defNodes, strictForw
     const isLongSwitch = dist >= 28;
     const isDiagonalSpace = isThroughBall && dist >= 16 && Math.abs(dy) >= 6;
     const shouldCurve =
+      passOptions.isCross ||
       hasBlockerInLane ||
       (isLongSwitch && Math.random() < 0.72) ||
       (isDiagonalSpace && Math.random() < 0.55) ||
@@ -965,15 +1015,17 @@ function launchContinuousPass(st, pitch, carrier, attNodes, defNodes, strictForw
     if (shouldCurve) {
       isCurvedPass = true;
       let curveSign;
-      if (hasBlockerInLane) {
+      if (passOptions.isCross) {
+        curveSign = (fromY < 50 ? fwdDir : -fwdDir);
+      } else if (hasBlockerInLane) {
         curveSign = laneBias >= 0 ? 1 : -1;
       } else {
         const centerSide = (50 - ctrlY) * ny + fwdDir * nx * 0.4;
         curveSign = Math.abs(centerSide) > 0.1 ? (centerSide >= 0 ? 1 : -1) : (fromY < 50 ? 1 : -1);
       }
-      const maxArc = hasBlockerInLane ? 5.6 : isThroughBall ? 4.8 : 4.2;
-      const minArc = hasBlockerInLane ? 1.5 : 1.0;
-      const arcMag = Math.min(maxArc, Math.max(minArc, dist * (hasBlockerInLane ? 0.145 : 0.105)));
+      const maxArc = passOptions.isCross ? 6.4 : hasBlockerInLane ? 5.6 : isThroughBall ? 4.8 : 4.2;
+      const minArc = passOptions.isCross ? 2.4 : hasBlockerInLane ? 1.5 : 1.0;
+      const arcMag = Math.min(maxArc, Math.max(minArc, dist * (passOptions.isCross ? 0.16 : hasBlockerInLane ? 0.145 : 0.105)));
       ctrlX = Math.max(5, Math.min(95, ctrlX + nx * arcMag * curveSign));
       ctrlY = Math.max(7, Math.min(93, ctrlY + ny * arcMag * curveSign * 1.15));
     }
@@ -1035,6 +1087,16 @@ function launchContinuousPass(st, pitch, carrier, attNodes, defNodes, strictForw
       { name: receiver.player.name, sprite: receiver.player.sprite, side: receiver.side },
       "BALL"
     );
+  } else if (passOptions.isCross) {
+    showNodeBadge(pitch, receiver.uid, "Cruzamento na Área!", "badge-pass", 1300);
+    prependNarrationLine(
+      st,
+      "nar-pass",
+      `${st.minute}' [Cruzamento] ${carrier.player.name} ergueu da ponta na medida para ${receiver.player.name} na área!`,
+      { name: carrier.player.name, sprite: carrier.player.sprite, side: carrier.side },
+      { name: receiver.player.name, sprite: receiver.player.sprite, side: receiver.side },
+      "BALL"
+    );
   } else if (passOptions.isReturnOneTwo) {
     showNodeBadge(pitch, receiver.uid, "⚡ Dash p/ Receber!", "badge-dribble", 1400);
     prependNarrationLine(
@@ -1054,7 +1116,7 @@ function launchContinuousPass(st, pitch, carrier, attNodes, defNodes, strictForw
   pitch.challengerUid = null;
   pitch.holdBallPos = null;
   pitch.looseState = null;
-  pitch.lastAction = (isOneTwoPass || passOptions.isReturnOneTwo) ? "ONE_TWO" : isThroughBall ? "THROUGH_BALL" : "PASS";
+  pitch.lastAction = passOptions.isCross ? "CROSS" : (isOneTwoPass || passOptions.isReturnOneTwo) ? "ONE_TWO" : isThroughBall ? "THROUGH_BALL" : "PASS";
   pitch.teamConsecutivePasses = (pitch.teamConsecutivePasses || 0) + 1;
 
   pitch.passState = {
@@ -1066,6 +1128,7 @@ function launchContinuousPass(st, pitch, carrier, attNodes, defNodes, strictForw
     isSafeProtectedPass,
     isOneTwoPass,
     isThroughBall,
+    isCross: Boolean(passOptions.isCross),
     wasOffsideAtPassTime,
     fromX,
     fromY,
@@ -1078,7 +1141,9 @@ function launchContinuousPass(st, pitch, carrier, attNodes, defNodes, strictForw
     progress: 0
   };
 
-  const trailColor = (isOneTwoPass || passOptions.isReturnOneTwo)
+  const trailColor = passOptions.isCross
+    ? "#fb923c"
+    : (isOneTwoPass || passOptions.isReturnOneTwo)
     ? "#facc15"
     : isThroughBall
     ? (attIsUser ? "#38bdf8" : "#f472b6")
@@ -1102,6 +1167,8 @@ function launchContinuousPass(st, pitch, carrier, attNodes, defNodes, strictForw
 
   const badgeTxt = isGkOutlet
     ? "REPOSIÇÃO"
+    : passOptions.isCross
+    ? "CRUZAMENTO"
     : (isOneTwoPass || passOptions.isReturnOneTwo)
     ? "TABELA"
     : isThroughBall
@@ -1111,6 +1178,8 @@ function launchContinuousPass(st, pitch, carrier, attNodes, defNodes, strictForw
   showPitchBadge(pitch, leadX, leadY, badgeTxt, "badge-pass", 750, isGkOutlet ? "GK" : "BALL");
   pitch.ticker = isGkOutlet
     ? `${st.minute}' Reposição: ${carrier.player.name} ➔ ${receiver.player.name}`
+    : passOptions.isCross
+    ? `${st.minute}' Cruzamento na área: ${carrier.player.name} ➔ ${receiver.player.name}!`
     : (isOneTwoPass || passOptions.isReturnOneTwo)
     ? `${st.minute}' Tabela no Espaço: ${carrier.player.name} ➔ ${receiver.player.name}!`
     : isThroughBall
@@ -1332,6 +1401,9 @@ function launchContinuousShot(st, pitch, shooterNode, defNodes, attSupport, defS
   const isLongDist = effRole === "MF" || shotDist > 26;
   const shotInfo = buildShotInfoForNode(shooterNode, Boolean(opts.forceLongShot));
   const isLongShotPlay = Boolean(shotInfo.isLongShotMove && (isLongDist || opts.forceLongShot));
+  const isCrossVolley = (shooterNode.crossVolleyTimer || 0) > 0;
+  if (isCrossVolley) shooterNode.crossVolleyTimer = 0;
+  const volleyBonus = isCrossVolley ? 1.1 : 0;
   const longMod = isLongShotPlay ? 0.3 : isLongDist ? -3.5 : 0;
   const closeFinishMod = !isLongDist && shotDist <= 18 && Math.abs(shotOriginY - 50) <= 18 ? 0.8 : 0;
   const acuteAnglePenalty = Math.abs(shotOriginY - 50) > 24 ? -1.1 : 0;
@@ -1342,6 +1414,7 @@ function launchContinuousShot(st, pitch, shooterNode, defNodes, attSupport, defS
     longMod +
     closeFinishMod +
     acuteAnglePenalty +
+    volleyBonus +
     (shotInfo.duelBonus || 0);
 
   spendStamina(shooterNode, shotInfo.cost);
@@ -2491,11 +2564,38 @@ function stepContinuousPhysics(st, pitch, dt) {
     pitch.catenaccioCounterTimer = Math.max(0, pitch.catenaccioCounterTimer - dt);
   }
 
-  // Avança minutos do relógio e recupera energia fora da posse
+  // Decaimento de timers de aura e voleio
+  allNodes.forEach((n) => {
+    if ((n.captainPassBuffTimer || 0) > 0) n.captainPassBuffTimer = Math.max(0, n.captainPassBuffTimer - dt);
+    if ((n.crossVolleyTimer || 0) > 0) n.crossVolleyTimer = Math.max(0, n.crossVolleyTimer - dt);
+  });
+
+  // Avança minutos do relógio (com mini-acréscimo +1'..+3' se lance perigoso acontecer no limite!) e recupera energia fora da posse
+  if ((pitch.stoppageTicks || 0) > 0 && !isPlayThreateningBoundary(st)) {
+    pitch.stoppageTicks = 0;
+  }
   const targetMin = Math.floor(pitch.minuteFloat);
   if (targetMin > st.minute) {
     while (st.minute < targetMin && !st.finished) {
-      st.minute++;
+      const nextMin = st.minute + 1;
+      const isHoldBoundary =
+        (nextMin === 45 && !st.halftimeHandled) ||
+        (nextMin === 90 && !st.fulltimeExtraChecked) ||
+        (nextMin === 105 && !st.etHalftimeHandled && st.maxMinute === 120) ||
+        nextMin >= st.maxMinute;
+      if (isHoldBoundary && isPlayThreateningBoundary(st) && (pitch.stoppageTicks || 0) < 3) {
+        pitch.stoppageTicks = (pitch.stoppageTicks || 0) + 1;
+        pitch.minuteFloat = nextMin - 0.55;
+        const clockEl = document.getElementById("live-clock-text");
+        if (clockEl) clockEl.textContent = `${nextMin}+${pitch.stoppageTicks}'`;
+        if (pitch.stoppageTicks === 1) {
+          pitch.ticker = `${nextMin}+1' Acréscimo! O árbitro aguarda o desfecho do ataque!`;
+          syncLivePitchDOM(st);
+        }
+        break;
+      }
+      pitch.stoppageTicks = 0;
+      st.minute = nextMin;
       const clockEl = document.getElementById("live-clock-text");
       const barEl = document.getElementById("live-bar-fill");
       if (clockEl) clockEl.textContent = `${st.minute}'`;
@@ -2548,6 +2648,14 @@ function stepContinuousPhysics(st, pitch, dt) {
   };
   const steerNodes = (list) => {
     const activeHt = (pitch.hissatsuTacticTimer || 0) > 0 ? pitch.activeHissatsuTacticId : null;
+    const capAuraType = getUserCaptainAuraType(pitch);
+    const capNode =
+      capAuraType === "PACE_LEADER" && !pitch.is5v5
+        ? (() => {
+            const cap = typeof getActiveTeamCaptain === "function" ? getActiveTeamCaptain() : null;
+            return cap ? list.find((u) => u.side === "user" && u.player?.id === cap.player?.id) : null;
+          })()
+        : null;
     list.forEach((node) => {
       const dx = node.targetX - node.x;
       const dy = node.targetY - node.y;
@@ -2567,6 +2675,11 @@ function stepContinuousPhysics(st, pitch, dt) {
         } else if (activeHt === "lightning_press" && pitch.ballSide !== "user" && node.role !== "GK") {
           tacticSpdFactor = 1.16;
         }
+      }
+      if (node.side === "user" && capAuraType === "PACE_LEADER" && !pitch.is5v5) {
+        const nearPaceCap = capNode && (capNode.uid === node.uid || visualPitchDist(capNode.x, capNode.y, node.x, node.y) <= 24);
+        const hasPacePass = (node.captainPassBuffTimer || 0) > 0 && node.captainPassAuraType === "PACE_LEADER";
+        if (nearPaceCap || hasPacePass) tacticSpdFactor *= 1.08;
       }
       const speedLimit = node.maxSpeed * (node.targetSprint || 0.9) * staminaFactor * staggerFactor * keshinSpdFactor * tacticSpdFactor;
       const arriveScale = dist < 3.0 ? dist / 3.0 : 1.0;
@@ -2658,12 +2771,14 @@ function stepContinuousPhysics(st, pitch, dt) {
     // 1) Checa contato físico real: primeiro saída do Goleiro na área, depois Drible (OF) vs Desarme (DF) ou Tabela!
     if (carrier.role !== "GK" && !pitch.justKickedOff && carrier.duelCooldown <= 0) {
       const oppGk = defNodes.find((d) => d.role === "GK");
-      if (oppGk && oppGk.staggerTimer <= 0 && oppGk.duelCooldown <= 0 && carrier.carryTime >= 0.20) {
+      if (oppGk && oppGk.staggerTimer <= 0 && oppGk.duelCooldown <= 0 && carrier.carryTime >= 0.14) {
         const gkDist = visualPitchDist(oppGk.x, oppGk.y, carrier.x, carrier.y);
         const carrierInOppBox = attIsUser
           ? carrier.x >= 75 && Math.abs(carrier.y - 50) <= 28
           : carrier.x <= 25 && Math.abs(carrier.y - 50) <= 28;
-        if (carrierInOppBox && gkDist <= 4.35) {
+        const gkOffLine = attIsUser ? oppGk.x < 91.5 : oppGk.x > 8.5;
+        const gkRushRange = gkOffLine ? 5.6 : 4.8;
+        if (carrierInOppBox && gkDist <= gkRushRange) {
           resolveGkRushClash(st, pitch, carrier, oppGk, attSupport, defSupport, ovrDiff);
           return;
         }
@@ -2685,9 +2800,10 @@ function stepContinuousPhysics(st, pitch, dt) {
         const carrierSpd = getEffectiveMatchSpeed(carrier);
         const defSpd = getEffectiveMatchSpeed(closestDef);
         const spdDiff = carrierSpd - defSpd;
+        const oppGkDistNow = oppGk ? visualPitchDist(oppGk.x, oppGk.y, carrier.x, carrier.y) : 99;
 
-        // 1. ⚡ Arranque Veloz: Atacante descansado com vantagem de velocidade (spdDiff >= +6) deixa o marcador na poeira
-        if (carrier.stamina >= 45 && spdDiff >= 6 && closestDist <= 6.0 && closestDist > 3.65) {
+        // 1. ⚡ Arranque Veloz com range variável por velocidade/fôlego/espaço (não teletransporta para dentro das mãos do GK!)
+        if (carrier.stamina >= 45 && spdDiff >= 6 && closestDist <= 6.2 && closestDist > 3.65 && oppGkDistNow > 9.5) {
           const burstChance = Math.min(0.68, 0.35 + (spdDiff - 6) * 0.04);
           if (Math.random() < burstChance) {
             spendStamina(carrier, 2.5);
@@ -2698,9 +2814,16 @@ function stepContinuousPhysics(st, pitch, dt) {
             const startX = carrier.x;
             const startY = carrier.y;
             const dodgeSign = startY >= closestDef.y ? 1 : -1;
-            const dashToX = Math.max(10, Math.min(90, startX + dir * 11.5));
-            const dashToY = Math.max(12, Math.min(88, startY + dodgeSign * 4.5));
-            const dashMs = state.simSpeed === 4 ? 90 : state.simSpeed === 2 ? 180 : 360;
+            const stamMod = carrier.stamina >= 75 ? 2.1 : carrier.stamina >= 55 ? 0.8 : -0.6;
+            const rawDashDist = Math.max(6.5, Math.min(14.5, 7.0 + Math.max(0, spdDiff - 4) * 0.42 + stamMod));
+            const maxSafeDist = oppGk
+              ? Math.max(4.5, (attIsUser ? oppGk.x - startX : startX - oppGk.x) - 6.2)
+              : rawDashDist;
+            const dashDist = Math.max(5.5, Math.min(rawDashDist, maxSafeDist));
+            const dashToX = Math.max(10, Math.min(90, startX + dir * dashDist));
+            const dashToY = Math.max(12, Math.min(88, startY + dodgeSign * 4.4));
+            const baseMs = state.simSpeed === 4 ? 90 : state.simSpeed === 2 ? 180 : 360;
+            const dashMs = Math.round(baseMs * Math.max(0.65, Math.min(1.25, dashDist / 11.0)));
             pitch.dashFx = {
               uid: carrier.uid,
               fromX: startX,
@@ -3060,9 +3183,48 @@ function stepContinuousPhysics(st, pitch, dt) {
         return;
       }
 
+      // VOLEIO / BOLA CRUZADA: se recebeu um cruzamento fresco na área, bate de primeira!
+      if ((carrier.crossVolleyTimer || 0) > 0 && Math.abs(carrier.y - 50) <= 25 && goalDist <= 28) {
+        launchContinuousShot(st, pitch, carrier, defNodes, attSupport, defSupport, ovrDiff, attNodes);
+        return;
+      }
+
+      // CRUZAMENTO INTELIGENTE PELAS PONTAS: no terço final pela lateral, cruza com curva para quem ataca a área!
+      const isWideFinalThird = (attIsUser ? carrier.x >= 69 : carrier.x <= 31) && Math.abs(carrier.y - 50) >= 24;
+      if (isWideFinalThird && carrier.carryTime >= 0.25) {
+        const boxTarget = prioritizedAttNodes.find((n) => {
+          if (n.uid === carrier.uid || n.role === "GK" || !isLegalPassTarget(n)) return false;
+          const inBox = (attIsUser ? n.x >= 72 : n.x <= 28) && Math.abs(n.y - 50) <= 19;
+          return inBox;
+        });
+        if (boxTarget && Math.random() < (0.52 + cProf.vision * 0.26 - cProf.ego * 0.14)) {
+          launchContinuousPass(st, pitch, carrier, attNodes, defNodes, true, false, false, {
+            targetReceiver: boxTarget,
+            isCross: true
+          });
+          return;
+        }
+      }
+
       // Se está livre rumo ao gol (sem marcadores na linha de chute), segue conduzindo para finalizar em vez de recuar!
       if (isClearOnGoal) {
         return;
+      }
+
+      // INVERSÃO DE JOGO: quando está cercado em um lado e há colega livre no flanco oposto, inverte a jogada!
+      if (blockingDefs >= 2 && carrier.carryTime >= 0.45 && cProf.ego < 0.72) {
+        const oppositeFlankTarget = prioritizedAttNodes.find((n) => {
+          if (n.uid === carrier.uid || n.role === "GK" || !isLegalPassTarget(n)) return false;
+          const isOppSide = carrier.y < 50 ? n.y > 54 : n.y < 46;
+          const nOpen = !oppOutfieldDefs.some((d) => visualPitchDist(d.x, d.y, n.x, n.y) < 7.5);
+          return isOppSide && nOpen;
+        });
+        if (oppositeFlankTarget && roll < 0.48 + cProf.vision * 0.24) {
+          launchContinuousPass(st, pitch, carrier, attNodes, defNodes, false, false, false, {
+            targetReceiver: oppositeFlankTarget
+          });
+          return;
+        }
       }
 
       // Procura enfiada de bola / passe no espaço vazio (Estrategistas, Capitão Maestro, Estilo Vertical e Camisa 10!)
@@ -3092,7 +3254,8 @@ function stepContinuousPhysics(st, pitch, dt) {
         return;
       }
 
-      // Passes de construção / reciclagem pensada (Individualistas seguram mais para driblar; Posse/Coletivistas giram rápido)
+      // Passes de construção / reciclagem pensada (Individualistas/Velozes conduzem se tiverem campo aberto!)
+      const fastCarrierSpace = (cProf.archetype === "VELOZ" || cProf.archetype === "INDIVIDUALISTA") && nearestDefDist >= 6.8;
       const tiredPass = carrier.stamina < 42 && roll < 0.58;
       const pressPass = nearestDefDist < 7.5 && roll < (0.36 + cProf.vision * 0.24 - cProf.ego * 0.18);
       // No terço final, só recicla para trás se estiver REALMENTE cercado (decisão pensada de Estrategista/Coletivista)
@@ -3102,6 +3265,7 @@ function stepContinuousPhysics(st, pitch, dt) {
       const holdLimit = userStyle === "possession" ? baseHoldLimit * 0.85 : baseHoldLimit;
       const flowPass =
         !inFinalThird &&
+        !fastCarrierSpace &&
         carrier.carryTime >= (cProf.archetype === "COLETIVISTA" || userStyle === "possession" ? 0.68 : 1.05) &&
         roll <
           ((carrier.role === "DF" ? 0.64 : 0.34 + cProf.vision * 0.22 - cProf.ego * 0.18) +
@@ -3256,10 +3420,21 @@ function stepContinuousPhysics(st, pitch, dt) {
     pitch.carrierUid = catcher.uid;
     pitch.passState = null;
     pitch.looseState = null;
+    if (attIsUser && !pitch.is5v5 && playMeta.passerNode) {
+      const capObj = typeof getActiveTeamCaptain === "function" ? getActiveTeamCaptain() : null;
+      if (capObj && capObj.player?.id && playMeta.passerNode.player?.id === capObj.player.id && catcher.uid !== playMeta.passerUid) {
+        const capTacRole = capObj.player.id === getTactics().acePlayerId ? "CAMISA_10" : "NONE";
+        const capAuraInfo = typeof getCaptainAuraInfo === "function" ? getCaptainAuraInfo(capObj.player, capObj.role, capTacRole) : null;
+        catcher.captainPassBuffTimer = 2.8;
+        catcher.captainPassAuraType = capAuraInfo?.type || "COLLECTIVE";
+        showNodeBadge(pitch, catcher.uid, `★ Passe do Cap (${capAuraInfo?.archetypeLabel || "Aura"})!`, "badge-pass", 1200);
+      }
+    }
+    catcher.crossVolleyTimer = playMeta.isCross ? 1.6 : 0;
     catcher.receiveDashUntil = 0;
     catcher.carryTime = 0;
     catcher.duelCooldown = playMeta.isGkOutlet ? 0.65 : 0.25;
-    catcher.decisionTimer = playMeta.isGkOutlet ? 0.14 : playMeta.isOneTwoPass ? 0.08 : 0.30;
+    catcher.decisionTimer = playMeta.isGkOutlet ? 0.14 : (playMeta.isOneTwoPass || playMeta.isCross) ? 0.06 : 0.30;
     // NUNCA teletransporta a bola ao recebedor: mantém pitch.ballX/Y onde houve o contato real;
     // CARRIED desliza suavemente a bola do ponto de domínio para o pé de condução!
 

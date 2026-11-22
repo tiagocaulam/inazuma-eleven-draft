@@ -44,6 +44,10 @@ function buildMiniBallSVG(cls = "mini-ball-svg") {
   return `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10.2" fill="#f8fafc" stroke="#0f172a" stroke-width="1.8"/><polygon points="12,7.2 15.8,10 14.3,14.5 9.7,14.5 8.2,10" fill="#0f172a"/><line x1="12" y1="7.2" x2="12" y2="2" stroke="#0f172a" stroke-width="1.4"/><line x1="15.8" y1="10" x2="21.2" y2="8.2" stroke="#0f172a" stroke-width="1.4"/><line x1="8.2" y1="10" x2="2.8" y2="8.2" stroke="#0f172a" stroke-width="1.4"/><line x1="14.3" y1="14.5" x2="18.2" y2="20" stroke="#0f172a" stroke-width="1.4"/><line x1="9.7" y1="14.5" x2="5.8" y2="20" stroke="#0f172a" stroke-width="1.4"/></svg>`;
 }
 
+function buildClipboardIconSVG(cls = "tactics-clip-svg") {
+  return `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="18" rx="2.5" fill="rgba(15,23,42,0.55)"/><path d="M9 4.5h6a1 1 0 0 0 1-1V2.8a.8.8 0 0 0-.8-.8H8.8a.8.8 0 0 0-.8.8v.7a1 1 0 0 0 1 1z" fill="currentColor"/><path d="M8.5 10.5l2 2m0-2l-2 2"/><circle cx="15.2" cy="11.5" r="1.35"/><path d="M8.5 16.8c2-1.8 4.4-1.8 6.5-.2"/><path d="M13.5 17.2l2-.4-.4-2"/></svg>`;
+}
+
 function buildGoalTopDownSVG(side = "left") {
   const isLeft = side === "left";
   const netPatternId = isLeft ? "netGridLeft" : "netGridRight";
@@ -711,48 +715,89 @@ function getActiveTeamCaptain() {
   return chosen ? { player: chosen, role: chosenRole } : null;
 }
 
-function getCaptainAuraInfo(player, role = "MF") {
-  if (!player) {
-    return {
-      type: "COLLECTIVE",
-      name: "Ritmo de Equipe",
-      shortEffect: "Tabelas mais frequentes e fôlego estável",
-      desc: "Aumenta a sintonia nos passes curtos e ajuda o elenco a manter o ritmo."
-    };
-  }
+function computePlayerArchetype(player, role = "MF", tacticalRole = "NONE") {
+  if (!player) return "COLLECTIVE";
   const attrs = typeof calcPlayerAttributes === "function"
     ? calcPlayerAttributes(player, role, getPlayerLevel(player))
     : { for: 75, tec: 75, def: 75, vel: 75, fis: 75 };
 
-  if (role === "GK" || role === "DF" || (attrs.def + attrs.fis >= attrs.for + attrs.tec + 8)) {
+  if (role === "GK") return "KEEPER_WALL";
+  if (role === "FW" && (attrs.for >= attrs.tec + 3 || attrs.for >= 82)) return "EGO_STRIKER";
+  if (tacticalRole === "CAMISA_10" || attrs.tec >= Math.max(attrs.for, attrs.vel) + 2) return "STRATEGIST";
+  if (attrs.vel >= attrs.tec + 3 && attrs.vel >= attrs.for) return "PACE_LEADER";
+  if (role === "DF" || attrs.def + attrs.fis >= attrs.for + attrs.tec + 6) return "WARRIOR";
+  return "COLLECTIVE";
+}
+
+function getCaptainAuraInfo(player, role = "MF", tacticalRole = "NONE") {
+  if (!player) {
     return {
-      type: "WARRIOR",
-      name: "Espírito Inabalável",
-      shortEffect: "+4% chance defensiva sob pressão ou após 70' • -10% desgaste",
-      desc: "Quando o time está perdendo ou na reta final (70'+), eleva a raça defensiva do elenco e reduz o desgaste."
+      type: "COLLECTIVE",
+      archetype: "COLLECTIVE",
+      archetypeLabel: "Colaborativo",
+      name: "Alma Colaborativa",
+      shortEffect: "Raio (24u): +5% tabela e fôlego • Passe: +5% sinergia em duelo",
+      desc: "Eleva a sintonia coletiva ao redor e fortalece quem recebe seu passe."
     };
   }
-  if (role === "FW" && attrs.for >= attrs.tec + 4) {
+  const archetype = computePlayerArchetype(player, role, tacticalRole);
+  if (archetype === "KEEPER_WALL") {
     return {
-      type: "DECISIVE",
-      name: "Instinto Decisivo",
-      shortEffect: "+3% chance nos chutes (+5% se empatando/perdendo após 60')",
-      desc: "Contagia o ataque com confiança para finalizar forte — brilha ainda mais na hora de buscar o gol decisivo."
+      type: "KEEPER_WALL",
+      archetype: "KEEPER_WALL",
+      archetypeLabel: "Protetor",
+      name: "Muralha Inabalável",
+      shortEffect: "Raio (24u): +5% defesa e reação • Passe: +4% contenção e -12% gasto",
+      desc: "Comanda a linha defensiva de trás: reforça a marcação próxima e dá segurança extra a quem recebe sua reposição."
     };
   }
-  if (attrs.tec >= attrs.vel + 4) {
+  if (archetype === "EGO_STRIKER") {
+    return {
+      type: "EGO_STRIKER",
+      archetype: "EGO_STRIKER",
+      archetypeLabel: "Egoísta",
+      name: "Artilheiro Egoísta",
+      shortEffect: "Raio (24u): +6% chute & drible • Passe: +6% potência de finalização",
+      desc: "Pressiona a defesa adversária com ambição máxima: contagia atacantes próximos e transforma passes em assistências letais."
+    };
+  }
+  if (archetype === "STRATEGIST") {
     return {
       type: "STRATEGIST",
-      name: "Maestro em Campo",
-      shortEffect: "-15% interceptações rivais • +enfiadas de bola",
-      desc: "Organiza a saída e a criação: seus passes furam melhor a marcação e o time enxerga mais bolas em profundidade."
+      archetype: "STRATEGIST",
+      archetypeLabel: "Estrategista",
+      name: "Estrategista Camisa 10",
+      shortEffect: "Raio (24u): -15% interceptações • Passe: +7% precisão & enfiadas",
+      desc: "Organiza as linhas ao seu redor: aliados próximos furam a marcação e quem recebe do Capitão ganha passe cirúrgico."
+    };
+  }
+  if (archetype === "PACE_LEADER") {
+    return {
+      type: "PACE_LEADER",
+      archetype: "PACE_LEADER",
+      archetypeLabel: "Velocista",
+      name: "Velocista Relâmpago",
+      shortEffect: "Raio (24u): +8% arrancada e avanço • Passe: +6% velocidade no domínio",
+      desc: "Puxa o ritmo pelas pontas e acelera quem joga ao seu lado ou recebe suas inversões em velocidade."
+    };
+  }
+  if (archetype === "WARRIOR") {
+    return {
+      type: "WARRIOR",
+      archetype: "WARRIOR",
+      archetypeLabel: "Combativo",
+      name: "Guardião de Ferro",
+      shortEffect: "Raio (24u): +5% desarme & físico • Passe: -15% desgaste & +4% reação",
+      desc: "Inspira raça nos companheiros ao redor para fechar espaços e reduz o desgaste após seus passes."
     };
   }
   return {
     type: "COLLECTIVE",
-    name: "Ritmo de Equipe",
-    shortEffect: "+12% tabelas (1-2) • +fôlego entre jogadas",
-    desc: "Deixa o time mais leve e coletivo, incentivando tabelas rápidas e melhor recuperação de energia entre lances."
+    archetype: "COLLECTIVE",
+    archetypeLabel: "Colaborativo",
+    name: "Alma Colaborativa",
+    shortEffect: "Raio (24u): +12% tabelas (1-2) • Passe: +5% força no próximo duelo",
+    desc: "Deixa o time conectado com tabelas rápidas ao seu redor e buff direto em todo aliado que recebe seu passe."
   };
 }
 
@@ -1217,6 +1262,7 @@ function pickPlayerMove(player, category) {
 }
 
 // Sistema de Energia em 3 faixas: Verde (>=70 todas), Amarela (45..69 sem fortes), Vermelha (<45 sem técnica!)
+// Keshin Ativa libera sua Hissatsu exclusiva enquanto houver fôlego (>= 28%)
 function pickStaminaGatedMove(node, category) {
   const stamina = node ? node.stamina : 100;
   const list = node?.player?.moves?.[category] || [];
@@ -1224,6 +1270,29 @@ function pickStaminaGatedMove(node, category) {
   const heavyCost = category === "GK" || category === "SH" ? 22 : 19;
   // Técnicas padrão/médias têm gasto equilibrado ao longo dos 90 minutos
   const stdCost = category === "GK" || category === "SH" ? 14 : 12;
+  const userIntensity = node?.side === "user" ? getTactics().intensity : "medium";
+  const masteryLvl = node?.side === "user" ? (state.tournament?.prepBonuses?.hissatsuMasteryLvl || 0) : 0;
+  const masteryBonus = [0, 0.6, 1.2, 1.8][masteryLvl] || 0;
+
+  // Técnica exclusiva de Keshin (quando invocada e compatível com a ação)
+  const keshin = node?.player?.keshin;
+  if (
+    node?.keshinState === "ACTIVE" &&
+    keshin?.move &&
+    stamina >= 28 &&
+    (keshin.moveCat === category || (!keshin.moveCat && (category === "SH" || category === "GK")))
+  ) {
+    return {
+      move: `Keshin: ${keshin.move}`,
+      rawMove: keshin.move,
+      isHeavy: true,
+      isKeshinMove: true,
+      exhausted: false,
+      gatedReason: null,
+      cost: category === "GK" || category === "SH" ? 18 : 15,
+      duelBonus: 2.35 + masteryBonus
+    };
+  }
 
   if (stamina < 45) {
     return {
@@ -1254,10 +1323,6 @@ function pickStaminaGatedMove(node, category) {
     if (isSup) heavyMoves.push(m);
     else standardMoves.push(m);
   });
-
-  const userIntensity = node?.side === "user" ? getTactics().intensity : "medium";
-  const masteryLvl = node?.side === "user" ? (state.tournament?.prepBonuses?.hissatsuMasteryLvl || 0) : 0;
-  const masteryBonus = [0, 0.6, 1.2, 1.8][masteryLvl] || 0;
 
   // Intensidade BAIXA: economiza energia com jogadas sem técnica ou apenas técnicas padrão (nunca vaza técnica pesada)
   if (userIntensity === "low") {
@@ -1377,10 +1442,11 @@ function buildShotInfoForNode(shooterNode, forceLongShot = false) {
   const pick = pickStaminaGatedMove(shooterNode, "SH");
   const userInt = shooterNode?.side === "user" ? getTactics().intensity : "medium";
   const shotHissatsuProb = userInt === "low" ? 0.48 : userInt === "high" ? 0.95 : 0.80;
-  if (pick.move && Math.random() < shotHissatsuProb) {
+  if (pick.move && (pick.isKeshinMove || Math.random() < shotHissatsuProb)) {
     return {
       isHissatsu: true,
-      isLongShotMove: LONG_SHOT_RX.test(pick.move),
+      isKeshinMove: Boolean(pick.isKeshinMove),
+      isLongShotMove: !pick.isKeshinMove && LONG_SHOT_RX.test(pick.move),
       label: pick.move,
       isHeavy: pick.isHeavy,
       exhausted: false,
@@ -1934,26 +2000,108 @@ function getStageOvrBoost(stageIdx) {
 
 const CANONICAL_KESHINS = {
   GK: [
-    { name: "Majin Great (Mão Demoníaca)", iconKey: "keshinMajin" },
-    { name: "Kougaishin Poseidon", iconKey: "keshinIcon" },
-    { name: "Goujin Tekki Atlas", iconKey: "keshinCoin" }
+    { name: "Majin Great", iconKey: "keshinMajin", move: "Great The Hand", moveCat: "GK" },
+    { name: "Goseishin Titania", iconKey: "keshinIcon", move: "Majin The Wave", moveCat: "GK" },
+    { name: "Kenja no Ou Kingburn W", iconKey: "keshinCoin", move: "King's Fire", moveCat: "GK" },
+    { name: "Kougaishin Poseidon", iconKey: "keshinIcon", move: "Heavy Aqua Lance", moveCat: "GK" },
+    { name: "Goujin Tekki Atlas", iconKey: "keshinCoin", move: "Giga Wheel", moveCat: "GK" },
+    { name: "Teppeki Gigadon", iconKey: "keshinCoin", move: "Gigaton Barrier", moveCat: "GK" },
+    { name: "Gouma-ou Jashin", iconKey: "keshinMajin", move: "Demon Wall", moveCat: "GK" }
   ],
   DF: [
-    { name: "Kensei Lancelot", iconKey: "keshinIcon" },
-    { name: "Teppeki Gigadon", iconKey: "keshinCoin" },
-    { name: "Juukishi Kingburn", iconKey: "keshinIcon" }
+    { name: "Senkishi Brynhildr", iconKey: "keshinPegasus", move: "Valkyrie Flag", moveCat: "DF" },
+    { name: "Akatsuki no Miko Amaterasu", iconKey: "keshinPegasus", move: "Kourin no Ya", moveCat: "DF" },
+    { name: "Juuou Leon", iconKey: "keshinMajin", move: "King's Roar", moveCat: "DF" },
+    { name: "Juukishi Kingburn", iconKey: "keshinCoin", move: "King's Crush", moveCat: "DF" },
+    { name: "Kuroki Tsubasa Raven", iconKey: "keshinIcon", move: "Black Feather", moveCat: "DF" },
+    { name: "Ryuukishi Tedis", iconKey: "keshinIcon", move: "Dragon Shield", moveCat: "DF" },
+    { name: "Hakugin no Kishi", iconKey: "keshinCoin", move: "Silver Bastion", moveCat: "DF" }
   ],
   MF: [
-    { name: "Sousha Maestro", iconKey: "keshinIcon" },
-    { name: "Majin Pegasus Arc", iconKey: "keshinPegasus" },
-    { name: "Gouen no Gazard", iconKey: "keshinIcon" }
+    { name: "Majin Pegasus Arc", iconKey: "keshinPegasus", move: "Justice Wing", moveCat: "SH" },
+    { name: "Sousha Maestro", iconKey: "keshinIcon", move: "Harmonics", moveCat: "OF" },
+    { name: "Sengoku Bushin Musashi", iconKey: "keshinCoin", move: "Bushin Renzan", moveCat: "OF" },
+    { name: "Taiyoushin Apollo", iconKey: "keshinPegasus", move: "Sunshine Force", moveCat: "SH" },
+    { name: "Gouen no Gazard", iconKey: "keshinIcon", move: "Bakunetsu Bomber", moveCat: "SH" },
+    { name: "Genei no Dullahan", iconKey: "keshinMajin", move: "Maboroshi Shot", moveCat: "SH" },
+    { name: "Kikou-tei Pendragon", iconKey: "keshinCoin", move: "Imperial Order", moveCat: "OF" }
   ],
   FW: [
-    { name: "Majin Pegasus Arc", iconKey: "keshinPegasus" },
-    { name: "Kensei Lancelot", iconKey: "keshinIcon" },
-    { name: "Majuu Grendel", iconKey: "keshinMajin" }
+    { name: "Kensei Lancelot", iconKey: "keshinIcon", move: "Lost Angel", moveCat: "SH" },
+    { name: "Seijuu Shining Dragon", iconKey: "keshinPegasus", move: "Shining Breath", moveCat: "SH" },
+    { name: "Ankokushin Dark Exodus", iconKey: "keshinMajin", move: "Maou no Ono", moveCat: "SH" },
+    { name: "Gouetsu no Saia", iconKey: "keshinIcon", move: "Icicle Road", moveCat: "SH" },
+    { name: "Kokuu no Megami Athena", iconKey: "keshinPegasus", move: "Athena Assault", moveCat: "SH" },
+    { name: "Makaiou Zodiac", iconKey: "keshinMajin", move: "Disaster Break", moveCat: "SH" },
+    { name: "Chou Majin Evarth", iconKey: "keshinMajin", move: "Shellbit Burst", moveCat: "SH" }
   ]
 };
+
+const CHARACTER_CANONICAL_KESHINS = [
+  { match: "endou", name: "Majin Great", iconKey: "keshinMajin", move: "Great The Hand", moveCat: "GK" },
+  { match: "shinsuke", name: "Goseishin Titania", iconKey: "keshinIcon", move: "Majin The Wave", moveCat: "GK" },
+  { match: "senguuji", name: "Kenja no Ou Kingburn W", iconKey: "keshinCoin", move: "King's Fire", moveCat: "GK" },
+  { match: "genda", name: "Kougaishin Poseidon", iconKey: "keshinIcon", move: "Heavy Aqua Lance", moveCat: "GK" },
+  { match: "hyoudou", name: "Teppeki Gigadon", iconKey: "keshinCoin", move: "Gigaton Barrier", moveCat: "GK" },
+  { match: "tenma", name: "Majin Pegasus Arc", iconKey: "keshinPegasus", move: "Justice Wing", moveCat: "SH" },
+  { match: "shindou", name: "Sousha Maestro", iconKey: "keshinIcon", move: "Harmonics", moveCat: "OF" },
+  { match: "tsurugi", name: "Kensei Lancelot", iconKey: "keshinIcon", move: "Lost Angel", moveCat: "SH" },
+  { match: "kirino", name: "Senkishi Brynhildr", iconKey: "keshinPegasus", move: "Valkyrie Flag", moveCat: "DF" },
+  { match: "kinako", name: "Akatsuki no Miko Amaterasu", iconKey: "keshinPegasus", move: "Kourin no Ya", moveCat: "DF" },
+  { match: "hakuryuu", name: "Seijuu Shining Dragon", iconKey: "keshinPegasus", move: "Shining Breath", moveCat: "SH" },
+  { match: "shuu", name: "Ankokushin Dark Exodus", iconKey: "keshinMajin", move: "Maou no Ono", moveCat: "SH" },
+  { match: "taiyou", name: "Taiyoushin Apollo", iconKey: "keshinPegasus", move: "Sunshine Force", moveCat: "SH" },
+  { match: "yukimura", name: "Gouetsu no Saia", iconKey: "keshinIcon", move: "Icicle Road", moveCat: "SH" },
+  { match: "kurosaki", name: "Gouen no Gazard", iconKey: "keshinIcon", move: "Bakunetsu Bomber", moveCat: "SH" },
+  { match: "mahoro", name: "Genei no Dullahan", iconKey: "keshinMajin", move: "Maboroshi Shot", moveCat: "SH" },
+  { match: "namikawa", name: "Kaitei Nepten", iconKey: "keshinIcon", move: "Kaiou no Harpoon", moveCat: "SH" },
+  { match: "nishiki", name: "Sengoku Bushin Musashi", iconKey: "keshinCoin", move: "Bushin Renzan", moveCat: "OF" },
+  { match: "fei rune", name: "Kousoku Toushi Robin", iconKey: "keshinPegasus", move: "Manganji Spark", moveCat: "SH" },
+  { match: "zanark", name: "Makaiou Zodiac", iconKey: "keshinMajin", move: "Disaster Break", moveCat: "SH" },
+  { match: "alpha", name: "Tenkuu no Shisha Gain", iconKey: "keshinIcon", move: "Command Shoot 07", moveCat: "SH" },
+  { match: "beta", name: "Kokuu no Megami Athena", iconKey: "keshinPegasus", move: "Athena Assault", moveCat: "SH" },
+  { match: "gamma", name: "Kyokusei no Ou Lykaon", iconKey: "keshinMajin", move: "Omega Attack", moveCat: "SH" },
+  { match: "saru", name: "Chou Majin Evarth", iconKey: "keshinMajin", move: "Shellbit Burst", moveCat: "SH" },
+  { match: "saryuu", name: "Chou Majin Evarth", iconKey: "keshinMajin", move: "Shellbit Burst", moveCat: "SH" },
+  { match: "gouenji", name: "Honoo no Majin Gazard", iconKey: "keshinIcon", move: "Bakunetsu Storm Kai", moveCat: "SH" },
+  { match: "kidou", name: "Sousha Maestro", iconKey: "keshinIcon", move: "Emperor Tact", moveCat: "OF" }
+];
+
+function pickCanonicalKeshinForPlayer(player, role = "MF", excludedNames = null, seed = null) {
+  const excluded = excludedNames instanceof Set ? excludedNames : new Set();
+  const full = String(player?.fullName || player?.name || "").toLowerCase();
+  const charMatch = CHARACTER_CANONICAL_KESHINS.find((c) => full.includes(c.match));
+  if (charMatch && !excluded.has(charMatch.name)) {
+    return {
+      name: charMatch.name,
+      iconKey: charMatch.iconKey,
+      icon: UI[charMatch.iconKey] || UI.keshinIcon,
+      move: charMatch.move,
+      moveCat: charMatch.moveCat
+    };
+  }
+  const rolePool = CANONICAL_KESHINS[role] || CANONICAL_KESHINS.MF;
+  const freshRole = rolePool.filter((k) => !excluded.has(k.name));
+  const allPools = [
+    ...(CANONICAL_KESHINS.FW || []),
+    ...(CANONICAL_KESHINS.MF || []),
+    ...(CANONICAL_KESHINS.DF || []),
+    ...(CANONICAL_KESHINS.GK || [])
+  ];
+  const freshAny = allPools.filter((k) => !excluded.has(k.name));
+  const pool = freshRole.length > 0 ? freshRole : freshAny.length > 0 ? freshAny : rolePool;
+  const pickIdx = seed === null || seed === undefined
+    ? Math.floor(Math.random() * pool.length)
+    : Math.abs(seed) % pool.length;
+  const chosen = pool[pickIdx];
+  return {
+    name: chosen.name,
+    iconKey: chosen.iconKey,
+    icon: UI[chosen.iconKey] || UI.keshinIcon,
+    move: chosen.move,
+    moveCat: chosen.moveCat
+  };
+}
 
 // Sistema de Aprendizado de Técnicas por Nível (usado tanto pelo usuário quanto pelos rivais)
 const LEVEL_MOVE_CATALOG = {
@@ -2042,13 +2190,14 @@ function getEvolvedOpponentRoster(oppTeam, stageIdx) {
     .split("")
     .reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
 
+  const usedKeshinNames = new Set();
   ranked.forEach((entry, idx) => {
     const p = entry.player;
     const role = entry.slot.role;
     if (idx < keshinCount) {
-      const pool = CANONICAL_KESHINS[role] || CANONICAL_KESHINS.MF;
-      const chosenK = pool[(idSeed + idx + sIdx) % pool.length];
-      p.keshin = { name: chosenK.name, iconKey: chosenK.iconKey, icon: UI[chosenK.iconKey] || UI.keshinIcon };
+      const k = pickCanonicalKeshinForPlayer(p, role, usedKeshinNames, idSeed + idx + sIdx);
+      usedKeshinNames.add(k.name);
+      p.keshin = k;
     }
     if (idx < manualCount) {
       applySecretManualMastery(p, role);
