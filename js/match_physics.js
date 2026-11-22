@@ -75,6 +75,22 @@ function buildLivePitchBoxHTML(st, oppTeam, stats = calcSquadStats(), oppStats =
             <span class="tv-clock-pill" id="live-clock-text">${st.minute}'</span>
           </div>
           <div class="pitch-tv-controls-bug">
+            ${(() => {
+              const tacNow = getTactics();
+              const hObj = HISSATSU_TACTICS_CATALOG?.[tacNow.hissatsuTactic] || HISSATSU_TACTICS_CATALOG?.route_of_sky;
+              const isUsed = Boolean(pitch.hissatsuTacticUsed);
+              const isActive = (pitch.hissatsuTacticTimer || 0) > 0;
+              const label = isActive
+                ? `⚡ ${hObj?.name || "Tática"} (${Math.max(1, Math.ceil((pitch.hissatsuTacticTimer || 0) * 1.45))}')`
+                : isUsed
+                ? "✓ Tática Usada"
+                : `⚡ ${hObj?.name || "Tática Especial"}`;
+              return `
+                <button type="button" class="ie-cmd-btn pitch-hud-btn pitch-tactic-btn ${isActive ? "is-tactic-active" : ""} ${isUsed && !isActive ? "is-tactic-used" : ""}" id="btn-activate-hissatsu-tactic" ${isUsed || isActive ? "disabled" : ""} title="${hObj?.name || "Tática Especial"} (1x/jogo): ${hObj?.shortEffect || ""}">
+                  <span>${label}</span>
+                </button>
+              `;
+            })()}
             <button type="button" class="ie-cmd-btn pitch-hud-btn" id="btn-toggle-speed">
               <span>Vel: ${state.simSpeed}x</span>
             </button>
@@ -223,6 +239,92 @@ function pauseForPitchBeat(st, calloutHTML, calloutCls, durationMs, ovrDiff, onB
   }, durationMs);
 }
 
+const TRIO_SHOT_MOVES = new Set([
+  "a fenix", "a terra (the earth)", "big bang", "corrente de jato (jet stream)",
+  "espada crisantemo", "explosao do caos (chaos break)", "fenix negra",
+  "furacao de fogo tc", "grande fenrir", "grande fogo", "impulso triplo",
+  "nevasca tripla", "onda dos onze mais fortes", "pinguins espaciais",
+  "pinguins imperiais no 2", "pinguins imperiais no 2 (tubarao)",
+  "pinguins imperiais no 3", "pinguins imperiais x", "ruptura mortal (death break)",
+  "supernova", "tempestade relampago (inazuma break)", "tempestade relampago cg",
+  "the earth infinity (the earth ∞)", "tri-pegaso", "triangulo z", "triangulo zz",
+  "urso polar no 2", "zona esmagadora mortal", "zona mortal", "zona mortal 2",
+  "ultima zona mortal", "evolucao"
+]);
+
+const DUO_SHOT_MOVES = new Set([
+  "a origem (the birth)", "alvorecer negro", "blitz do amanhecer",
+  "dragao celestial", "explosao universo", "fogo cruzado (crossfire)",
+  "furacao dragao", "furacao duplo", "furacao de fogo dd", "golpe duplo",
+  "granada dupla", "impacto duplo branco", "impacto wyvern", "impulso cruzado",
+  "impulso duplo", "impulso duplo f", "impulso torre eiffel", "impulso unicornio",
+  "lanca dupla", "lenda suprema (prime legend)", "mandibula dupla",
+  "pinguins deus e demonio", "relampago no 1", "super relampago",
+  "super relampago no 1", "tempestade do tigre", "tempestade tornado furacao",
+  "ultimo recurso σ", "vendaval wyvern", "zero magnum", "aguia de duas cabecas"
+]);
+
+function normalizeCoopMoveKey(moveName) {
+  return String(moveName || "")
+    .replace(/\s*\(enfraquecido\)\s*/gi, "")
+    .replace(/\s*(g[2-5]|shin|kai|v[2-4]|\+)$/gi, "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/º/g, "o")
+    .trim()
+    .toLowerCase();
+}
+
+function getCoopShotPartnerCount(moveName) {
+  const key = normalizeCoopMoveKey(moveName);
+  if (!key) return 0;
+  if (TRIO_SHOT_MOVES.has(key)) return 2;
+  if (DUO_SHOT_MOVES.has(key)) return 1;
+  return 0;
+}
+
+function getCoopShotPartners(moveName, shooterNode, teamNodes, pitch) {
+  const count = getCoopShotPartnerCount(moveName);
+  if (count <= 0 || !shooterNode || !Array.isArray(teamNodes)) return [];
+  const pool = teamNodes
+    .filter((n) => n && n.uid !== shooterNode.uid && n.role !== "GK")
+    .sort((a, b) => {
+      const aAtk = a.role === "FW" ? 0 : a.role === "MF" ? 1 : 2;
+      const bAtk = b.role === "FW" ? 0 : b.role === "MF" ? 1 : 2;
+      if (aAtk !== bAtk) return aAtk - bAtk;
+      const da = Math.hypot(a.x - shooterNode.x, a.y - shooterNode.y);
+      const db = Math.hypot(b.x - shooterNode.x, b.y - shooterNode.y);
+      return da - db;
+    });
+  return pool.slice(0, count).map((n) => ({
+    name: n.player.name,
+    sprite: typeof resolveDynamicNodeSprite === "function" ? resolveDynamicNodeSprite(n, pitch) : n.player.sprite
+  }));
+}
+
+function renderClashFighterColumnHTML(fighter, sideCls) {
+  const partners = Array.isArray(fighter.partners) ? fighter.partners : [];
+  const topPartner = partners.length >= 2 ? partners[0] : null;
+  const bottomPartner = partners.length >= 2 ? partners[1] : partners.length === 1 ? partners[0] : null;
+  return `
+    <div class="clash-fighter ${partners.length > 0 ? "has-coop-partners" : ""}">
+      ${topPartner ? `
+        <div class="clash-coop-partner is-top" title="${topPartner.name}">
+          <img class="clash-coop-avatar ${sideCls}" src="${topPartner.sprite}" alt="${topPartner.name}" />
+        </div>
+      ` : ""}
+      <img class="clash-avatar ${sideCls}" src="${fighter.sprite}" alt="${fighter.name}" />
+      ${bottomPartner ? `
+        <div class="clash-coop-partner is-bottom" title="${bottomPartner.name}">
+          <img class="clash-coop-avatar ${sideCls}" src="${bottomPartner.sprite}" alt="${bottomPartner.name}" />
+        </div>
+      ` : ""}
+      <div class="clash-fighter-name">${fighter.name}</div>
+      <span class="clash-role-badge">${fighter.roleText}</span>
+    </div>
+  `;
+}
+
 function playShotClashAndContinue(st, clash, onImpactOutcome, ovrDiff, onModalClosed = null) {
   // Em 2x/4x resolve instantaneamente sem abrir o modal
   if (state.simSpeed !== 1) {
@@ -269,11 +371,7 @@ function playShotClashAndContinue(st, clash, onImpactOutcome, ovrDiff, onModalCl
   slotEl.innerHTML = `
     <div class="shot-clash-stage pitch-modal-stage">
       <div class="clash-arena-grid">
-        <div class="clash-fighter">
-          <img class="clash-avatar side-user" src="${clash.userPlayer.sprite}" alt="${clash.userPlayer.name}" />
-          <div class="clash-fighter-name">${clash.userPlayer.name}</div>
-          <span class="clash-role-badge">${clash.userPlayer.roleText}</span>
-        </div>
+        ${renderClashFighterColumnHTML(clash.userPlayer, "side-user")}
 
         <div class="clash-center-lane">
           <div class="clash-move-pill ${topPillCls}">
@@ -289,11 +387,7 @@ function playShotClashAndContinue(st, clash, onImpactOutcome, ovrDiff, onModalCl
           </div>
         </div>
 
-        <div class="clash-fighter">
-          <img class="clash-avatar side-opp" src="${clash.oppPlayer.sprite}" alt="${clash.oppPlayer.name}" />
-          <div class="clash-fighter-name">${clash.oppPlayer.name}</div>
-          <span class="clash-role-badge">${clash.oppPlayer.roleText}</span>
-        </div>
+        ${renderClashFighterColumnHTML(clash.oppPlayer, "side-opp")}
       </div>
       <div id="clash-result-mount"></div>
     </div>
@@ -602,6 +696,9 @@ function resolvePhysicalDribbleClash(st, pitch, carrier, marker, attSupport, def
     showNodeBadge(pitch, marker.uid, dfPick.move ? `Roubou • ${dfMove}` : "Roubou (Sem técnica)", "badge-steal", 1500, dfPick.move ? "DF" : null);
     if (!attIsUser) {
       pitch.stats.userSteals++;
+      if (!pitch.is5v5 && (pitch.hissatsuTacticTimer || 0) > 0 && pitch.activeHissatsuTacticId === "catenaccio") {
+        pitch.catenaccioCounterTimer = 5.5;
+      }
       recordUserPlayerStat(pitch, marker, "steals", 1);
     }
     pitch.ticker = `${st.minute}' ${carrier.player.name} perdeu a bola — roubo de ${marker.player.name} (${dfMove})!`;
@@ -618,6 +715,58 @@ function resolvePhysicalDribbleClash(st, pitch, carrier, marker, attSupport, def
     syncLivePitchDOM(st);
     pauseForPitchBeat(st, "", "", 1050, ovrDiff);
   }
+}
+
+function resolveGkRushClash(st, pitch, carrier, oppGk, attSupport, defSupport, ovrDiff) {
+  const gkPick = pickStaminaGatedMove(oppGk, "GK");
+
+  spendStamina(oppGk, Math.max(1.5, gkPick.cost * 0.35));
+  oppGk.duelCooldown = 1.35;
+  carrier.duelCooldown = 1.1;
+  oppGk.isGkRushing = false;
+  carrier.staggerTimer = 0.72;
+
+  pitch.ballSide = oppGk.side;
+  pitch.ballMode = "CARRIED";
+  pitch.carrierUid = oppGk.uid;
+  pitch.challengerUid = null;
+  pitch.holdBallPos = null;
+  pitch.passState = null;
+  pitch.looseState = null;
+  pitch.lastAssistCandidate = null;
+  pitch.lastPasserUid = null;
+  pitch.lastAction = "SAVE";
+  pitch.teamConsecutivePasses = 0;
+  oppGk.carryTime = 0.08;
+  oppGk.decisionTimer = 0.55;
+
+  const gkFootX = oppGk.x + (oppGk.side === "user" ? 1.8 : -1.8);
+  const gkFootY = oppGk.y + 0.6;
+  if (state.simSpeed === 1) {
+    startBallFlight(pitch, pitch.ballX, pitch.ballY, gkFootX, gkFootY, 130, 0, "CONTROL", null);
+  } else {
+    pitch.ballX = gkFootX;
+    pitch.ballY = gkFootY;
+  }
+
+  triggerStealShockwave(pitch, oppGk.x, oppGk.y, oppGk.uid, carrier.uid);
+  showNodeBadge(pitch, oppGk.uid, "Saída Corajosa!", "badge-save", 1600, "GK");
+  showNodeBadge(pitch, carrier.uid, "Abafado!", "badge-lost", 1500);
+  if (oppGk.side === "user") {
+    pitch.stats.userSaves++;
+    recordUserPlayerStat(pitch, oppGk, "saves", 1);
+  }
+  pitch.ticker = `${st.minute}' ${oppGk.player.name} saiu nos pés de ${carrier.player.name} dentro da área e ficou com a bola!`;
+  prependNarrationLine(
+    st,
+    "nar-save",
+    `${st.minute}' [Saída do Goleiro] ${oppGk.player.name} avançou com coragem dentro da área, fechou o ângulo e abafou ${carrier.player.name} antes do chute!`,
+    { name: oppGk.player.name, sprite: oppGk.player.sprite, side: oppGk.side },
+    { name: carrier.player.name, sprite: carrier.player.sprite, side: carrier.side },
+    "GK"
+  );
+  syncLivePitchDOM(st);
+  pauseForPitchBeat(st, "", "", 850, ovrDiff);
 }
 
 function isNodeOffside(receiver, passer, attIsUser, defNodes) {
@@ -1546,17 +1695,20 @@ function launchContinuousShot(st, pitch, shooterNode, defNodes, attSupport, defS
         ? "CHUTE (-FORÇA)"
         : "CHUTE";
 
+      const curTeamNodes = curAttIsUser ? pitch.userNodes : pitch.oppNodes;
+      const shooterPartners = getCoopShotPartners(activeShotLabel, activeShooter, curTeamNodes, pitch);
+
       playShotClashAndContinue(
         st,
         {
           kind: "SHOT",
           dir: curAttIsUser ? "ltr" : "rtl",
           userPlayer: curAttIsUser
-            ? { name: activeShooter.player.name, sprite: resolveDynamicNodeSprite(activeShooter, pitch), roleText: roleTag }
+            ? { name: activeShooter.player.name, sprite: resolveDynamicNodeSprite(activeShooter, pitch), roleText: roleTag, partners: shooterPartners }
             : { name: curGkNode.player.name, sprite: resolveDynamicNodeSprite(curGkNode, pitch), roleText: "GOLEIRO" },
           oppPlayer: curAttIsUser
             ? { name: curGkNode.player.name, sprite: resolveDynamicNodeSprite(curGkNode, pitch), roleText: "GOLEIRO" }
-            : { name: activeShooter.player.name, sprite: resolveDynamicNodeSprite(activeShooter, pitch), roleText: roleTag },
+            : { name: activeShooter.player.name, sprite: resolveDynamicNodeSprite(activeShooter, pitch), roleText: roleTag, partners: shooterPartners },
           topMoveName: weakenedByBlocker ? `${activeShotLabel} (Enfraquecido)` : activeShotLabel,
           bottomMoveName: gkMoveName,
           bottomIcon: "GK",
@@ -1930,17 +2082,19 @@ function launchContinuousShot(st, pitch, shooterNode, defNodes, attSupport, defS
         if (!beatOwned) handleMinuteEndBoundaries(st, ovrDiff);
         return;
       }
+      const origTeamNodes = origAttIsUser ? pitch.userNodes : pitch.oppNodes;
+      const shooterPartners = getCoopShotPartners(shotInfo.label, shooterNode, origTeamNodes, pitch);
       playShotClashAndContinue(
         st,
         {
           kind: "SHOT",
           dir: origAttIsUser ? "ltr" : "rtl",
           userPlayer: origAttIsUser
-            ? { name: shooterNode.player.name, sprite: resolveDynamicNodeSprite(shooterNode, pitch), roleText: "CHUTE" }
+            ? { name: shooterNode.player.name, sprite: resolveDynamicNodeSprite(shooterNode, pitch), roleText: "CHUTE", partners: shooterPartners }
             : { name: counterNode.player.name, sprite: resolveDynamicNodeSprite(counterNode, pitch), roleText: "CONTRA-CHUTE" },
           oppPlayer: origAttIsUser
             ? { name: counterNode.player.name, sprite: resolveDynamicNodeSprite(counterNode, pitch), roleText: "CONTRA-CHUTE" }
-            : { name: shooterNode.player.name, sprite: resolveDynamicNodeSprite(shooterNode, pitch), roleText: "CHUTE" },
+            : { name: shooterNode.player.name, sprite: resolveDynamicNodeSprite(shooterNode, pitch), roleText: "CHUTE", partners: shooterPartners },
           topMoveName: shotInfo.label,
           bottomMoveName: `Contra-Chute: ${cPick.move}`,
           bottomIcon: cPick.isShCounter ? "SH" : "DF",
@@ -2127,17 +2281,19 @@ function launchContinuousShot(st, pitch, shooterNode, defNodes, attSupport, defS
       if (!beatOwned) handleMinuteEndBoundaries(st, ovrDiff);
       return;
     }
+    const origTeamNodes = origAttIsUser ? pitch.userNodes : pitch.oppNodes;
+    const shooterPartners = getCoopShotPartners(shotInfo.label, shooterNode, origTeamNodes, pitch);
     playShotClashAndContinue(
       st,
       {
         kind: "SHOT",
         dir: origAttIsUser ? "ltr" : "rtl",
         userPlayer: origAttIsUser
-          ? { name: shooterNode.player.name, sprite: resolveDynamicNodeSprite(shooterNode, pitch), roleText: "CHUTE" }
+          ? { name: shooterNode.player.name, sprite: resolveDynamicNodeSprite(shooterNode, pitch), roleText: "CHUTE", partners: shooterPartners }
           : { name: blockerNode.player.name, sprite: resolveDynamicNodeSprite(blockerNode, pitch), roleText: blockRoleLabel },
         oppPlayer: origAttIsUser
           ? { name: blockerNode.player.name, sprite: resolveDynamicNodeSprite(blockerNode, pitch), roleText: blockRoleLabel }
-          : { name: shooterNode.player.name, sprite: resolveDynamicNodeSprite(shooterNode, pitch), roleText: "CHUTE" },
+          : { name: shooterNode.player.name, sprite: resolveDynamicNodeSprite(shooterNode, pitch), roleText: "CHUTE", partners: shooterPartners },
         topMoveName: shotInfo.label,
         bottomMoveName: blockMoveName,
         bottomIcon: "DF",
@@ -2176,7 +2332,78 @@ function stepContinuousPhysics(st, pitch, dt) {
   allNodes.forEach((n) => {
     if (n.duelCooldown > 0) n.duelCooldown = Math.max(0, n.duelCooldown - dt);
     if (n.staggerTimer > 0) n.staggerTimer = Math.max(0, n.staggerTimer - dt);
+
+    // KESHIN DINÂMICA: 1x por jogo, jogador decide quando invocar (nunca em esforço Baixo!), fica forte e depois cansa!
+    if (n.keshinState === "ACTIVE") {
+      n.keshinTimer = Math.max(0, (n.keshinTimer || 0) - dt);
+      if (n.keshinTimer <= 0) {
+        n.keshinState = "EXHAUSTED";
+        n.stamina = Math.max(18, n.stamina - 28);
+        showNodeBadge(pitch, n.uid, "Exausto (Pós-Keshin)", "badge-lost", 1500);
+        prependNarrationLine(
+          st,
+          "nar-steal",
+          `${st.minute}' [Fim da Incorporação] A aura de ${n.player.name} (${n.player.keshin?.name || "Keshin"}) se dissipou — o desgaste bateu forte!`,
+          { name: n.player.name, sprite: n.player.sprite, side: n.side },
+          null,
+          "BALL"
+        );
+      }
+    } else if (n.player?.keshin && !n.keshinUsed && n.stamina >= 38 && !pitch.justKickedOff) {
+      const blockedByLowEffort = n.side === "user" && !pitch.is5v5 && getTactics().intensity === "low";
+      if (!blockedByLowEffort) {
+        const isCarrying = pitch.ballMode === "CARRIED" && pitch.carrierUid === n.uid;
+        const inAttackHalf = n.side === "user" ? n.x >= 50 : n.x <= 50;
+        const oppThreatening =
+          pitch.ballSide !== n.side &&
+          ((n.side === "user" && (pitch.ballX || 50) <= 38) || (n.side === "opp" && (pitch.ballX || 50) >= 62));
+        const isBigMoment =
+          (isCarrying && inAttackHalf) ||
+          ((n.role === "GK" || n.role === "DF") && oppThreatening) ||
+          (st.minute >= 52 && Math.abs((st.userScore || 0) - (st.oppScore || 0)) <= 1);
+
+        if (isBigMoment) {
+          const prof = typeof getNodePersonality === "function" ? getNodePersonality(n) : { ego: 0.5, combativeness: 0.5 };
+          const intBoost = n.side === "user" && getTactics().intensity === "high" ? 1.45 : 1.0;
+          const baseRate = isCarrying && inAttackHalf ? 0.42 : oppThreatening ? 0.24 : 0.06;
+          const triggerChance = baseRate * (0.75 + (prof.ego + prof.combativeness) * 0.35) * intBoost * dt;
+          if (Math.random() < triggerChance) {
+            n.keshinUsed = true;
+            n.keshinState = "ACTIVE";
+            n.keshinTimer = 13.0; // ~18–20 minutos de jogo em aura flamejante!
+            const kName = n.player.keshin.name || "Espírito Guerreiro";
+            showNodeBadge(pitch, n.uid, `🔥 ${kName}!`, "badge-keshin", 2000);
+            pitch.ticker = `${st.minute}' 🔥 ${n.player.name} invocou 【${kName}】! Aura azul-violeta em chamas!`;
+            prependNarrationLine(
+              st,
+              "nar-dribble",
+              `${st.minute}' 🔥 [Incorporação!] ${n.player.name} despertou 【${kName}】! Envolto em chamas azul-violeta, seus atributos dispararam!`,
+              { name: n.player.name, sprite: n.player.sprite, side: n.side },
+              null,
+              n.role === "GK" ? "GK" : n.role === "DF" ? "DF" : "SH"
+            );
+            syncLivePitchDOM(st);
+          }
+        }
+      }
+    }
   });
+
+  // Timers da Tática Especial (Hissatsu Tactic)
+  if ((pitch.hissatsuTacticTimer || 0) > 0) {
+    pitch.hissatsuTacticTimer = Math.max(0, pitch.hissatsuTacticTimer - dt);
+    if (pitch.hissatsuTacticTimer <= 0) {
+      const endedTactic = HISSATSU_TACTICS_CATALOG?.[pitch.activeHissatsuTacticId];
+      pitch.activeHissatsuTacticId = null;
+      if (endedTactic) {
+        pitch.ticker = `${st.minute}' Tática Especial 【${endedTactic.name}】 encerrada.`;
+      }
+      syncLivePitchDOM(st);
+    }
+  }
+  if ((pitch.catenaccioCounterTimer || 0) > 0) {
+    pitch.catenaccioCounterTimer = Math.max(0, pitch.catenaccioCounterTimer - dt);
+  }
 
   // Avança minutos do relógio e recupera energia fora da posse
   const targetMin = Math.floor(pitch.minuteFloat);
@@ -2191,13 +2418,22 @@ function stepContinuousPhysics(st, pitch, dt) {
         barEl.style.width = `${pct}%`;
       }
       const activeInt = getTactics().intensity;
+      const capAuraType =
+        !pitch.is5v5 && typeof getActiveTeamCaptain === "function" && typeof getCaptainAuraInfo === "function"
+          ? (() => {
+              const c = getActiveTeamCaptain();
+              return c ? getCaptainAuraInfo(c.player, c.role).type : null;
+            })()
+          : null;
       allNodes.forEach((n) => {
         if (n.uid !== pitch.carrierUid) {
           const sideInt = n.side === "user" ? activeInt : "medium";
+          const capRegen = n.side === "user" && capAuraType === "COLLECTIVE" ? 0.14 : 0;
+          const postKeshinPenalty = n.keshinState === "EXHAUSTED" ? 0.72 : 1.0;
           const regen =
-            n.role === "GK"
+            ((n.role === "GK"
               ? sideInt === "low" ? 0.95 : sideInt === "high" ? 0.55 : 0.75
-              : sideInt === "low" ? 0.68 : sideInt === "high" ? 0.30 : 0.48;
+              : sideInt === "low" ? 0.68 : sideInt === "high" ? 0.30 : 0.48) + capRegen) * postKeshinPenalty;
           n.stamina = Math.min(100, n.stamina + regen);
         }
       });
@@ -2225,11 +2461,13 @@ function stepContinuousPhysics(st, pitch, dt) {
   const getEffectiveMatchSpeed = (n) => {
     const raw = n.spd || calcPlayerSpeedStat(n.player, n.effOvr);
     const stam = typeof n.stamina === "number" ? n.stamina : 100;
-    if (stam >= 70) return raw;
-    if (stam >= 45) return Math.round(raw - 3 - ((70 - stam) / 25) * 3);
-    return Math.round(raw - 8 - ((45 - stam) / 40) * 7);
+    const keshinBonusSpd = n.keshinState === "ACTIVE" ? 6 : 0;
+    if (stam >= 70) return Math.min(99, raw + keshinBonusSpd);
+    if (stam >= 45) return Math.min(99, Math.round(raw + keshinBonusSpd - 3 - ((70 - stam) / 25) * 3));
+    return Math.max(45, Math.round(raw + keshinBonusSpd - 8 - ((45 - stam) / 40) * 7));
   };
   const steerNodes = (list) => {
+    const activeHt = (pitch.hissatsuTacticTimer || 0) > 0 ? pitch.activeHissatsuTacticId : null;
     list.forEach((node) => {
       const dx = node.targetX - node.x;
       const dy = node.targetY - node.y;
@@ -2241,7 +2479,16 @@ function stepContinuousPhysics(st, pitch, dt) {
           ? 0.96
           : Math.max(0.76, 0.90 - ((45 - node.stamina) / 40) * 0.14);
       const staggerFactor = node.staggerTimer > 0 ? 0.42 : 1.0;
-      const speedLimit = node.maxSpeed * (node.targetSprint || 0.9) * staminaFactor * staggerFactor;
+      const keshinSpdFactor = node.keshinState === "ACTIVE" ? 1.12 : 1.0;
+      let tacticSpdFactor = 1.0;
+      if (node.side === "user" && activeHt) {
+        if (activeHt === "route_of_sky" && pitch.ballSide === "user" && (node.role === "FW" || node.role === "MF")) {
+          tacticSpdFactor = 1.12;
+        } else if (activeHt === "lightning_press" && pitch.ballSide !== "user" && node.role !== "GK") {
+          tacticSpdFactor = 1.16;
+        }
+      }
+      const speedLimit = node.maxSpeed * (node.targetSprint || 0.9) * staminaFactor * staggerFactor * keshinSpdFactor * tacticSpdFactor;
       const arriveScale = dist < 3.0 ? dist / 3.0 : 1.0;
 
       let desVx = dist > 0.05 ? (dx / dist) * speedLimit * arriveScale : 0;
@@ -2328,8 +2575,20 @@ function stepContinuousPhysics(st, pitch, dt) {
       pitch.ballY += (footY - pitch.ballY) * alpha;
     }
 
-    // 1) Checa contato físico real para embate Drible (OF) vs Desarme (DF) ou Tabela de Escape!
+    // 1) Checa contato físico real: primeiro saída do Goleiro na área, depois Drible (OF) vs Desarme (DF) ou Tabela!
     if (carrier.role !== "GK" && !pitch.justKickedOff && carrier.duelCooldown <= 0) {
+      const oppGk = defNodes.find((d) => d.role === "GK");
+      if (oppGk && oppGk.staggerTimer <= 0 && oppGk.duelCooldown <= 0 && carrier.carryTime >= 0.12) {
+        const gkDist = visualPitchDist(oppGk.x, oppGk.y, carrier.x, carrier.y);
+        const carrierInOppBox = attIsUser
+          ? carrier.x >= 75 && Math.abs(carrier.y - 50) <= 28
+          : carrier.x <= 25 && Math.abs(carrier.y - 50) <= 28;
+        if (carrierInOppBox && gkDist <= 4.35) {
+          resolveGkRushClash(st, pitch, carrier, oppGk, attSupport, defSupport, ovrDiff);
+          return;
+        }
+      }
+
       let closestDef = null;
       let closestDist = 999;
       defNodes.forEach((d) => {
@@ -2466,17 +2725,35 @@ function stepContinuousPhysics(st, pitch, dt) {
           }
         }
 
-        // 3) Quando o marcador se aproxima perigosamente (entre 3.75 e 6.3 unidades visuais),
-        // jogadores técnicos têm chance de TABELAR de primeira sem confronto!
-        if (closestDist <= 6.3 && closestDist > 3.75 && carrier.carryTime >= 0.32) {
-          const passReceiver = pickPassReceiver(attNodes, defNodes, carrier, false, pitch);
-          const hasTeammateNear = passReceiver && Math.hypot(passReceiver.x - carrier.x, passReceiver.y - carrier.y) <= 32;
-          const skillBonus = carrier.effOvr >= 80 ? 0.36 : 0.22;
-          if (hasTeammateNear && Math.random() < skillBonus) {
-            carrier.duelCooldown = 0.9;
-            closestDef.duelCooldown = 0.9;
-            launchContinuousPass(st, pitch, carrier, attNodes, defNodes, true, false, true);
-            return;
+        // 3) Quando o marcador se aproxima (entre 3.75 e 6.3 unidades visuais),
+        // personalidade decide entre TABELAR de primeira ou partir para o 1x1!
+        if (closestDist <= 6.3 && closestDist > 3.75 && carrier.carryTime >= 0.30) {
+          const cProf = typeof getNodePersonality === "function" ? getNodePersonality(carrier) : { archetype: "COLETIVISTA", ego: 0.5, vision: 0.5 };
+          const oppGoalXCheck = attIsUser ? 96 : 4;
+          const distGoalCheck = Math.hypot(carrier.x - oppGoalXCheck, carrier.y - 50);
+          const defIsBehind = attIsUser ? closestDef.x < carrier.x - 1.5 : closestDef.x > carrier.x + 1.5;
+          // Se está perto do gol com marcador atrás, não tabela para longe — parte pro chute!
+          if (!(distGoalCheck <= 22 && defIsBehind)) {
+            const passReceiver = pickPassReceiver(attNodes, defNodes, carrier, true, pitch);
+            const hasTeammateNear = passReceiver && Math.hypot(passReceiver.x - carrier.x, passReceiver.y - carrier.y) <= 32;
+            const baseTabela = carrier.effOvr >= 80 ? 0.34 : 0.22;
+            const persMod =
+              cProf.archetype === "COLETIVISTA"
+                ? 0.16
+                : cProf.archetype === "ESTRATEGISTA"
+                ? 0.12
+                : cProf.archetype === "INDIVIDUALISTA"
+                ? -0.18
+                : cProf.archetype === "VELOZ"
+                ? -0.12
+                : 0;
+            const tabelaChance = Math.max(0.06, Math.min(0.58, baseTabela + persMod));
+            if (hasTeammateNear && Math.random() < tabelaChance) {
+              carrier.duelCooldown = 0.9;
+              closestDef.duelCooldown = 0.9;
+              launchContinuousPass(st, pitch, carrier, attNodes, defNodes, true, false, true);
+              return;
+            }
           }
         }
 
@@ -2487,13 +2764,26 @@ function stepContinuousPhysics(st, pitch, dt) {
       }
     }
 
-    // 2) Decisão tática contínua do portador (Passe, Condução, Long Shot ou Chute)
-    if (carrier.decisionTimer <= 0) {
+    // 2) Decisão tática contínua guiada por personalidade, instinto de gol e leitura do goleiro
+    const oppGkNow = defNodes.find((d) => d.role === "GK");
+    const distToOppGkNow = oppGkNow ? Math.hypot(oppGkNow.x - carrier.x, oppGkNow.y - carrier.y) : 99;
+    const gkUrgentPressure =
+      carrier.role !== "GK" &&
+      !pitch.justKickedOff &&
+      carrier.carryTime >= 0.16 &&
+      oppGkNow &&
+      ((oppGkNow.isGkRushing && distToOppGkNow <= 15.5) || distToOppGkNow <= 11.2);
+
+    if (carrier.decisionTimer <= 0 || gkUrgentPressure) {
+      const cProf = typeof getNodePersonality === "function"
+        ? getNodePersonality(carrier)
+        : { archetype: "COLETIVISTA", ego: 0.5, vision: 0.55, combativeness: 0.5, roaming: 0.5, shotInstinct: 0.6 };
       const rawRelDiff = pitch.matchSupport?.relPwrDiff || 0;
       const sideRelDiff = attIsUser ? rawRelDiff : -rawRelDiff;
-      // Time com vantagem proporcional clara pensa e executa jogadas com mais ritmo
       const tempoFactor = sideRelDiff >= 0.14 ? 0.82 : sideRelDiff <= -0.14 ? 1.12 : 1.0;
-      carrier.decisionTimer = (0.22 + Math.random() * 0.13) * tempoFactor;
+      // Estrategistas e jogadores instintivos pensam um pouco mais rápido
+      const mindSpeed = cProf.archetype === "ESTRATEGISTA" ? 0.88 : cProf.archetype === "INDIVIDUALISTA" ? 0.92 : 1.0;
+      carrier.decisionTimer = (0.21 + Math.random() * 0.12) * tempoFactor * mindSpeed;
 
       if (pitch.justKickedOff) {
         pitch.justKickedOff = false;
@@ -2510,100 +2800,160 @@ function stepContinuousPhysics(st, pitch, dt) {
 
       const oppGoalX = attIsUser ? 96 : 4;
       const goalDist = Math.hypot(carrier.x - oppGoalX, carrier.y - 50);
-      const inPenaltyX = attIsUser ? carrier.x >= 77 : carrier.x <= 23;
-      const centralLane = carrier.y >= 26 && carrier.y <= 74;
+      const inPenaltyX = attIsUser ? carrier.x >= 76 : carrier.x <= 24;
+      const centralLane = carrier.y >= 24 && carrier.y <= 76;
+      const shootableAngle = Math.abs(carrier.y - 50) <= 32;
       const inFinalThird = attIsUser ? carrier.x >= 58 : carrier.x <= 42;
 
-      const oppGk = defNodes.find((d) => d.role === "GK");
+      const oppGk = oppGkNow;
       const oppGkElem = oppGk?.player?.element;
       const carrierElem = carrier.player?.element;
       const isCarrierDisadvVsGk = Boolean(carrierElem && oppGkElem && ELEMENT_ADVANTAGE[oppGkElem] === carrierElem);
-      const hasBetterElemTeammate = attNodes.some((n) => {
-        if (n.uid === carrier.uid || n.role === "GK") return false;
-        const fwd = attIsUser ? n.x >= 55 : n.x <= 45;
-        const el = n.player?.element;
-        return fwd && el && oppGkElem && ELEMENT_ADVANTAGE[oppGkElem] !== el;
-      });
 
       const oppOutfieldDefs = defNodes.filter((d) => d.role !== "GK");
       let nearestDefDist = 99;
       let blockingDefs = 0;
+      let laneBlockers = 0;
       oppOutfieldDefs.forEach((d) => {
         const dd = visualPitchDist(d.x, d.y, carrier.x, carrier.y);
         if (dd < nearestDefDist) nearestDefDist = dd;
         const isAhead = attIsUser ? d.x >= carrier.x - 1 : d.x <= carrier.x + 1;
         if (isAhead && Math.abs(d.y - carrier.y) <= 13 && Math.abs(d.x - carrier.x) <= 16) blockingDefs++;
+        // Checa se o defensor realmente está na linha de chute entre o portador e o gol!
+        if (isAhead && pointToSegmentDist(d.x, d.y, carrier.x, carrier.y, oppGoalX, 50) <= 4.4) {
+          laneBlockers++;
+        }
       });
-      const hasOpenAttackSupport = attNodes.some((n) => {
-        if (n.uid === carrier.uid || n.role === "GK") return false;
-        const fwd = attIsUser ? n.x >= 56 : n.x <= 44;
-        if (!fwd) return false;
-        return !oppOutfieldDefs.some((d) => visualPitchDist(d.x, d.y, n.x, n.y) < 6.5);
+
+      const oppDefLineX = oppOutfieldDefs.length > 0
+        ? (attIsUser ? Math.max(...oppOutfieldDefs.map((d) => d.x)) : Math.min(...oppOutfieldDefs.map((d) => d.x)))
+        : (attIsUser ? 84 : 16);
+
+      // Procura companheiro realmente livre em posição AINDA MELHOR de gol (tap-in / assistência inteligente)
+      const isLegalPassTarget = (n) => {
+        if (pitch.is5v5) return true;
+        return attIsUser
+          ? (n.x <= 50 || n.x <= carrier.x + 0.6 || n.x <= oppDefLineX + 0.6)
+          : (n.x >= 50 || n.x >= carrier.x - 0.6 || n.x >= oppDefLineX - 0.6);
+      };
+
+      const betterShotTeammate = attNodes.find((n) => {
+        if (n.uid === carrier.uid || n.role === "GK" || !isLegalPassTarget(n)) return false;
+        const nGoalDist = Math.hypot(n.x - oppGoalX, n.y - 50);
+        const nOpen = !oppOutfieldDefs.some((d) => visualPitchDist(d.x, d.y, n.x, n.y) < 6.8);
+        const betterAngle = nGoalDist + 2.5 < goalDist && Math.abs(n.y - 50) <= 22;
+        const sameOrAhead = attIsUser ? n.x >= carrier.x - 3 : n.x <= carrier.x + 3;
+        return nOpen && betterAngle && sameOrAhead;
+      });
+
+      const betterElemTeammate = attNodes.find((n) => {
+        if (n.uid === carrier.uid || n.role === "GK" || !isLegalPassTarget(n)) return false;
+        const fwd = attIsUser ? n.x >= Math.max(58, carrier.x - 4) : n.x <= Math.min(42, carrier.x + 4);
+        const el = n.player?.element;
+        const open = !oppOutfieldDefs.some((d) => visualPitchDist(d.x, d.y, n.x, n.y) < 6.0);
+        return fwd && open && el && oppGkElem && ELEMENT_ADVANTAGE[oppGkElem] !== el;
       });
 
       const roll = Math.random();
 
-      // LONG SHOT: se o jogador tiver técnica de Chute Longo (ex: Impulso Tsunami, Excalibur, Meteoro Cortante)
+      // LONG SHOT: técnica de Chute Longo (mais frequente para Individualistas e jogadores com alto instinto de chute)
       const longMove = getNodeLongShotMove(carrier);
       const inLongZone = attIsUser ? (carrier.x >= 28 && carrier.x < 68) : (carrier.x <= 72 && carrier.x > 32);
+      const longShotChance =
+        (carrier.role === "FW" || carrier.role === "MF" ? 0.22 : 0.13) +
+        (cProf.shotInstinct - 0.5) * 0.14;
       if (
         longMove &&
         inLongZone &&
         carrier.stamina >= 50 &&
-        carrier.carryTime >= 0.45 &&
+        carrier.carryTime >= 0.42 &&
         nearestDefDist >= 4.2 &&
         !isCarrierDisadvVsGk &&
-        roll < (carrier.role === "FW" || carrier.role === "MF" ? 0.24 : 0.14)
+        roll < longShotChance
       ) {
         launchContinuousShot(st, pitch, carrier, defNodes, attSupport, defSupport, ovrDiff, attNodes, { forceLongShot: true });
         return;
       }
 
-      const clearBoxShot = inPenaltyX && centralLane && (blockingDefs === 0 || (blockingDefs === 1 && goalDist <= 21));
-      const pointBlankShot = goalDist <= 18.5;
-      const openFinalThirdShot =
-        inFinalThird &&
-        blockingDefs === 0 &&
-        goalDist <= 27 &&
-        roll < (sideRelDiff >= 0.14 ? 0.56 : 0.42);
-      const fwOpportunityShot =
-        effRoleOrPos(carrier) === "FW" &&
-        goalDist <= 29 &&
-        blockingDefs <= 1 &&
-        roll < (blockingDefs === 0 ? (sideRelDiff >= 0.14 ? 0.44 : 0.30) : 0.16);
-      const mustShoot = pointBlankShot || clearBoxShot || openFinalThirdShot || fwOpportunityShot;
-
-      if (mustShoot) {
-        // Inteligência elemental: em desvantagem contra o GK, tenta acionar um colega antes de forçar o chute
-        if (isCarrierDisadvVsGk && hasBetterElemTeammate && goalDist > 13 && roll < 0.50) {
-          launchContinuousPass(st, pitch, carrier, attNodes, defNodes, true, false);
-          return;
-        }
-        // Se houver marcação fechando o ângulo e um colega livre no ataque, trabalha mais um passe em vez de chutar no muro
-        if (goalDist > 15 && blockingDefs >= 1 && hasOpenAttackSupport && Math.random() < 0.38) {
-          launchContinuousPass(st, pitch, carrier, attNodes, defNodes, false, false);
+      // REAÇÃO À SAÍDA DO GOLEIRO: se o GK está saindo para abafar, decide AGORA (chuta antes do abafa ou rola pro tap-in!)
+      if (gkUrgentPressure && shootableAngle) {
+        if (
+          betterShotTeammate &&
+          (cProf.archetype === "COLETIVISTA" || cProf.archetype === "ESTRATEGISTA") &&
+          Math.random() < (0.45 + cProf.vision * 0.35)
+        ) {
+          launchContinuousPass(st, pitch, carrier, attNodes, defNodes, true, false, false, {
+            targetReceiver: betterShotTeammate
+          });
           return;
         }
         launchContinuousShot(st, pitch, carrier, defNodes, attSupport, defSupport, ovrDiff, attNodes);
         return;
       }
 
-      // Procura enfiada de bola / passe no espaço vazio se houver companheiro bem desmarcado em posição legal
-      const oppDefLineX = oppOutfieldDefs.length > 0
-        ? (attIsUser ? Math.max(...oppOutfieldDefs.map((d) => d.x)) : Math.min(...oppOutfieldDefs.map((d) => d.x)))
-        : (attIsUser ? 84 : 16);
+      // INSTINTO DE FINALIZAÇÃO: livre pro gol CHUTA! Não recua a bola sem motivo!
+      const clearShotRange = cProf.archetype === "INDIVIDUALISTA" ? 31.5 : effRoleOrPos(carrier) === "FW" ? 29.5 : 27.5;
+      const isClearOnGoal = laneBlockers === 0 && shootableAngle && goalDist <= clearShotRange;
+      const clearBoxShot = inPenaltyX && centralLane && (laneBlockers === 0 || (laneBlockers === 1 && goalDist <= 22));
+      const pointBlankShot = goalDist <= 19.5;
+      const openShotTrigger =
+        isClearOnGoal &&
+        (goalDist <= 23.5 || roll < Math.min(0.95, 0.56 + cProf.shotInstinct * 0.34 + (sideRelDiff >= 0.14 ? 0.10 : 0)));
+      const contestedOpportunityShot =
+        effRoleOrPos(carrier) === "FW" &&
+        goalDist <= 27 &&
+        laneBlockers <= 1 &&
+        shootableAngle &&
+        roll < (0.18 + cProf.ego * 0.24);
 
+      const wantsToShoot = pointBlankShot || clearBoxShot || openShotTrigger || contestedOpportunityShot;
+
+      if (wantsToShoot) {
+        // Decisão PENSADA #1: Coletivista/Estrategista vê colega livre em tap-in melhor que o próprio chute
+        if (
+          betterShotTeammate &&
+          goalDist > 12.5 &&
+          cProf.archetype !== "INDIVIDUALISTA" &&
+          Math.random() < (cProf.vision * 0.52 - cProf.ego * 0.22)
+        ) {
+          launchContinuousPass(st, pitch, carrier, attNodes, defNodes, true, false, false, {
+            targetReceiver: betterShotTeammate
+          });
+          return;
+        }
+        // Decisão PENSADA #2: Desvantagem elemental contra o GK com colega livre melhor posicionado no ataque
+        if (isCarrierDisadvVsGk && betterElemTeammate && goalDist > 14 && cProf.ego < 0.72 && roll < 0.42) {
+          launchContinuousPass(st, pitch, carrier, attNodes, defNodes, true, false, false, {
+            targetReceiver: betterElemTeammate
+          });
+          return;
+        }
+        // Decisão PENSADA #3: Realmente bloqueado na frente (muro) e colega livre para abrir o ângulo
+        if (goalDist > 16.5 && laneBlockers >= 1 && blockingDefs >= 2 && betterShotTeammate && Math.random() < (0.30 + cProf.vision * 0.35)) {
+          launchContinuousPass(st, pitch, carrier, attNodes, defNodes, true, false, false, {
+            targetReceiver: betterShotTeammate
+          });
+          return;
+        }
+        launchContinuousShot(st, pitch, carrier, defNodes, attSupport, defSupport, ovrDiff, attNodes);
+        return;
+      }
+
+      // Se está livre rumo ao gol (sem marcadores na linha de chute), segue conduzindo para finalizar em vez de recuar!
+      if (isClearOnGoal) {
+        return;
+      }
+
+      // Procura enfiada de bola / passe no espaço vazio (Estrategistas enxergam muito mais!)
       const throughCandidate = attNodes.find((n) => {
-        if (n.uid === carrier.uid || n.role === "GK") return false;
+        if (n.uid === carrier.uid || n.role === "GK" || !isLegalPassTarget(n)) return false;
         const fwdGain = attIsUser ? (n.x - carrier.x) : (carrier.x - n.x);
         const openGrass = attIsUser ? (oppDefLineX - n.x) : (n.x - oppDefLineX);
-        const isLegal = attIsUser
-          ? (n.x <= 50 || n.x <= carrier.x + 0.6 || n.x <= oppDefLineX + 0.6)
-          : (n.x >= 50 || n.x >= carrier.x - 0.6 || n.x >= oppDefLineX - 0.6);
-        return isLegal && fwdGain >= 3 && openGrass >= 5;
+        return fwdGain >= 3 && openGrass >= 5;
       });
 
-      if (throughCandidate && carrier.carryTime >= 0.42 && nearestDefDist >= 3.8 && roll < 0.30) {
+      const throughProb = 0.22 + cProf.vision * 0.28 - cProf.ego * 0.12;
+      if (throughCandidate && carrier.carryTime >= 0.38 && nearestDefDist >= 3.8 && roll < throughProb) {
         launchContinuousPass(st, pitch, carrier, attNodes, defNodes, true, false, false, {
           targetReceiver: throughCandidate,
           forceSpacePass: true
@@ -2611,14 +2961,22 @@ function stepContinuousPhysics(st, pitch, dt) {
         return;
       }
 
-      const tiredPass = carrier.stamina < 45 && roll < 0.65;
-      const pressPass = nearestDefDist < 7.8 && roll < 0.50;
-      const crowdedRecycle = blockingDefs >= 1 && inFinalThird && carrier.carryTime >= 0.45 && roll < 0.44;
-      const flowPass = carrier.carryTime >= 0.95 && roll < (carrier.role === "DF" ? 0.62 : 0.46);
-      const forceRecycle = carrier.carryTime >= 2.6;
+      // Passes de construção / reciclagem pensada (Individualistas seguram mais para driblar; Coletivistas giram rápido)
+      const tiredPass = carrier.stamina < 42 && roll < 0.58;
+      const pressPass = nearestDefDist < 7.5 && roll < (0.36 + cProf.vision * 0.24 - cProf.ego * 0.18);
+      // No terço final, só recicla para trás se estiver REALMENTE cercado (decisão pensada de Estrategista/Coletivista)
+      const boxedInFinalThird = inFinalThird && laneBlockers >= 1 && blockingDefs >= 2 && carrier.carryTime >= 0.55;
+      const crowdedRecycle = boxedInFinalThird && roll < (0.30 + cProf.vision * 0.32 - cProf.ego * 0.14);
+      const holdLimit = cProf.archetype === "INDIVIDUALISTA" ? 3.2 : cProf.archetype === "COLETIVISTA" ? 1.85 : 2.5;
+      const flowPass =
+        !inFinalThird &&
+        carrier.carryTime >= (cProf.archetype === "COLETIVISTA" ? 0.72 : 1.05) &&
+        roll < (carrier.role === "DF" ? 0.64 : 0.34 + cProf.vision * 0.22 - cProf.ego * 0.18);
+      const forceRecycle = carrier.carryTime >= holdLimit && (!inFinalThird || blockingDefs >= 1);
 
       if (tiredPass || pressPass || crowdedRecycle || flowPass || forceRecycle) {
-        const strictFwd = carrier.role === "DF" || (inFinalThird && blockingDefs === 0);
+        // Se estiver cercado no terço final, permite passe pensado de reorganização; caso contrário prefere progredir!
+        const strictFwd = carrier.role === "DF" || (inFinalThird && !boxedInFinalThird);
         launchContinuousPass(st, pitch, carrier, attNodes, defNodes, strictFwd, false);
         return;
       }
@@ -2828,9 +3186,31 @@ function stepContinuousPhysics(st, pitch, dt) {
             const mult = [1, 0.85, 0.72, 0.60][pbLvl] || 0.60;
             finalInterceptProb *= mult;
           }
+          if (!pitch.is5v5) {
+            const tac = getTactics();
+            if ((pitch.hissatsuTacticTimer || 0) > 0 && pitch.activeHissatsuTacticId === "route_of_sky") {
+              finalInterceptProb *= 0.45;
+            }
+            if (tac.style === "possession") {
+              finalInterceptProb *= 0.86;
+            }
+            if (typeof getActiveTeamCaptain === "function" && typeof getCaptainAuraInfo === "function") {
+              const capObj = getActiveTeamCaptain();
+              if (capObj && getCaptainAuraInfo(capObj.player, capObj.role).type === "STRATEGIST") {
+                finalInterceptProb *= 0.85;
+              }
+            }
+          }
+        } else if (!attIsUser && !pitch.is5v5 && finalInterceptProb > 0) {
+          if ((pitch.hissatsuTacticTimer || 0) > 0 && (pitch.activeHissatsuTacticId === "catenaccio" || pitch.activeHissatsuTacticId === "lightning_press")) {
+            finalInterceptProb = Math.min(0.75, finalInterceptProb * 1.28);
+          }
         }
 
         if (Math.random() < finalInterceptProb) {
+          if (!attIsUser && !pitch.is5v5 && (pitch.hissatsuTacticTimer || 0) > 0 && pitch.activeHissatsuTacticId === "catenaccio") {
+            pitch.catenaccioCounterTimer = 5.5;
+          }
           spendStamina(interceptor, 2.2);
 
           pitch.ballSide = attIsUser ? "opp" : "user";
@@ -3007,6 +3387,43 @@ function stepContinuousPhysics(st, pitch, dt) {
 
 function effRoleOrPos(node) {
   return getEffectiveCarrierRole(node);
+}
+
+function activateUserHissatsuTactic(st) {
+  const pitch = st?.pitch;
+  if (!st || !pitch || pitch.is5v5 || st.finished || st.penalties) return false;
+  if (pitch.hissatsuTacticUsed || (pitch.hissatsuTacticTimer || 0) > 0) return false;
+
+  const tac = getTactics();
+  const hObj = HISSATSU_TACTICS_CATALOG?.[tac.hissatsuTactic] || HISSATSU_TACTICS_CATALOG?.route_of_sky;
+  if (!hObj) return false;
+
+  pitch.hissatsuTacticUsed = true;
+  pitch.activeHissatsuTacticId = hObj.id;
+  pitch.hissatsuTacticTimer = hObj.durationSec || 10.5;
+
+  if (hObj.id === "raimon_harmony") {
+    (pitch.userNodes || []).forEach((n) => {
+      n.stamina = Math.min(100, (n.stamina || 60) + 10);
+    });
+  }
+
+  const capObj = typeof getActiveTeamCaptain === "function" ? getActiveTeamCaptain() : null;
+  const caller = capObj?.player || pitch.userNodes?.[0]?.player || null;
+  showPitchBadge(pitch, 50, 48, `⚡ ${hObj.name.toUpperCase()}!`, "badge-keshin", 1700);
+  pitch.ticker = `${st.minute}' ⚡ TÁTICA ESPECIAL: 【${hObj.name}】 ativada! (${hObj.shortEffect})`;
+  prependNarrationLine(
+    st,
+    "nar-dribble",
+    `${st.minute}' ⚡ [Tática Especial!] ${caller ? `${caller.name} comandou ` : "O técnico acionou "}【${hObj.name}】! ${hObj.desc}`,
+    caller ? { name: caller.name, sprite: caller.sprite, side: "user" } : null,
+    null,
+    "FF"
+  );
+  syncLivePitchDOM(st);
+  const ovrDiff = pitch.matchSupport?.ovrDiff || 0;
+  pauseForPitchBeat(st, "", "", 780, ovrDiff);
+  return true;
 }
 
 function startMatchInterval() {

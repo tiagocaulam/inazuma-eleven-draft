@@ -269,6 +269,16 @@ function renderTournamentScreen() {
       }
     });
 
+    container.querySelectorAll("[data-scout-mark-id]").forEach((card) => {
+      card.addEventListener("click", () => {
+        const oppId = card.getAttribute("data-scout-mark-id");
+        const tac = getTactics();
+        tac.markedOppId = tac.markedOppId === oppId ? null : oppId;
+        saveActiveRunProgress();
+        renderAll();
+      });
+    });
+
     container.querySelectorAll("[data-prep-choice-idx]").forEach((btn) => {
       btn.addEventListener("click", () => {
         const cIdx = parseInt(btn.getAttribute("data-prep-choice-idx"), 10);
@@ -882,6 +892,15 @@ function renderTournamentScreen() {
     });
   }
 
+  const hissatsuBtn = document.getElementById("btn-activate-hissatsu-tactic");
+  if (hissatsuBtn) {
+    hissatsuBtn.addEventListener("click", () => {
+      if (typeof activateUserHissatsuTactic === "function") {
+        activateUserHissatsuTactic(st);
+      }
+    });
+  }
+
   const advanceWorldBtn = document.getElementById("btn-advance-world-cup");
   if (advanceWorldBtn) {
     advanceWorldBtn.addEventListener("click", () => {
@@ -953,6 +972,47 @@ function showBondPlayersTooltip(anchorEl, playersRaw) {
   const vw = window.innerWidth;
   const vh = window.innerHeight;
   let left = Math.max(10, Math.min(vw - tipRect.width - 10, rect.left + rect.width / 2 - tipRect.width / 2));
+  let top = rect.top - tipRect.height - 8;
+  if (top < 8) {
+    top = Math.min(vh - tipRect.height - 8, rect.bottom + 8);
+  }
+  tip.style.left = `${Math.round(left)}px`;
+  tip.style.top = `${Math.round(top)}px`;
+}
+
+function showActiveBuffTooltip(anchorEl) {
+  if (!anchorEl) return;
+  const title = anchorEl.getAttribute("data-buff-tip-title") || "";
+  const stat = anchorEl.getAttribute("data-buff-tip-stat") || "";
+  const desc = anchorEl.getAttribute("data-buff-tip-desc") || "";
+  if (!title && !desc) return;
+
+  let tip = document.getElementById("bond-players-tooltip");
+  if (!tip) {
+    tip = document.createElement("div");
+    tip.id = "bond-players-tooltip";
+    tip.className = "bond-players-tooltip";
+    document.body.appendChild(tip);
+  }
+  if (tip.classList.contains("is-open") && tip._anchorEl === anchorEl) {
+    hideBondPlayersTooltip();
+    return;
+  }
+  tip.innerHTML = `
+    <div class="buff-tooltip-card">
+      <div class="buff-tooltip-title">${title}</div>
+      ${stat ? `<div class="buff-tooltip-stat">${stat}</div>` : ""}
+      ${desc ? `<div class="buff-tooltip-desc">${desc}</div>` : ""}
+    </div>
+  `;
+  tip.classList.add("is-open");
+  tip._anchorEl = anchorEl;
+
+  const rect = anchorEl.getBoundingClientRect();
+  const tipRect = tip.getBoundingClientRect();
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const left = Math.max(10, Math.min(vw - tipRect.width - 10, rect.left + rect.width / 2 - tipRect.width / 2));
   let top = rect.top - tipRect.height - 8;
   if (top < 8) {
     top = Math.min(vh - tipRect.height - 8, rect.bottom + 8);
@@ -1054,6 +1114,12 @@ function init() {
   }
 
   document.addEventListener("click", (e) => {
+    const buffChip = e.target.closest("[data-buff-tip-title]");
+    if (buffChip) {
+      e.stopPropagation();
+      showActiveBuffTooltip(buffChip);
+      return;
+    }
     const chip = e.target.closest("[data-bond-players]");
     if (chip) {
       e.stopPropagation();

@@ -1575,7 +1575,12 @@ function resumeSavedRunProgress() {
       tactics: {
         lane: ["wings", "balanced", "center"].includes(rt.tactics?.lane) ? rt.tactics.lane : "balanced",
         posture: ["defensive", "balanced", "offensive"].includes(rt.tactics?.posture) ? rt.tactics.posture : "balanced",
-        intensity: ["low", "medium", "high"].includes(rt.tactics?.intensity) ? rt.tactics.intensity : "medium"
+        intensity: ["low", "medium", "high"].includes(rt.tactics?.intensity) ? rt.tactics.intensity : "medium",
+        style: ["possession", "free", "vertical"].includes(rt.tactics?.style) ? rt.tactics.style : "free",
+        hissatsuTactic: typeof rt.tactics?.hissatsuTactic === "string" ? rt.tactics.hissatsuTactic : "route_of_sky",
+        captainPlayerId: rt.tactics?.captainPlayerId || null,
+        acePlayerId: rt.tactics?.acePlayerId || null,
+        markedOppId: rt.tactics?.markedOppId || null
       },
       prepBonuses: {
         ...createFreshPrepBonuses(),

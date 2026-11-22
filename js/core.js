@@ -491,7 +491,12 @@ function createFreshTournamentState() {
     tactics: {
       lane: "balanced", // "wings" | "balanced" | "center"
       posture: "balanced", // "defensive" | "balanced" | "offensive"
-      intensity: "medium" // "low" | "medium" | "high"
+      intensity: "medium", // "low" | "medium" | "high"
+      style: "free", // "possession" | "free" | "vertical"
+      hissatsuTactic: "route_of_sky", // "route_of_sky" | "catenaccio" | "lightning_press" | "raimon_harmony"
+      captainPlayerId: null,
+      acePlayerId: null,
+      markedOppId: null
     },
     showRunSummary: false
   };
@@ -613,11 +618,137 @@ function getRestEnergyGain(t = state.tournament) {
   return 35 + restLvl * 7;
 }
 
+const HISSATSU_TACTICS_CATALOG = {
+  route_of_sky: {
+    id: "route_of_sky",
+    name: "Rota do Céu",
+    tag: "Ofensiva",
+    durationSec: 10.5,
+    shortEffect: "-55% interceptações • +12% velocidade no ataque",
+    desc: "Por ~15' de jogo, seus passes rasgam a marcação quase sem interceptações e atacantes/pontas disparam nas costas da zaga."
+  },
+  catenaccio: {
+    id: "catenaccio",
+    name: "Contra-Ataque Catenaccio",
+    tag: "Defesa & Transição",
+    durationSec: 10.5,
+    shortEffect: "+5% chance defensiva • Contra-ataque letal após roubo",
+    desc: "Por ~15' de jogo, fortalece desarmes/defesas e transforma cada roubo em contra-ataque fulminante (+5% chance de gol)."
+  },
+  lightning_press: {
+    id: "lightning_press",
+    name: "Pressão Relâmpago",
+    tag: "Pressão Alta",
+    durationSec: 10.0,
+    shortEffect: "+16% velocidade de marcação • +4% chance de roubo",
+    desc: "Por ~15' de jogo, sufoca a saída de bola adversária com marcação intensa para forçar erros (+20% gasto de fôlego)."
+  },
+  raimon_harmony: {
+    id: "raimon_harmony",
+    name: "Harmonia da Raimon",
+    tag: "Coletiva",
+    durationSec: 10.5,
+    shortEffect: "+10% fôlego na hora • +4% chance nos duelos • Tabelas+",
+    desc: "Por ~15' de jogo, recupera fôlego dos titulares na hora, ativa tabelas rápidas (1-2) e eleva os duelos do elenco inteiro."
+  }
+};
+
 function getTactics() {
   if (!state.tournament.tactics) {
-    state.tournament.tactics = { lane: "balanced", posture: "balanced", intensity: "medium" };
+    state.tournament.tactics = {
+      lane: "balanced",
+      posture: "balanced",
+      intensity: "medium",
+      style: "free",
+      hissatsuTactic: "route_of_sky",
+      captainPlayerId: null,
+      acePlayerId: null,
+      markedOppId: null
+    };
   }
-  return state.tournament.tactics;
+  const tac = state.tournament.tactics;
+  if (!tac.style) tac.style = "free";
+  if (!tac.hissatsuTactic || !HISSATSU_TACTICS_CATALOG[tac.hissatsuTactic]) {
+    tac.hissatsuTactic = "route_of_sky";
+  }
+  return tac;
+}
+
+function getActiveTeamCaptain() {
+  const tac = getTactics();
+  const slots = typeof getSlots === "function" ? getSlots() : [];
+  let chosen = null;
+  let chosenRole = "MF";
+  if (tac.captainPlayerId) {
+    for (const s of slots) {
+      const p = state.squad?.[s.id];
+      if (p && p.id === tac.captainPlayerId) {
+        chosen = p;
+        chosenRole = s.role;
+        break;
+      }
+    }
+  }
+  if (!chosen) {
+    let bestScore = -1;
+    for (const s of slots) {
+      const p = state.squad?.[s.id];
+      if (!p) continue;
+      const sc = (p.ovr || 70) + (p.isCaptain ? 12 : 0) + (s.role === "GK" || s.role === "MF" ? 3 : 0);
+      if (sc > bestScore) {
+        bestScore = sc;
+        chosen = p;
+        chosenRole = s.role;
+      }
+    }
+    if (chosen) tac.captainPlayerId = chosen.id;
+  }
+  return chosen ? { player: chosen, role: chosenRole } : null;
+}
+
+function getCaptainAuraInfo(player, role = "MF") {
+  if (!player) {
+    return {
+      type: "COLLECTIVE",
+      name: "Ritmo de Equipe",
+      shortEffect: "Tabelas mais frequentes e fôlego estável",
+      desc: "Aumenta a sintonia nos passes curtos e ajuda o elenco a manter o ritmo."
+    };
+  }
+  const attrs = typeof calcPlayerAttributes === "function"
+    ? calcPlayerAttributes(player, role, getPlayerLevel(player))
+    : { for: 75, tec: 75, def: 75, vel: 75, fis: 75 };
+
+  if (role === "GK" || role === "DF" || (attrs.def + attrs.fis >= attrs.for + attrs.tec + 8)) {
+    return {
+      type: "WARRIOR",
+      name: "Espírito Inabalável",
+      shortEffect: "+4% chance defensiva sob pressão ou após 70' • -10% desgaste",
+      desc: "Quando o time está perdendo ou na reta final (70'+), eleva a raça defensiva do elenco e reduz o desgaste."
+    };
+  }
+  if (role === "FW" && attrs.for >= attrs.tec + 4) {
+    return {
+      type: "DECISIVE",
+      name: "Instinto Decisivo",
+      shortEffect: "+3% chance nos chutes (+5% se empatando/perdendo após 60')",
+      desc: "Contagia o ataque com confiança para finalizar forte — brilha ainda mais na hora de buscar o gol decisivo."
+    };
+  }
+  if (attrs.tec >= attrs.vel + 3 || role === "MF") {
+    return {
+      type: "STRATEGIST",
+      name: "Maestro em Campo",
+      shortEffect: "-14% interceptações rivais • +enfiadas de bola",
+      desc: "Organiza a saída e a criação: seus passes furam melhor a marcação e o time enxerga mais bolas em profundidade."
+    };
+  }
+  return {
+    type: "COLLECTIVE",
+    name: "Ritmo de Equipe",
+    shortEffect: "+12% tabelas (1-2) • +fôlego entre jogadas",
+    desc: "Deixa o time mais leve e coletivo, incentivando tabelas rápidas e melhor recuperação de energia entre lances."
+  };
 }
 
 function getOpponentDynamicPosture() {

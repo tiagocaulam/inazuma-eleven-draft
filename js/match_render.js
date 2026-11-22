@@ -561,7 +561,8 @@ function calcNodeDuelScore(node, teamSupportBonus, opponentElem = null, actionKi
   if (!node) return 75;
   // Penalidade de cansaço quando a energia cai na zona vermelha (< 45%)
   const fatiguePenalty = node.stamina < 45 ? Math.min(5.0, 1.4 + (45 - node.stamina) * 0.09) : 0;
-  const keshinBonus = node.player?.keshin ? 1.5 : 0;
+  // Keshin agora é ativada dinamicamente 1x por partida: grande surto de poder (~+10% chance) durante a aura!
+  const keshinBonus = node.keshinState === "ACTIVE" ? 3.4 : 0;
   const evoBonus = node.player?.moveEvoCount ? Math.min(1.4, node.player.moveEvoCount * 0.7) : 0;
 
   // Poder individual e Status Base crescentes com o Nível (FOR, TEC, DEF, VEL, FIS)
@@ -588,6 +589,12 @@ function calcNodeDuelScore(node, teamSupportBonus, opponentElem = null, actionKi
 
   const logPwrScore = Math.log(Math.max(40, indivPwr) / 100) * 16.5;
   const powerScore = 54 + logPwrScore + (node.effOvr - 80) * 0.15 + statSpecBonus;
+
+  const activeStage = state.tournament?.stages?.[state.tournament.stageIndex];
+  const livePitch = activeStage?.pitch || null;
+  const curMin = activeStage?.minute || 0;
+  const active5v5 = state.tournament?.prep?.clash5v5?.miniSt;
+  const isIn5v5 = Boolean(active5v5 && active5v5.running && !active5v5.finished);
 
   let tacticalAndEnergyAdj = 0;
   if (node.side === "user") {
@@ -616,14 +623,45 @@ function calcNodeDuelScore(node, teamSupportBonus, opponentElem = null, actionKi
     // Intensidade
     if (tac.intensity === "high") tacticalAndEnergyAdj += 1.1;
     else if (tac.intensity === "low") tacticalAndEnergyAdj -= 2.1;
+
+    // Referência Ofensiva ("Camisa 10")
+    if (!isIn5v5 && tac.acePlayerId && node.player?.id === tac.acePlayerId && (roleOrAction === "SH" || roleOrAction === "OF")) {
+      tacticalAndEnergyAdj += 0.6;
+    }
+
+    // Aura do Capitão do Time
+    if (!isIn5v5 && typeof getActiveTeamCaptain === "function" && typeof getCaptainAuraInfo === "function") {
+      const capObj = getActiveTeamCaptain();
+      if (capObj) {
+        const aura = getCaptainAuraInfo(capObj.player, capObj.role);
+        const isTrailing = (activeStage?.userScore || 0) < (activeStage?.oppScore || 0);
+        const isDrawingOrTrailing = (activeStage?.userScore || 0) <= (activeStage?.oppScore || 0);
+        if (aura.type === "WARRIOR" && (isTrailing || curMin >= 70) && (roleOrAction === "DF" || roleOrAction === "GK")) {
+          tacticalAndEnergyAdj += 1.3;
+        } else if (aura.type === "DECISIVE" && roleOrAction === "SH") {
+          tacticalAndEnergyAdj += (isDrawingOrTrailing && curMin >= 60) ? 1.5 : 0.9;
+        }
+      }
+    }
+
+    // Tática Especial Ativa (Hissatsu Tactic!)
+    if (!isIn5v5 && livePitch && (livePitch.hissatsuTacticTimer || 0) > 0) {
+      const htId = livePitch.activeHissatsuTacticId;
+      if (htId === "catenaccio" && (roleOrAction === "DF" || roleOrAction === "GK")) {
+        tacticalAndEnergyAdj += 1.8;
+      } else if (htId === "lightning_press" && roleOrAction === "DF") {
+        tacticalAndEnergyAdj += 1.4;
+      } else if (htId === "raimon_harmony") {
+        tacticalAndEnergyAdj += 1.3;
+      }
+    }
+    if (!isIn5v5 && livePitch && (livePitch.catenaccioCounterTimer || 0) > 0 && roleOrAction === "SH") {
+      tacticalAndEnergyAdj += 1.8;
+    }
   } else if (node.side === "opp") {
-    // Disciplina tática crescente das seleções e rivais de fases avançadas
-    const active5v5 = state.tournament?.prep?.clash5v5?.miniSt;
-    const isIn5v5 = Boolean(active5v5 && active5v5.running && !active5v5.finished);
     const sIdx = !isIn5v5 ? (state.tournament?.stageIndex || 0) : 0;
     tacticalAndEnergyAdj += Math.min(2.8, Math.max(0, sIdx - 1) * 0.32);
 
-    // Adaptação silenciosa da CPU ao placar durante a partida
     const oppPost = getOpponentDynamicPosture();
     if (oppPost === "offensive") {
       if (roleOrAction === "SH" || roleOrAction === "OF" || roleOrAction === "FW") tacticalAndEnergyAdj += 1.4;
@@ -631,6 +669,11 @@ function calcNodeDuelScore(node, teamSupportBonus, opponentElem = null, actionKi
     } else if (oppPost === "defensive") {
       if (roleOrAction === "DF" || roleOrAction === "GK") tacticalAndEnergyAdj += 1.6;
       else if (roleOrAction === "SH") tacticalAndEnergyAdj -= 0.8;
+    }
+
+    // Marcação Especial escolhida no Scout do Adversário!
+    if (!isIn5v5 && getTactics().markedOppId && node.player?.id === getTactics().markedOppId && (roleOrAction === "SH" || roleOrAction === "OF")) {
+      tacticalAndEnergyAdj -= 1.4;
     }
   }
 
@@ -655,19 +698,36 @@ function logisticWinProb(atkScore, defScore, baseShift = 0, minP = 0.06, maxP = 
 
 function spendStamina(node, cost) {
   if (!node) return;
-  // Passiva: Pingente da Resistência Final — reduz em 50% o gasto de stamina a partir dos 75' (11x11)
   const active5v5 = state.tournament?.prep?.clash5v5?.miniSt;
   const isIn5v5 = Boolean(active5v5 && active5v5.running && !active5v5.finished);
-  const curMinute = isIn5v5
-    ? 0
-    : state.tournament?.stages?.[state.tournament.stageIndex]?.minute || 0;
+  const activeStage = isIn5v5 ? null : state.tournament?.stages?.[state.tournament.stageIndex];
+  const curMinute = activeStage?.minute || 0;
   const hasFinalResistance = !isIn5v5 && node.side === "user" && state.tournament?.prepBonuses?.lateMatchNoStaminaLoss;
   const lateMul = hasFinalResistance && curMinute >= 75 ? 0.5 : 1;
   const fisStat = node.attrs?.fis || 80;
   const fisMul = Math.max(0.76, Math.min(1.12, 1 - (fisStat - 82) * 0.004));
-  const userInt = node.side === "user" ? getTactics().intensity : "medium";
+  const tac = getTactics();
+  const userInt = node.side === "user" ? tac.intensity : "medium";
   const tacIntMul = userInt === "high" ? 1.28 : userInt === "low" ? 0.86 : 1.0;
-  const mul = (node.side === "user" ? state.tournament?.prepBonuses?.staminaMul || 1 : 1) * fisMul * tacIntMul * lateMul;
+
+  let extraMul = 1.0;
+  if (!isIn5v5 && node.side === "user") {
+    if (tac.style === "possession") extraMul *= 0.90;
+    const lp = activeStage?.pitch;
+    if (lp && (lp.hissatsuTacticTimer || 0) > 0 && lp.activeHissatsuTacticId === "lightning_press") {
+      extraMul *= 1.18;
+    }
+    if (typeof getActiveTeamCaptain === "function" && typeof getCaptainAuraInfo === "function") {
+      const capObj = getActiveTeamCaptain();
+      const aura = capObj ? getCaptainAuraInfo(capObj.player, capObj.role) : null;
+      const isTrailing = (activeStage?.userScore || 0) < (activeStage?.oppScore || 0);
+      if (aura?.type === "WARRIOR" && (isTrailing || curMinute >= 70)) {
+        extraMul *= 0.90;
+      }
+    }
+  }
+
+  const mul = (node.side === "user" ? state.tournament?.prepBonuses?.staminaMul || 1 : 1) * fisMul * tacIntMul * lateMul * extraMul;
   node.stamina = Math.max(5, node.stamina - cost * mul);
 }
 
@@ -914,7 +974,118 @@ function easePassProgress(p) {
   return 1.24 * clamped - 0.24 * clamped * clamped;
 }
 
-function computeNodeRoleTarget(node, pitch, carrier, chaserUid, coverUid, deepestOppDefX, deepestOwnDefX, isGkHolding = false, gkMarkMap = null) {
+function getNodePersonality(node) {
+  if (!node) {
+    return { archetype: "COLETIVISTA", ego: 0.45, vision: 0.55, combativeness: 0.5, roaming: 0.5, shotInstinct: 0.5 };
+  }
+  if (node.aiProfile) return node.aiProfile;
+
+  const p = node.player || {};
+  const attrs = node.attrs || { for: 75, tec: 75, def: 75, vel: 75, fis: 75 };
+  const role = node.role || p.pos || "MF";
+  const tr = node.tacticalRole || role;
+  const moves = p.moves || {};
+  const shCnt = Array.isArray(moves.SH) ? moves.SH.length : 0;
+  const ofCnt = Array.isArray(moves.OF) ? moves.OF.length : 0;
+  const dfCnt = Array.isArray(moves.DF) ? moves.DF.length : 0;
+
+  // Seed determinística por jogador para dar individualidade única mesmo entre stats parecidos
+  const keyStr = String(p.id || p.name || node.uid || "p");
+  let hash = 0;
+  for (let i = 0; i < keyStr.length; i++) {
+    hash = ((hash << 5) - hash + keyStr.charCodeAt(i)) | 0;
+  }
+  const seed = (Math.abs(hash) % 1000) / 1000; // 0..1
+  const jitter = (seed - 0.5) * 0.18;
+
+  const avg = (attrs.for + attrs.tec + attrs.def + attrs.vel + attrs.fis) / 5 || 75;
+  const relFor = (attrs.for - avg) / 18;
+  const relTec = (attrs.tec - avg) / 18;
+  const relDef = (attrs.def - avg) / 18;
+  const relVel = (attrs.vel - avg) / 18;
+  const relFis = (attrs.fis - avg) / 18;
+
+  let archetype = "COLETIVISTA";
+  if (role === "GK") {
+    archetype = (attrs.vel + attrs.fis * 0.6 >= attrs.def * 1.45 || seed > 0.58)
+      ? "GOLEIRO_LIBERO"
+      : "GOLEIRO_CLASSICO";
+  } else {
+    const scoreIndiv =
+      (role === "FW" ? 0.55 : tr === "WING" || tr === "AM" ? 0.35 : 0.0) +
+      relFor * 0.65 +
+      relVel * 0.35 +
+      (shCnt >= 2 ? 0.25 : 0) +
+      (ofCnt >= 2 ? 0.2 : 0) +
+      jitter;
+    const scoreEstrat =
+      (role === "MF" ? 0.5 : tr === "AM" || tr === "CM" || tr === "DM" ? 0.35 : 0.05) +
+      relTec * 0.85 +
+      (ofCnt >= 1 ? 0.12 : 0) -
+      jitter * 0.5;
+    const scoreComb =
+      (role === "DF" ? 0.55 : tr === "DM" || tr === "CM" ? 0.3 : 0.05) +
+      relDef * 0.6 +
+      relFis * 0.6 +
+      (dfCnt >= 2 ? 0.28 : dfCnt === 1 ? 0.1 : 0) +
+      jitter * 0.4;
+    const scoreVeloz =
+      (tr === "WING" || tr === "WB" || tr === "FB" ? 0.48 : role === "FW" ? 0.22 : 0.0) +
+      relVel * 0.95 +
+      (ofCnt >= 1 ? 0.1 : 0) -
+      jitter * 0.3;
+    const scoreColet =
+      0.42 +
+      relTec * 0.35 +
+      relFis * 0.25 -
+      Math.max(0, relFor) * 0.2 +
+      (0.5 - Math.abs(seed - 0.5)) * 0.25;
+
+    const ranked = [
+      ["INDIVIDUALISTA", scoreIndiv],
+      ["ESTRATEGISTA", scoreEstrat],
+      ["COMBATIVO", scoreComb],
+      ["VELOZ", scoreVeloz],
+      ["COLETIVISTA", scoreColet]
+    ].sort((a, b) => b[1] - a[1]);
+    archetype = ranked[0][0];
+  }
+
+  const clamp01 = (v) => Math.max(0.08, Math.min(0.96, v));
+  const ego = clamp01(
+    (archetype === "INDIVIDUALISTA" ? 0.78 : archetype === "VELOZ" ? 0.62 : archetype === "ESTRATEGISTA" ? 0.42 : archetype === "COLETIVISTA" ? 0.26 : 0.44) +
+      relFor * 0.18 +
+      jitter
+  );
+  const vision = clamp01(
+    (archetype === "ESTRATEGISTA" ? 0.84 : archetype === "COLETIVISTA" ? 0.74 : archetype === "INDIVIDUALISTA" ? 0.38 : 0.52) +
+      relTec * 0.22 -
+      jitter * 0.5
+  );
+  const combativeness = clamp01(
+    (archetype === "COMBATIVO" ? 0.86 : archetype === "GOLEIRO_LIBERO" ? 0.84 : archetype === "INDIVIDUALISTA" ? 0.58 : archetype === "VELOZ" ? 0.62 : 0.54) +
+      relDef * 0.16 +
+      relFis * 0.18 +
+      jitter * 0.6
+  );
+  const roaming = clamp01(
+    (archetype === "ESTRATEGISTA" ? 0.78 : archetype === "INDIVIDUALISTA" ? 0.74 : archetype === "VELOZ" ? 0.76 : archetype === "COLETIVISTA" ? 0.64 : 0.52) +
+      relVel * 0.14 +
+      jitter * 0.5
+  );
+  const shotInstinct = clamp01(
+    (archetype === "INDIVIDUALISTA" ? 0.86 : archetype === "VELOZ" ? 0.72 : archetype === "ESTRATEGISTA" ? 0.64 : archetype === "COLETIVISTA" ? 0.54 : 0.56) +
+      (role === "FW" ? 0.14 : role === "MF" ? 0.04 : -0.1) +
+      relFor * 0.16 +
+      (shCnt >= 2 ? 0.08 : 0) +
+      jitter * 0.5
+  );
+
+  node.aiProfile = { archetype, ego, vision, combativeness, roaming, shotInstinct, seed };
+  return node.aiProfile;
+}
+
+function computeNodeRoleTarget(node, pitch, carrier, chaserUid, coverUid, deepestOppDefX, deepestOwnDefX, isGkHolding = false, gkMarkMap = null, pressSupportUid = null) {
   const isUser = node.side === "user";
   const dir = isUser ? 1 : -1;
   const ownGoalX = isUser ? 4 : 96;
@@ -924,13 +1095,15 @@ function computeNodeRoleTarget(node, pitch, carrier, chaserUid, coverUid, deepes
   const ballY = pitch.ballFlight ? pitch.ballFlight.toY : pitch.passState ? pitch.passState.toY : pitch.ballY;
   const t = pitch.simTime || 0;
   const tr = node.tacticalRole || node.role;
+  const prof = getNodePersonality(node);
+  const oppNodes = isUser ? pitch.oppNodes : pitch.userNodes;
+  const ownNodes = isUser ? pitch.userNodes : pitch.oppNodes;
 
   // 1) Se está recebendo um passe em voo, avança com dash/sprint até encontrar a trajetória real da bola!
   if (pitch.ballMode === "PASS_FLIGHT" && pitch.passState && pitch.passState.receiverUid === node.uid) {
     const ps = pitch.passState;
     const curBallX = pitch.ballX ?? ps.toX;
     const curBallY = pitch.ballY ?? ps.toY;
-    // Na segunda metade do voo, converge diretamente para a bola viva para nunca errar o encontro
     const meetBlend = ps.progress >= 0.45 ? Math.min(1, (ps.progress - 0.45) / 0.55) : 0;
     const aimX = ps.toX * (1 - meetBlend) + curBallX * meetBlend;
     const aimY = ps.toY * (1 - meetBlend) + curBallY * meetBlend;
@@ -952,10 +1125,12 @@ function computeNodeRoleTarget(node, pitch, carrier, chaserUid, coverUid, deepes
     const ls = pitch.looseState;
     const predX = Math.max(6, Math.min(94, (pitch.ballX ?? 50) + (ls.vx || 0) * 0.16));
     const predY = Math.max(9, Math.min(91, (pitch.ballY ?? 50) + (ls.vy || 0) * 0.16));
-    const inOwnPenaltyBox = isUser ? predX <= 16.5 && Math.abs(predY - 50) <= 22 : predX >= 83.5 && Math.abs(predY - 50) <= 22;
+    const gkSweepDepth = prof.archetype === "GOLEIRO_LIBERO" ? 21 : 17.5;
+    const inOwnPenaltyBox = isUser ? predX <= gkSweepDepth && Math.abs(predY - 50) <= 25 : predX >= (100 - gkSweepDepth) && Math.abs(predY - 50) <= 25;
 
     if (tr === "GK" && inOwnPenaltyBox) {
-      return { tx: predX, ty: predY, sprint: 1.35 };
+      node.isGkRushing = true;
+      return { tx: predX, ty: predY, sprint: 1.42 };
     }
     const isAttRunner = ls.receiverUid === node.uid || pitch.looseAttChaserUid === node.uid;
     const isDefRunner = pitch.looseDefChaserUid === node.uid;
@@ -964,70 +1139,145 @@ function computeNodeRoleTarget(node, pitch, carrier, chaserUid, coverUid, deepes
       if (distLoose >= 4.0) {
         node.receiveDashUntil = Math.max(node.receiveDashUntil || 0, t + 0.24);
       }
-      const urgentBoost = (ls.age || 0) > 1.8 ? 1.72 : distLoose > 5.0 ? 1.62 : 1.45;
+      const combBoost = 0.94 + prof.combativeness * 0.18;
+      const urgentBoost = ((ls.age || 0) > 1.8 ? 1.72 : distLoose > 5.0 ? 1.62 : 1.45) * combBoost;
       return {
         tx: Math.max(8, Math.min(92, predX)),
         ty: Math.max(10, Math.min(90, predY)),
-        sprint: urgentBoost
+        sprint: Math.min(1.85, urgentBoost)
       };
     }
   }
 
-  // 2) Portador da bola: conduz livremente buscando espaço e desviando de marcadores!
+  // 2) Portador da bola: conduz livremente com base em instinto, personalidade, espaço e leitura do goleiro!
   if (carrier && carrier.uid === node.uid && pitch.ballMode === "CARRIED") {
     if (tr === "GK") {
+      node.isGkRushing = false;
       return {
         tx: isUser ? 11.5 : 88.5,
         ty: Math.max(42, Math.min(58, node.baseY + (ballY - 50) * 0.25)),
         sprint: 0.72
       };
     }
-    const defNodes = isUser ? pitch.oppNodes : pitch.userNodes;
+    const defNodes = oppNodes;
+    const oppGk = defNodes.find((d) => d.role === "GK");
     const laneAim = isUser && !pitch.is5v5 ? getTactics().lane : "balanced";
-    let carrierLaneY = 50 + Math.sin(t * 1.1 + node.wanderPhase) * 16;
+
+    // Personalidade define o corredor preferido de condução
+    let carrierLaneY = 50 + Math.sin(t * (1.0 + prof.roaming * 0.55) + node.wanderPhase) * (13 + prof.roaming * 8);
+    if (prof.archetype === "INDIVIDUALISTA") {
+      // Corta para dentro buscando o eixo do gol para finalizar
+      carrierLaneY = Math.abs(oppGoalX - node.x) < 34 ? (50 + (node.y < 50 ? -7 : 7)) : (node.y * 0.65 + 50 * 0.35);
+    } else if (prof.archetype === "VELOZ") {
+      // Explora corredor lateral aberto antes de diagonalizar para a área
+      carrierLaneY = Math.abs(oppGoalX - node.x) > 25 ? (node.y < 50 ? 18 : 82) : (node.y < 50 ? 36 : 64);
+    } else if (prof.archetype === "ESTRATEGISTA") {
+      // Flutua pelo meio-espaço mantendo ângulos de passe dos dois lados
+      carrierLaneY = 50 + Math.sin(t * 0.9 + node.wanderPhase) * 14;
+    }
+
     if (laneAim === "wings") {
       const wingCorridorY = node.y < 50 ? 19 : 81;
       carrierLaneY = Math.abs(oppGoalX - node.x) > 22 ? wingCorridorY : (node.y < 50 ? 34 : 66);
     } else if (laneAim === "center") {
       carrierLaneY = 50 + Math.sin(t * 1.1 + node.wanderPhase) * 7;
     }
-    let steerX = oppGoalX - dir * 10 - node.x;
+
+    // Não avança cegamente na cara do goleiro: para na zona ideal de chute (15-18m) ou contorna se o GK sair!
+    const distToOppGk = oppGk ? Math.hypot(oppGk.x - node.x, oppGk.y - node.y) : 99;
+    const stopBeforeGoal = prof.archetype === "INDIVIDUALISTA" ? 13.5 : 16.5;
+    let steerX = oppGoalX - dir * stopBeforeGoal - node.x;
     let steerY = carrierLaneY - node.y;
     const distGoal = Math.hypot(steerX, steerY) || 1;
     steerX /= distGoal;
     steerY /= distGoal;
 
-    // Steering avoidance ao redor de marcadores próximos para driblar pelo espaço livre
+    // Se o goleiro está próximo/saindo, abre lateralmente para fugir do abafa e ganhar ângulo de chute
+    if (oppGk && distToOppGk < 14.5) {
+      const avoidGkY = node.y >= oppGk.y ? 1 : -1;
+      const gkPressure = (14.5 - distToOppGk) / 14.5;
+      steerX -= dir * gkPressure * 0.85;
+      steerY += avoidGkY * (0.95 + gkPressure * 0.9);
+    }
+
+    // Steering avoidance ao redor de marcadores próximos (Individualistas/Velozes cortam mais agudo)
+    const dodgeSharpness = prof.archetype === "INDIVIDUALISTA" || prof.archetype === "VELOZ" ? 1.32 : 1.05;
     defNodes.forEach((d) => {
       if (d.role === "GK") return;
       const dx = node.x - d.x;
       const dy = node.y - d.y;
       const dist = Math.hypot(dx, dy);
       if (dist > 0.1 && dist < 14.5) {
-        const repulse = Math.pow((14.5 - dist) / 14.5, 1.35) * 1.85;
-        steerX += (dx / dist) * repulse * 0.45;
-        steerY += (dy / dist) * repulse * 1.15;
+        const repulse = Math.pow((14.5 - dist) / 14.5, 1.35) * 1.85 * dodgeSharpness;
+        steerX += (dx / dist) * repulse * 0.42;
+        steerY += (dy / dist) * repulse * 1.18;
       }
     });
 
-    if (node.y < 16) steerY += 0.7;
-    if (node.y > 84) steerY -= 0.7;
+    if (node.y < 15) steerY += 0.75;
+    if (node.y > 85) steerY -= 0.75;
+
+    const carrierSprint = node.staggerTimer > 0
+      ? 0.55
+      : prof.archetype === "VELOZ"
+      ? 1.12
+      : prof.archetype === "INDIVIDUALISTA"
+      ? 1.08
+      : 1.03;
 
     return {
       tx: Math.max(8, Math.min(92, node.x + steerX * 14)),
       ty: Math.max(11, Math.min(89, node.y + steerY * 14)),
-      sprint: node.staggerTimer > 0 ? 0.55 : 1.04
+      sprint: carrierSprint
     };
   }
 
-  // 3) Goleiro sem bola: interposto entre a bola e o centro do gol
+  // 3) Goleiro sem bola: comando de área real — sai do gol para abafar/roubar se o atacante invadir a área!
   if (tr === "GK") {
-    const gx = isUser ? 6.2 + (ballX / 100) * 3.5 : 93.8 - ((100 - ballX) / 100) * 3.5;
-    const gy = Math.max(40, Math.min(60, 50 + (ballY - 50) * 0.24));
-    return { tx: gx, ty: gy, sprint: 0.9 };
+    node.isGkRushing = false;
+    const isOppCarrier = Boolean(carrier && carrier.side !== node.side && pitch.ballMode === "CARRIED");
+    if (isOppCarrier && node.staggerTimer <= 0 && node.duelCooldown <= 0) {
+      const boxLimitX = prof.archetype === "GOLEIRO_LIBERO" ? 24.5 : 21.5;
+      const carrierInOwnBox = isUser
+        ? carrier.x <= boxLimitX && Math.abs(carrier.y - 50) <= 27
+        : carrier.x >= (100 - boxLimitX) && Math.abs(carrier.y - 50) <= 27;
+
+      if (carrierInOwnBox) {
+        const distCarrierToGk = Math.hypot(carrier.x - node.x, carrier.y - node.y);
+        // Checa se há um zagueiro nosso bem posicionado entre o atacante e o gol
+        const hasCloseShieldDef = ownNodes.some((d) => {
+          if (d.role === "GK" || d.staggerTimer > 0) return false;
+          const betweenGoal = isUser ? d.x < carrier.x + 1.5 : d.x > carrier.x - 1.5;
+          return betweenGoal && Math.hypot(d.x - carrier.x, d.y - carrier.y) <= 5.2;
+        });
+
+        // Sai correndo para abafar se o atacante está livre na cara do gol OU colou demais na pequena área!
+        const veryCloseToGoal = isUser ? carrier.x <= 15.5 : carrier.x >= 84.5;
+        if (!hasCloseShieldDef || veryCloseToGoal || distCarrierToGk <= 11.5) {
+          node.isGkRushing = true;
+          // Fecha o ângulo mirando diretamente no pé/trajetória do portador
+          const leadX = carrier.x + (carrier.vx || 0) * 0.12;
+          const leadY = carrier.y + (carrier.vy || 0) * 0.12;
+          const clampRushX = isUser ? Math.max(5.5, Math.min(23, leadX)) : Math.min(94.5, Math.max(77, leadX));
+          const clampRushY = Math.max(24, Math.min(76, leadY));
+          return {
+            tx: clampRushX,
+            ty: clampRushY,
+            sprint: prof.archetype === "GOLEIRO_LIBERO" ? 1.38 : 1.28
+          };
+        }
+      }
+    }
+
+    // Posicionamento dinâmico fechando o ângulo conforme a bola se aproxima
+    const ballNearOwnGoal = isUser ? Math.max(0, (42 - ballX) / 42) : Math.max(0, (ballX - 58) / 42);
+    const stepUp = (prof.archetype === "GOLEIRO_LIBERO" ? 4.8 : 3.2) * (0.4 + ballNearOwnGoal * 0.6);
+    const gx = isUser ? 6.0 + stepUp : 94.0 - stepUp;
+    const gy = Math.max(37, Math.min(63, 50 + (ballY - 50) * (0.28 + ballNearOwnGoal * 0.16)));
+    return { tx: gx, ty: gy, sprint: 0.96 };
   }
 
-  // 4) Defendendo: quando o goleiro rival segura a bola, fecha linhas de passe sem invadir a área; caso contrário fecha o portador!
+  // 4) Defendendo: marcação combativa, fechamento de chutes e dobras inteligentes!
   if (!inPossession) {
     if (isGkHolding) {
       const mark = gkMarkMap && gkMarkMap[node.uid];
@@ -1038,129 +1288,202 @@ function computeNodeRoleTarget(node, pitch, carrier, chaserUid, coverUid, deepes
           sprint: 1.02
         };
       }
-      // Demais defensores sem marcação individual caem para o reposicionamento tático na seção 5
     }
     const targetAnchorX = carrier ? carrier.x + (carrier.vx || 0) * 0.22 : ballX;
     const targetAnchorY = carrier ? carrier.y + (carrier.vy || 0) * 0.22 : ballY;
     const dangerousZone = isUser ? ballX <= 42 : ballX >= 58;
+    const pressSprint = 1.04 + prof.combativeness * 0.16;
 
     if (!isGkHolding && chaserUid === node.uid && node.staggerTimer <= 0) {
       return {
         tx: Math.max(8, Math.min(92, targetAnchorX)),
         ty: Math.max(10, Math.min(90, targetAnchorY)),
-        sprint: 1.08
+        sprint: pressSprint
       };
     }
     if (!isGkHolding && coverUid === node.uid && node.staggerTimer <= 0) {
-      // Se o adversário estiver perigoso próximo à área, o segundo zagueiro fecha junto em dobra de marcação!
       if (dangerousZone) {
         const flankOffset = carrier && carrier.y < 50 ? 3.5 : -3.5;
         return {
-          tx: Math.max(8, Math.min(92, targetAnchorX + (isUser ? -1.5 : 1.5))),
+          tx: Math.max(8, Math.min(92, targetAnchorX + (isUser ? -1.8 : 1.8))),
           ty: Math.max(12, Math.min(88, targetAnchorY + flankOffset)),
-          sprint: 1.04
+          sprint: Math.max(1.04, pressSprint * 0.97)
         };
       }
       return {
         tx: Math.max(8, Math.min(92, targetAnchorX * 0.78 + ownGoalX * 0.22)),
         ty: Math.max(12, Math.min(88, targetAnchorY * 0.76 + 50 * 0.24)),
-        sprint: 0.96
+        sprint: 0.95 + prof.combativeness * 0.08
+      };
+    }
+    // 3º marcador combativo fecha linha de passe / ajuda na pressão em zona perigosa
+    if (!isGkHolding && pressSupportUid === node.uid && dangerousZone && node.staggerTimer <= 0) {
+      const cutX = targetAnchorX * 0.62 + ownGoalX * 0.38;
+      const cutY = targetAnchorY * 0.65 + (node.baseY < 50 ? 32 : 68) * 0.35;
+      return {
+        tx: Math.max(10, Math.min(90, cutX)),
+        ty: Math.max(12, Math.min(88, cutY)),
+        sprint: 0.98 + prof.combativeness * 0.1
       };
     }
   }
 
+  // Helper de movimentação livre & desmarcação ativa no ataque baseada na personalidade do jogador!
+  const applyPersonalityAttackFreedom = (rawTx, rawTy, baseSprint, allowDeepRun = true) => {
+    let tx = rawTx;
+    let ty = rawTy;
+    let sp = baseSprint;
+
+    // 1. Movimento orgânico por personalidade
+    const roamAmp = 4 + prof.roaming * 10;
+    const waveA = Math.sin(t * (0.9 + prof.seed * 0.7) + node.wanderPhase);
+    const waveB = Math.cos(t * (0.65 + prof.seed * 0.5) + node.wanderPhase * 1.4);
+
+    if (prof.archetype === "ESTRATEGISTA") {
+      // Flutua nos meios-espaços buscando linha de passe limpa
+      tx += dir * waveB * 6.5;
+      ty += waveA * (roamAmp * 0.95);
+      sp += 0.04;
+    } else if (prof.archetype === "COLETIVISTA" && carrier && carrier.uid !== node.uid) {
+      // Aproxima em triângulo de apoio (12-18m) para tabela rápida
+      const distC = Math.hypot(carrier.x - node.x, carrier.y - node.y);
+      if (distC > 19 && distC < 44) {
+        const supportX = carrier.x + dir * (6 + prof.seed * 6);
+        const supportY = carrier.y + (node.baseY < carrier.y ? -12 : 12);
+        tx = tx * 0.52 + supportX * 0.48;
+        ty = ty * 0.52 + supportY * 0.48;
+        sp += 0.06;
+      }
+    } else if (prof.archetype === "INDIVIDUALISTA" && allowDeepRun) {
+      // Corta em diagonal para atacar a entrada da área e pedir bola em condição de chute
+      tx += dir * (4.5 + prof.ego * 5);
+      ty = ty * 0.78 + (50 + (node.baseY < 50 ? -11 : 11)) * 0.22 + waveA * 5;
+      sp += 0.07;
+    } else if (prof.archetype === "VELOZ" && allowDeepRun) {
+      // Espeta em velocidade buscando espaço nas costas da defesa
+      tx += dir * (6 + prof.roaming * 5);
+      ty += waveA * 8;
+      sp += 0.1;
+    } else if (prof.archetype === "COMBATIVO") {
+      // Chega de trás como elemento surpresa / garante rebote na entrada da área
+      tx += dir * (waveB > 0 ? 5.5 : -2.5);
+      ty += waveA * 5;
+      sp += 0.05;
+    }
+
+    // 2. Desmarcação ativa: se há marcador colado (< 9.5m), descola para espaço livre!
+    let closestMark = null;
+    let closestMarkDist = 99;
+    oppNodes.forEach((d) => {
+      if (d.role === "GK") return;
+      const dd = Math.hypot(node.x - d.x, node.y - d.y);
+      if (dd < closestMarkDist) {
+        closestMarkDist = dd;
+        closestMark = d;
+      }
+    });
+    if (closestMark && closestMarkDist < 9.5 && closestMarkDist > 0.1) {
+      const peelStrength = ((9.5 - closestMarkDist) / 9.5) * (4.5 + prof.roaming * 5.5);
+      tx += ((node.x - closestMark.x) / closestMarkDist) * peelStrength * 0.65;
+      ty += ((node.y - closestMark.y) / closestMarkDist) * peelStrength * 1.15;
+    }
+
+    // 3. No 11x11 respeita a linha de impedimento para não ficar na banheira
+    if (!pitch.is5v5) {
+      const legalMaxX = isUser ? Math.min(88, Math.max(52, deepestOppDefX - 0.7)) : Math.max(12, Math.min(48, deepestOppDefX + 0.7));
+      if (isUser) tx = Math.min(legalMaxX, tx);
+      else tx = Math.max(legalMaxX, tx);
+    }
+
+    return {
+      tx: Math.max(10, Math.min(90, tx)),
+      ty: Math.max(11, Math.min(89, ty)),
+      sprint: Math.min(1.16, sp)
+    };
+  };
+
   // 5) Posicionamento tático fluido por função (com bola vs sem bola)
-  const ballShift = (ballX - 50) * 0.34;
-  const latPull = (ballY - 50) * (inPossession ? 0.24 : 0.36);
+  const ballShift = (ballX - 50) * 0.36;
+  const latPull = (ballY - 50) * (inPossession ? 0.26 : 0.38);
 
   if (tr === "CB" || tr === "LIB") {
     if (inPossession) {
-      const pushDepth = tr === "LIB" ? 13 : 8;
-      const maxHoldX = isUser ? 52 : 48;
+      const pushDepth = tr === "LIB" || prof.archetype === "ESTRATEGISTA" ? 15 : 9;
+      const maxHoldX = isUser ? 56 : 44;
       const rawX = node.baseX + dir * pushDepth + ballShift * 0.65;
-      return {
-        tx: isUser ? Math.min(maxHoldX, Math.max(16, rawX)) : Math.max(maxHoldX, Math.min(84, rawX)),
-        ty: Math.max(16, Math.min(84, node.baseY + latPull * 0.55)),
-        sprint: 0.78
-      };
+      const clampedX = isUser ? Math.min(maxHoldX, Math.max(16, rawX)) : Math.max(maxHoldX, Math.min(84, rawX));
+      return applyPersonalityAttackFreedom(clampedX, Math.max(16, Math.min(84, node.baseY + latPull * 0.55)), 0.8, false);
     } else {
+      const combStep = prof.combativeness > 0.72 ? dir * 3.5 : 0;
       const holdX = isUser
-        ? Math.max(13, Math.min(node.baseX + 4, ballX - 8))
-        : Math.min(87, Math.max(node.baseX - 4, ballX + 8));
+        ? Math.max(13, Math.min(node.baseX + 5 + combStep, ballX - 7))
+        : Math.min(87, Math.max(node.baseX - 5 + combStep, ballX + 7));
       const tuckY = node.baseY * 0.72 + ballY * 0.28;
-      return { tx: holdX, ty: Math.max(14, Math.min(86, tuckY)), sprint: 0.9 };
+      return { tx: holdX, ty: Math.max(14, Math.min(86, tuckY)), sprint: 0.9 + prof.combativeness * 0.08 };
     }
   }
 
   if (tr === "FB" || tr === "WB") {
     const sameFlankAsBall = (node.baseY < 50 && ballY < 54) || (node.baseY >= 50 && ballY >= 46);
     if (inPossession) {
-      const overlapBoost = sameFlankAsBall ? (tr === "WB" ? 27 : 21) : tr === "WB" ? 16 : 11;
+      const overlapBoost = sameFlankAsBall ? (tr === "WB" || prof.archetype === "VELOZ" ? 28 : 22) : tr === "WB" ? 16 : 12;
       const rawX = node.baseX + dir * overlapBoost + ballShift * 0.45;
       const wideY = node.baseY < 50 ? Math.min(18, node.baseY) : Math.max(82, node.baseY);
-      return {
-        tx: Math.max(14, Math.min(86, rawX)),
-        ty: wideY,
-        sprint: sameFlankAsBall ? 1.0 : 0.85
-      };
+      return applyPersonalityAttackFreedom(Math.max(14, Math.min(86, rawX)), wideY, sameFlankAsBall ? 1.0 : 0.86, true);
     } else {
       const holdX = isUser
-        ? Math.max(13, Math.min(node.baseX + 3, ballX - 5))
-        : Math.min(87, Math.max(node.baseX - 3, ballX + 5));
-      const trackY = node.baseY * 0.82 + ballY * 0.18;
-      return { tx: holdX, ty: Math.max(10, Math.min(90, trackY)), sprint: 0.92 };
+        ? Math.max(13, Math.min(node.baseX + 4, ballX - 5))
+        : Math.min(87, Math.max(node.baseX - 4, ballX + 5));
+      const trackY = node.baseY * 0.8 + ballY * 0.2;
+      return { tx: holdX, ty: Math.max(10, Math.min(90, trackY)), sprint: 0.92 + prof.combativeness * 0.08 };
     }
   }
 
   if (tr === "DM") {
     if (inPossession) {
-      const pivotX = Math.max(18, Math.min(82, ballX - dir * 13));
+      const pivotX = Math.max(18, Math.min(82, ballX - dir * (prof.archetype === "ESTRATEGISTA" ? 10 : 13)));
       const oppSideY = ballY < 50 ? 56 : 44;
-      return { tx: pivotX, ty: node.baseY * 0.55 + oppSideY * 0.45, sprint: 0.84 };
+      return applyPersonalityAttackFreedom(pivotX, node.baseY * 0.55 + oppSideY * 0.45, 0.86, false);
     } else {
       const shieldX = isUser ? deepestOwnDefX + 10 : deepestOwnDefX - 10;
       return {
-        tx: Math.max(18, Math.min(82, shieldX * 0.6 + ballX * 0.4)),
-        ty: Math.max(24, Math.min(76, 50 + (ballY - 50) * 0.45)),
-        sprint: 0.9
+        tx: Math.max(18, Math.min(82, shieldX * 0.58 + ballX * 0.42)),
+        ty: Math.max(22, Math.min(78, 50 + (ballY - 50) * 0.48)),
+        sprint: 0.92 + prof.combativeness * 0.1
       };
     }
   }
 
   if (tr === "CM" || tr === "WM") {
     if (inPossession) {
-      const adv = tr === "WM" ? 16 : 11;
-      const wobble = Math.sin(t * 1.15 + node.wanderPhase) * 6;
+      const adv = tr === "WM" ? 17 : 12;
+      const wobble = Math.sin(t * 1.15 + node.wanderPhase) * 7;
       const wideY =
         tr === "WM"
           ? node.baseY < 50
-            ? 16
-            : 84
-          : Math.max(20, Math.min(80, node.baseY + latPull * 0.5 + wobble));
-      return {
-        tx: Math.max(18, Math.min(84, node.baseX + dir * adv + ballShift * 0.55)),
-        ty: wideY,
-        sprint: 0.88
-      };
+            ? 17
+            : 83
+          : Math.max(18, Math.min(82, node.baseY + latPull * 0.5 + wobble));
+      return applyPersonalityAttackFreedom(Math.max(18, Math.min(84, node.baseX + dir * adv + ballShift * 0.55)), wideY, 0.9, true);
     } else {
       return {
-        tx: Math.max(16, Math.min(84, node.baseX - dir * 5 + ballShift * 0.55)),
-        ty: Math.max(14, Math.min(86, node.baseY + latPull * 0.6)),
-        sprint: 0.88
+        tx: Math.max(16, Math.min(84, node.baseX - dir * 4 + ballShift * 0.58)),
+        ty: Math.max(14, Math.min(86, node.baseY + latPull * 0.62)),
+        sprint: 0.88 + prof.combativeness * 0.1
       };
     }
   }
 
   if (tr === "AM") {
     if (inPossession) {
-      const holeX = isUser ? Math.min(80, Math.max(54, deepestOppDefX - 8)) : Math.max(20, Math.min(46, deepestOppDefX + 8));
-      const probeY = 50 + Math.sin(t * 1.35 + node.wanderPhase) * 14 + (ballY < 50 ? 6 : -6);
-      return { tx: holeX, ty: Math.max(22, Math.min(78, probeY)), sprint: 0.94 };
+      const holeX = isUser ? Math.min(81, Math.max(54, deepestOppDefX - 7)) : Math.max(19, Math.min(46, deepestOppDefX + 7));
+      const probeY = 50 + Math.sin(t * 1.35 + node.wanderPhase) * 16 + (ballY < 50 ? 6 : -6);
+      return applyPersonalityAttackFreedom(holeX, Math.max(20, Math.min(80, probeY)), 0.95, true);
     } else {
       return {
-        tx: Math.max(22, Math.min(78, ballX * 0.45 + node.baseX * 0.55)),
-        ty: Math.max(22, Math.min(78, ballY * 0.45 + 50 * 0.55)),
-        sprint: 0.86
+        tx: Math.max(22, Math.min(78, ballX * 0.48 + node.baseX * 0.52)),
+        ty: Math.max(22, Math.min(78, ballY * 0.48 + 50 * 0.52)),
+        sprint: 0.86 + prof.combativeness * 0.08
       };
     }
   }
@@ -1168,7 +1491,6 @@ function computeNodeRoleTarget(node, pitch, carrier, chaserUid, coverUid, deepes
   if (tr === "WING") {
     const ballOnOppositeFlank = (node.baseY < 50 && ballY > 56) || (node.baseY >= 50 && ballY < 44);
     if (inPossession) {
-      // No 11x11 com impedimento, pontas não estouram a linha de impedimento; buscam ficar no limite legal (onside)
       const maxLegalPushX = pitch.is5v5
         ? (isUser ? 89 : 11)
         : (isUser ? Math.min(88, Math.max(52, deepestOppDefX - 0.5)) : Math.max(12, Math.min(48, deepestOppDefX + 0.5)));
@@ -1177,43 +1499,38 @@ function computeNodeRoleTarget(node, pitch, carrier, chaserUid, coverUid, deepes
         : Math.max(maxLegalPushX, Math.min(34, deepestOppDefX + 0.5));
       const targetY = ballOnOppositeFlank
         ? node.baseY < 50
-          ? 34
-          : 66
+          ? 33
+          : 67
         : node.baseY < 50
         ? 14
         : 86;
-      return { tx: pushX, ty: targetY, sprint: 0.98 };
+      return applyPersonalityAttackFreedom(pushX, targetY, 0.99, true);
     } else {
       return {
-        tx: Math.max(20, Math.min(80, ballX - dir * 6)),
-        ty: Math.max(14, Math.min(86, node.baseY * 0.72 + ballY * 0.28)),
-        sprint: 0.84
+        tx: Math.max(20, Math.min(80, ballX - dir * 5)),
+        ty: Math.max(14, Math.min(86, node.baseY * 0.7 + ballY * 0.3)),
+        sprint: 0.85 + prof.combativeness * 0.09
       };
     }
   }
 
-  // ST (CA / ATA): espeta na última linha defensiva e faz desmarcações!
-  // Inteligência tática: no 11x11, atacantes aprendem a NÃO ficar impedidos e recuam para posição legal se estiverem adiantados.
+  // ST (CA / ATA): espeta na última linha defensiva com movimentação livre e desmarcação!
   if (inPossession) {
     let lineX;
     if (pitch.is5v5) {
-      // No 5x5 NÃO existe impedimento, atacante pode espetar e infiltrar livremente!
       lineX = isUser
         ? Math.min(90, Math.max(66, deepestOppDefX + 1.2))
         : Math.max(10, Math.min(34, deepestOppDefX - 1.2));
     } else {
-      // No 11x11: monitora a linha defensiva adversária (deepestOppDefX).
-      // Se o atacante estiver adiantado além da linha de impedimento (ou na iminência),
-      // ele recua ativamente 0.8 a 1.5m para sair do impedimento e dar opção de passe limpa.
       const isPastDefLine = isUser ? node.x >= deepestOppDefX - 0.2 : node.x <= deepestOppDefX + 0.2;
       const legalHoldX = isUser
         ? Math.min(87, Math.max(52, deepestOppDefX - 0.8))
         : Math.max(13, Math.min(48, deepestOppDefX + 0.8));
 
-      lineX = isPastDefLine ? legalHoldX : (isUser ? Math.min(legalHoldX, node.baseX + 16) : Math.max(legalHoldX, node.baseX - 16));
+      lineX = isPastDefLine ? legalHoldX : (isUser ? Math.min(legalHoldX, node.baseX + 17) : Math.max(legalHoldX, node.baseX - 17));
     }
-    const runY = node.baseY + Math.sin(t * 1.55 + node.wanderPhase) * 12;
-    return { tx: lineX, ty: Math.max(24, Math.min(76, runY)), sprint: 1.0 };
+    const runY = node.baseY + Math.sin(t * 1.55 + node.wanderPhase) * 14;
+    return applyPersonalityAttackFreedom(lineX, Math.max(22, Math.min(78, runY)), 1.0, true);
   } else {
     if (isGkHolding) {
       const holdX = isUser ? Math.min(72, Math.max(46, ballX - 20)) : Math.max(28, Math.min(54, ballX + 20));
@@ -1225,8 +1542,8 @@ function computeNodeRoleTarget(node, pitch, carrier, chaserUid, coverUid, deepes
     }
     return {
       tx: Math.max(18, Math.min(82, ballX + dir * 4)),
-      ty: Math.max(26, Math.min(74, ballY * 0.55 + node.baseY * 0.45)),
-      sprint: 0.82
+      ty: Math.max(24, Math.min(76, ballY * 0.55 + node.baseY * 0.45)),
+      sprint: 0.84 + prof.combativeness * 0.09
     };
   }
 }
@@ -1274,13 +1591,13 @@ function recomputePitchTargets(pitch) {
 
   let chaserUid = null;
   let coverUid = null;
+  let pressSupportUid = null;
   let gkMarkMap = null;
 
   if (isGkHolding) {
     pitch.chaserUid = null;
     pitch.challengerUid = null;
 
-    // Marcadores saem de cima do goleiro e fecham os possíveis receptores do passe curto/médio
     const rolePri = (r) => (r === "DF" ? 0 : r === "MF" ? 1 : 2);
     const gkOutlets = attNodes
       .filter((n) => n.role !== "GK")
@@ -1324,32 +1641,44 @@ function recomputePitchTargets(pitch) {
       gkMarkMap[marker.uid] = enforceGkSafeTarget(rawTx, rawTy);
     });
   } else {
+    // Combatividade influencia quem se antecipa para pressionar o portador!
     const rankedDefs = defNodes
       .filter((d) => d.role !== "GK" && (d.staggerTimer || 0) <= 0)
-      .map((d) => ({
-        uid: d.uid,
-        dist: Math.hypot(d.x - (carrier ? carrier.x : ballRefX), (d.y - (carrier ? carrier.y : ballRefY)) * 1.1)
-      }))
-      .sort((a, b) => a.dist - b.dist);
+      .map((d) => {
+        const prof = getNodePersonality(d);
+        const rawDist = Math.hypot(d.x - (carrier ? carrier.x : ballRefX), (d.y - (carrier ? carrier.y : ballRefY)) * 1.1);
+        const combBias = prof.combativeness * 3.2;
+        return {
+          uid: d.uid,
+          dist: rawDist,
+          effDist: rawDist - combBias
+        };
+      })
+      .sort((a, b) => a.effDist - b.effDist);
 
     chaserUid = rankedDefs[0]?.uid || null;
     coverUid = rankedDefs[1]?.uid || null;
+    pressSupportUid = rankedDefs[2]?.uid || null;
     pitch.chaserUid = chaserUid;
-    pitch.challengerUid = carrier && chaserUid && rankedDefs[0].dist < 10 ? chaserUid : null;
+    pitch.challengerUid = carrier && chaserUid && rankedDefs[0].dist < 10.5 ? chaserUid : null;
   }
 
   if (pitch.ballMode === "LOOSE_BALL" && pitch.looseState) {
     const attTeamNodes = attIsUser ? pitch.userNodes : pitch.oppNodes;
     const defTeamNodes = attIsUser ? pitch.oppNodes : pitch.userNodes;
     const recNode = findPitchNode(pitch, pitch.looseState.receiverUid);
+    const rankLoose = (list) =>
+      list
+        .filter((n) => n.role !== "GK" && (n.staggerTimer || 0) <= 0)
+        .sort((a, b) => {
+          const da = Math.hypot(a.x - ballRefX, a.y - ballRefY) - getNodePersonality(a).combativeness * 2.4;
+          const db = Math.hypot(b.x - ballRefX, b.y - ballRefY) - getNodePersonality(b).combativeness * 2.4;
+          return da - db;
+        })[0];
     const bestAtt = (recNode && recNode.role !== "GK" && (recNode.staggerTimer || 0) <= 0)
       ? recNode
-      : attTeamNodes
-          .filter((n) => n.role !== "GK" && (n.staggerTimer || 0) <= 0)
-          .sort((a, b) => Math.hypot(a.x - ballRefX, a.y - ballRefY) - Math.hypot(b.x - ballRefX, b.y - ballRefY))[0];
-    const bestDef = defTeamNodes
-      .filter((n) => n.role !== "GK" && (n.staggerTimer || 0) <= 0)
-      .sort((a, b) => Math.hypot(a.x - ballRefX, a.y - ballRefY) - Math.hypot(b.x - ballRefX, b.y - ballRefY))[0];
+      : rankLoose(attTeamNodes);
+    const bestDef = rankLoose(defTeamNodes);
     pitch.looseAttChaserUid = bestAtt?.uid || null;
     pitch.looseDefChaserUid = bestDef?.uid || null;
   } else {
@@ -1368,7 +1697,8 @@ function recomputePitchTargets(pitch) {
         deepestOppDef,
         deepestOwnDef,
         isGkHolding,
-        gkMarkMap
+        gkMarkMap,
+        pressSupportUid
       );
       node.targetX = aim.tx;
       node.targetY = aim.ty;
@@ -1957,12 +2287,13 @@ function pickPassReceiver(nodes, defNodes, carrier, strictForward = false, pitch
   const effRole = getEffectiveCarrierRole(carrier);
   const curRank = order[effRole] ?? 2;
   const attIsUser = carrier.side === "user";
+  const prof = getNodePersonality(carrier);
+  const inFinalThird = attIsUser ? carrier.x >= 58 : carrier.x <= 42;
 
   let candidates = nodes.filter((n) => {
     if (n.uid === carrier.uid || n.role === "GK") return false;
     const dxForward = attIsUser ? n.targetX - carrier.x : carrier.x - n.targetX;
     if (strictForward) {
-      // No terço final ou dentro da área, só toca se o colega estiver na linha da bola ou à frente (NUNCA para trás!)
       return dxForward >= -2 && (order[n.role] ?? 1) >= Math.min(2, curRank);
     }
     return (order[n.role] ?? 1) >= curRank && (order[n.role] ?? 1) <= curRank + 1;
@@ -1972,7 +2303,7 @@ function pickPassReceiver(nodes, defNodes, carrier, strictForward = false, pitch
     candidates = nodes.filter((n) => {
       if (n.uid === carrier.uid || n.role === "GK") return false;
       const dxForward = attIsUser ? n.targetX - carrier.x : carrier.x - n.targetX;
-      return dxForward >= -6 && (n.role === "FW" || n.role === "MF");
+      return dxForward >= -5 && (n.role === "FW" || n.role === "MF");
     });
   }
   if (candidates.length === 0) {
@@ -1990,9 +2321,17 @@ function pickPassReceiver(nodes, defNodes, carrier, strictForward = false, pitch
   const weights = candidates.map((n) => {
     const forwardGain = attIsUser ? n.targetX - carrier.x : carrier.x - n.targetX;
     const dist = Math.hypot(n.targetX - carrier.x, n.targetY - carrier.y);
+    // No terço final, penaliza fortemente recuos sem sentido (a menos que seja a única opção livre)
     const forwardFactor =
-      forwardGain >= 5 ? 2.05 : forwardGain >= 0 ? 1.60 : forwardGain >= -6 ? 0.78 : 0.18;
-    const distFactor = dist >= 9 && dist <= 40 ? 1.45 : dist < 6 ? 0.35 : 0.8;
+      forwardGain >= 5
+        ? 2.25
+        : forwardGain >= 0
+        ? 1.75
+        : forwardGain >= -5
+        ? (inFinalThird ? 0.42 : 0.78)
+        : (inFinalThird ? 0.04 : 0.16);
+    const idealMaxDist = prof.archetype === "ESTRATEGISTA" ? 46 : prof.archetype === "COLETIVISTA" ? 28 : 38;
+    const distFactor = dist >= 8 && dist <= idealMaxDist ? 1.5 : dist < 6 ? 0.35 : 0.78;
 
     const laneMidX = (carrier.x + n.targetX) * 0.5;
     const laneMidY = (carrier.y + n.targetY) * 0.5;
@@ -2011,7 +2350,8 @@ function pickPassReceiver(nodes, defNodes, carrier, strictForward = false, pitch
       (laneDefDist >= 8 ? 1.35 : laneDefDist < 4.0 ? 0.45 : 0.95);
     const staminaW = n.stamina >= 45 ? 1.15 : 0.55;
     const antiPingPongW = pitch && pitch.lastPasserUid === n.uid ? 0.40 : 1.0;
-    const wingSwitchW = Math.abs(n.targetY - carrier.y) >= 16 && forwardGain >= -3 && minDefDist >= 7.5 ? 1.65 : 1.0;
+    const switchAffinity = prof.archetype === "ESTRATEGISTA" ? 2.15 : 1.55;
+    const wingSwitchW = Math.abs(n.targetY - carrier.y) >= 16 && forwardGain >= -3 && minDefDist >= 7.5 ? switchAffinity : 1.0;
     const skillW = Math.pow(Math.max(55, n.effOvr) / 80, 0.85);
     let tacticLaneW = 1.0;
     if (attIsUser && !pitch?.is5v5) {
@@ -2021,19 +2361,16 @@ function pickPassReceiver(nodes, defNodes, carrier, strictForward = false, pitch
       else if (laneMode === "center") tacticLaneW = isWide ? 0.52 : 1.95;
     }
 
-    // Inteligência de passe por elemento: se o goleiro adversário tem elemento desfavorável pro portador,
-    // prioriza passar para companheiros que tenham vantagem elemental sobre o goleiro
     const oppGk = defNodes?.find((d) => d.role === "GK");
     let elemSynergyW = 1.0;
     if (oppGk?.player?.element && n.player?.element) {
       if (ELEMENT_ADVANTAGE[n.player.element] === oppGk.player.element) {
-        elemSynergyW = 1.65; // Vantagem contra o goleiro: procura muito esse companheiro!
+        elemSynergyW = 1.65;
       } else if (ELEMENT_ADVANTAGE[oppGk.player.element] === n.player.element) {
-        elemSynergyW = 0.75; // Também desfavorecido contra o GK
+        elemSynergyW = 0.75;
       }
     }
 
-    // Regra de impedimento: no 5x5 NÃO há impedimento. No 11x11, evita tocar para jogador adiantado na banheira em posição irregular
     const oppOutfieldDefs = (defNodes || []).filter((d) => d.role !== "GK");
     const oppDefLineX = oppOutfieldDefs.length > 0
       ? (attIsUser ? Math.max(...oppOutfieldDefs.map((d) => d.x)) : Math.min(...oppOutfieldDefs.map((d) => d.x)))
@@ -2044,14 +2381,34 @@ function pickPassReceiver(nodes, defNodes, carrier, strictForward = false, pitch
       : (n.x < 50 && n.x < carrier.x - 0.6 && n.x < oppDefLineX - 0.6));
 
     if (isCandidateOffside) {
-      return 0.001; // Inteligência tática: recusa passar para companheiro em posição de impedimento!
+      return 0.001;
     }
+
+    // Bônus para companheiro livre na zona de gol (tap-in / passe decisivo)
+    const oppGoalX = attIsUser ? 96 : 4;
+    const recGoalDist = Math.hypot(n.x - oppGoalX, n.y - 50);
+    const tapInBonus = recGoalDist <= 22 && minDefDist >= 6.5 ? (1.45 + prof.vision * 0.75) : 1.0;
 
     // Bônus para companheiro com corredor aberto à frente para receber passe no espaço vazio
     const openForwardGrass = attIsUser ? (oppDefLineX - n.x) : (n.x - oppDefLineX);
-    const spaceRunBonus = (openForwardGrass >= 6 && forwardGain >= 0) ? 1.45 : 1.0;
+    const spaceRunBonus = (openForwardGrass >= 6 && forwardGain >= 0) ? (1.35 + prof.vision * 0.45) : 1.0;
 
-    return forwardFactor * distFactor * openFactor * staminaW * antiPingPongW * wingSwitchW * skillW * elemSynergyW * spaceRunBonus * tacticLaneW;
+    // Referência Ofensiva ("Camisa 10") e Estilo de Jogo (Posse vs Vertical)
+    let aceW = 1.0;
+    let styleW = 1.0;
+    if (attIsUser && !pitch?.is5v5) {
+      const tac = getTactics();
+      if (tac.acePlayerId && n.player?.id === tac.acePlayerId && minDefDist >= 5.0 && n.x >= 42) {
+        aceW = 1.52;
+      }
+      if (tac.style === "possession") {
+        styleW = dist <= 26 && minDefDist >= 7.0 ? 1.35 : 0.82;
+      } else if (tac.style === "vertical") {
+        styleW = forwardGain >= 5 ? 1.38 : 0.75;
+      }
+    }
+
+    return forwardFactor * distFactor * openFactor * staminaW * antiPingPongW * wingSwitchW * skillW * elemSynergyW * spaceRunBonus * tapInBonus * tacticLaneW * aceW * styleW;
   });
 
   const total = weights.reduce((a, b) => a + b, 0);
@@ -2247,6 +2604,10 @@ function syncLivePitchDOM(st) {
     `;
   }
 
+  const tacNow = getTactics();
+  const capId = tacNow.captainPlayerId || null;
+  const markedOppId = tacNow.markedOppId || null;
+
   const updateNodeState = (list) => {
     list.forEach((node) => {
       const el = document.getElementById(`pnode-${node.uid}`);
@@ -2254,12 +2615,22 @@ function syncLivePitchDOM(st) {
       el.classList.toggle("has-ball", node.uid === pitch.carrierUid);
       el.classList.toggle("is-challenger", node.uid === pitch.challengerUid);
       el.classList.toggle("is-tired", node.stamina < 45);
+      el.classList.toggle("is-keshin-active", node.keshinState === "ACTIVE");
+      el.classList.toggle("is-keshin-exhausted", node.keshinState === "EXHAUSTED");
+      el.classList.toggle("is-captain-node", !pitch.is5v5 && node.side === "user" && Boolean(capId && node.player?.id === capId));
+      el.classList.toggle("is-marked-opp", !pitch.is5v5 && node.side === "opp" && Boolean(markedOppId && node.player?.id === markedOppId));
 
       const stamBar = el.querySelector(".pitch-token-stamina-fill");
       if (stamBar) {
         stamBar.style.width = `${Math.round(node.stamina)}%`;
         stamBar.style.backgroundColor =
-          node.stamina >= 70 ? "#4ade80" : node.stamina >= 45 ? "#facc15" : "#ef4444";
+          node.keshinState === "ACTIVE"
+            ? "#a855f7"
+            : node.stamina >= 70
+            ? "#4ade80"
+            : node.stamina >= 45
+            ? "#facc15"
+            : "#ef4444";
       }
     });
   };
@@ -2267,6 +2638,28 @@ function syncLivePitchDOM(st) {
   updateNodeState(pitch.userNodes);
   updateNodeState(pitch.oppNodes);
   syncNodeBadgesDOM(pitch, performance.now());
+
+  const hBtn = document.getElementById("btn-activate-hissatsu-tactic");
+  if (hBtn && !pitch.is5v5) {
+    const hObj = HISSATSU_TACTICS_CATALOG?.[tacNow.hissatsuTactic] || HISSATSU_TACTICS_CATALOG?.route_of_sky;
+    if ((pitch.hissatsuTacticTimer || 0) > 0) {
+      const remMin = Math.max(1, Math.ceil((pitch.hissatsuTacticTimer || 0) * 1.45));
+      hBtn.classList.add("is-tactic-active");
+      hBtn.classList.remove("is-tactic-used");
+      hBtn.disabled = true;
+      hBtn.innerHTML = `<span>⚡ ${hObj?.name || "Tática"} (${remMin}')</span>`;
+    } else if (pitch.hissatsuTacticUsed) {
+      hBtn.classList.remove("is-tactic-active");
+      hBtn.classList.add("is-tactic-used");
+      hBtn.disabled = true;
+      hBtn.innerHTML = `<span>✓ Tática Usada</span>`;
+    } else {
+      hBtn.classList.remove("is-tactic-active", "is-tactic-used");
+      hBtn.disabled = false;
+      hBtn.innerHTML = `<span>⚡ ${hObj?.name || "Tática Especial"}</span>`;
+      hBtn.title = `${hObj?.name || "Tática Especial"} (1x/jogo): ${hObj?.shortEffect || ""}`;
+    }
+  }
 
   const statsEl = document.getElementById("pitch-live-stats");
   if (statsEl && pitch.stats) {

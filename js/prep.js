@@ -9,63 +9,197 @@ function prepAssetIconHTML(src, alt = "") {
   return src ? `<img class="prep-inline-asset" src="${src}" alt="${alt}" />` : "";
 }
 
+function getPrepEquippedItemContext() {
+  const itemIds = new Set();
+  const equippedPlayers = new Set();
+  const elemCounts = {};
+  Object.values(state?.squad || {}).forEach((p) => {
+    if (!p) return;
+    if (p.element) elemCounts[p.element] = (elemCounts[p.element] || 0) + 1;
+    if (Array.isArray(p.equippedItems) && p.equippedItems.length > 0) {
+      equippedPlayers.add(p.id || p.name);
+      p.equippedItems.forEach((it) => {
+        if (it?.id) itemIds.add(it.id);
+      });
+    }
+  });
+  return { itemIds, equippedPlayerCount: equippedPlayers.size, elemCounts };
+}
+
+function getPrepScopeLabel(ev) {
+  if (!ev) return "";
+  if (ev.scopeLabel) return ev.scopeLabel;
+  if (ev.kind === "PASSIVE_DOUBLE_EVENT") return "Permanente • Cidade";
+  if (ev.kind === "PASSIVE_LATE_RESIST") return "Permanente • 75'+";
+  if (ev.kind === "STREET_5V5") return "5 Titulares";
+  if (ev.kind === "ENERGY_DRINK") return "Elenco Todo";
+  if (ev.kind === "REST_ACTIVE") {
+    if (ev.restMode === "TACTICAL") return "Energia + Elenco";
+    if (ev.restMode === "SNACK") return "Próxima Partida";
+    return "Energia do Time";
+  }
+  if (ev.kind === "ELEM_BOOST_PICK") return "Mesmo Elemento";
+  if (ev.kind === "KESHIN_PICK" || ev.kind === "EVO_PICK") return "1 Titular";
+  if (ev.kind === "COLLECTIVE") {
+    const roles = ev.applyRoles || [];
+    if (roles.length === 1 && roles[0] === "MF") return "Todos os Meias";
+    if (roles.length === 1 && roles[0] === "FW") return "Todos os Atacantes";
+    return "Elenco Todo";
+  }
+  if (ev.kind === "ITEM_PICK") {
+    const r = ev.targetRoles || [];
+    if (r.length === 1 && r[0] === "GK") return "Goleiro";
+    if (r.length === 1 && r[0] === "DF") return "1 Zagueiro";
+    if (r.length === 2 && r.includes("FW") && r.includes("MF")) return "1 ATQ ou MEI";
+    if (r.length === 3 && !r.includes("GK")) return "1 Jogador de Linha";
+    return "1 Titular";
+  }
+  if (ev.kind === "SCALABLE_BUFF") {
+    const map = {
+      efficiencyLvl: "Na Cidade",
+      restLvl: "Sede & Intervalo",
+      enduranceLvl: "Em Campo",
+      wingExplosionLvl: "ATQ & MEI",
+      midSynergyLvl: "Meias & Química",
+      defBlockLvl: "Goleiro & Zaga",
+      hissatsuMasteryLvl: "Super Técnicas",
+      xpSpiritLvl: "Pós-Partida",
+      passBypassLvl: "Passes em Campo",
+      counterShotLvl: "Defesa / Contra-Chute",
+      dribbleEdgeLvl: "Dribles 1x1"
+    };
+    return map[ev.buffKey] || "Elenco Todo";
+  }
+  return "";
+}
+
+function getPrepChoiceComboHTML(ev) {
+  if (!ev) return "";
+  const { itemIds, equippedPlayerCount } = getPrepEquippedItemContext();
+  if (ev.id === "shoes_legend") {
+    const ready = itemIds.has("glove_legend");
+    return ready
+      ? `<div class="prep-choice-combo is-combo-ready"><strong>Combo pronto!</strong> Você já tem Luvas Lendárias (+65 Poder • +8% Quím)</div>`
+      : `<div class="prep-choice-combo"><strong>Sinergia:</strong> combine com <em>Luvas Lendárias</em> para +65 Poder e +8% Química.</div>`;
+  }
+  if (ev.id === "glove_legend") {
+    const hasShoes = itemIds.has("shoes_legend");
+    const hasSpike = itemIds.has("spike_block");
+    if (hasShoes && hasSpike) {
+      return `<div class="prep-choice-combo is-combo-ready"><strong>Combo duplo pronto!</strong> Ativa Conjunto Lendário (+65) e Muralha (+55)!</div>`;
+    }
+    if (hasShoes) {
+      return `<div class="prep-choice-combo is-combo-ready"><strong>Combo pronto!</strong> Você já tem Chuteiras Lendárias (+65 Poder • +8% Quím)</div>`;
+    }
+    if (hasSpike) {
+      return `<div class="prep-choice-combo is-combo-ready"><strong>Combo pronto!</strong> Você já tem Travas de Bloqueio (+55 Poder • +6% Quím)</div>`;
+    }
+    return `<div class="prep-choice-combo"><strong>Sinergia:</strong> comba com <em>Chuteiras Lendárias</em> (+65) e <em>Travas de Bloqueio</em> (+55).</div>`;
+  }
+  if (ev.id === "spike_block") {
+    const ready = itemIds.has("glove_legend");
+    return ready
+      ? `<div class="prep-choice-combo is-combo-ready"><strong>Combo pronto!</strong> Você já tem Luvas Lendárias (+55 Poder • +6% Quím)</div>`
+      : `<div class="prep-choice-combo"><strong>Sinergia:</strong> combine com <em>Luvas Lendárias</em> para +55 Poder e +6% Química.</div>`;
+  }
+  if (ev.id === "shoes_thunder") {
+    const ready = itemIds.has("captain_armband") || itemIds.has("elem_crest_boost");
+    return ready
+      ? `<div class="prep-choice-combo is-combo-ready"><strong>Combo pronto!</strong> Ativa Tempestade Relâmpago (+50 Poder • +6% Quím)</div>`
+      : `<div class="prep-choice-combo"><strong>Sinergia:</strong> combine com <em>Braçadeira</em> ou <em>Insígnia</em> para +50 Poder e +6% Química.</div>`;
+  }
+  if (ev.id === "captain_armband") {
+    const ready = itemIds.has("shoes_thunder");
+    return ready
+      ? `<div class="prep-choice-combo is-combo-ready"><strong>Combo pronto!</strong> Você já tem Chuteiras do Trovão (+50 Poder • +6% Quím)</div>`
+      : `<div class="prep-choice-combo"><strong>Sinergia:</strong> combine com <em>Chuteiras do Trovão</em> para +50 Poder e +6% Química.</div>`;
+  }
+  if (ev.id === "elem_crest_boost") {
+    const ready = itemIds.has("shoes_thunder");
+    return ready
+      ? `<div class="prep-choice-combo is-combo-ready"><strong>Combo pronto!</strong> Comba com Chuteiras do Trovão (+50 Poder) + Domínio Elemental (3+ iguais).</div>`
+      : `<div class="prep-choice-combo"><strong>Sinergia:</strong> com 3+ titulares do mesmo elemento ativa <em>Domínio Elemental</em> (+14 Poder/jogador).</div>`;
+  }
+  if (ev.id === "misanga_friend") {
+    const nextCnt = Math.min(11, equippedPlayerCount + 1);
+    return equippedPlayerCount >= 2
+      ? `<div class="prep-choice-combo is-combo-ready"><strong>Arsenal ativo!</strong> ${nextCnt} jogadores equipados (+${nextCnt * 14} Poder coletivo).</div>`
+      : `<div class="prep-choice-combo"><strong>Arsenal:</strong> equipe 3+ jogadores diferentes para ganhar +14 Poder por jogador equipado (${equippedPlayerCount}/3).</div>`;
+  }
+  return "";
+}
+
 function getPrepBuffPill(ev) {
   if (!ev) return "";
   if (ev.shortDesc) return ev.shortDesc;
-  if (ev.kind === "PASSIVE_DOUBLE_EVENT") return `<span class="b-tech">4 Ações</span> • <span class="b-chem">-3% Custo</span>`;
+  if (ev.kind === "PASSIVE_DOUBLE_EVENT") return `<span class="b-tech">4 Ações/Rodada</span> • <span class="b-chem">-3% Custo</span>`;
   if (ev.kind === "PASSIVE_LATE_RESIST") return `<span class="b-chem">-50% Desgaste (75'+)</span>`;
-  if (ev.kind === "STREET_5V5") return `<span class="b-lvl">+95–115 XP</span> • <span class="b-chem">+15% Energia</span>`;
-  if (ev.id === "elem_crest_boost") return `<span class="b-lvl">+125 XP</span> • <span class="b-pwr">+12 Poder</span> (Elemento)`;
-  if (ev.id === "elem_resonance_tome") return `<span class="b-lvl">+105 XP (Todos)</span> • <span class="b-chem">+6% Quím</span>`;
-  if (ev.id === "captain_armband") return `<span class="b-lvl">+1 Nível</span> • <span class="b-chem">+8% Quím</span>`;
-  if (ev.id === "secret_hissatsu_mastery") return `<span class="b-lvl">+1 Nível</span> • <span class="b-tech">Técnica Suprema</span>`;
-  if (ev.kind === "KESHIN_PICK") return `<span class="b-lvl">+1 Nível</span> • <span class="b-tech">Desperta Keshin</span>`;
-  if (ev.kind === "EVO_PICK") return `<span class="b-lvl">+${ev.levelGain || 1} Nível</span> • <span class="b-tech">Evolui Técnica</span>`;
-  if (ev.id === "river_xp") return `<span class="b-lvl">+XP Coletivo</span> • <span class="b-pwr">+16 Poder</span>`;
-  if (ev.id === "river_tactics") return `<span class="b-lvl">+XP Meias</span> • <span class="b-chem">+8% Quím</span>`;
-  if (ev.id === "river_shot") return `<span class="b-lvl">+XP Atacantes</span> • <span class="b-pwr">+18 Poder</span>`;
+  if (ev.kind === "STREET_5V5") return `<span class="b-lvl">+95–115 XP</span> • <span class="b-tech">Recruta Craque</span>`;
+  if (ev.id === "shoes_legend") return `<span class="b-lvl">+1 Nv</span> • <span class="b-pwr">+5 FOR / +7 VEL</span> • <span class="b-pwr">+26 Poder</span>`;
+  if (ev.id === "glove_legend") return `<span class="b-lvl">+1 Nv</span> • <span class="b-pwr">+6 DEF / +3 FIS</span> • <span class="b-pwr">+28 Poder</span>`;
+  if (ev.id === "shoes_thunder") return `<span class="b-lvl">+1 Nv</span> • <span class="b-chem">+11 VEL / +3 TEC</span> • <span class="b-pwr">+22 Poder</span>`;
+  if (ev.id === "spike_block") return `<span class="b-lvl">+1 Nv</span> • <span class="b-pwr">+5 DEF / +4 FIS</span> • <span class="b-pwr">+24 Poder</span>`;
+  if (ev.id === "captain_armband") return `<span class="b-lvl">+1 Nv</span> • <span class="b-tech">+4 TEC / +3 FOR / +3 FIS</span> • <span class="b-chem">+8% Quím</span>`;
+  if (ev.id === "misanga_friend") return `<span class="b-lvl">+1 Nv</span> • <span class="b-tech">+4 TEC / +3 FOR / +3 FIS</span> • <span class="b-chem">+8% Quím</span>`;
+  if (ev.id === "elem_crest_boost") return `<span class="b-lvl">+125 XP</span> • <span class="b-pwr">+12 Poder</span> <span class="b-tech">(por titular igual)</span>`;
+  if (ev.id === "elem_resonance_tome") return `<span class="b-lvl">+105 XP (Todos)</span> • <span class="b-chem">+6% Quím</span> • <span class="b-pwr">Links +</span>`;
+  if (ev.id === "secret_hissatsu_mastery") return `<span class="b-lvl">+1 Nv</span> • <span class="b-tech">Técnica Suprema</span> • <span class="b-pwr">+22 Poder</span>`;
+  if (ev.kind === "KESHIN_PICK") return `<span class="b-lvl">+1 Nv</span> • <span class="b-tech">Ativa 1x/Jogo</span> • <span class="b-pwr">+10% Chance Duelos (Aura)</span>`;
+  if (ev.kind === "EVO_PICK") return `<span class="b-lvl">+${ev.levelGain || 1} Nv</span> • <span class="b-tech">Evolui Técnica</span> • <span class="b-pwr">+${ev.indivPower || 16} Poder</span>`;
+  if (ev.id === "river_xp") return `<span class="b-lvl">+105 XP (Todos)</span> • <span class="b-chem">+4% Quím</span> • <span class="b-pwr">+26 Poder</span>`;
+  if (ev.id === "river_tactics") return `<span class="b-lvl">+135 XP (Meias)</span> • <span class="b-chem">+8% Quím</span> • <span class="b-pwr">+18 Poder</span>`;
+  if (ev.id === "river_shot") return `<span class="b-lvl">+135 XP (ATQ)</span> • <span class="b-pwr">+14 Poder/ATQ</span> • <span class="b-pwr">+18 Time</span>`;
   if (ev.kind === "SCALABLE_BUFF") {
     const curLvl = state.tournament?.prepBonuses?.[ev.buffKey] || 0;
     const nextLvl = Math.min(ev.maxLevel || 3, curLvl + 1);
     if (ev.buffKey === "efficiencyLvl") {
-      const disc = [0, 4, 7, 10][nextLvl] || 10;
-      return `<span class="b-chem">-${disc}% Custo na Cidade</span>`;
+      const nextD = [0, 4, 7, 10][nextLvl] || 10;
+      return `<span class="b-chem">-${nextD}% Custo na Cidade</span>`;
     }
-    if (ev.buffKey === "restLvl") return `<span class="b-chem">Sono +${45 + nextLvl * 7}%</span> • <span class="b-lvl">+${35 + nextLvl * 10} XP Tática</span> • <span class="b-lvl">+${nextLvl * 4}% Intervalo</span>`;
+    if (ev.buffKey === "restLvl") {
+      return `<span class="b-chem">Sono +${45 + nextLvl * 7}%</span> • <span class="b-lvl">Tática +${35 + nextLvl * 10} XP</span> • <span class="b-lvl">+${nextLvl * 4}% Intervalo</span>`;
+    }
     if (ev.buffKey === "enduranceLvl") {
-      const pct = [0, 8, 15, 22][nextLvl] || 22;
-      return `<span class="b-chem">-${pct}% Gasto em Campo</span>`;
+      const nextP = [0, 8, 15, 22][nextLvl] || 22;
+      return `<span class="b-chem">-${nextP}% Gasto em Campo</span>`;
     }
-    if (ev.buffKey === "wingExplosionLvl") return `<span class="b-pwr">+${nextLvl * 2} VEL/FOR</span>`;
-    if (ev.buffKey === "midSynergyLvl") return `<span class="b-chem">+${nextLvl * 2} TEC · +4% Quím</span>`;
-    if (ev.buffKey === "defBlockLvl") return `<span class="b-pwr">+${nextLvl * 2} DEF/FIS</span>`;
+    if (ev.buffKey === "wingExplosionLvl") {
+      return `<span class="b-pwr">+${nextLvl * 2} VEL &amp; FOR</span>`;
+    }
+    if (ev.buffKey === "midSynergyLvl") {
+      return `<span class="b-tech">+${nextLvl * 2} TEC</span> • <span class="b-chem">+4% Quím</span>`;
+    }
+    if (ev.buffKey === "defBlockLvl") {
+      return `<span class="b-pwr">+${nextLvl * 2} DEF &amp; FIS</span>`;
+    }
     if (ev.buffKey === "hissatsuMasteryLvl") {
-      const val = [0, 0.6, 1.2, 1.8][nextLvl] || 1.8;
-      return `<span class="b-pwr">+${val} Duelo Técnica</span>`;
+      const pct = [0, 2, 4, 5][nextLvl] || 5;
+      return `<span class="b-pwr">+${pct}% Chance em Técnicas</span>`;
     }
     if (ev.buffKey === "xpSpiritLvl") {
-      const pct = [0, 12, 24, 36][nextLvl] || 36;
-      return `<span class="b-lvl">+${pct}% XP Pós-Jogo</span>`;
+      const nextP = [0, 12, 24, 36][nextLvl] || 36;
+      return `<span class="b-lvl">+${nextP}% XP Pós-Jogo</span>`;
     }
     if (ev.buffKey === "passBypassLvl") {
-      const pct = [0, 15, 28, 40][nextLvl] || 40;
-      return `<span class="b-chem">-${pct}% Interceptação</span>`;
+      const nextP = [0, 15, 28, 40][nextLvl] || 40;
+      return `<span class="b-chem">-${nextP}% Interceptações</span>`;
     }
     if (ev.buffKey === "counterShotLvl") {
-      const pct = [0, 12, 24, 35][nextLvl] || 35;
-      return `<span class="b-pwr">+${pct}% Contra-Chute</span>`;
+      const nextP = [0, 12, 24, 35][nextLvl] || 35;
+      const nextFPct = [0, 3, 6, 9][nextLvl] || 9;
+      return `<span class="b-tech">+${nextP}% Ativação</span> • <span class="b-pwr">+${nextFPct}% Chance</span>`;
     }
     if (ev.buffKey === "dribbleEdgeLvl") {
-      const val = [0, 0.9, 1.8, 2.7][nextLvl] || 2.7;
-      return `<span class="b-pwr">+${val} Força Drible</span>`;
+      const pct = [0, 3, 5, 8][nextLvl] || 8;
+      return `<span class="b-pwr">+${pct}% Chance Drible (+2% Corredor)</span>`;
     }
   }
   if (ev.kind === "REST_ACTIVE") {
     if (ev.restMode === "TACTICAL") {
-      return `<span class="b-chem">+${ev.energyGain || 25}% Energia</span> • <span class="b-lvl">+${ev.xpGain || 35} XP</span>`;
+      return `<span class="b-chem">+${ev.energyGain || 25}% Energia</span> • <span class="b-lvl">+${ev.xpGain || 35} XP (Todos)</span>`;
     }
     if (ev.restMode === "SNACK") {
-      return `<span class="b-chem">+${ev.energyGain || 30}% Energia</span> • <span class="b-tech">-20% Gasto</span>`;
+      return `<span class="b-chem">+${ev.energyGain || 30}% Energia</span> • <span class="b-tech">-20% Gasto no Jogo</span>`;
     }
     return `<span class="b-chem">+${ev.energyGain || 45}% Energia</span>`;
   }
@@ -82,73 +216,45 @@ function getPrepChoiceSummary(ev) {
     const curLvl = state.tournament?.prepBonuses?.[ev.buffKey] || 0;
     const nextLvl = Math.min(ev.maxLevel || 3, curLvl + 1);
     if (ev.buffKey === "efficiencyLvl") {
-      const prevD = [0, 4, 7, 10][curLvl] || 0;
       const nextD = [0, 4, 7, 10][nextLvl] || 10;
-      return curLvl === 0
-        ? `Reduz em <span class="b-chem">4%</span> o custo de energia dos locais da cidade.`
-        : `Aumenta o desconto nos locais de <span class="b-chem">-${prevD}%</span> para <span class="b-chem">-${nextD}%</span>.`;
+      return `Deixa todas as visitas na cidade mais baratas em energia (<span class="b-chem">-${nextD}%</span>), permitindo treinar mais antes de cada jogo.`;
     }
     if (ev.buffKey === "restLvl") {
-      return curLvl === 0
-        ? `Sede dá <span class="b-chem">+7% Energia</span> (Sono +52%), Análise Tática sobe para <span class="b-lvl">+45 XP</span> e intervalos dão <span class="b-lvl">+4% fôlego</span>.`
-        : `Sede sobe para <span class="b-chem">+${45 + nextLvl * 7}%</span> no Sono, <span class="b-lvl">+${35 + nextLvl * 10} XP</span> na Tática e <span class="b-lvl">+${nextLvl * 4}% fôlego</span> nos intervalos.`;
+      return `Melhora o descanso gratuito na Sede (<span class="b-chem">Sono +${45 + nextLvl * 7}%</span> e <span class="b-lvl">Tática +${35 + nextLvl * 10} XP</span>) e recupera <span class="b-lvl">+${nextLvl * 4}% de fôlego</span> no intervalo das partidas.`;
     }
     if (ev.buffKey === "enduranceLvl") {
-      const prevP = [0, 8, 15, 22][curLvl] || 0;
       const nextP = [0, 8, 15, 22][nextLvl] || 22;
-      return curLvl === 0
-        ? `Reduz em <span class="b-chem">8%</span> o gasto das técnicas e o desgaste em campo.`
-        : `Aumenta a economia em campo de <span class="b-chem">-${prevP}%</span> para <span class="b-chem">-${nextP}%</span>.`;
+      return `Economiza <span class="b-chem">${nextP}% de energia</span> durante a partida inteira — seus titulares usam mais Super Técnicas antes de cansar.`;
     }
     if (ev.buffKey === "wingExplosionLvl") {
-      return curLvl === 0
-        ? `Atacantes e Meias ganham <span class="b-chem">+2 VEL e +2 FOR</span>.`
-        : `Atacantes e Meias sobem de <span class="b-chem">+${curLvl * 2}</span> para <span class="b-chem">+${nextLvl * 2} VEL/FOR</span>.`;
+      return `Deixa Atacantes e Meias mais rápidos nas arrancadas e com finalizações mais pesadas (<span class="b-pwr">+${nextLvl * 2} VEL e FOR</span> permanentes).`;
     }
     if (ev.buffKey === "midSynergyLvl") {
-      return curLvl === 0
-        ? `Meias ganham <span class="b-tech">+2 TEC</span> e o time ganha <span class="b-chem">+4% Química</span>.`
-        : `Meias sobem de <span class="b-tech">+${curLvl * 2}</span> para <span class="b-tech">+${nextLvl * 2} TEC</span> (<span class="b-chem">+4% Quím</span>).`;
+      return `Melhora o controle de bola, passes e dribles dos Meias (<span class="b-tech">+${nextLvl * 2} TEC</span>) e fortalece o entrosamento do elenco (<span class="b-chem">+4% Química</span>).`;
     }
     if (ev.buffKey === "defBlockLvl") {
-      return curLvl === 0
-        ? `Goleiro e Zaga ganham <span class="b-pwr">+2 DEF e +2 FIS</span>.`
-        : `Goleiro e Zaga sobem de <span class="b-pwr">+${curLvl * 2}</span> para <span class="b-pwr">+${nextLvl * 2} DEF/FIS</span>.`;
+      return `Deixa Goleiro e Zagueiros mais difíceis de superar nos duelos e mais resistentes ao cansaço (<span class="b-pwr">+${nextLvl * 2} DEF e FIS</span>).`;
     }
     if (ev.buffKey === "hissatsuMasteryLvl") {
-      const prevV = [0, 0.6, 1.2, 1.8][curLvl] || 0;
-      const nextV = [0, 0.6, 1.2, 1.8][nextLvl] || 1.8;
-      return curLvl === 0
-        ? `Dá <span class="b-pwr">+0.6</span> de força extra nos duelos com técnica.`
-        : `Bônus em duelos de técnica sobe de <span class="b-pwr">+${prevV}</span> para <span class="b-pwr">+${nextV}</span>.`;
+      const pct = [0, 2, 4, 5][nextLvl] || 5;
+      return `Aumenta o poder das suas Super Técnicas, dando <span class="b-pwr">+${pct}% de chance</span> de vencer duelos de chute, drible e defesa.`;
     }
     if (ev.buffKey === "xpSpiritLvl") {
-      const curP = [0, 12, 24, 36][curLvl] || 0;
       const nextP = [0, 12, 24, 36][nextLvl] || 36;
-      return curLvl === 0
-        ? `Elenco ganha <span class="b-lvl">+12% XP</span> extra após cada partida.`
-        : `Bônus de XP pós-jogo sobe de <span class="b-lvl">+${curP}%</span> para <span class="b-lvl">+${nextP}%</span>.`;
+      return `Acelera a evolução do elenco inteiro multiplicando em <span class="b-lvl">+${nextP}% o XP</span> ganho após cada partida oficial.`;
     }
     if (ev.buffKey === "passBypassLvl") {
-      const prevP = [0, 15, 28, 40][curLvl] || 0;
       const nextP = [0, 15, 28, 40][nextLvl] || 40;
-      return curLvl === 0
-        ? `Reduz em <span class="b-chem">15%</span> a chance do rival interceptar seus passes.`
-        : `Redução de interceptação sobe de <span class="b-chem">-${prevP}%</span> para <span class="b-chem">-${nextP}%</span>.`;
+      return `Faz seus passes atravessarem a marcação com mais segurança, reduzindo em <span class="b-chem">${nextP}%</span> as interceptações do rival.`;
     }
     if (ev.buffKey === "counterShotLvl") {
-      const prevP = [0, 12, 24, 35][curLvl] || 0;
       const nextP = [0, 12, 24, 35][nextLvl] || 35;
-      return curLvl === 0
-        ? `Aumenta em <span class="b-tech">+12%</span> a chance de Contra-Chute na defesa.`
-        : `Chance de Contra-Chute sobe de <span class="b-tech">+${prevP}%</span> para <span class="b-tech">+${nextP}%</span>.`;
+      const nextFPct = [0, 3, 6, 9][nextLvl] || 9;
+      return `Quando um defensor entra na trajetória do chute rival, ativa Contra-Chute com <span class="b-tech">+${nextP}% frequência</span> e <span class="b-pwr">+${nextFPct}% chance de vencer</span>.`;
     }
     if (ev.buffKey === "dribbleEdgeLvl") {
-      const prevV = [0, 0.9, 1.8, 2.7][curLvl] || 0;
-      const nextV = [0, 0.9, 1.8, 2.7][nextLvl] || 2.7;
-      return curLvl === 0
-        ? `Dá <span class="b-pwr">+0.9</span> nos dribles (bônus extra no corredor tático).`
-        : `Força nos dribles sobe de <span class="b-pwr">+${prevV}</span> para <span class="b-pwr">+${nextV}</span>.`;
+      const pct = [0, 3, 5, 8][nextLvl] || 8;
+      return `Aumenta em <span class="b-pwr">+${pct}% a chance</span> de passar pelo marcador no 1x1, com <span class="b-tech">+2% extra</span> no corredor tático escolhido.`;
     }
   }
   return ev.summary || "";
@@ -184,7 +290,7 @@ function getPrepLocationsCatalog() {
           icon: UI.manualInazuma || UI.ffLogo,
           kind: "PASSIVE_DOUBLE_EVENT",
           weight: 2.2,
-          summary: `Passiva: <span class="b-tech">+1 ação extra (4 ações)</span> na cidade e <span class="b-chem">-3% custo de energia</span> em todos os locais.`
+          summary: `Libera <span class="b-tech">1 ação extra na cidade</span> antes de cada jogo (4 ações) e barateia em <span class="b-chem">-3%</span> todas as visitas pelo resto do torneio.`
         },
         {
           id: "pendant_endurance",
@@ -192,7 +298,7 @@ function getPrepLocationsCatalog() {
           icon: UI.itemPendantLightning || UI.tpPendant,
           kind: "PASSIVE_LATE_RESIST",
           weight: 2.0,
-          summary: `Passiva: Reduz em <span class="b-chem">50% o gasto de energia</span> dos 11 titulares a partir dos 75' de jogo.`
+          summary: `Evita que seus titulares fiquem exaustos na reta final: a partir dos <span class="b-chem">75' de jogo</span>, gastam metade da energia.`
         },
         {
           id: "shoes_legend",
@@ -206,7 +312,7 @@ function getPrepLocationsCatalog() {
           teamPower: 14,
           teamChem: 0,
           weight: 2.1,
-          summary: `<span class="b-lvl">+1 Nível</span> e <span class="b-pwr">+26 Poder</span> para 1 Atacante ou Meia. Comba com Luvas Lendárias (<span class="b-pwr">+65 Poder</span>).`
+          summary: `Deixa <span class="b-pwr">chutes mais potentes</span> e aumenta a <span class="b-chem">velocidade</span> para vencer corridas e dribles em 1 Atacante ou Meia.`
         },
         {
           id: "glove_legend",
@@ -219,7 +325,7 @@ function getPrepLocationsCatalog() {
           teamPower: 14,
           teamChem: 0,
           weight: 1.9,
-          summary: `<span class="b-lvl">+1 Nível</span> e <span class="b-pwr">+28 Poder</span> no Goleiro. Comba com Chuteiras Lendárias (<span class="b-pwr">+65</span>) e Travas (<span class="b-pwr">+55</span>).`
+          summary: `Reforça as <span class="b-pwr">defesas do goleiro</span> contra chutes fortes e aumenta o <span class="b-chem">fôlego</span> para segurar pressão constante.`
         },
         {
           id: "shoes_thunder",
@@ -233,7 +339,7 @@ function getPrepLocationsCatalog() {
           teamPower: 12,
           teamChem: 0,
           weight: 2.2,
-          summary: `<span class="b-lvl">+1 Nível</span>, <span class="b-pwr">+22 Poder</span> e <span class="b-chem">+5 VEL</span> para 1 jogador de linha. Comba com Braçadeira/Insígnia.`
+          summary: `Explosão máxima de <span class="b-chem">velocidade</span> para escapar da marcação, além de <span class="b-tech">passes e dribles mais precisos</span>.`
         },
         {
           id: "spike_block",
@@ -246,7 +352,7 @@ function getPrepLocationsCatalog() {
           teamPower: 12,
           teamChem: 0,
           weight: 1.9,
-          summary: `<span class="b-lvl">+1 Nível</span> e <span class="b-pwr">+24 Poder</span> para 1 Zagueiro. Comba com Luvas Lendárias (<span class="b-pwr">+55 Poder</span>).`
+          summary: `Fortalece <span class="b-pwr">desarmes e bloqueios</span> na zaga, além de dar mais <span class="b-chem">resistência física</span> nos duelos defensivos.`
         },
         {
           id: "captain_armband",
@@ -259,7 +365,7 @@ function getPrepLocationsCatalog() {
           teamPower: 16,
           teamChem: 8,
           weight: 1.8,
-          summary: `<span class="b-lvl">+1 Nível</span> no líder, <span class="b-chem">+8% Química</span> e <span class="b-pwr">+40 Poder total</span>. Comba com Chuteiras do Trovão.`
+          summary: `Transforma 1 titular em <span class="b-tech">referência técnica e física</span>, elevando a <span class="b-chem">Química</span> e o poder do time inteiro.`
         },
         {
           id: "elem_crest_boost",
@@ -271,7 +377,7 @@ function getPrepLocationsCatalog() {
           teamPower: 12,
           teamChem: 5,
           weight: 2.0,
-          summary: `Todos os titulares do <span class="b-tech">mesmo elemento</span> ganham <span class="b-lvl">+125 XP</span> e <span class="b-pwr">+12 Poder</span> cada.`
+          summary: `Evolui de uma vez todos os titulares do <span class="b-tech">mesmo elemento</span> escolhido com <span class="b-lvl">+125 XP</span> e <span class="b-pwr">+12 Poder</span> cada.`
         },
         {
           id: "misanga_friend",
@@ -284,7 +390,7 @@ function getPrepLocationsCatalog() {
           teamPower: 14,
           teamChem: 8,
           weight: 1.7,
-          summary: `<span class="b-lvl">+1 Nível</span> e <span class="b-pwr">+20 Poder</span> em 1 titular e <span class="b-chem">+8% Química</span>. Conta para Arsenal.`
+          summary: `Aumenta <span class="b-tech">técnica, força e resistência</span> de 1 titular e impulsiona o <span class="b-chem">entrosamento coletivo</span> do elenco.`
         },
         {
           id: "energy_drink",
@@ -294,7 +400,7 @@ function getPrepLocationsCatalog() {
           energyGain: 35,
           teamPower: 14,
           weight: 2.3,
-          summary: `Recupera <span class="b-chem">+35% de Energia do Time</span> na hora e garante <span class="b-pwr">+14 Poder</span>.`
+          summary: `Recarrega a <span class="b-chem">energia do elenco na hora</span> para continuar treinando na cidade ou entrar inteiro no jogo.`
         },
         {
           id: "efficiency_upgrade",
@@ -305,7 +411,7 @@ function getPrepLocationsCatalog() {
           maxLevel: 3,
           teamPower: 10,
           weight: 1.9,
-          summary: `Reduz o custo de energia dos locais da cidade em <span class="b-chem">-4% / -7% / -10%</span>.`
+          summary: `Deixa todas as visitas na cidade mais baratas em energia, permitindo treinar mais antes de cada jogo.`
         },
         {
           id: "rest_upgrade",
@@ -316,7 +422,7 @@ function getPrepLocationsCatalog() {
           maxLevel: 3,
           teamPower: 10,
           weight: 1.8,
-          summary: `Sede dá <span class="b-chem">+7% Energia</span>, Análise Tática dá <span class="b-lvl">+10 XP</span> extras (<span class="b-lvl">+45/+55/+65 XP</span>) e intervalos dão <span class="b-lvl">+4%/+8%/+12%</span> fôlego.`
+          summary: `Melhora o descanso gratuito na Sede (<span class="b-chem">+7% Energia</span> e <span class="b-lvl">+10 XP</span> na Tática) e recupera mais fôlego no intervalo.`
         },
         {
           id: "xp_spirit_upgrade",
@@ -327,7 +433,7 @@ function getPrepLocationsCatalog() {
           maxLevel: 3,
           teamPower: 12,
           weight: 1.8,
-          summary: `Aumenta o XP ganho pelo elenco após cada partida em <span class="b-lvl">+12% / +24% / +36%</span>.`
+          summary: `Acelera a subida de nível do elenco multiplicando o <span class="b-lvl">XP ganho após cada partida</span>.`
         }
       ]
     },
@@ -353,7 +459,7 @@ function getPrepLocationsCatalog() {
           icon: UI.ffLogo || UI.moveSH,
           kind: "STREET_5V5",
           weight: 2.8,
-          summary: `Gol de Ouro: vencer dá <span class="b-lvl">+95 a +115 XP</span> nos 5 participantes e libera <span class="b-tech">recrutamento do craque</span>.`
+          summary: `Partida rápida de Gol de Ouro: vencer dá <span class="b-lvl">muito XP</span> aos 5 participantes e libera o <span class="b-tech">recrutamento de um craque rival</span>.`
         },
         {
           id: "river_xp",
@@ -366,7 +472,7 @@ function getPrepLocationsCatalog() {
           teamChem: 4,
           xpGain: 90,
           weight: 2.1,
-          summary: `Todos os 11 titulares ganham <span class="b-lvl">+105 XP</span>, <span class="b-chem">+4% Química</span> e <span class="b-pwr">+26 Poder</span>.`
+          summary: `Evolui os <span class="b-lvl">11 titulares juntos</span> com um grande pacote de XP, elevando o entrosamento e o poder geral.`
         },
         {
           id: "river_tactics",
@@ -380,7 +486,7 @@ function getPrepLocationsCatalog() {
           teamChem: 8,
           xpGain: 80,
           weight: 1.9,
-          summary: `Todos os Meias ganham <span class="b-lvl">+135 XP</span> e <span class="b-pwr">+12 Poder</span> • <span class="b-chem">+8% Química</span> • <span class="b-pwr">+18 Poder</span>.`
+          summary: `Foca evolução e controle de jogo em <span class="b-lvl">todos os Meias</span> e dá um salto na <span class="b-chem">Química</span> do elenco.`
         },
         {
           id: "river_shot",
@@ -394,7 +500,7 @@ function getPrepLocationsCatalog() {
           teamChem: 0,
           xpGain: 80,
           weight: 1.8,
-          summary: `Todos os Atacantes ganham <span class="b-lvl">+135 XP</span> e <span class="b-pwr">+14 Poder</span> • <span class="b-pwr">+18 Poder Coletivo</span>.`
+          summary: `Treino pesado de finalização para deixar <span class="b-pwr">todos os Atacantes</span> mais letais e com mais XP.`
         },
         {
           id: "wing_explosion_upgrade",
@@ -405,7 +511,7 @@ function getPrepLocationsCatalog() {
           maxLevel: 3,
           teamPower: 12,
           weight: 1.8,
-          summary: `<span class="b-chem">+2 VEL e +2 FOR</span> acumulados por nível nos Atacantes e Meias.`
+          summary: `Deixa Atacantes e Meias mais rápidos nas arrancadas e com finalizações mais pesadas (<span class="b-chem">+2 VEL/FOR</span> por nível).`
         },
         {
           id: "mid_synergy_upgrade",
@@ -417,7 +523,7 @@ function getPrepLocationsCatalog() {
           teamPower: 12,
           teamChem: 4,
           weight: 1.8,
-          summary: `<span class="b-tech">+2 TEC</span> nos Meias e <span class="b-chem">+4% Química</span> acumulados por nível.`
+          summary: `Melhora o controle de bola, passes e dribles dos Meias (<span class="b-tech">+2 TEC</span>) e aumenta a <span class="b-chem">Química</span> do time.`
         },
         {
           id: "pass_bypass_upgrade",
@@ -428,7 +534,7 @@ function getPrepLocationsCatalog() {
           maxLevel: 3,
           teamPower: 12,
           weight: 1.8,
-          summary: `Reduz em <span class="b-chem">-15% / -28% / -40%</span> a chance do rival interceptar seus passes.`
+          summary: `Faz seus passes atravessarem a marcação com mais segurança, reduzindo interceptações do rival.`
         },
         {
           id: "dribble_edge_upgrade",
@@ -439,7 +545,7 @@ function getPrepLocationsCatalog() {
           maxLevel: 3,
           teamPower: 12,
           weight: 1.8,
-          summary: `Força extra nos dribles (<span class="b-pwr">+0.9 / +1.8 / +2.7</span>) e bônus no corredor tático.`
+          summary: `Facilita vencer duelos de 1x1 no drible, com bônus extra ao atacar pelo corredor tático escolhido.`
         }
       ]
     },
@@ -469,7 +575,7 @@ function getPrepLocationsCatalog() {
           teamPower: 15,
           xpGain: 95,
           weight: 2.5,
-          summary: `1 titular aprende uma <span class="b-tech">técnica suprema</span>, sobe <span class="b-lvl">+1 Nível</span> e ganha <span class="b-pwr">+22 Poder</span>.`
+          summary: `Ensina uma <span class="b-tech">Super Técnica suprema</span> para 1 titular, além de subir nível e reforçar seu atributo principal.`
         },
         {
           id: "keshin_awaken",
@@ -481,7 +587,7 @@ function getPrepLocationsCatalog() {
           teamPower: 15,
           xpGain: 95,
           weight: 2.4,
-          summary: `1 titular desperta um <span class="b-tech">Espírito Guerreiro</span> (<span class="b-pwr">+1.5 nos duelos</span>), sobe <span class="b-lvl">+1 Nível</span> e ganha <span class="b-pwr">+18 Poder</span>.`
+          summary: `1 titular recebe um <span class="b-tech">Espírito Guerreiro</span>: ele decide quando ativar na partida (<span class="b-pwr">1x/jogo</span>, exceto em esforço Baixo), ganhando <span class="b-pwr">aura de poder</span> por ~18' antes de cansar.`
         },
         {
           id: "evo_move",
@@ -493,7 +599,7 @@ function getPrepLocationsCatalog() {
           teamPower: 14,
           xpGain: 85,
           weight: 2.2,
-          summary: `Evolua a técnica principal de 1 titular e suba <span class="b-lvl">+1 Nível</span> e <span class="b-pwr">+16 Poder</span>.`
+          summary: `Aprimora a <span class="b-tech">técnica principal</span> de 1 titular para o próximo estágio, deixando-a muito mais forte nos duelos.`
         },
         {
           id: "endurance_upgrade",
@@ -504,7 +610,7 @@ function getPrepLocationsCatalog() {
           maxLevel: 3,
           teamPower: 10,
           weight: 2.0,
-          summary: `Reduz em <span class="b-chem">-8% / -15% / -22%</span> o gasto das técnicas e o desgaste do time em campo.`
+          summary: `Economiza energia durante toda a partida — seus titulares usam mais Super Técnicas antes de cansar.`
         },
         {
           id: "elem_resonance_tome",
@@ -518,7 +624,7 @@ function getPrepLocationsCatalog() {
           xpGain: 85,
           elemResonance: true,
           weight: 1.8,
-          summary: `Todos ganham <span class="b-lvl">+105 XP</span>, <span class="b-chem">+6% Química</span> e fortalece o <span class="b-pwr">Poder dos Links Elementais</span>.`
+          summary: `Distribui <span class="b-lvl">XP para os 11 titulares</span>, sobe a Química e amplifica o poder dos <span class="b-pwr">Links Elementais</span> do elenco.`
         },
         {
           id: "def_block_upgrade",
@@ -529,7 +635,7 @@ function getPrepLocationsCatalog() {
           maxLevel: 3,
           teamPower: 12,
           weight: 1.9,
-          summary: `<span class="b-pwr">+2 DEF e +2 FIS</span> acumulados por nível no Goleiro e Zagueiros.`
+          summary: `Deixa Goleiro e Zagueiros mais difíceis de superar nos duelos e mais resistentes ao cansaço.`
         },
         {
           id: "hissatsu_mastery_upgrade",
@@ -540,7 +646,7 @@ function getPrepLocationsCatalog() {
           maxLevel: 3,
           teamPower: 12,
           weight: 1.9,
-          summary: `Força extra nos duelos ao usar técnicas (<span class="b-pwr">+0.6 / +1.2 / +1.8</span>).`
+          summary: `Aumenta o poder real das suas Super Técnicas, elevando a chance de vencer duelos de chute, drible e defesa.`
         },
         {
           id: "counter_shot_upgrade",
@@ -551,7 +657,7 @@ function getPrepLocationsCatalog() {
           maxLevel: 3,
           teamPower: 12,
           weight: 1.8,
-          summary: `Aumenta em <span class="b-tech">+12% / +24% / +35%</span> a chance de Contra-Chute e sua força.`
+          summary: `Ativa Contra-Chutes com mais frequência e potência quando um defensor entra na trajetória do chute rival.`
         }
       ]
     },
@@ -578,7 +684,7 @@ function getPrepLocationsCatalog() {
           kind: "REST_ACTIVE",
           restMode: "FULL",
           energyGain: fullRestGain,
-          summary: `Recupera <span class="b-chem">+${fullRestGain}% de Energia</span> (máx. 100%). Ideal para voltar ao verde com folga.`
+          summary: `A maior recuperação de energia da Sede (<span class="b-chem">+${fullRestGain}%</span>, máx. 100%). Ideal para voltar ao verde com folga antes da partida.`
         },
         {
           id: "rest_tactical_video",
@@ -588,7 +694,7 @@ function getPrepLocationsCatalog() {
           restMode: "TACTICAL",
           energyGain: tacticalRestGain,
           xpGain: tacticalRestXp,
-          summary: `Recupera <span class="b-chem">+${tacticalRestGain}% de Energia</span> e concede <span class="b-lvl">+${tacticalRestXp} XP</span> para os 11 titulares.`
+          summary: `Recupera parte do fôlego (<span class="b-chem">+${tacticalRestGain}%</span>) enquanto todos os 11 titulares estudam o rival e ganham <span class="b-lvl">+${tacticalRestXp} XP</span>.`
         },
         {
           id: "rest_manager_snack",
@@ -597,7 +703,7 @@ function getPrepLocationsCatalog() {
           kind: "REST_ACTIVE",
           restMode: "SNACK",
           energyGain: snackRestGain,
-          summary: `Recupera <span class="b-chem">+${snackRestGain}% de Energia</span> e reduz em <span class="b-tech">20% o gasto de energia</span> na próxima partida.`
+          summary: `Recupera <span class="b-chem">+${snackRestGain}% de Energia</span> e deixa o elenco <span class="b-tech">20% mais resistente ao cansaço</span> durante toda a próxima partida.`
         }
       ]
     }
@@ -1121,6 +1227,8 @@ function openBetweenMatchPrep(nextStageIdx, opts = {}) {
   }
   // Até 3 ações por preparação na cidade (ou 4 com a passiva permanente do treinador)
   const allowedEvents = t.prepBonuses.permanentDoublePrep ? 4 : 3;
+  // Limpa marcação especial do adversário anterior ao iniciar a preparação de uma nova partida
+  getTactics().markedOppId = null;
 
   t.prep = {
     nextStageIdx,
@@ -1147,6 +1255,7 @@ function openBetweenMatchPrep(nextStageIdx, opts = {}) {
 function isPrepNightTime(t = state.tournament) {
   const prep = t?.prep;
   if (!prep) return false;
+  if (prep.restUsedThisRound) return true;
   if ((prep.eventsRemaining || 0) <= 0) return true;
   const curE = Math.round(getTeamEnergy());
   const nonRestCosts = getPrepLocationsCatalog()
@@ -1187,7 +1296,7 @@ function startPrepLocationTripleSlot(locId) {
     return;
   }
 
-  if ((t.prep.eventsRemaining || 0) <= 0) {
+  if (t.prep.restUsedThisRound || (t.prep.eventsRemaining || 0) <= 0) {
     t.prep.energyNotice = "Suas ações desta preparação acabaram! Ajuste Táticas/Escalação ou inicie a partida.";
     renderTournamentScreen();
     return;
@@ -1277,9 +1386,10 @@ function handleChoosePrepOption(choiceEvent) {
     const nextE = Math.round(adjustTeamEnergy(gain));
     prep.restUsedThisRound = true;
     prep.lastActionWasFreeRest = true;
+    prep.eventsRemaining = 0;
     prep.phase = "DONE";
     prep.affectedPlayers = affected;
-    prep.appliedMsg = `${choiceEvent.title}: <span class="b-chem">+${gain}% Energia</span> (${prevE}% ➔ ${nextE}%)${extraTxt}. <span style="color:#93c5fd;">(Ação gratuita!)</span>`;
+    prep.appliedMsg = `${choiceEvent.title}: <span class="b-chem">+${gain}% Energia</span> (${prevE}% ➔ ${nextE}%)${extraTxt}. <span style="color:#93c5fd;">(Noite encerrada — pronto para o jogo!)</span>`;
     t.prepBonuses.log.push(`${choiceEvent.title} (+${gain}% Energia)`);
     renderAll();
     return;
@@ -1833,12 +1943,34 @@ function syncTeamEnergyBarDOM(prefix = "live", activeMinute = 0) {
 
 function getIntensityHintText(intensity) {
   if (intensity === "low") {
-    return "Baixa (~22%/jogo): recupera mais fôlego sem bola, usa só técnicas padrão e reduz força em duelos.";
+    return "Baixa (~22%/jogo): recupera mais fôlego, usa técnicas padrão, reduz força em duelos e não ativa Keshin.";
   }
   if (intensity === "high") {
-    return "Alta (~68%/jogo): +força nos duelos e super técnicas frequentes, mas desgasta muito mais rápido.";
+    return "Alta (~68%/jogo): +força nos duelos, técnicas frequentes e Keshin mais agressiva, mas cansa rápido.";
   }
-  return "Média (~41%/jogo): ritmo equilibrado entre técnica, fôlego individual e gasto de energia.";
+  return "Média (~41%/jogo): ritmo equilibrado entre técnica, ativação de Keshin e gasto de energia.";
+}
+
+function getFullTacticsSummaryHTML(tac) {
+  const postureMap = {
+    defensive: "Recuado (+6% chance defensiva, bloco mais baixo)",
+    balanced: "Equilibrado (sem bônus nem penalidade)",
+    offensive: "Avançado (+5% chance ofensiva, linha alta e -4% defesa)"
+  };
+  const laneMap = {
+    wings: "Pontas (foco nas alas, escala com VEL)",
+    balanced: "Livre (jogadores escolhem o melhor espaço)",
+    center: "Meio (infiltração central, escala com TEC)"
+  };
+  const styleMap = {
+    possession: "Posse (tabelas curtas, -14% interceptação, menos desgaste)",
+    free: "Instinto (cada jogador segue 100% sua personalidade)",
+    vertical: "Vertical (enfiadas rápidas nas costas da zaga e chutes diretos)"
+  };
+  return `
+    <span><strong>Intensidade:</strong> ${getIntensityHintText(tac.intensity)}</span>
+    <span><strong>Postura:</strong> ${postureMap[tac.posture] || postureMap.balanced} • <strong>Ataque:</strong> ${laneMap[tac.lane] || laneMap.balanced} • <strong>Estilo:</strong> ${styleMap[tac.style] || styleMap.free}</span>
+  `;
 }
 
 function buildTacticsControlBarHTML(showSquadBtn = false) {
@@ -1846,40 +1978,114 @@ function buildTacticsControlBarHTML(showSquadBtn = false) {
   const pillBtn = (attr, val, label, active) =>
     `<button type="button" class="tac-pill-btn ${active ? "is-active" : ""}" ${attr}="${val}">${label}</button>`;
 
+  const hCatalog = typeof HISSATSU_TACTICS_CATALOG === "object" ? HISSATSU_TACTICS_CATALOG : {};
+  const activeHissatsu = hCatalog[tac.hissatsuTactic] || hCatalog.route_of_sky;
+
+  const slots = typeof getSlots === "function" ? getSlots() : [];
+  const starters = slots
+    .map((s) => ({ slot: s, player: state.squad?.[s.id] }))
+    .filter((x) => Boolean(x.player));
+  const capObj = typeof getActiveTeamCaptain === "function" ? getActiveTeamCaptain() : null;
+  const capAura = capObj && typeof getCaptainAuraInfo === "function" ? getCaptainAuraInfo(capObj.player, capObj.role) : null;
+  const acePlayer = starters.find((x) => x.player.id === tac.acePlayerId)?.player || null;
+
   return `
     <div class="tactics-control-bar">
-      <div class="tac-group">
-        <span class="tac-label">Intensidade</span>
-        <div class="tac-pills">
-          ${pillBtn("data-tac-intensity", "low", "Baixa", tac.intensity === "low")}
-          ${pillBtn("data-tac-intensity", "medium", "Média", tac.intensity === "medium")}
-          ${pillBtn("data-tac-intensity", "high", "Alta", tac.intensity === "high")}
+      <div class="tac-row-main">
+        <div class="tac-group">
+          <span class="tac-label">Intensidade</span>
+          <div class="tac-pills">
+            ${pillBtn("data-tac-intensity", "low", "Baixa", tac.intensity === "low")}
+            ${pillBtn("data-tac-intensity", "medium", "Média", tac.intensity === "medium")}
+            ${pillBtn("data-tac-intensity", "high", "Alta", tac.intensity === "high")}
+          </div>
+        </div>
+        <div class="tac-group">
+          <span class="tac-label">Postura</span>
+          <div class="tac-pills">
+            ${pillBtn("data-tac-posture", "defensive", "Recuado", tac.posture === "defensive")}
+            ${pillBtn("data-tac-posture", "balanced", "Equilibrado", tac.posture === "balanced")}
+            ${pillBtn("data-tac-posture", "offensive", "Avançado", tac.posture === "offensive")}
+          </div>
+        </div>
+        <div class="tac-group">
+          <span class="tac-label">Ataque</span>
+          <div class="tac-pills">
+            ${pillBtn("data-tac-lane", "wings", "Pontas", tac.lane === "wings")}
+            ${pillBtn("data-tac-lane", "balanced", "Livre", tac.lane === "balanced")}
+            ${pillBtn("data-tac-lane", "center", "Meio", tac.lane === "center")}
+          </div>
+        </div>
+        <div class="tac-group">
+          <span class="tac-label">Estilo</span>
+          <div class="tac-pills">
+            ${pillBtn("data-tac-style", "possession", "Posse", tac.style === "possession")}
+            ${pillBtn("data-tac-style", "free", "Instinto", tac.style === "free")}
+            ${pillBtn("data-tac-style", "vertical", "Vertical", tac.style === "vertical")}
+          </div>
+        </div>
+        ${showSquadBtn ? `
+          <div class="tac-group tac-squad-group">
+            <button type="button" class="ie-cmd-btn ie-cmd-gold tac-squad-btn" id="btn-open-squad-modal">
+              <span>Ver Escalação (${state.formation})</span>
+            </button>
+          </div>
+        ` : ""}
+      </div>
+
+      <div class="tac-intensity-hint tac-live-summary" data-tac-full-summary>
+        ${getFullTacticsSummaryHTML(tac)}
+      </div>
+
+      <div class="tac-extra-grid">
+        <div class="tac-extra-card">
+          <div class="tac-extra-head">
+            <span class="tac-label">Tática Especial (ative 1x ao vivo durante o jogo)</span>
+          </div>
+          <div class="tac-pills tac-hissatsu-pills">
+            ${Object.values(hCatalog)
+              .map((ht) => pillBtn("data-tac-hissatsu", ht.id, ht.name, tac.hissatsuTactic === ht.id))
+              .join("")}
+          </div>
+          <div class="tac-extra-desc" data-tac-hissatsu-desc>
+            <strong>${activeHissatsu?.name || ""}:</strong> ${activeHissatsu?.desc || ""}
+          </div>
+        </div>
+
+        <div class="tac-extra-card tac-leaders-card">
+          <div class="tac-leader-row">
+            <label class="tac-label">${captainIconHTML("inline-ui-icon")} Capitão do Time</label>
+            <select class="tac-select" data-tac-captain>
+              ${starters
+                .map(
+                  ({ slot, player }) =>
+                    `<option value="${player.id}" ${capObj?.player?.id === player.id ? "selected" : ""}>[${slot.role}] ${player.name} (OVR ${getEffectiveOvr(player, slot.role)})</option>`
+                )
+                .join("")}
+            </select>
+            <div class="tac-aura-note" data-tac-captain-aura>
+              ${capAura ? `<strong>Aura: ${capAura.name}</strong> — ${capAura.shortEffect}` : ""}
+            </div>
+          </div>
+
+          <div class="tac-leader-row">
+            <label class="tac-label">Referência Ofensiva (Camisa 10)</label>
+            <select class="tac-select" data-tac-ace>
+              <option value="" ${!acePlayer ? "selected" : ""}>Automático (distribuído)</option>
+              ${starters
+                .filter((x) => x.slot.role !== "GK")
+                .map(
+                  ({ slot, player }) =>
+                    `<option value="${player.id}" ${acePlayer?.id === player.id ? "selected" : ""}>[${slot.role}] ${player.name} (OVR ${getEffectiveOvr(player, slot.role)})</option>`
+                )
+                .join("")}
+            </select>
+            <div class="tac-aura-note" data-tac-ace-note>
+              ${acePlayer ? `O time procura mais <strong>${acePlayer.name}</strong> nos passes decisivos e finalizações.` : "Passes distribuídos conforme espaço livre e personalidade."}
+            </div>
+          </div>
         </div>
       </div>
-      <div class="tac-group">
-        <span class="tac-label">Postura</span>
-        <div class="tac-pills">
-          ${pillBtn("data-tac-posture", "defensive", "Recuado", tac.posture === "defensive")}
-          ${pillBtn("data-tac-posture", "balanced", "Equilibrado", tac.posture === "balanced")}
-          ${pillBtn("data-tac-posture", "offensive", "Avançado", tac.posture === "offensive")}
-        </div>
-      </div>
-      <div class="tac-group">
-        <span class="tac-label">Ataque</span>
-        <div class="tac-pills">
-          ${pillBtn("data-tac-lane", "wings", "Pontas", tac.lane === "wings")}
-          ${pillBtn("data-tac-lane", "balanced", "Livre", tac.lane === "balanced")}
-          ${pillBtn("data-tac-lane", "center", "Meio", tac.lane === "center")}
-        </div>
-      </div>
-      ${showSquadBtn ? `
-        <div class="tac-group tac-squad-group">
-          <button type="button" class="ie-cmd-btn ie-cmd-gold tac-squad-btn" id="btn-open-squad-modal">
-            <span>Ver Escalação (${state.formation})</span>
-          </button>
-        </div>
-      ` : ""}
-      <div class="tac-intensity-hint" data-tac-intensity-hint>${getIntensityHintText(tac.intensity)}</div>
     </div>
   `;
 }
@@ -1889,6 +2095,13 @@ function bindTacticsControls(rootEl, onFormationChanged = null) {
   const syncActive = (attr, val) => {
     rootEl.querySelectorAll(`[${attr}]`).forEach((b) => {
       b.classList.toggle("is-active", b.getAttribute(attr) === val);
+    });
+  };
+  const syncSummary = () => {
+    const tac = getTactics();
+    const html = getFullTacticsSummaryHTML(tac);
+    rootEl.querySelectorAll("[data-tac-full-summary]").forEach((el) => {
+      el.innerHTML = html;
     });
   };
   rootEl.querySelectorAll("[data-tac-formation]").forEach((btn) => {
@@ -1906,10 +2119,7 @@ function bindTacticsControls(rootEl, onFormationChanged = null) {
       const val = btn.getAttribute("data-tac-intensity");
       getTactics().intensity = val;
       syncActive("data-tac-intensity", val);
-      const hintTxt = getIntensityHintText(val);
-      rootEl.querySelectorAll("[data-tac-intensity-hint]").forEach((el) => {
-        el.textContent = hintTxt;
-      });
+      syncSummary();
       saveActiveRunProgress();
     });
   });
@@ -1918,6 +2128,7 @@ function bindTacticsControls(rootEl, onFormationChanged = null) {
       const val = btn.getAttribute("data-tac-posture");
       getTactics().posture = val;
       syncActive("data-tac-posture", val);
+      syncSummary();
       saveActiveRunProgress();
     });
   });
@@ -1926,37 +2137,185 @@ function bindTacticsControls(rootEl, onFormationChanged = null) {
       const val = btn.getAttribute("data-tac-lane");
       getTactics().lane = val;
       syncActive("data-tac-lane", val);
+      syncSummary();
+      saveActiveRunProgress();
+    });
+  });
+  rootEl.querySelectorAll("[data-tac-style]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const val = btn.getAttribute("data-tac-style");
+      getTactics().style = val;
+      syncActive("data-tac-style", val);
+      syncSummary();
+      saveActiveRunProgress();
+    });
+  });
+  rootEl.querySelectorAll("[data-tac-hissatsu]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const val = btn.getAttribute("data-tac-hissatsu");
+      const hObj = HISSATSU_TACTICS_CATALOG?.[val];
+      if (!hObj) return;
+      getTactics().hissatsuTactic = val;
+      syncActive("data-tac-hissatsu", val);
+      rootEl.querySelectorAll("[data-tac-hissatsu-desc]").forEach((el) => {
+        el.innerHTML = `<strong>${hObj.name}:</strong> ${hObj.desc}`;
+      });
+      saveActiveRunProgress();
+    });
+  });
+  rootEl.querySelectorAll("[data-tac-captain]").forEach((sel) => {
+    sel.addEventListener("change", () => {
+      getTactics().captainPlayerId = sel.value || null;
+      const capObj = getActiveTeamCaptain();
+      const aura = capObj ? getCaptainAuraInfo(capObj.player, capObj.role) : null;
+      rootEl.querySelectorAll("[data-tac-captain-aura]").forEach((el) => {
+        el.innerHTML = aura ? `<strong>Aura: ${aura.name}</strong> — ${aura.shortEffect}` : "";
+      });
+      saveActiveRunProgress();
+    });
+  });
+  rootEl.querySelectorAll("[data-tac-ace]").forEach((sel) => {
+    sel.addEventListener("change", () => {
+      getTactics().acePlayerId = sel.value || null;
+      const chosen = Object.values(state.squad || {}).find((p) => p && p.id === sel.value);
+      rootEl.querySelectorAll("[data-tac-ace-note]").forEach((el) => {
+        el.innerHTML = chosen
+          ? `O time procura mais <strong>${chosen.name}</strong> nos passes decisivos e finalizações.`
+          : "Passes distribuídos conforme espaço livre e personalidade.";
+      });
       saveActiveRunProgress();
     });
   });
 }
 
+function escapeHtmlAttr(str) {
+  return String(str || "")
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
 function buildActiveScalableBuffsHTML(t) {
   const b = t?.prepBonuses || {};
+  const chips = [];
+
+  if (b.permanentDoublePrep) {
+    const title = "Passe Livre do Treinador";
+    const stat = "4 Ações por rodada • -3% Custo na Cidade";
+    const desc = "Libera 1 ação extra na cidade antes de cada partida e barateia todas as visitas pelo resto do torneio.";
+    chips.push(
+      `<button type="button" class="scalable-buff-chip is-passive" title="${escapeHtmlAttr(`${title} — ${stat}. ${desc}`)}" data-buff-tip-title="${escapeHtmlAttr(title)}" data-buff-tip-stat="${escapeHtmlAttr(stat)}" data-buff-tip-desc="${escapeHtmlAttr(desc)}">Passe Livre <strong>4 Ações</strong></button>`
+    );
+  }
+  if (b.lateMatchNoStaminaLoss) {
+    const title = "Pingente da Resistência Final";
+    const stat = "-50% Desgaste a partir dos 75'";
+    const desc = "Seus 11 titulares gastam metade da energia na reta final das partidas, mantendo fôlego para viradas.";
+    chips.push(
+      `<button type="button" class="scalable-buff-chip is-passive" title="${escapeHtmlAttr(`${title} — ${stat}. ${desc}`)}" data-buff-tip-title="${escapeHtmlAttr(title)}" data-buff-tip-stat="${escapeHtmlAttr(stat)}" data-buff-tip-desc="${escapeHtmlAttr(desc)}">Resistência 75'+ <strong>-50%</strong></button>`
+    );
+  }
+
   const defs = [
-    { key: "efficiencyLvl", label: "Eficiência" },
-    { key: "restLvl", label: "Descanso" },
-    { key: "enduranceLvl", label: "Resistência" },
-    { key: "wingExplosionLvl", label: "Alas VEL/FOR" },
-    { key: "midSynergyLvl", label: "Meio TEC" },
-    { key: "defBlockLvl", label: "Bloco DEF/FIS" },
-    { key: "hissatsuMasteryLvl", label: "Maestria" },
-    { key: "xpSpiritLvl", label: "Espírito XP" },
-    { key: "passBypassLvl", label: "Passe Cirúrgico" },
-    { key: "counterShotLvl", label: "Contra-Chute" },
-    { key: "dribbleEdgeLvl", label: "Drible" }
+    {
+      key: "efficiencyLvl",
+      label: "Eficiência",
+      fullTitle: "Eficiência de Treino",
+      stat: (l) => `-${[0, 4, 7, 10][l] || 10}% Custo na Cidade`,
+      desc: () => "Deixa todas as visitas na cidade mais baratas em energia, permitindo treinar mais antes de cada jogo."
+    },
+    {
+      key: "restLvl",
+      label: "Descanso",
+      fullTitle: "Descanso Aprimorado",
+      stat: (l) => `Sono +${45 + l * 7}% • Tática +${35 + l * 10} XP • +${l * 4}% Intervalo`,
+      desc: () => "Melhora a recuperação gratuita na Sede do Clube, aumenta o XP da Análise Tática e recupera mais fôlego no intervalo."
+    },
+    {
+      key: "enduranceLvl",
+      label: "Resistência",
+      fullTitle: "Resistência em Campo",
+      stat: (l) => `-${[0, 8, 15, 22][l] || 22}% Gasto em Campo`,
+      desc: () => "Economiza energia durante toda a partida — seus jogadores conseguem usar mais Super Técnicas antes de cansar."
+    },
+    {
+      key: "wingExplosionLvl",
+      label: "Explosão Alas",
+      fullTitle: "Explosão nas Alas",
+      stat: (l) => `+${l * 2} VEL & +${l * 2} FOR (ATQ e MEI)`,
+      desc: () => "Deixa Atacantes e Meias mais rápidos nas arrancadas e com finalizações mais pesadas."
+    },
+    {
+      key: "midSynergyLvl",
+      label: "Sintonia Meio",
+      fullTitle: "Sintonia de Meio-Campo",
+      stat: (l) => `+${l * 2} TEC (Meias) • +${l * 4}% Química`,
+      desc: () => "Melhora o controle de bola, passes e dribles dos Meias, além de elevar o entrosamento coletivo do time."
+    },
+    {
+      key: "defBlockLvl",
+      label: "Bloco Defensivo",
+      fullTitle: "Bloco Defensivo",
+      stat: (l) => `+${l * 2} DEF & +${l * 2} FIS (GK e Zaga)`,
+      desc: () => "Deixa Goleiro e Zagueiros mais seguros nos desarmes e defesas, além de mais resistentes ao cansaço."
+    },
+    {
+      key: "hissatsuMasteryLvl",
+      label: "Maestria Técnica",
+      fullTitle: "Maestria de Hissatsu",
+      stat: (l) => `+${[0, 2, 4, 5][l] || 5}% Chance em Super Técnicas`,
+      desc: () => "Aumenta o poder real das suas Super Técnicas, elevando a chance de vencer duelos de chute, drible e defesa."
+    },
+    {
+      key: "xpSpiritLvl",
+      label: "Espírito XP",
+      fullTitle: "Espírito de Evolução",
+      stat: (l) => `+${[0, 12, 24, 36][l] || 36}% XP Pós-Jogo`,
+      desc: () => "Acelera a subida de nível do elenco inteiro ao multiplicar o XP ganho após cada partida oficial."
+    },
+    {
+      key: "passBypassLvl",
+      label: "Passe Cirúrgico",
+      fullTitle: "Passe Cirúrgico",
+      stat: (l) => `-${[0, 15, 28, 40][l] || 40}% Interceptações Rivais`,
+      desc: () => "Faz seus passes atravessarem a marcação com mais segurança, reduzindo roubadas de bola do adversário."
+    },
+    {
+      key: "counterShotLvl",
+      label: "Contra-Chute",
+      fullTitle: "Reflexo de Contra-Chute",
+      stat: (l) => `+${[0, 12, 24, 35][l] || 35}% Frequência • +${[0, 3, 6, 9][l] || 9}% Chance`,
+      desc: () => "Ativa contra-chutes com mais frequência e potência quando um defensor entra na trajetória do chute rival."
+    },
+    {
+      key: "dribbleEdgeLvl",
+      label: "Drible Imparável",
+      fullTitle: "Drible Imparável",
+      stat: (l) => `+${[0, 3, 5, 8][l] || 8}% Chance Drible (+2% Corredor)`,
+      desc: () => "Facilita vencer duelos 1x1 no drible, com chance extra ao atacar pelo corredor tático escolhido."
+    }
   ];
-  const active = defs.filter((d) => (b[d.key] || 0) > 0);
-  if (active.length === 0) return "";
+
+  defs.forEach((d) => {
+    const lvl = b[d.key] || 0;
+    if (lvl <= 0) return;
+    const cls = lvl >= 3 ? "is-nv3" : lvl === 2 ? "is-nv2" : "is-nv1";
+    const fullTitle = `${d.fullTitle} (Nv. ${lvl}/3)`;
+    const statTxt = d.stat(lvl);
+    const descTxt = d.desc(lvl);
+    chips.push(
+      `<button type="button" class="scalable-buff-chip ${cls}" title="${escapeHtmlAttr(`${fullTitle} — ${statTxt}. ${descTxt}`)}" data-buff-tip-title="${escapeHtmlAttr(fullTitle)}" data-buff-tip-stat="${escapeHtmlAttr(statTxt)}" data-buff-tip-desc="${escapeHtmlAttr(descTxt)}">${d.label} <strong>Nv.${lvl}</strong></button>`
+    );
+  });
+
+  if (chips.length === 0) return "";
   return `
-    <div class="active-scalable-buffs-row">
-      ${active
-        .map((d) => {
-          const lvl = b[d.key];
-          const cls = lvl >= 3 ? "is-nv3" : lvl === 2 ? "is-nv2" : "is-nv1";
-          return `<span class="scalable-buff-chip ${cls}">${d.label} <strong>Nv.${lvl}</strong></span>`;
-        })
-        .join("")}
+    <div class="active-scalable-buffs-wrap">
+      <div class="active-scalable-buffs-label">Buffs Ativos <span>(clique para ver o efeito)</span></div>
+      <div class="active-scalable-buffs-row">
+        ${chips.join("")}
+      </div>
     </div>
   `;
 }
@@ -1966,6 +2325,8 @@ function buildOpponentScoutCardHTML(nextStage, stageIdx) {
   if (!oppTeam) return "";
   const oppStats = calcOpponentStats(oppTeam, stageIdx);
   const highlights = oppStats.highlights || [];
+  const markedId = getTactics().markedOppId || null;
+  const markedHighlight = highlights.find((h) => h.player?.id === markedId);
   return `
     <div class="opp-scout-card">
       <div class="opp-scout-head">
@@ -1985,13 +2346,21 @@ function buildOpponentScoutCardHTML(nextStage, stageIdx) {
           <span class="opp-stat-pill is-pwr">Poder <strong>${oppStats.power.toLocaleString("pt-BR")}</strong></span>
         </div>
       </div>
-      <div class="opp-scout-subhead">4 Destaques do Rival</div>
+      <div class="opp-scout-subhead-row">
+        <span class="opp-scout-subhead">4 Destaques do Rival</span>
+        <span class="opp-scout-mark-hint">
+          ${markedHighlight
+            ? `Marcação Especial ativa em <strong>${markedHighlight.player.name}</strong> (-4% chance ofensiva dele • clique para trocar)`
+            : "Clique em 1 craque rival para ativar Marcação Especial (-4% chance ofensiva dele)"}
+        </span>
+      </div>
       <div class="opp-scout-highlights-grid">
         ${highlights
           .map((h) => {
             const p = h.player;
+            const isMarked = Boolean(markedId && p.id === markedId);
             return `
-              <div class="opp-scout-player">
+              <button type="button" class="opp-scout-player is-clickable-scout ${isMarked ? "is-marked-target" : ""}" data-scout-mark-id="${p.id}" title="${isMarked ? "Remover Marcação Especial" : `Ativar Marcação Especial em ${p.name}`}">
                 <img class="opp-scout-avatar" src="${getPlayerFormSprite(p, h.role)}" alt="${p.name}" />
                 <div class="opp-scout-pinfo">
                   <div class="opp-scout-pname-row">
@@ -2008,8 +2377,11 @@ function buildOpponentScoutCardHTML(nextStage, stageIdx) {
                       ? `<div class="opp-scout-keshin-pill">Keshin: ${h.keshin.name}</div>`
                       : ""
                   }
+                  <div class="opp-scout-mark-tag ${isMarked ? "is-active" : ""}">
+                    ${isMarked ? "MARCAÇÃO ESPECIAL ATIVA" : "Marcar este jogador"}
+                  </div>
                 </div>
-              </div>
+              </button>
             `;
           })
           .join("")}
@@ -2142,19 +2514,39 @@ function buildBetweenMatchPrepHTML(t, stats) {
       } else if (chosenWinner.kind === "PASSIVE_DOUBLE_EVENT" || chosenWinner.kind === "PASSIVE_LATE_RESIST") {
         rarityCls = "rarity-unique";
         badgeTxt = "PASSIVA";
+      } else if (chosenWinner.kind === "ITEM_PICK" || chosenWinner.kind === "ELEM_BOOST_PICK") {
+        badgeTxt = "EQUIPAMENTO";
+      } else if (chosenWinner.kind === "ENERGY_DRINK") {
+        badgeTxt = "CONSUMÍVEL";
+      } else if (chosenWinner.kind === "REST_ACTIVE") {
+        badgeTxt = "SEDE GRÁTIS";
+      } else if (chosenWinner.kind === "STREET_5V5") {
+        badgeTxt = "DESAFIO 5x5";
+      } else if (chosenWinner.kind === "KESHIN_PICK") {
+        rarityCls = "rarity-nv3";
+        badgeTxt = "KESHIN";
+      } else if (chosenWinner.kind === "EVO_PICK") {
+        rarityCls = "rarity-nv2";
+        badgeTxt = "TÉCNICA";
+      } else if (chosenWinner.kind === "COLLECTIVE") {
+        badgeTxt = "TREINO";
       }
+      const scopeTxt = getPrepScopeLabel(chosenWinner);
+      const comboHTML = getPrepChoiceComboHTML(chosenWinner);
       return `
         <div class="prep-slot-col is-clickable-choice ${rarityCls}" data-prep-choice-idx="${sIdx}">
           <div class="prep-slot-col-header">
             <span class="prep-slot-badge">${badgeTxt}</span>
+            ${scopeTxt ? `<span class="prep-slot-scope">${scopeTxt}</span>` : ""}
           </div>
           <div class="prep-choice-card-body is-revealed-choice">
             <div class="prep-choice-name">${chosenWinner.title}</div>
-            <div class="prep-choice-buff-pill">${getPrepBuffPill(chosenWinner)}</div>
             <div class="prep-choice-icon-wrap">
               ${chosenWinner.icon ? `<img src="${chosenWinner.icon}" alt="" />` : ""}
             </div>
+            <div class="prep-choice-buff-pill">${getPrepBuffPill(chosenWinner)}</div>
             <div class="prep-choice-summary">${getPrepChoiceSummary(chosenWinner)}</div>
+            ${comboHTML}
             <button class="ie-cmd-btn ie-cmd-gold prep-btn-pick" data-prep-choice-idx="${sIdx}">
               <span>ESCOLHER</span>
             </button>
@@ -2340,6 +2732,7 @@ function buildBetweenMatchPrepHTML(t, stats) {
         const eligibleSlots = getEligibleSlotsForPrepEvent(ev);
         const pickList = eligibleSlots.length > 0 ? eligibleSlots : getSlots().filter((s) => state.squad[s.id]);
 
+        const pickComboHTML = getPrepChoiceComboHTML(ev);
         outcomeHTML = `
           <div class="prep-reward-box">
             <div class="prep-reward-hero">
@@ -2349,7 +2742,9 @@ function buildBetweenMatchPrepHTML(t, stats) {
               <div style="flex:1; min-width:200px;">
                 <div style="font-size:0.7rem; font-weight:900; color:#facc15; text-transform:uppercase;">${activeLoc?.resultEyebrow || activeLoc?.title || ""}</div>
                 <div style="font-size:1.05rem; font-weight:900; color:#fff;">${ev.title}</div>
-                <div style="font-size:0.76rem; color:#cbd5e1;">${ev.summary}</div>
+                <div class="prep-choice-buff-pill is-hero-pill">${getPrepBuffPill(ev)}</div>
+                <div style="font-size:0.76rem; color:#cbd5e1; margin-top:4px;">${getPrepChoiceSummary(ev)}</div>
+                ${pickComboHTML}
               </div>
             </div>
             <div style="font-size:0.76rem; font-weight:800; color:#93c5fd;">
@@ -2369,7 +2764,7 @@ function buildBetweenMatchPrepHTML(t, stats) {
                   const nextPwr = curPwr + lvlGain * pwrPerLvl + extraItemPwr;
                   const extraInfo =
                     ev.kind === "ELEM_BOOST_PICK"
-                      ? `Elemento: ${p.element} (+${lvlGain} Nv em todos de ${p.element})`
+                      ? `Elemento: ${p.element} (+125 XP e +${ev.indivPower || 12} Poder em todos de ${p.element})`
                       : ev.kind === "EVO_PICK"
                       ? (() => {
                           const ord = slot.role === "GK" ? ["GK", "DF", "SH", "OF"] : slot.role === "DF" ? ["DF", "OF", "SH", "GK"] : slot.role === "MF" ? ["OF", "SH", "DF", "GK"] : ["SH", "OF", "DF", "GK"];
