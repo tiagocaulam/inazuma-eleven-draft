@@ -76,13 +76,62 @@ function buildFormationSelectorStripHTML() {
   `;
 }
 
+function syncTacticsLeadersDOM(rootEl) {
+  if (!rootEl) return;
+  const tac = getTactics();
+  const slots = typeof getSlots === "function" ? getSlots() : [];
+  const starters = slots
+    .map((s) => ({ slot: s, player: state.squad?.[s.id] }))
+    .filter((x) => Boolean(x.player));
+  const capObj = typeof getActiveTeamCaptain === "function" ? getActiveTeamCaptain() : null;
+  const capAura = capObj && typeof getCaptainAuraInfo === "function" ? getCaptainAuraInfo(capObj.player, capObj.role) : null;
+  const aceEntry = starters.find((x) => x.player.id === tac.acePlayerId && x.slot.role !== "GK") || null;
+  if (tac.acePlayerId && !aceEntry) {
+    tac.acePlayerId = null;
+  }
+
+  const capSel = rootEl.querySelector("[data-tac-captain]");
+  if (capSel) {
+    capSel.innerHTML = starters
+      .map(
+        ({ slot, player }) =>
+          `<option value="${player.id}" ${capObj?.player?.id === player.id ? "selected" : ""}>[${slot.role}] ${player.name} (OVR ${getEffectiveOvr(player, slot.role)})</option>`
+      )
+      .join("");
+  }
+  const capAuraEl = rootEl.querySelector("[data-tac-captain-aura]");
+  if (capAuraEl && capAura) {
+    capAuraEl.innerHTML = `<strong>Aura: ${capAura.name}</strong> — ${capAura.shortEffect}`;
+  }
+
+  const aceSel = rootEl.querySelector("[data-tac-ace]");
+  if (aceSel) {
+    aceSel.innerHTML = `
+      <option value="" ${!aceEntry ? "selected" : ""}>Automático (distribuído)</option>
+      ${starters
+        .filter((x) => x.slot.role !== "GK")
+        .map(
+          ({ slot, player }) =>
+            `<option value="${player.id}" ${aceEntry?.player?.id === player.id ? "selected" : ""}>[${slot.role}] ${player.name} (OVR ${getEffectiveOvr(player, slot.role)})</option>`
+        )
+        .join("")}
+    `;
+  }
+  const aceNoteEl = rootEl.querySelector("[data-tac-ace-note]");
+  if (aceNoteEl) {
+    aceNoteEl.innerHTML = aceEntry
+      ? `O time procura mais <strong>${aceEntry.player.name}</strong> nos passes decisivos e finalizações.`
+      : "Passes distribuídos conforme espaço livre e personalidade.";
+  }
+}
+
 function buildUserSquadModalHTML(stats, t) {
   return `
     <div class="live-tactics-modal-backdrop" id="squad-overview-modal">
       <div class="live-tactics-modal-card squad-overview-modal-card">
         <div class="live-tactics-modal-head">
           <div>
-            <div style="font-size:0.68rem; font-weight:900; color:#4ade80; text-transform:uppercase;">Dream Team • Formação ${state.formation}</div>
+            <div style="font-size:0.68rem; font-weight:900; color:#4ade80; text-transform:uppercase;">Dream Team • Formação <span id="squad-modal-form-val">${state.formation}</span></div>
             <h4 style="margin:0; font-size:1rem; font-weight:900; color:#fff;">Táticas &amp; Escalação (<span id="squad-modal-pwr-val">${stats.power.toLocaleString("pt-BR")}</span> Poder)</h4>
           </div>
           <button type="button" class="ie-cmd-btn" id="btn-close-squad-modal" style="padding:5px 12px; font-size:0.74rem; background:#334155;">
@@ -92,7 +141,7 @@ function buildUserSquadModalHTML(stats, t) {
 
         <div class="modal-collapse-section" id="squad-collapse-section">
           <button type="button" class="modal-collapse-header" id="btn-toggle-squad-collapse">
-            <span>⚽ Escalação &amp; Formação (${state.formation})</span>
+            <span>⚽ Escalação &amp; Formação (<span id="squad-collapse-form-val">${state.formation}</span>)</span>
             <span class="modal-collapse-chevron" id="squad-collapse-chevron">Recolher ▲</span>
           </button>
           <div class="modal-collapse-body" id="squad-collapse-body">
@@ -105,7 +154,7 @@ function buildUserSquadModalHTML(stats, t) {
 
         <div class="modal-tactics-section">
           <div class="modal-section-subhead">⚙️ Táticas, Capitão &amp; Tática Especial</div>
-          ${buildTacticsControlBarHTML(false)}
+          ${buildTacticsControlBarHTML(false, false)}
         </div>
       </div>
     </div>
@@ -158,13 +207,7 @@ function buildTournamentBracketStripHTML(t, focusStageIdx) {
 
       ${
         t.prep
-          ? `
-        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-          <button type="button" class="ie-cmd-btn ie-cmd-gold" id="btn-open-squad-modal" style="padding:7px 14px; font-size:0.78rem;">
-            <span>Ver Escalação (${state.formation})</span>
-          </button>
-        </div>
-      `
+          ? ""
           : `
         <div class="current-stage-vs-badge">
           <span class="current-stage-vs-label">ADVERSÁRIO:</span>
@@ -192,7 +235,6 @@ function renderTournamentScreen() {
   const st = t.stages[t.stageIndex];
   const stats = calcSquadStats();
   const focusIdx = t.prep ? t.prep.nextStageIdx : t.stageIndex;
-  const bracketHTML = buildTournamentBracketStripHTML(t, focusIdx);
   const showGroupTable = Boolean(t.worldUnlocked && t.worldGroup && focusIdx <= 6);
   const groupTableHTML = showGroupTable ? buildWorldGroupTableHTML(t.worldGroup, t) : "";
 
@@ -245,6 +287,7 @@ function renderTournamentScreen() {
           pitchBody.innerHTML = buildPitchHTML(true);
           bindSquadModalPitch();
           renderHeaderAndBonds();
+          syncTacticsLeadersDOM(squadModal);
           const pwrVal = document.getElementById("squad-modal-pwr-val");
           if (pwrVal) pwrVal.textContent = calcSquadStats().power.toLocaleString("pt-BR");
         });
@@ -252,6 +295,7 @@ function renderTournamentScreen() {
     };
     const closeSquadModal = () => {
       state.swapSlotId = null;
+      hideBondPlayersTooltip();
       if (squadModal) squadModal.classList.remove("is-open");
       renderTournamentScreen();
     };
@@ -263,6 +307,7 @@ function renderTournamentScreen() {
         pitchBody.innerHTML = buildPitchHTML(true);
         bindSquadModalPitch();
       }
+      syncTacticsLeadersDOM(squadModal);
       setSquadCollapsed(!expandSquad);
       squadModal.classList.add("is-open");
     };
@@ -298,16 +343,29 @@ function renderTournamentScreen() {
     });
 
     bindTacticsControls(container, () => {
-      const wasModalOpen = squadModal?.classList.contains("is-open");
-      renderAll();
-      if (wasModalOpen) {
-        document.getElementById("btn-open-squad-modal")?.click();
+      // Atualiza o modal in-place para preservar scroll e estado colapsado/expandido!
+      const pitchBody = document.getElementById("squad-pitch-modal-body");
+      if (pitchBody) {
+        pitchBody.innerHTML = buildPitchHTML(true);
+        bindSquadModalPitch();
       }
+      const formValEl = document.getElementById("squad-modal-form-val");
+      if (formValEl) formValEl.textContent = state.formation;
+      const collapseFormEl = document.getElementById("squad-collapse-form-val");
+      if (collapseFormEl) collapseFormEl.textContent = state.formation;
+      const openBtnSpan = openSquadBtn?.querySelector("span");
+      if (openBtnSpan) openBtnSpan.textContent = `Escalação (${state.formation})`;
+      const pwrVal = document.getElementById("squad-modal-pwr-val");
+      if (pwrVal) pwrVal.textContent = calcSquadStats().power.toLocaleString("pt-BR");
+      syncTacticsLeadersDOM(squadModal);
+      renderHeaderAndBonds();
     });
 
     container.querySelectorAll("[data-scout-mark-id]").forEach((card) => {
       card.addEventListener("click", () => {
         const oppId = card.getAttribute("data-scout-mark-id");
+        const oppRole = card.getAttribute("data-scout-mark-role");
+        if (!oppId || oppRole === "GK") return;
         const tac = getTactics();
         tac.markedOppId = tac.markedOppId === oppId ? null : oppId;
         saveActiveRunProgress();
@@ -315,9 +373,10 @@ function renderTournamentScreen() {
       });
     });
 
-    container.querySelectorAll("[data-prep-choice-idx]").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const cIdx = parseInt(btn.getAttribute("data-prep-choice-idx"), 10);
+    container.querySelectorAll("[data-prep-choice-idx]").forEach((cardEl) => {
+      cardEl.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const cIdx = parseInt(cardEl.getAttribute("data-prep-choice-idx"), 10);
         const chosen = t.prep.choices?.[cIdx];
         if (chosen) handleChoosePrepOption(chosen);
       });
@@ -337,6 +396,7 @@ function renderTournamentScreen() {
       skipRecruitBtn.addEventListener("click", () => {
         t.prep.phase = "DONE";
         t.prep.appliedMsg = "Recrutamento dispensado. Seu elenco original segue inalterado!";
+        saveActiveRunProgress();
         renderTournamentScreen();
       });
     }
@@ -357,6 +417,7 @@ function renderTournamentScreen() {
         t.prep.recruitCandidate = null;
         t.prep.energyNotice = null;
         t.prep.appliedMsg = null;
+        saveActiveRunProgress();
         renderTournamentScreen();
       });
     }
@@ -701,11 +762,22 @@ function renderTournamentScreen() {
               <div class="live-tac-team-meta">Nv. ${oppStats.oppLevel || 1} • Poder <strong>${oppStats.power.toLocaleString("pt-BR")}</strong> • Quím ${oppStats.chem}%</div>
             </div>
           </div>
-          ${buildTeamEnergyBarHTML(false, st.minute)}
-          ${buildFormationSelectorStripHTML()}
-          ${buildTacticsControlBarHTML(false)}
-          <div id="live-tac-pitch-body">
-            ${buildPitchHTML(true, getLiveStaminaMapForStage(st))}
+          ${buildTeamEnergyBarHTML(true, st.minute, "live-modal")}
+          <div class="modal-tactics-section">
+            <div class="modal-section-subhead">⚙️ Comandos ao Vivo</div>
+            ${buildTacticsControlBarHTML(false, true)}
+          </div>
+          <div class="modal-collapse-section" id="live-squad-collapse-section">
+            <button type="button" class="modal-collapse-header" id="btn-toggle-live-squad-collapse">
+              <span>⚽ Escalação &amp; Formação (<span id="live-squad-form-val">${state.formation}</span>)</span>
+              <span class="modal-collapse-chevron" id="live-squad-collapse-chevron">Expandir ▼</span>
+            </button>
+            <div class="modal-collapse-body is-collapsed" id="live-squad-collapse-body">
+              ${buildFormationSelectorStripHTML()}
+              <div id="live-tac-pitch-body">
+                ${buildPitchHTML(true, getLiveStaminaMapForStage(st))}
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -717,13 +789,34 @@ function renderTournamentScreen() {
   if (st.pitch && !st.finished && !st.penalties) {
     updatePitchCameraTransform(st.pitch, performance.now(), true);
     const tacModal = document.getElementById("live-tactics-modal");
+    const liveCollapseBtn = document.getElementById("btn-toggle-live-squad-collapse");
+    const liveCollapseBody = document.getElementById("live-squad-collapse-body");
+    const liveCollapseChevron = document.getElementById("live-squad-collapse-chevron");
+
+    const setLiveSquadCollapsed = (collapsed) => {
+      if (liveCollapseBody) liveCollapseBody.classList.toggle("is-collapsed", collapsed);
+      if (liveCollapseChevron) liveCollapseChevron.textContent = collapsed ? "Expandir ▼" : "Recolher ▲";
+    };
+    if (liveCollapseBtn && liveCollapseBody) {
+      liveCollapseBtn.addEventListener("click", () => {
+        setLiveSquadCollapsed(!liveCollapseBody.classList.contains("is-collapsed"));
+      });
+    }
 
     const syncLivePitchNodesFromSquad = (formationChanged = false) => {
       if (!st.pitch || !Array.isArray(st.pitch.userNodes)) return;
       const oldStaminaByPlayerId = {};
+      const oldKeshinByPlayerId = {};
       st.pitch.userNodes.forEach((n) => {
-        if (n.player?.id && typeof n.stamina === "number") {
-          oldStaminaByPlayerId[n.player.id] = n.stamina;
+        if (n.player?.id) {
+          if (typeof n.stamina === "number") {
+            oldStaminaByPlayerId[n.player.id] = n.stamina;
+          }
+          oldKeshinByPlayerId[n.player.id] = {
+            keshinUsed: Boolean(n.keshinUsed),
+            keshinState: n.keshinState || null,
+            keshinTimer: n.keshinTimer || 0
+          };
         }
       });
       const oldStatsByPlayerId = {};
@@ -760,7 +853,9 @@ function renderTournamentScreen() {
         const p = state.squad[n.slotId];
         if (!p) return;
         const prevStam = oldStaminaByPlayerId[p.id];
+        const prevKeshin = oldKeshinByPlayerId[p.id];
         n.player = p;
+        n.aiProfile = null; // Invalida personalidade cacheada para refletir novo jogador/função!
         if (!formationChanged) {
           const s = slotMap[n.slotId];
           if (s) {
@@ -777,6 +872,11 @@ function renderTournamentScreen() {
         n.maxSpeed = calcNodeBaseSpeed(n.tacticalRole, n.effOvr, p);
         if (typeof prevStam === "number") {
           n.stamina = prevStam;
+        }
+        if (prevKeshin) {
+          n.keshinUsed = prevKeshin.keshinUsed;
+          n.keshinState = prevKeshin.keshinState;
+          n.keshinTimer = prevKeshin.keshinTimer;
         }
         if (st.pitch.stats?.playerStats) {
           const prevStat = oldStatsByPlayerId[p.id];
@@ -849,6 +949,8 @@ function renderTournamentScreen() {
     if (tacModal) {
       bindTacticsControls(tacModal, () => {
         syncLivePitchNodesFromSquad(true);
+        const liveFormEl = document.getElementById("live-squad-form-val");
+        if (liveFormEl) liveFormEl.textContent = state.formation;
         const pitchBody = document.getElementById("live-tac-pitch-body");
         if (pitchBody) {
           pitchBody.innerHTML = buildPitchHTML(true, getLiveStaminaMapForStage(st));
@@ -873,21 +975,25 @@ function renderTournamentScreen() {
       state.swapSlotId = null;
       const minEl = document.getElementById("live-tactics-modal-min");
       if (minEl) minEl.textContent = `${st.minute}'`;
-      syncTeamEnergyBarDOM("prep", st.minute);
+      syncTeamEnergyBarDOM("live-modal", st.minute);
       const curSt = calcSquadStats();
       const uMeta = document.getElementById("live-tac-user-meta");
       if (uMeta) {
         uMeta.innerHTML = `Nv. ${curSt.avgLevel || 1} • Poder <strong>${curSt.power.toLocaleString("pt-BR")}</strong> • Quím ${curSt.chem}%`;
       }
+      const liveFormEl = document.getElementById("live-squad-form-val");
+      if (liveFormEl) liveFormEl.textContent = state.formation;
       const pitchBody = document.getElementById("live-tac-pitch-body");
       if (pitchBody) {
         pitchBody.innerHTML = buildPitchHTML(true, getLiveStaminaMapForStage(st));
         bindLiveTacPitch();
       }
+      setLiveSquadCollapsed(true);
       if (tacModal) tacModal.classList.add("is-open");
     };
     const resumeFromTactics = () => {
       state.swapSlotId = null;
+      hideBondPlayersTooltip();
       if (tacModal) tacModal.classList.remove("is-open");
       if (!st.finished) {
         st.running = true;

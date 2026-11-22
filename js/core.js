@@ -563,12 +563,14 @@ function getTeamEnergyBand(energy = getTeamEnergy()) {
       border: "rgba(74, 222, 128, 0.55)",
       duelPenalty: 0,
       startStamina: 100,
-      desc: "100% nos duelos · Início 100% fôlego"
+      desc: "100% nos duelos · Início 100% fôlego",
+      liveDesc: "100% nos duelos"
     };
   }
   if (e >= 35) {
     const tYellow = (70 - e) / 35;
     const duelPenalty = Number((-0.8 - tYellow * 3.0).toFixed(2));
+    const penaltyPct = Math.max(2, Math.round(Math.abs(duelPenalty) * 3));
     const startStamina = Math.round(78 + ((e - 35) / 35) * 14);
     return {
       key: "YELLOW",
@@ -578,11 +580,13 @@ function getTeamEnergyBand(energy = getTeamEnergy()) {
       border: "rgba(250, 204, 21, 0.6)",
       duelPenalty,
       startStamina,
-      desc: `Duelos ${duelPenalty.toFixed(1)} · Início ${startStamina}% fôlego`
+      desc: `-${penaltyPct}% nos duelos · Início ${startStamina}% fôlego`,
+      liveDesc: `-${penaltyPct}% nos duelos (time cansado)`
     };
   }
   const tRed = (35 - e) / 35;
   const duelPenalty = Number((-4.0 - tRed * 3.0).toFixed(2));
+  const penaltyPct = Math.max(12, Math.round(Math.abs(duelPenalty) * 3));
   const startStamina = Math.round(55 + (e / 35) * 15);
   return {
     key: "RED",
@@ -592,7 +596,8 @@ function getTeamEnergyBand(energy = getTeamEnergy()) {
     border: "rgba(248, 113, 113, 0.65)",
     duelPenalty,
     startStamina,
-    desc: `Exausto (${duelPenalty.toFixed(1)}) · Início ${startStamina}% fôlego`
+    desc: `Exausto (-${penaltyPct}% duelos) · Início ${startStamina}% fôlego`,
+    liveDesc: `Exausto (-${penaltyPct}% nos duelos)`
   };
 }
 
@@ -735,11 +740,11 @@ function getCaptainAuraInfo(player, role = "MF") {
       desc: "Contagia o ataque com confiança para finalizar forte — brilha ainda mais na hora de buscar o gol decisivo."
     };
   }
-  if (attrs.tec >= attrs.vel + 3 || role === "MF") {
+  if (attrs.tec >= attrs.vel + 4) {
     return {
       type: "STRATEGIST",
       name: "Maestro em Campo",
-      shortEffect: "-14% interceptações rivais • +enfiadas de bola",
+      shortEffect: "-15% interceptações rivais • +enfiadas de bola",
       desc: "Organiza a saída e a criação: seus passes furam melhor a marcação e o time enxerga mais bolas em profundidade."
     };
   }
@@ -1003,7 +1008,8 @@ function calcPlayerAttributes(player, slotRole = null, forcedLevel = null) {
       : { for: 0.68, tec: 0.85, def: 1.25, vel: 0.70, fis: 1.12 };
 
   const bStats = player.bonusStats || {};
-  const keshinBonus = player.keshin ? 4 : 0;
+  // Keshin agora desperta dinamicamente em campo (1x por jogo), sem inflar status passivos fora do despertar
+  const keshinBonus = 0;
   const evoBonus = (player.moveEvoCount || 0) * 2;
   const manualBonus = player.learnedSecretManual ? 3 : 0;
 
@@ -1093,7 +1099,7 @@ function calcIndividualPlayerPower(player, slotRole = null, forcedLevel = null, 
   const pwrPerLvl = calcPowerPerLevel(effOvr);
   const levelPwr = (lvl - 1) * pwrPerLvl;
   const itemPwr = player.bonusPower || 0;
-  const keshinPwr = player.keshin ? 26 : 0;
+  const keshinPwr = 0;
   const evoPwr = (player.moveEvoCount || 0) * 13;
   const manualPwr = player.learnedSecretManual ? 18 : 0;
   const isSquadMember = state.phase === "tournament" && Object.values(state.squad).some((sp) => sp && sp.id === player.id);
@@ -2042,7 +2048,7 @@ function getEvolvedOpponentRoster(oppTeam, stageIdx) {
     if (idx < keshinCount) {
       const pool = CANONICAL_KESHINS[role] || CANONICAL_KESHINS.MF;
       const chosenK = pool[(idSeed + idx + sIdx) % pool.length];
-      p.keshin = { name: chosenK.name, icon: UI[chosenK.iconKey] || UI.keshinIcon };
+      p.keshin = { name: chosenK.name, iconKey: chosenK.iconKey, icon: UI[chosenK.iconKey] || UI.keshinIcon };
     }
     if (idx < manualCount) {
       applySecretManualMastery(p, role);

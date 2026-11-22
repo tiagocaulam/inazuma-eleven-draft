@@ -262,6 +262,7 @@ function showRefereeWhistleModal(st, type, onProceed) {
       </div>
 
       <div class="referee-title">${mainTitle}</div>
+      ${subtitleText ? `<div class="referee-subtitle">${subtitleText}</div>` : ""}
 
       <div class="referee-scoreboard">
         <span class="ref-team-name">${st.userTeamName || "Dream Team"}</span>
@@ -365,6 +366,10 @@ function applyIntervalStaminaRecharge(st, fieldGain, gkGain) {
     const base = n.role === "GK" ? gkGain : fieldGain;
     const bonus = n.side === "user" ? restBonus : 0;
     n.stamina = Math.min(100, Math.round((n.stamina + base + bonus) * 10) / 10);
+    // Intervalo / prorrogação limpa a exaustão pós-Keshin (mantendo keshinUsed = true)
+    if (n.keshinState === "EXHAUSTED") {
+      n.keshinState = null;
+    }
   });
   return result;
 }
@@ -598,65 +603,67 @@ function calcNodeDuelScore(node, teamSupportBonus, opponentElem = null, actionKi
 
   let tacticalAndEnergyAdj = 0;
   if (node.side === "user") {
-    const band = getTeamEnergyBand();
-    tacticalAndEnergyAdj += band.duelPenalty || 0;
+    if (!isIn5v5) {
+      const band = getTeamEnergyBand();
+      tacticalAndEnergyAdj += band.duelPenalty || 0;
 
-    const tac = getTactics();
-    // Postura Tática
-    if (tac.posture === "defensive") {
-      if (roleOrAction === "DF" || roleOrAction === "GK") tacticalAndEnergyAdj += 2.0;
-      else if (roleOrAction === "SH") tacticalAndEnergyAdj -= 1.0;
-    } else if (tac.posture === "offensive") {
-      if (roleOrAction === "SH" || roleOrAction === "OF" || roleOrAction === "FW") tacticalAndEnergyAdj += 1.8;
-      else if (roleOrAction === "DF") tacticalAndEnergyAdj -= 1.5;
-    }
-
-    // Canal de Ataque (escalado pelos atributos do jogador apenas em ações ofensivas, sem buffar GK/zaga!)
-    if (roleOrAction === "SH" || roleOrAction === "OF") {
-      if (tac.lane === "wings" && (node.y < 34 || node.y > 66)) {
-        tacticalAndEnergyAdj += 1.1 + Math.max(-0.4, Math.min(1.1, (attrs.vel - 80) * 0.045));
-      } else if (tac.lane === "center" && node.y >= 34 && node.y <= 66) {
-        tacticalAndEnergyAdj += 1.1 + Math.max(-0.4, Math.min(1.1, (attrs.tec - 80) * 0.045));
+      const tac = getTactics();
+      // Postura Tática
+      if (tac.posture === "defensive") {
+        if (roleOrAction === "DF" || roleOrAction === "GK") tacticalAndEnergyAdj += 2.0;
+        else if (roleOrAction === "SH") tacticalAndEnergyAdj -= 1.0;
+      } else if (tac.posture === "offensive") {
+        if (roleOrAction === "SH" || roleOrAction === "OF" || roleOrAction === "FW") tacticalAndEnergyAdj += 1.8;
+        else if (roleOrAction === "DF") tacticalAndEnergyAdj -= 1.5;
       }
-    }
 
-    // Intensidade
-    if (tac.intensity === "high") tacticalAndEnergyAdj += 1.1;
-    else if (tac.intensity === "low") tacticalAndEnergyAdj -= 2.1;
-
-    // Referência Ofensiva ("Camisa 10")
-    if (!isIn5v5 && tac.acePlayerId && node.player?.id === tac.acePlayerId && (roleOrAction === "SH" || roleOrAction === "OF")) {
-      tacticalAndEnergyAdj += 0.6;
-    }
-
-    // Aura do Capitão do Time
-    if (!isIn5v5 && typeof getActiveTeamCaptain === "function" && typeof getCaptainAuraInfo === "function") {
-      const capObj = getActiveTeamCaptain();
-      if (capObj) {
-        const aura = getCaptainAuraInfo(capObj.player, capObj.role);
-        const isTrailing = (activeStage?.userScore || 0) < (activeStage?.oppScore || 0);
-        const isDrawingOrTrailing = (activeStage?.userScore || 0) <= (activeStage?.oppScore || 0);
-        if (aura.type === "WARRIOR" && (isTrailing || curMin >= 70) && (roleOrAction === "DF" || roleOrAction === "GK")) {
-          tacticalAndEnergyAdj += 1.3;
-        } else if (aura.type === "DECISIVE" && roleOrAction === "SH") {
-          tacticalAndEnergyAdj += (isDrawingOrTrailing && curMin >= 60) ? 1.5 : 0.9;
+      // Canal de Ataque (escalado pelos atributos do jogador apenas em ações ofensivas, sem buffar GK/zaga!)
+      if (roleOrAction === "SH" || roleOrAction === "OF") {
+        if (tac.lane === "wings" && (node.y < 34 || node.y > 66)) {
+          tacticalAndEnergyAdj += 1.1 + Math.max(-0.4, Math.min(1.1, (attrs.vel - 80) * 0.045));
+        } else if (tac.lane === "center" && node.y >= 34 && node.y <= 66) {
+          tacticalAndEnergyAdj += 1.1 + Math.max(-0.4, Math.min(1.1, (attrs.tec - 80) * 0.045));
         }
       }
-    }
 
-    // Tática Especial Ativa (Hissatsu Tactic!)
-    if (!isIn5v5 && livePitch && (livePitch.hissatsuTacticTimer || 0) > 0) {
-      const htId = livePitch.activeHissatsuTacticId;
-      if (htId === "catenaccio" && (roleOrAction === "DF" || roleOrAction === "GK")) {
-        tacticalAndEnergyAdj += 1.8;
-      } else if (htId === "lightning_press" && roleOrAction === "DF") {
-        tacticalAndEnergyAdj += 1.4;
-      } else if (htId === "raimon_harmony") {
-        tacticalAndEnergyAdj += 1.3;
+      // Intensidade
+      if (tac.intensity === "high") tacticalAndEnergyAdj += 1.1;
+      else if (tac.intensity === "low") tacticalAndEnergyAdj -= 2.1;
+
+      // Referência Ofensiva ("Camisa 10")
+      if (tac.acePlayerId && node.player?.id === tac.acePlayerId && (roleOrAction === "SH" || roleOrAction === "OF")) {
+        tacticalAndEnergyAdj += 0.6;
       }
-    }
-    if (!isIn5v5 && livePitch && (livePitch.catenaccioCounterTimer || 0) > 0 && roleOrAction === "SH") {
-      tacticalAndEnergyAdj += 1.8;
+
+      // Aura do Capitão do Time
+      if (typeof getActiveTeamCaptain === "function" && typeof getCaptainAuraInfo === "function") {
+        const capObj = getActiveTeamCaptain();
+        if (capObj) {
+          const aura = getCaptainAuraInfo(capObj.player, capObj.role);
+          const isTrailing = (activeStage?.userScore || 0) < (activeStage?.oppScore || 0);
+          const isDrawingOrTrailing = (activeStage?.userScore || 0) <= (activeStage?.oppScore || 0);
+          if (aura.type === "WARRIOR" && (isTrailing || curMin >= 70) && (roleOrAction === "DF" || roleOrAction === "GK")) {
+            tacticalAndEnergyAdj += 1.3;
+          } else if (aura.type === "DECISIVE" && roleOrAction === "SH") {
+            tacticalAndEnergyAdj += (isDrawingOrTrailing && curMin >= 60) ? 1.5 : 0.9;
+          }
+        }
+      }
+
+      // Tática Especial Ativa (Hissatsu Tactic!)
+      if (livePitch && (livePitch.hissatsuTacticTimer || 0) > 0) {
+        const htId = livePitch.activeHissatsuTacticId;
+        if (htId === "catenaccio" && (roleOrAction === "DF" || roleOrAction === "GK")) {
+          tacticalAndEnergyAdj += 1.8;
+        } else if (htId === "lightning_press" && roleOrAction === "DF") {
+          tacticalAndEnergyAdj += 1.4;
+        } else if (htId === "raimon_harmony") {
+          tacticalAndEnergyAdj += 1.3;
+        }
+      }
+      if (livePitch && (livePitch.catenaccioCounterTimer || 0) > 0 && roleOrAction === "SH") {
+        tacticalAndEnergyAdj += 1.8;
+      }
     }
   } else if (node.side === "opp") {
     const sIdx = !isIn5v5 ? (state.tournament?.stageIndex || 0) : 0;
@@ -671,8 +678,8 @@ function calcNodeDuelScore(node, teamSupportBonus, opponentElem = null, actionKi
       else if (roleOrAction === "SH") tacticalAndEnergyAdj -= 0.8;
     }
 
-    // Marcação Especial escolhida no Scout do Adversário!
-    if (!isIn5v5 && getTactics().markedOppId && node.player?.id === getTactics().markedOppId && (roleOrAction === "SH" || roleOrAction === "OF")) {
+    // Marcação Especial escolhida no Scout do Adversário (apenas jogadores de linha)
+    if (!isIn5v5 && node.role !== "GK" && getTactics().markedOppId && node.player?.id === getTactics().markedOppId && (roleOrAction === "SH" || roleOrAction === "OF")) {
       tacticalAndEnergyAdj -= 1.4;
     }
   }
@@ -707,7 +714,7 @@ function spendStamina(node, cost) {
   const fisStat = node.attrs?.fis || 80;
   const fisMul = Math.max(0.76, Math.min(1.12, 1 - (fisStat - 82) * 0.004));
   const tac = getTactics();
-  const userInt = node.side === "user" ? tac.intensity : "medium";
+  const userInt = !isIn5v5 && node.side === "user" ? tac.intensity : "medium";
   const tacIntMul = userInt === "high" ? 1.28 : userInt === "low" ? 0.86 : 1.0;
 
   let extraMul = 1.0;
@@ -715,7 +722,7 @@ function spendStamina(node, cost) {
     if (tac.style === "possession") extraMul *= 0.90;
     const lp = activeStage?.pitch;
     if (lp && (lp.hissatsuTacticTimer || 0) > 0 && lp.activeHissatsuTacticId === "lightning_press") {
-      extraMul *= 1.18;
+      extraMul *= 1.20;
     }
     if (typeof getActiveTeamCaptain === "function" && typeof getCaptainAuraInfo === "function") {
       const capObj = getActiveTeamCaptain();
@@ -727,7 +734,8 @@ function spendStamina(node, cost) {
     }
   }
 
-  const mul = (node.side === "user" ? state.tournament?.prepBonuses?.staminaMul || 1 : 1) * fisMul * tacIntMul * lateMul * extraMul;
+  const snackMul = !isIn5v5 && node.side === "user" ? (state.tournament?.nextMatchEnergyMul || 1) : 1;
+  const mul = (node.side === "user" ? state.tournament?.prepBonuses?.staminaMul || 1 : 1) * snackMul * fisMul * tacIntMul * lateMul * extraMul;
   node.stamina = Math.max(5, node.stamina - cost * mul);
 }
 
@@ -1007,7 +1015,7 @@ function getNodePersonality(node) {
 
   let archetype = "COLETIVISTA";
   if (role === "GK") {
-    archetype = (attrs.vel + attrs.fis * 0.6 >= attrs.def * 1.45 || seed > 0.58)
+    archetype = (attrs.vel >= attrs.def - 6 || attrs.vel + attrs.fis * 0.52 >= attrs.def * 1.48)
       ? "GOLEIRO_LIBERO"
       : "GOLEIRO_CLASSICO";
   } else {
@@ -1085,7 +1093,7 @@ function getNodePersonality(node) {
   return node.aiProfile;
 }
 
-function computeNodeRoleTarget(node, pitch, carrier, chaserUid, coverUid, deepestOppDefX, deepestOwnDefX, isGkHolding = false, gkMarkMap = null, pressSupportUid = null) {
+function computeNodeRoleTarget(node, pitch, carrier, chaserUid, coverUid, deepestOppDefX, deepestOwnDefX, isGkHolding = false, gkMarkMap = null, pressSupportUid = null, shadowMarkUid = null, markedNode = null) {
   const isUser = node.side === "user";
   const dir = isUser ? 1 : -1;
   const ownGoalX = isUser ? 4 : 96;
@@ -1292,7 +1300,8 @@ function computeNodeRoleTarget(node, pitch, carrier, chaserUid, coverUid, deepes
     const targetAnchorX = carrier ? carrier.x + (carrier.vx || 0) * 0.22 : ballX;
     const targetAnchorY = carrier ? carrier.y + (carrier.vy || 0) * 0.22 : ballY;
     const dangerousZone = isUser ? ballX <= 42 : ballX >= 58;
-    const pressSprint = 1.04 + prof.combativeness * 0.16;
+    const isPressingMarked = Boolean(isUser && markedNode && carrier && carrier.uid === markedNode.uid);
+    const pressSprint = 1.04 + prof.combativeness * 0.16 + (isPressingMarked ? 0.08 : 0);
 
     if (!isGkHolding && chaserUid === node.uid && node.staggerTimer <= 0) {
       return {
@@ -1302,8 +1311,8 @@ function computeNodeRoleTarget(node, pitch, carrier, chaserUid, coverUid, deepes
       };
     }
     if (!isGkHolding && coverUid === node.uid && node.staggerTimer <= 0) {
-      if (dangerousZone) {
-        const flankOffset = carrier && carrier.y < 50 ? 3.5 : -3.5;
+      if (dangerousZone || isPressingMarked) {
+        const flankOffset = carrier && carrier.y < 50 ? (isPressingMarked ? 2.6 : 3.5) : (isPressingMarked ? -2.6 : -3.5);
         return {
           tx: Math.max(8, Math.min(92, targetAnchorX + (isUser ? -1.8 : 1.8))),
           ty: Math.max(12, Math.min(88, targetAnchorY + flankOffset)),
@@ -1314,6 +1323,16 @@ function computeNodeRoleTarget(node, pitch, carrier, chaserUid, coverUid, deepes
         tx: Math.max(8, Math.min(92, targetAnchorX * 0.78 + ownGoalX * 0.22)),
         ty: Math.max(12, Math.min(88, targetAnchorY * 0.76 + 50 * 0.24)),
         sprint: 0.95 + prof.combativeness * 0.08
+      };
+    }
+    // Marcação Especial (sombra próxima entre o craque rival marcado e o gol do usuário)
+    if (!isGkHolding && isUser && shadowMarkUid === node.uid && markedNode && node.staggerTimer <= 0) {
+      const shTx = Math.max(10, Math.min(88, markedNode.x - 3.2));
+      const shTy = Math.max(11, Math.min(89, markedNode.y + (50 - markedNode.y) * 0.12));
+      return {
+        tx: shTx,
+        ty: shTy,
+        sprint: 1.05 + prof.combativeness * 0.1
       };
     }
     // 3º marcador combativo fecha linha de passe / ajuda na pressão em zona perigosa
@@ -1663,6 +1682,28 @@ function recomputePitchTargets(pitch) {
     pitch.challengerUid = carrier && chaserUid && rankedDefs[0].dist < 10.5 ? chaserUid : null;
   }
 
+  // Marcação Especial (Scout): seleciona marcador sombra quando o craque rival marcado está sem bola no campo defensivo
+  let markedNode = null;
+  let shadowMarkUid = null;
+  if (!isGkHolding && !pitch.is5v5 && pitch.ballSide === "opp") {
+    const markedId = getTactics().markedOppId;
+    if (markedId) {
+      markedNode = (pitch.oppNodes || []).find((n) => n.role !== "GK" && n.player?.id === markedId) || null;
+      if (markedNode && carrier?.uid !== markedNode.uid && markedNode.x <= 58) {
+        const shadowCand = (pitch.userNodes || [])
+          .filter((d) => d.role !== "GK" && d.uid !== chaserUid && (d.staggerTimer || 0) <= 0)
+          .sort((a, b) => {
+            const rolePriA = a.role === "DF" || a.tacticalRole === "DM" ? 0 : 1;
+            const rolePriB = b.role === "DF" || b.tacticalRole === "DM" ? 0 : 1;
+            const da = Math.hypot(a.x - markedNode.x, a.y - markedNode.y) + rolePriA * 4;
+            const db = Math.hypot(b.x - markedNode.x, b.y - markedNode.y) + rolePriB * 4;
+            return da - db;
+          })[0];
+        if (shadowCand) shadowMarkUid = shadowCand.uid;
+      }
+    }
+  }
+
   if (pitch.ballMode === "LOOSE_BALL" && pitch.looseState) {
     const attTeamNodes = attIsUser ? pitch.userNodes : pitch.oppNodes;
     const defTeamNodes = attIsUser ? pitch.oppNodes : pitch.userNodes;
@@ -1698,7 +1739,9 @@ function recomputePitchTargets(pitch) {
         deepestOwnDef,
         isGkHolding,
         gkMarkMap,
-        pressSupportUid
+        pressSupportUid,
+        shadowMarkUid,
+        markedNode
       );
       node.targetX = aim.tx;
       node.targetY = aim.ty;
@@ -2618,15 +2661,13 @@ function syncLivePitchDOM(st) {
       el.classList.toggle("is-keshin-active", node.keshinState === "ACTIVE");
       el.classList.toggle("is-keshin-exhausted", node.keshinState === "EXHAUSTED");
       el.classList.toggle("is-captain-node", !pitch.is5v5 && node.side === "user" && Boolean(capId && node.player?.id === capId));
-      el.classList.toggle("is-marked-opp", !pitch.is5v5 && node.side === "opp" && Boolean(markedOppId && node.player?.id === markedOppId));
+      el.classList.toggle("is-marked-opp", !pitch.is5v5 && node.side === "opp" && node.role !== "GK" && Boolean(markedOppId && node.player?.id === markedOppId));
 
       const stamBar = el.querySelector(".pitch-token-stamina-fill");
       if (stamBar) {
         stamBar.style.width = `${Math.round(node.stamina)}%`;
         stamBar.style.backgroundColor =
-          node.keshinState === "ACTIVE"
-            ? "#a855f7"
-            : node.stamina >= 70
+          node.stamina >= 70
             ? "#4ade80"
             : node.stamina >= 45
             ? "#facc15"
@@ -2642,14 +2683,15 @@ function syncLivePitchDOM(st) {
   const hBtn = document.getElementById("btn-activate-hissatsu-tactic");
   const hHint = document.getElementById("pitch-coach-hint");
   if (hBtn && !pitch.is5v5) {
-    const hObj = HISSATSU_TACTICS_CATALOG?.[tacNow.hissatsuTactic] || HISSATSU_TACTICS_CATALOG?.route_of_sky;
+    const resolvedTacticId = pitch.activeHissatsuTacticId || pitch.usedHissatsuTacticId || tacNow.hissatsuTactic;
+    const hObj = HISSATSU_TACTICS_CATALOG?.[resolvedTacticId] || HISSATSU_TACTICS_CATALOG?.route_of_sky;
     if ((pitch.hissatsuTacticTimer || 0) > 0) {
       const remMin = Math.max(1, Math.ceil((pitch.hissatsuTacticTimer || 0) * 1.45));
       hBtn.classList.add("is-tactic-active");
       hBtn.classList.remove("is-tactic-used");
       hBtn.disabled = true;
       hBtn.innerHTML = `<span>⚡ ${hObj?.name || "Tática"} (${remMin}')</span>`;
-      if (hHint) hHint.textContent = "Efeito ativo em campo!";
+      if (hHint) hHint.textContent = `Ativa: ${hObj?.shortEffect || "efeito em campo!"}`;
     } else if (pitch.hissatsuTacticUsed) {
       hBtn.classList.remove("is-tactic-active");
       hBtn.classList.add("is-tactic-used");

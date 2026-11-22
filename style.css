@@ -8334,11 +8334,29 @@ body {
 .modal-collapse-section {
   display: flex;
   flex-direction: column;
+  flex-shrink: 0;
   border-radius: 10px;
   border: 1px solid rgba(59, 130, 246, 0.35);
   background: rgba(9, 19, 46, 0.72);
   overflow: hidden;
   margin-bottom: 10px;
+}
+
+.live-tactics-modal-card > * {
+  flex-shrink: 0;
+}
+
+.live-tactics-modal-card.squad-overview-modal-card {
+  max-width: 780px;
+}
+
+.referee-subtitle {
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: #cbd5e1;
+  text-align: center;
+  max-width: 380px;
+  line-height: 1.35;
 }
 
 .modal-collapse-header {
@@ -8380,6 +8398,7 @@ body {
 .modal-tactics-section {
   display: flex;
   flex-direction: column;
+  flex-shrink: 0;
   gap: 8px;
 }
 
@@ -8544,6 +8563,13 @@ body {
   border-color: rgba(248, 113, 113, 0.65);
 }
 
+.opp-scout-player.is-gk-scout {
+  cursor: default;
+  opacity: 0.84;
+  border-style: dashed;
+  border-color: rgba(148, 163, 184, 0.35);
+}
+
 .opp-scout-player.is-marked-target {
   border-color: #ef4444 !important;
   background: linear-gradient(135deg, rgba(127, 29, 29, 0.48), rgba(15, 23, 42, 0.92)) !important;
@@ -8562,6 +8588,12 @@ body {
   background: rgba(30, 41, 59, 0.8);
   border: 1px solid rgba(148, 163, 184, 0.35);
   color: #94a3b8;
+}
+
+.opp-scout-mark-tag.is-gk-locked {
+  background: rgba(15, 23, 42, 0.65);
+  border-color: rgba(100, 116, 139, 0.35);
+  color: #64748b;
 }
 
 .opp-scout-mark-tag.is-active {
@@ -8717,10 +8749,14 @@ body {
   100% { transform: translate(-52%, -64%) rotate(4deg) scaleY(1.16); }
 }
 
+/* Mantém cor da borda do time (verde/vermelho) e da bola (amarelo), adicionando brilho externo roxo-azulado */
 .pitch-player-token.is-keshin-active .pitch-token-avatar {
-  border-color: #c084fc !important;
-  box-shadow: 0 0 12px #a855f7, 0 0 20px #38bdf8 !important;
+  box-shadow: 0 0 11px #a855f7, 0 0 19px #38bdf8 !important;
   filter: brightness(1.12);
+}
+
+.pitch-player-token.is-keshin-exhausted .pitch-token-avatar {
+  filter: saturate(0.58) brightness(0.88);
 }
 
 .pitch-player-token.is-captain-node .pitch-token-name {
@@ -8749,6 +8785,25 @@ body {
   box-shadow: 0 0 12px rgba(147, 51, 234, 0.75);
 }
 
+/* Pilha compacta de chutes cooperativos (Dupla / Trio) sem corte em telas menores */
+.clash-avatar-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+
+.clash-fighter.has-coop-partners .clash-avatar {
+  width: 56px;
+  height: 56px;
+}
+
+.clash-fighter.is-trio-coop .clash-coop-avatar {
+  width: 28px;
+  height: 28px;
+}
+
 @media (max-width: 720px) {
   .tac-cards-grid,
   .tac-extra-grid {
@@ -8760,6 +8815,53 @@ body {
   .prep-tactics-launch-btns .ie-cmd-btn {
     flex: 1 1 auto;
     justify-content: center;
+  }
+}
+
+@media (max-width: 640px) {
+  .pitch-coach-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .pitch-tactic-btn {
+    width: 100%;
+    justify-content: center;
+  }
+  .keshin-flame-aura {
+    top: 11px;
+    width: 34px;
+    height: 38px;
+  }
+  .pitch-player-token.is-keshin-active .keshin-flame-aura::before {
+    width: 28px;
+    height: 35px;
+  }
+  .pitch-player-token.is-keshin-active .keshin-flame-aura::after {
+    width: 26px;
+    height: 33px;
+  }
+  .pitch-player-token.is-marked-opp::after {
+    top: 11px;
+    width: 28px;
+    height: 28px;
+  }
+  .clash-fighter.has-coop-partners {
+    gap: 1px;
+  }
+  .clash-fighter.has-coop-partners .clash-avatar {
+    width: 44px;
+    height: 44px;
+  }
+  .clash-fighter.has-coop-partners .clash-coop-avatar {
+    width: 24px;
+    height: 24px;
+    border-radius: 7px;
+  }
+  .clash-fighter.is-trio-coop .clash-coop-partner.is-top {
+    margin-bottom: -4px;
+  }
+  .clash-fighter.is-trio-coop .clash-coop-partner.is-bottom {
+    margin-top: -4px;
   }
 }
 

@@ -1328,13 +1328,14 @@ function startPrepLocationTripleSlot(locId) {
   t.prep.choices = pickedThree;
   t.prep.appliedMsg = null;
 
+  if (typeof saveActiveRunProgress === "function") saveActiveRunProgress();
   renderTournamentScreen();
 }
 
 function handleChoosePrepOption(choiceEvent) {
   const t = state.tournament;
   const prep = t.prep;
-  if (!prep || !choiceEvent) return;
+  if (!prep || !choiceEvent || prep.phase !== "PICK_CHOICE") return;
   prep.lastActionWasFreeRest = false;
   prep.event = choiceEvent;
   if (choiceEvent.id) {
@@ -1499,8 +1500,8 @@ function handleChoosePrepOption(choiceEvent) {
       collectAffectedRoles(["GK", "DF"], `+${nextL * 2} DEF/FIS`);
       effectTxt = `<span class="b-pwr">+2 DEF e +2 FIS</span> acumulados (<span class="b-pwr">+${nextL * 2} total</span>) em Goleiro e Zaga`;
     } else if (key === "hissatsuMasteryLvl") {
-      const val = [0, 0.6, 1.2, 1.8][nextL] || 1.8;
-      effectTxt = `<span class="b-pwr">+${val} de força extra</span> nos duelos ao usar técnicas`;
+      const pct = [0, 2, 4, 5][nextL] || 5;
+      effectTxt = `<span class="b-pwr">+${pct}% chance</span> de vencer duelos ao usar Super Técnicas`;
     } else if (key === "xpSpiritLvl") {
       const pct = [0, 12, 24, 36][nextL] || 36;
       effectTxt = `<span class="b-lvl">+${pct}% XP</span> ganho após cada partida oficial`;
@@ -1509,11 +1510,11 @@ function handleChoosePrepOption(choiceEvent) {
       effectTxt = `<span class="b-chem">-${pct}% chance</span> de interceptação nos passes do time`;
     } else if (key === "counterShotLvl") {
       const pct = [0, 12, 24, 35][nextL] || 35;
-      const pwrB = [0, 1.0, 2.0, 3.2][nextL] || 3.2;
-      effectTxt = `<span class="b-tech">+${pct}% chance</span> de Contra-Chute e <span class="b-pwr">+${pwrB} força</span>`;
+      const winPct = [0, 3, 6, 9][nextL] || 9;
+      effectTxt = `<span class="b-tech">+${pct}% frequência</span> de Contra-Chute e <span class="b-pwr">+${winPct}% chance</span> de gol`;
     } else if (key === "dribbleEdgeLvl") {
-      const val = [0, 0.9, 1.8, 2.7][nextL] || 2.7;
-      effectTxt = `<span class="b-pwr">+${val} de força</span> nos duelos de drible (bônus extra no corredor tático)`;
+      const pct = [0, 3, 5, 8][nextL] || 8;
+      effectTxt = `<span class="b-pwr">+${pct}% chance</span> nos dribles 1x1 (+2% extra no corredor tático)`;
     }
 
     t.prepBonuses.log.push(`${choiceEvent.title} Nv. ${nextL}`);
@@ -1529,6 +1530,7 @@ function handleChoosePrepOption(choiceEvent) {
   if (choiceEvent.kind === "STREET_5V5") {
     prep.clash5v5 = buildStreet5v5Matchup();
     prep.phase = "RESULT";
+    if (typeof saveActiveRunProgress === "function") saveActiveRunProgress();
     renderTournamentScreen();
     return;
   }
@@ -1541,6 +1543,7 @@ function handleChoosePrepOption(choiceEvent) {
 
   // 5. Itens, Keshin ou Evolução para 1 jogador selecionado do elenco
   prep.phase = "RESULT";
+  if (typeof saveActiveRunProgress === "function") saveActiveRunProgress();
   renderTournamentScreen();
 }
 
@@ -1562,6 +1565,9 @@ function handleRecruitStarPlayer(starRecruit, replaceSlotId) {
   );
   checkAndLearnLevelMoves(newP, targetRole);
   state.squad[replaceSlotId] = newP;
+  if (oldPlayer?.id && getTactics().acePlayerId === oldPlayer.id) {
+    getTactics().acePlayerId = null;
+  }
   const newPwr = calcIndividualPlayerPower(newP, targetRole, recruitLvl);
   prep.phase = "DONE";
   prep.recruitCandidate = null;
@@ -1722,7 +1728,7 @@ function applyPrepPlayerReward(slotId) {
     if (!player.keshin) {
       const pool = CANONICAL_KESHINS[slot.role] || CANONICAL_KESHINS.MF;
       const chosenK = pool[Math.floor(Math.random() * pool.length)];
-      player.keshin = { name: chosenK.name, icon: UI[chosenK.iconKey] || UI.keshinIcon };
+      player.keshin = { name: chosenK.name, iconKey: chosenK.iconKey, icon: UI[chosenK.iconKey] || UI.keshinIcon };
       player.level = prevLvl + lvlGain;
       player.bonusPower = (player.bonusPower || 0) + indivPwrGain;
       const newLvl = getPlayerLevel(player);
@@ -1871,11 +1877,11 @@ function runStreet5v5Challenge() {
       if (won && c5.starRecruit) {
         prep.phase = "RECRUIT_OFFER";
         prep.recruitCandidate = c5.starRecruit;
-        prep.appliedMsg = `Vitória épica por Gol de Ouro (1 x 0${scorerName ? ` · ${scorerName}` : ""})! Os 5 participantes ganharam +120 a +150 XP${drinkMsg} e o craque rival ${c5.starRecruit.player.name} (OVR ${c5.starRecruit.player.ovr}) quer se juntar ao seu Dream Team!`;
+        prep.appliedMsg = `Vitória épica por Gol de Ouro (1 x 0${scorerName ? ` · ${scorerName}` : ""})! Os 5 participantes ganharam +95 a +115 XP${drinkMsg} e o craque rival ${c5.starRecruit.player.name} (OVR ${c5.starRecruit.player.ovr}) quer se juntar ao seu Dream Team!`;
       } else {
         prep.phase = "DONE";
         prep.appliedMsg = won
-          ? `Vitória por Gol de Ouro (1 x 0${scorerName ? ` · ${scorerName}` : ""})! Todos os 5 participantes ganharam +120 a +150 XP${drinkMsg} e o time ganhou +${pwr} Poder!`
+          ? `Vitória por Gol de Ouro (1 x 0${scorerName ? ` · ${scorerName}` : ""})! Todos os 5 participantes ganharam +95 a +115 XP${drinkMsg} e o time ganhou +${pwr} Poder!`
           : `Os Desafiantes venceram o Gol de Ouro (0 x 1). O time sentiu a pressão (-20 Poder), mas ganhou +${totalXpGiven} XP de aprendizado.`;
       }
       renderAll();
@@ -1890,18 +1896,20 @@ function runStreet5v5Challenge() {
   startPitchRafLoop(miniSt);
 }
 
-function buildTeamEnergyBarHTML(isLive = false, activeMinute = 0) {
+function buildTeamEnergyBarHTML(isLive = false, activeMinute = 0, customPrefix = null) {
   const val = Math.round(getTeamEnergy());
   const band = getTeamEnergyBand(val);
-  const prefix = isLive ? "live" : "prep";
+  const prefix = customPrefix || (isLive ? "live" : "prep");
+  const isLiveCtx = Boolean(isLive || customPrefix === "live-modal");
+  const descText = isLiveCtx ? (band.liveDesc || band.desc) : band.desc;
   const showLateBadge = Boolean(
     state.tournament?.prepBonuses?.lateMatchNoStaminaLoss && activeMinute >= 75
   );
   return `
-    <div class="team-energy-strip ${isLive ? "is-live" : ""}" id="${prefix}-team-energy-strip" style="border-color:${band.border}; background:${band.bg};">
+    <div class="team-energy-strip ${isLiveCtx ? "is-live" : ""}" id="${prefix}-team-energy-strip" style="border-color:${band.border}; background:${band.bg};">
       <div class="team-energy-row">
         <span class="team-energy-title">⚡ Energia do Time: <strong id="${prefix}-team-energy-pill" style="color:${band.color};">${val}% (${band.label})</strong><span class="team-energy-passive-badge" id="${prefix}-team-energy-passive" style="display:${showLateBadge ? "inline-flex" : "none"};">🛡️ -50% (75'+)</span></span>
-        <span class="team-energy-desc" id="${prefix}-team-energy-desc">${band.desc}</span>
+        <span class="team-energy-desc" id="${prefix}-team-energy-desc">${descText}</span>
       </div>
       <div class="team-energy-bar-bg">
         <div class="team-energy-bar-fill" id="${prefix}-team-energy-fill" style="width:${val}%; background:${band.color};"></div>
@@ -1913,6 +1921,7 @@ function buildTeamEnergyBarHTML(isLive = false, activeMinute = 0) {
 function syncTeamEnergyBarDOM(prefix = "live", activeMinute = 0) {
   const eVal = Math.round(getTeamEnergy());
   const eBand = getTeamEnergyBand(eVal);
+  const isLiveCtx = prefix === "live" || prefix === "live-modal";
   const stripEl = document.getElementById(`${prefix}-team-energy-strip`);
   const pillEl = document.getElementById(`${prefix}-team-energy-pill`);
   const descEl = document.getElementById(`${prefix}-team-energy-desc`);
@@ -1927,7 +1936,7 @@ function syncTeamEnergyBarDOM(prefix = "live", activeMinute = 0) {
     pillEl.style.color = eBand.color;
   }
   if (descEl) {
-    descEl.textContent = eBand.desc;
+    descEl.textContent = isLiveCtx ? (eBand.liveDesc || eBand.desc) : eBand.desc;
   }
   if (fillEl) {
     fillEl.style.width = `${eVal}%`;
@@ -1943,19 +1952,19 @@ function syncTeamEnergyBarDOM(prefix = "live", activeMinute = 0) {
 
 function getIntensityHintText(intensity) {
   if (intensity === "low") {
-    return "Baixa (~22%/jogo): recupera mais fôlego, usa técnicas padrão, reduz força em duelos e não ativa Keshin.";
+    return "Baixa (~20%/jogo): recupera mais fôlego, usa técnicas padrão, reduz força em duelos e não ativa Keshin.";
   }
   if (intensity === "high") {
-    return "Alta (~68%/jogo): +força nos duelos, técnicas frequentes e Keshin mais agressiva, mas cansa rápido.";
+    return "Alta (~56%/jogo): +força nos duelos, técnicas frequentes e Keshin mais agressiva, mas cansa rápido.";
   }
-  return "Média (~41%/jogo): ritmo equilibrado entre técnica, ativação de Keshin e gasto de energia.";
+  return "Média (~34%/jogo): ritmo equilibrado entre técnica, ativação de Keshin e gasto de energia.";
 }
 
 function getTacticsSingleHints(tac) {
   const postureMap = {
-    defensive: "Recuado: +6% defesa, bloco baixo",
+    defensive: "Recuado: +6% defesa, bloco baixo (-3% ataque)",
     balanced: "Equilibrado: sem bônus ou penalidade",
-    offensive: "Avançado: +5% ataque, linha alta (-4% def)"
+    offensive: "Avançado: +5% ataque, linha alta (-4% defesa)"
   };
   const laneMap = {
     wings: "Pontas: foco nas alas (escala com VEL)",
@@ -1963,7 +1972,7 @@ function getTacticsSingleHints(tac) {
     center: "Meio: infiltração central (escala com TEC)"
   };
   const styleMap = {
-    possession: "Posse: tabelas curtas e menos desgaste",
+    possession: "Posse: tabelas curtas, -14% interceptações e menos desgaste",
     free: "Instinto: cada jogador segue sua personalidade",
     vertical: "Vertical: enfiadas rápidas e chutes diretos"
   };
@@ -2003,7 +2012,7 @@ function buildPrepTacticsTriggerBarHTML(t) {
   `;
 }
 
-function buildTacticsControlBarHTML(showSquadBtn = false) {
+function buildTacticsControlBarHTML(showSquadBtn = false, isLiveMatch = false) {
   const tac = getTactics();
   const pillBtn = (attr, val, label, active) =>
     `<button type="button" class="tac-pill-btn ${active ? "is-active" : ""}" ${attr}="${val}">${label}</button>`;
@@ -2019,6 +2028,60 @@ function buildTacticsControlBarHTML(showSquadBtn = false) {
   const capObj = typeof getActiveTeamCaptain === "function" ? getActiveTeamCaptain() : null;
   const capAura = capObj && typeof getCaptainAuraInfo === "function" ? getCaptainAuraInfo(capObj.player, capObj.role) : null;
   const acePlayer = starters.find((x) => x.player.id === tac.acePlayerId)?.player || null;
+
+  const extraPreMatchHTML = isLiveMatch
+    ? ""
+    : `
+      <div class="tac-extra-grid">
+        <div class="tac-extra-card">
+          <div class="tac-extra-head">
+            <span class="tac-label">Tática Especial (1x ao vivo no jogo)</span>
+          </div>
+          <div class="tac-pills tac-hissatsu-pills">
+            ${Object.values(hCatalog)
+              .map((ht) => pillBtn("data-tac-hissatsu", ht.id, ht.name, tac.hissatsuTactic === ht.id))
+              .join("")}
+          </div>
+          <div class="tac-extra-desc" data-tac-hissatsu-desc>
+            <strong>${activeHissatsu?.name || ""}:</strong> ${activeHissatsu?.desc || ""}
+          </div>
+        </div>
+
+        <div class="tac-extra-card tac-leaders-card">
+          <div class="tac-leader-row">
+            <label class="tac-label">${captainIconHTML("inline-ui-icon")} Capitão do Time</label>
+            <select class="tac-select" data-tac-captain>
+              ${starters
+                .map(
+                  ({ slot, player }) =>
+                    `<option value="${player.id}" ${capObj?.player?.id === player.id ? "selected" : ""}>[${slot.role}] ${player.name} (OVR ${getEffectiveOvr(player, slot.role)})</option>`
+                )
+                .join("")}
+            </select>
+            <div class="tac-aura-note" data-tac-captain-aura>
+              ${capAura ? `<strong>Aura: ${capAura.name}</strong> — ${capAura.shortEffect}` : ""}
+            </div>
+          </div>
+
+          <div class="tac-leader-row">
+            <label class="tac-label">Referência Ofensiva (Camisa 10)</label>
+            <select class="tac-select" data-tac-ace>
+              <option value="" ${!acePlayer ? "selected" : ""}>Automático (distribuído)</option>
+              ${starters
+                .filter((x) => x.slot.role !== "GK")
+                .map(
+                  ({ slot, player }) =>
+                    `<option value="${player.id}" ${acePlayer?.id === player.id ? "selected" : ""}>[${slot.role}] ${player.name} (OVR ${getEffectiveOvr(player, slot.role)})</option>`
+                )
+                .join("")}
+            </select>
+            <div class="tac-aura-note" data-tac-ace-note>
+              ${acePlayer ? `O time procura mais <strong>${acePlayer.name}</strong> nos passes decisivos e finalizações.` : "Passes distribuídos conforme espaço livre e personalidade."}
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
 
   return `
     <div class="tactics-control-bar is-clean-modal-tac">
@@ -2072,55 +2135,7 @@ function buildTacticsControlBarHTML(showSquadBtn = false) {
         </div>
       </div>
 
-      <div class="tac-extra-grid">
-        <div class="tac-extra-card">
-          <div class="tac-extra-head">
-            <span class="tac-label">Tática Especial (1x ao vivo no jogo)</span>
-          </div>
-          <div class="tac-pills tac-hissatsu-pills">
-            ${Object.values(hCatalog)
-              .map((ht) => pillBtn("data-tac-hissatsu", ht.id, ht.name, tac.hissatsuTactic === ht.id))
-              .join("")}
-          </div>
-          <div class="tac-extra-desc" data-tac-hissatsu-desc>
-            <strong>${activeHissatsu?.name || ""}:</strong> ${activeHissatsu?.desc || ""}
-          </div>
-        </div>
-
-        <div class="tac-extra-card tac-leaders-card">
-          <div class="tac-leader-row">
-            <label class="tac-label">${captainIconHTML("inline-ui-icon")} Capitão do Time</label>
-            <select class="tac-select" data-tac-captain>
-              ${starters
-                .map(
-                  ({ slot, player }) =>
-                    `<option value="${player.id}" ${capObj?.player?.id === player.id ? "selected" : ""}>[${slot.role}] ${player.name} (OVR ${getEffectiveOvr(player, slot.role)})</option>`
-                )
-                .join("")}
-            </select>
-            <div class="tac-aura-note" data-tac-captain-aura>
-              ${capAura ? `<strong>Aura: ${capAura.name}</strong> — ${capAura.shortEffect}` : ""}
-            </div>
-          </div>
-
-          <div class="tac-leader-row">
-            <label class="tac-label">Referência Ofensiva (Camisa 10)</label>
-            <select class="tac-select" data-tac-ace>
-              <option value="" ${!acePlayer ? "selected" : ""}>Automático (distribuído)</option>
-              ${starters
-                .filter((x) => x.slot.role !== "GK")
-                .map(
-                  ({ slot, player }) =>
-                    `<option value="${player.id}" ${acePlayer?.id === player.id ? "selected" : ""}>[${slot.role}] ${player.name} (OVR ${getEffectiveOvr(player, slot.role)})</option>`
-                )
-                .join("")}
-            </select>
-            <div class="tac-aura-note" data-tac-ace-note>
-              ${acePlayer ? `O time procura mais <strong>${acePlayer.name}</strong> nos passes decisivos e finalizações.` : "Passes distribuídos conforme espaço livre e personalidade."}
-            </div>
-          </div>
-        </div>
-      </div>
+      ${extraPreMatchHTML}
     </div>
   `;
 }
@@ -2240,7 +2255,7 @@ function buildActiveScalableBuffsHTML(t) {
     const stat = "4 Ações por rodada • -3% Custo na Cidade";
     const desc = "Libera 1 ação extra na cidade antes de cada partida e barateia todas as visitas pelo resto do torneio.";
     chips.push(
-      `<button type="button" class="scalable-buff-chip is-passive" title="${escapeHtmlAttr(`${title} — ${stat}. ${desc}`)}" data-buff-tip-title="${escapeHtmlAttr(title)}" data-buff-tip-stat="${escapeHtmlAttr(stat)}" data-buff-tip-desc="${escapeHtmlAttr(desc)}">Passe Livre <strong>4 Ações</strong></button>`
+      `<button type="button" class="scalable-buff-chip is-passive" aria-label="${escapeHtmlAttr(`${title} — ${stat}`)}" data-buff-tip-title="${escapeHtmlAttr(title)}" data-buff-tip-stat="${escapeHtmlAttr(stat)}" data-buff-tip-desc="${escapeHtmlAttr(desc)}">Passe Livre <strong>4 Ações</strong></button>`
     );
   }
   if (b.lateMatchNoStaminaLoss) {
@@ -2248,7 +2263,7 @@ function buildActiveScalableBuffsHTML(t) {
     const stat = "-50% Desgaste a partir dos 75'";
     const desc = "Seus 11 titulares gastam metade da energia na reta final das partidas, mantendo fôlego para viradas.";
     chips.push(
-      `<button type="button" class="scalable-buff-chip is-passive" title="${escapeHtmlAttr(`${title} — ${stat}. ${desc}`)}" data-buff-tip-title="${escapeHtmlAttr(title)}" data-buff-tip-stat="${escapeHtmlAttr(stat)}" data-buff-tip-desc="${escapeHtmlAttr(desc)}">Resistência 75'+ <strong>-50%</strong></button>`
+      `<button type="button" class="scalable-buff-chip is-passive" aria-label="${escapeHtmlAttr(`${title} — ${stat}`)}" data-buff-tip-title="${escapeHtmlAttr(title)}" data-buff-tip-stat="${escapeHtmlAttr(stat)}" data-buff-tip-desc="${escapeHtmlAttr(desc)}">Resistência 75'+ <strong>-50%</strong></button>`
     );
   }
 
@@ -2340,7 +2355,7 @@ function buildActiveScalableBuffsHTML(t) {
     const statTxt = d.stat(lvl);
     const descTxt = d.desc(lvl);
     chips.push(
-      `<button type="button" class="scalable-buff-chip ${cls}" title="${escapeHtmlAttr(`${fullTitle} — ${statTxt}. ${descTxt}`)}" data-buff-tip-title="${escapeHtmlAttr(fullTitle)}" data-buff-tip-stat="${escapeHtmlAttr(statTxt)}" data-buff-tip-desc="${escapeHtmlAttr(descTxt)}">${d.label} <strong>Nv.${lvl}</strong></button>`
+      `<button type="button" class="scalable-buff-chip ${cls}" aria-label="${escapeHtmlAttr(`${fullTitle} — ${statTxt}`)}" data-buff-tip-title="${escapeHtmlAttr(fullTitle)}" data-buff-tip-stat="${escapeHtmlAttr(statTxt)}" data-buff-tip-desc="${escapeHtmlAttr(descTxt)}">${d.label} <strong>Nv.${lvl}</strong></button>`
     );
   });
 
@@ -2360,8 +2375,13 @@ function buildOpponentScoutCardHTML(nextStage, stageIdx) {
   if (!oppTeam) return "";
   const oppStats = calcOpponentStats(oppTeam, stageIdx);
   const highlights = oppStats.highlights || [];
-  const markedId = getTactics().markedOppId || null;
-  const markedHighlight = highlights.find((h) => h.player?.id === markedId);
+  const tac = getTactics();
+  let markedId = tac.markedOppId || null;
+  const markedHighlight = highlights.find((h) => h.role !== "GK" && h.player?.id === markedId) || null;
+  if (markedId && !markedHighlight && highlights.some((h) => h.role === "GK" && h.player?.id === markedId)) {
+    tac.markedOppId = null;
+    markedId = null;
+  }
   return `
     <div class="opp-scout-card">
       <div class="opp-scout-head">
@@ -2385,17 +2405,17 @@ function buildOpponentScoutCardHTML(nextStage, stageIdx) {
         <span class="opp-scout-subhead">4 Destaques do Rival</span>
         <span class="opp-scout-mark-hint">
           ${markedHighlight
-            ? `Marcação Especial ativa em <strong>${markedHighlight.player.name}</strong> (-4% chance ofensiva dele • clique para trocar)`
-            : "Clique em 1 craque rival para ativar Marcação Especial (-4% chance ofensiva dele)"}
+            ? `Marcação Especial ativa em <strong>${markedHighlight.player.name}</strong> (-4% ofensivo + cobertura próxima)`
+            : "Clique em 1 jogador de linha rival para ativar Marcação Especial (-4% ofensivo + cobertura próxima)"}
         </span>
       </div>
       <div class="opp-scout-highlights-grid">
         ${highlights
           .map((h) => {
             const p = h.player;
-            const isMarked = Boolean(markedId && p.id === markedId);
-            return `
-              <button type="button" class="opp-scout-player is-clickable-scout ${isMarked ? "is-marked-target" : ""}" data-scout-mark-id="${p.id}" title="${isMarked ? "Remover Marcação Especial" : `Ativar Marcação Especial em ${p.name}`}">
+            const canMark = h.role !== "GK";
+            const isMarked = Boolean(canMark && markedId && p.id === markedId);
+            const innerHTML = `
                 <img class="opp-scout-avatar" src="${getPlayerFormSprite(p, h.role)}" alt="${p.name}" />
                 <div class="opp-scout-pinfo">
                   <div class="opp-scout-pname-row">
@@ -2412,10 +2432,17 @@ function buildOpponentScoutCardHTML(nextStage, stageIdx) {
                       ? `<div class="opp-scout-keshin-pill">Keshin: ${h.keshin.name}</div>`
                       : ""
                   }
-                  <div class="opp-scout-mark-tag ${isMarked ? "is-active" : ""}">
-                    ${isMarked ? "MARCAÇÃO ESPECIAL ATIVA" : "Marcar este jogador"}
+                  <div class="opp-scout-mark-tag ${isMarked ? "is-active" : ""} ${!canMark ? "is-gk-locked" : ""}">
+                    ${!canMark ? "Goleiro (não marcável)" : isMarked ? "MARCAÇÃO ESPECIAL ATIVA" : "Marcar este jogador"}
                   </div>
                 </div>
+            `;
+            if (!canMark) {
+              return `<div class="opp-scout-player is-gk-scout">${innerHTML}</div>`;
+            }
+            return `
+              <button type="button" class="opp-scout-player is-clickable-scout ${isMarked ? "is-marked-target" : ""}" data-scout-mark-id="${p.id}" data-scout-mark-role="${h.role}" title="${isMarked ? "Remover Marcação Especial" : `Ativar Marcação Especial em ${p.name}`}">
+                ${innerHTML}
               </button>
             `;
           })
@@ -2582,7 +2609,7 @@ function buildBetweenMatchPrepHTML(t, stats) {
             <div class="prep-choice-buff-pill">${getPrepBuffPill(chosenWinner)}</div>
             <div class="prep-choice-summary">${getPrepChoiceSummary(chosenWinner)}</div>
             ${comboHTML}
-            <button class="ie-cmd-btn ie-cmd-gold prep-btn-pick" data-prep-choice-idx="${sIdx}">
+            <button type="button" class="ie-cmd-btn ie-cmd-gold prep-btn-pick">
               <span>ESCOLHER</span>
             </button>
           </div>
@@ -2795,8 +2822,14 @@ function buildBetweenMatchPrepHTML(t, stats) {
                   const nextLvl = curLvl + lvlGain;
                   const curPwr = calcIndividualPlayerPower(p, slot.role, curLvl);
                   const pwrPerLvl = calcPowerPerLevel(curOvr);
-                  const extraItemPwr = (ev.indivPower || 20) + (ev.kind === "KESHIN_PICK" ? 32 : ev.id === "secret_hissatsu_mastery" ? 38 : ev.kind === "EVO_PICK" ? 16 : 0);
-                  const nextPwr = curPwr + lvlGain * pwrPerLvl + extraItemPwr;
+                  const extraItemPwr =
+                    (ev.indivPower || 20) +
+                    (ev.id === "secret_hissatsu_mastery" ? 18 : ev.kind === "EVO_PICK" ? 13 : 0);
+                  const nextPwr = curPwr + (ev.kind === "ELEM_BOOST_PICK" ? 0 : lvlGain * pwrPerLvl) + extraItemPwr;
+                  const previewGainLine =
+                    ev.kind === "ELEM_BOOST_PICK"
+                      ? `+125 XP • Poder ${curPwr} ➔ ${nextPwr}+ (todos de ${p.element})`
+                      : `Nv. ${curLvl} ➔ Nv. ${nextLvl} • Poder ${curPwr} ➔ ${nextPwr}`;
                   const extraInfo =
                     ev.kind === "ELEM_BOOST_PICK"
                       ? `Elemento: ${p.element} (+125 XP e +${ev.indivPower || 12} Poder em todos de ${p.element})`
@@ -2824,7 +2857,7 @@ function buildBetweenMatchPrepHTML(t, stats) {
                           <span style="color:#fde047; flex-shrink:0;">(OVR ${curOvr})</span>
                         </div>
                         <div style="font-size:0.68rem; font-weight:800; color:#4ade80; margin-top:2px;">
-                          Nv. ${curLvl} ➔ Nv. ${nextLvl} • Poder ${curPwr} ➔ ${nextPwr}
+                          ${previewGainLine}
                         </div>
                         ${formatPlayerStatsStripHTML(p, slot.role, curLvl)}
                         <div style="font-size:0.64rem; color:#94a3b8; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:2px;">

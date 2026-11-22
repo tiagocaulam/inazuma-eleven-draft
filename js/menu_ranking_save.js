@@ -1117,7 +1117,13 @@ function deserializeSquadFromSave(rawSquad) {
     p.equippedItems = Array.isArray(rawP.equippedItems)
       ? rawP.equippedItems.map((it) => ({ id: it.id, title: it.title }))
       : [];
-    p.keshin = rawP.keshin ? { name: rawP.keshin.name, iconKey: rawP.keshin.iconKey } : null;
+    p.keshin = rawP.keshin
+      ? {
+          name: rawP.keshin.name,
+          iconKey: rawP.keshin.iconKey || null,
+          icon: (rawP.keshin.iconKey && UI[rawP.keshin.iconKey]) || UI.keshinIcon
+        }
+      : null;
     p.moveEvoCount = Number(rawP.moveEvoCount) || 0;
     p.learnedSecretManual = Boolean(rawP.learnedSecretManual);
     p.learnedLvlMilestones = Array.isArray(rawP.learnedLvlMilestones) ? [...rawP.learnedLvlMilestones] : [];
@@ -1285,7 +1291,8 @@ function deserializePrepFromSave(rawPrep, t) {
     riskTargetSlotId: null
   };
 
-  if (prep.phase === "CLASH_5V5" || prep.phase === "SPINNING_CHOICES") {
+  const isBrokenResult = prep.phase === "RESULT" && (!prep.event || prep.event.kind === "STREET_5V5");
+  if (prep.phase === "CLASH_5V5" || prep.phase === "SPINNING" || prep.phase === "SPINNING_CHOICES" || isBrokenResult) {
     const loc = getPrepLocationsCatalog().find((x) => x.id === (prep.locId || "riverbank"));
     if (loc && !loc.isRestLocation) {
       adjustTeamEnergy(getPrepLocationCost(loc, t));
