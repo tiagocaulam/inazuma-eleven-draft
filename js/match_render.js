@@ -538,6 +538,8 @@ function handleMinuteEndBoundaries(st, ovrDiff) {
     );
     if (st.isGroupStage) {
       finalizeWorldGroupRound(st);
+    } else if (typeof advanceTournamentBracketAfterStage === "function") {
+      advanceTournamentBracketAfterStage(st);
     }
     awardPostMatchExperience(st);
     if (isTournamentRunTerminal(state.tournament)) {
@@ -710,7 +712,7 @@ function calcNodeDuelScore(node, teamSupportBonus, opponentElem = null, actionKi
     }
   } else if (node.side === "opp") {
     const sIdx = !isIn5v5 ? (state.tournament?.stageIndex || 0) : 0;
-    tacticalAndEnergyAdj += Math.min(2.8, Math.max(0, sIdx - 1) * 0.32);
+    tacticalAndEnergyAdj += Math.min(1.5, Math.max(0, sIdx - 1) * 0.18);
 
     const oppPost = getOpponentDynamicPosture();
     if (oppPost === "offensive") {
@@ -1245,24 +1247,26 @@ function computeNodeRoleTarget(node, pitch, carrier, chaserUid, coverUid, deepes
       carrierLaneY = 50 + Math.sin(t * 1.1 + node.wanderPhase) * 7;
     }
 
-    // Não avança cegamente na cara do goleiro: para na zona ideal de chute (15-18m) ou contorna se o GK sair!
+    // Não avança cegamente na cara do goleiro: para na zona ideal de chute (15-18m) e respeita distância segura do GK!
     const distToOppGk = oppGk ? Math.hypot(oppGk.x - node.x, oppGk.y - node.y) : 99;
     const stopBeforeGoal = prof.archetype === "INDIVIDUALISTA" ? 13.5 : 16.5;
-    let steerX = oppGoalX - dir * stopBeforeGoal - node.x;
+    const pocketX = oppGoalX - dir * stopBeforeGoal;
+    let steerX = pocketX - node.x;
     let steerY = carrierLaneY - node.y;
     const distGoal = Math.hypot(steerX, steerY) || 1;
     steerX /= distGoal;
     steerY /= distGoal;
 
-    // Se o goleiro está próximo/saindo, abre lateralmente para fugir do abafa e ganhar ângulo de chute
-    if (oppGk && distToOppGk < 14.5) {
+    // Se o goleiro está próximo/saindo, abre lateralmente e recua levemente para fugir do abafa e ganhar ângulo de chute
+    if (oppGk && distToOppGk < 15.5) {
       const avoidGkY = node.y >= oppGk.y ? 1 : -1;
-      const gkPressure = (14.5 - distToOppGk) / 14.5;
-      steerX -= dir * gkPressure * 0.85;
-      steerY += avoidGkY * (0.95 + gkPressure * 0.9);
+      const gkPressure = (15.5 - distToOppGk) / 15.5;
+      steerX -= dir * (0.65 + gkPressure * 1.15);
+      steerY += avoidGkY * (1.05 + gkPressure * 0.95);
     }
 
-    // Steering avoidance ao redor de marcadores próximos (Individualistas/Velozes cortam mais agudo)
+    // Steering avoidance ao redor de marcadores próximos (sem empurrar o portador para cima do GK)
+    const inShootingPocket = isUser ? node.x >= pocketX - 1.5 : node.x <= pocketX + 1.5;
     const dodgeSharpness = prof.archetype === "INDIVIDUALISTA" || prof.archetype === "VELOZ" ? 1.32 : 1.05;
     defNodes.forEach((d) => {
       if (d.role === "GK") return;
@@ -1271,13 +1275,21 @@ function computeNodeRoleTarget(node, pitch, carrier, chaserUid, coverUid, deepes
       const dist = Math.hypot(dx, dy);
       if (dist > 0.1 && dist < 14.5) {
         const repulse = Math.pow((14.5 - dist) / 14.5, 1.35) * 1.85 * dodgeSharpness;
-        steerX += (dx / dist) * repulse * 0.42;
+        let repX = (dx / dist) * repulse * 0.42;
+        if (inShootingPocket && repX * dir > 0) repX *= 0.15;
+        steerX += repX;
         steerY += (dy / dist) * repulse * 1.18;
       }
     });
 
     if (node.y < 15) steerY += 0.75;
     if (node.y > 85) steerY -= 0.75;
+
+    const steerMag = Math.hypot(steerX, steerY) || 1;
+    if (steerMag > 1.25) {
+      steerX = (steerX / steerMag) * 1.25;
+      steerY = (steerY / steerMag) * 1.25;
+    }
 
     const carrierSprint = node.staggerTimer > 0
       ? 0.55
@@ -1287,9 +1299,15 @@ function computeNodeRoleTarget(node, pitch, carrier, chaserUid, coverUid, deepes
       ? 1.08
       : 1.03;
 
+    const stepDist = Math.min(14, Math.max(3.5, distGoal));
+    const maxUserTx = oppGk ? Math.max(Math.min(node.x - 1.0, 84), Math.min(84, oppGk.x - 7.5)) : 84;
+    const minOppTx = oppGk ? Math.min(Math.max(node.x + 1.0, 16), Math.max(16, oppGk.x + 7.5)) : 16;
+    const rawTx = node.x + steerX * stepDist;
+    const rawTy = node.y + steerY * stepDist;
+
     return {
-      tx: Math.max(8, Math.min(92, node.x + steerX * 14)),
-      ty: Math.max(11, Math.min(89, node.y + steerY * 14)),
+      tx: isUser ? Math.max(8, Math.min(maxUserTx, rawTx)) : Math.min(92, Math.max(minOppTx, rawTx)),
+      ty: Math.max(11, Math.min(89, rawTy)),
       sprint: carrierSprint
     };
   }
@@ -1313,9 +1331,9 @@ function computeNodeRoleTarget(node, pitch, carrier, chaserUid, coverUid, deepes
           return betweenGoal && Math.hypot(d.x - carrier.x, d.y - carrier.y) <= 5.2;
         });
 
-        // Sai correndo para abafar se o atacante está livre na cara do gol OU colou demais na pequena área!
-        const veryCloseToGoal = isUser ? carrier.x <= 15.5 : carrier.x >= 84.5;
-        if (!hasCloseShieldDef || veryCloseToGoal || distCarrierToGk <= 11.5) {
+        // Sai correndo para abafar se o atacante está livre na cara do gol OU entrou perto da área do GK!
+        const veryCloseToGoal = isUser ? carrier.x <= 18.5 : carrier.x >= 81.5;
+        if (!hasCloseShieldDef || veryCloseToGoal || distCarrierToGk <= 13.5) {
           node.isGkRushing = true;
           // Fecha o ângulo mirando diretamente no pé/trajetória do portador
           const leadX = carrier.x + (carrier.vx || 0) * 0.12;

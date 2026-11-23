@@ -1234,6 +1234,56 @@ function deserializeWorldGroupFromSave(rawWg) {
   };
 }
 
+function serializeBracketForSave(br) {
+  if (!br || typeof br !== "object" || !Array.isArray(br.rounds)) return null;
+  const slimEntry = (e) => {
+    if (!e || typeof e !== "object") return null;
+    const { emblem, ...rest } = e;
+    return rest;
+  };
+  return {
+    comp: br.comp || "FF",
+    title: br.title || "Chaveamento",
+    champion: slimEntry(br.champion),
+    rounds: br.rounds.map((round) =>
+      (round || []).map((m) => ({
+        id: m.id,
+        a: slimEntry(m.a),
+        b: slimEntry(m.b),
+        scoreA: m.scoreA ?? null,
+        scoreB: m.scoreB ?? null,
+        penText: m.penText || null,
+        played: Boolean(m.played),
+        winner: slimEntry(m.winner)
+      }))
+    )
+  };
+}
+
+function deserializeBracketFromSave(rawBr) {
+  if (!rawBr || typeof rawBr !== "object" || !Array.isArray(rawBr.rounds)) return null;
+  const hydrateEntry = (e) => {
+    if (!e || typeof e !== "object") return null;
+    return {
+      ...e,
+      emblem: e.isUser ? (UI.raimonEmblem || "") : (findTeamById(e.id)?.emblem || "")
+    };
+  };
+  return {
+    comp: rawBr.comp || "FF",
+    title: rawBr.title || "Chaveamento",
+    champion: hydrateEntry(rawBr.champion),
+    rounds: rawBr.rounds.map((round) =>
+      (round || []).map((m) => ({
+        ...m,
+        a: hydrateEntry(m.a),
+        b: hydrateEntry(m.b),
+        winner: hydrateEntry(m.winner)
+      }))
+    )
+  };
+}
+
 function serializePrepForSave(prep) {
   if (!prep || typeof prep !== "object") return null;
   return {
@@ -1416,6 +1466,7 @@ function saveActiveRunProgress() {
         isDraw: s.finished ? Boolean(s.isDraw) : false,
         penaltiesText: s.finished ? s.penaltiesText || null : null,
         _groupRecorded: Boolean(s._groupRecorded),
+        _bracketRecorded: Boolean(s._bracketRecorded),
         _groupSnapshotBefore: s._groupSnapshotBefore ? serializeWorldGroupForSave(s._groupSnapshotBefore) : null,
         stats: s.finished ? compactPitchStatsForSave(s.pitch?.stats) : null
       }));
@@ -1438,6 +1489,8 @@ function saveActiveRunProgress() {
           stageIndex: t.stageIndex || 0,
           worldUnlocked: Boolean(t.worldUnlocked),
           worldGroup: serializeWorldGroupForSave(t.worldGroup),
+          ffBracket: serializeBracketForSave(t.ffBracket),
+          worldBracket: serializeBracketForSave(t.worldBracket),
           teamEnergy: safeEnergy,
           preMatchTeamEnergy: safeEnergy,
           nextMatchEnergyMul: typeof t.nextMatchEnergyMul === "number" ? t.nextMatchEnergyMul : 1,
@@ -1555,6 +1608,7 @@ function resumeSavedRunProgress() {
         stage.isDraw = Boolean(rs.isDraw);
         stage.penaltiesText = rs.penaltiesText || null;
         stage._groupRecorded = Boolean(rs._groupRecorded);
+        stage._bracketRecorded = Boolean(rs._bracketRecorded);
         if (rs._groupSnapshotBefore) {
           stage._groupSnapshotBefore = deserializeWorldGroupFromSave(rs._groupSnapshotBefore);
         }
@@ -1576,6 +1630,8 @@ function resumeSavedRunProgress() {
       stages: restoredStages,
       worldUnlocked: Boolean(rt.worldUnlocked),
       worldGroup: deserializeWorldGroupFromSave(rt.worldGroup),
+      ffBracket: deserializeBracketFromSave(rt.ffBracket),
+      worldBracket: deserializeBracketFromSave(rt.worldBracket),
       teamEnergy: typeof rt.teamEnergy === "number" ? Math.max(0, Math.min(100, rt.teamEnergy)) : 100,
       preMatchTeamEnergy: typeof rt.preMatchTeamEnergy === "number" ? rt.preMatchTeamEnergy : undefined,
       nextMatchEnergyMul: typeof rt.nextMatchEnergyMul === "number" ? rt.nextMatchEnergyMul : 1,

@@ -58,6 +58,107 @@ function buildWorldGroupTableHTML(wg, t) {
   `;
 }
 
+function getActiveBracketForTournament(t, focusIdx) {
+  if (!t) return null;
+  if (focusIdx <= 3 && t.ffBracket) return t.ffBracket;
+  if (focusIdx >= 7 && t.worldBracket) return t.worldBracket;
+  return null;
+}
+
+function buildTournamentBracketModalHTML(t, focusIdx) {
+  const br = getActiveBracketForTournament(t, focusIdx);
+  if (!br || !Array.isArray(br.rounds)) return "";
+  const roundNames = ["Oitavas", "Quartas", "Semifinal", "Final"];
+  const colsHTML = br.rounds
+    .map((matches, rIdx) => {
+      const cards = (matches || [])
+        .map((m) => {
+          const renderSide = (entry, scoreVal, oppWinner) => {
+            if (!entry) {
+              return `<div class="bracket-team-row is-tbd"><span class="bracket-team-name">A definir</span><span class="bracket-team-score">-</span></div>`;
+            }
+            const isWin = Boolean(m.played && m.winner && m.winner.id === entry.id);
+            const isLoss = Boolean(m.played && m.winner && m.winner.id !== entry.id);
+            const cls = ["bracket-team-row", entry.isUser ? "is-user-team" : "", isWin ? "is-winner" : "", isLoss ? "is-eliminated" : ""].filter(Boolean).join(" ");
+            return `
+              <div class="${cls}">
+                ${entry.emblem ? `<img class="bracket-team-emblem" src="${entry.emblem}" alt="" />` : `<span class="bracket-emblem-ph"></span>`}
+                <span class="bracket-team-name" title="${entry.name}">${entry.name}</span>
+                <span class="bracket-team-score">${m.played && scoreVal !== null && scoreVal !== undefined ? scoreVal : ""}</span>
+              </div>
+            `;
+          };
+          const mCls = ["bracket-match-card", (m.a?.isUser || m.b?.isUser) ? "has-user-match" : "", m.played ? "is-played" : ""].filter(Boolean).join(" ");
+          return `
+            <div class="${mCls}">
+              ${renderSide(m.a, m.scoreA)}
+              ${renderSide(m.b, m.scoreB)}
+              ${m.penText ? `<div class="bracket-pen-note">Pênaltis: ${m.penText}</div>` : ""}
+            </div>
+          `;
+        })
+        .join("");
+      return `
+        <div class="bracket-round-col">
+          <div class="bracket-round-title">${roundNames[rIdx] || `Fase ${rIdx + 1}`}</div>
+          <div class="bracket-round-matches">${cards}</div>
+        </div>
+      `;
+    })
+    .join("");
+
+  return `
+    <div class="live-tactics-modal-backdrop" id="tournament-bracket-modal">
+      <div class="live-tactics-modal-card bracket-modal-card">
+        <div class="live-tactics-modal-head">
+          <div>
+            <div style="font-size:0.68rem; font-weight:900; color:#facc15; text-transform:uppercase;">${ffLogoIconHTML("inline-ui-icon")} Chaveamento Oficial (16 Times)</div>
+            <h4 style="margin:0; font-size:1rem; font-weight:900; color:#fff;">${br.title || "Chaveamento do Torneio"}</h4>
+          </div>
+          <button type="button" class="ie-cmd-btn" id="btn-close-bracket-modal" style="padding:5px 12px; font-size:0.74rem; background:#334155;">
+            <span>Fechar ✕</span>
+          </button>
+        </div>
+        ${br.champion ? `<div class="bracket-champion-banner">${ffLogoIconHTML("inline-ui-icon")} Campeão: <strong>${br.champion.name}</strong></div>` : ""}
+        <div class="bracket-tree-scroll">
+          <div class="bracket-rounds-grid">${colsHTML}</div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function bindTournamentBracketModalEvents(liveStage = null) {
+  const modal = document.getElementById("tournament-bracket-modal");
+  const openBtn = document.getElementById("btn-open-bracket-modal");
+  const closeBtn = document.getElementById("btn-close-bracket-modal");
+  if (!modal) return;
+  let pausedByBracket = false;
+  const closeFn = () => {
+    modal.classList.remove("is-open");
+    if (pausedByBracket && liveStage && !liveStage.finished) {
+      pausedByBracket = false;
+      liveStage.running = true;
+      startPitchRafLoop(liveStage);
+      startMatchInterval();
+    }
+  };
+  if (openBtn) {
+    openBtn.addEventListener("click", () => {
+      if (liveStage && liveStage.running && !liveStage.finished && !state.tournament.pendingWhistleFinish) {
+        pausedByBracket = true;
+        liveStage.running = false;
+        clearTournamentTimers(true);
+      }
+      modal.classList.add("is-open");
+    });
+  }
+  if (closeBtn) closeBtn.addEventListener("click", closeFn);
+  modal.addEventListener("click", (e) => {
+    if (e.target === modal) closeFn();
+  });
+}
+
 function buildFormationSelectorStripHTML() {
   return `
     <div class="tactics-control-bar" style="margin-bottom:8px; padding:7px 10px;">
@@ -235,6 +336,8 @@ function renderTournamentScreen() {
   const focusIdx = t.prep ? t.prep.nextStageIdx : t.stageIndex;
   const showGroupTable = Boolean(t.worldUnlocked && t.worldGroup && focusIdx <= 6);
   const groupTableHTML = showGroupTable ? buildWorldGroupTableHTML(t.worldGroup, t) : "";
+  const activeBracket = getActiveBracketForTournament(t, focusIdx);
+  const bracketModalHTML = activeBracket ? buildTournamentBracketModalHTML(t, focusIdx) : "";
 
   const pct = Math.min(100, Math.round((st.minute / st.maxMinute) * 100));
 
@@ -249,6 +352,7 @@ function renderTournamentScreen() {
       ${groupTableHTML}
       ${buildBetweenMatchPrepHTML(t, stats)}
       ${buildUserSquadModalHTML(stats, t)}
+      ${bracketModalHTML}
     `;
 
     const squadModal = document.getElementById("squad-overview-modal");
@@ -474,6 +578,8 @@ function renderTournamentScreen() {
       });
     });
 
+    bindTournamentBracketModalEvents(null);
+
     const proceedBtn = document.getElementById("btn-prep-proceed");
     if (proceedBtn) {
       proceedBtn.addEventListener("click", () => {
@@ -645,6 +751,7 @@ function renderTournamentScreen() {
   // para evitar redundâncias (adversário, status e competição já aparecem no cabeçalho e placar da partida).
   container.innerHTML = `
     ${groupTableHTML}
+    ${bracketModalHTML}
 
     <div class="broadcast-card">
       <div class="broadcast-header">
@@ -660,6 +767,7 @@ function renderTournamentScreen() {
             </h3>
           </div>
         </div>
+        ${activeBracket ? `<button type="button" class="ie-cmd-btn ie-cmd-blue" id="btn-open-bracket-modal" style="margin-left:auto; font-size:0.72rem; padding:6px 11px;"><span>Ver Chaveamento</span></button>` : ""}
       </div>
 
       <div class="time-bar-bg">
@@ -1083,6 +1191,8 @@ function renderTournamentScreen() {
       openBetweenMatchPrep(t.stageIndex + 1);
     });
   }
+
+  bindTournamentBracketModalEvents(st);
 }
 
 function renderMainScreen() {

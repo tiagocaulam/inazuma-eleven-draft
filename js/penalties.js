@@ -140,6 +140,9 @@ function finishPenaltyShootout(st) {
     null
   );
   awardPostMatchExperience(st);
+  if (typeof advanceTournamentBracketAfterStage === "function") {
+    advanceTournamentBracketAfterStage(st);
+  }
   if (isTournamentRunTerminal(state.tournament)) {
     maybeAutoSaveRunToRanking(state.tournament);
   }

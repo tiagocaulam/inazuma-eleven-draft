@@ -534,6 +534,140 @@ function pickPoolTeam(pools, usedIds) {
   return fallback;
 }
 
+function makeBracketTeamEntry(team, isUser = false) {
+  if (isUser) {
+    return {
+      id: "user_dream",
+      name: state.tournament?.rankingTeamName || "Dream Team",
+      emblem: UI.raimonEmblem || "",
+      baseOvr: calcSquadStats().ovr || 85,
+      isUser: true
+    };
+  }
+  if (!team) return null;
+  return {
+    id: team.id,
+    name: team.name,
+    emblem: team.emblem || "",
+    baseOvr: team.baseOvr || 84,
+    isUser: false
+  };
+}
+
+function createKnockoutBracket(comp, title, userR16Opp, poolTeams, usedIds = new Set(), seededOppRight = null) {
+  const taken = new Set(usedIds);
+  if (userR16Opp?.id) taken.add(userR16Opp.id);
+  if (seededOppRight?.id) taken.add(seededOppRight.id);
+
+  const pickNextOpp = () => {
+    const cands = (poolTeams || []).filter((t) => t && !taken.has(t.id));
+    if (cands.length > 0) {
+      const ch = cands[Math.floor(Math.random() * cands.length)];
+      taken.add(ch.id);
+      return ch;
+    }
+    const fallback = (DB.teams || []).find((t) => t && !taken.has(t.id)) || DB.teams[0];
+    if (fallback?.id) taken.add(fallback.id);
+    return fallback;
+  };
+
+  const makeMatch = (id, aTeam, bTeam, aIsUser = false) => ({
+    id,
+    a: makeBracketTeamEntry(aTeam, aIsUser),
+    b: makeBracketTeamEntry(bTeam, false),
+    scoreA: null,
+    scoreB: null,
+    penText: null,
+    played: false,
+    winner: null
+  });
+
+  const r16 = [];
+  for (let i = 0; i < 8; i++) {
+    if (i === 0) {
+      r16.push(makeMatch(`${comp}_r16_0`, null, userR16Opp, true));
+    } else if (i === 4 && seededOppRight) {
+      r16.push(makeMatch(`${comp}_r16_4`, seededOppRight, pickNextOpp(), false));
+    } else {
+      r16.push(makeMatch(`${comp}_r16_${i}`, pickNextOpp(), pickNextOpp(), false));
+    }
+  }
+  const emptyRound = (prefix, count) =>
+    Array.from({ length: count }, (_, idx) => ({
+      id: `${comp}_${prefix}_${idx}`,
+      a: null,
+      b: null,
+      scoreA: null,
+      scoreB: null,
+      penText: null,
+      played: false,
+      winner: null
+    }));
+
+  return {
+    comp,
+    title,
+    rounds: [r16, emptyRound("qf", 4), emptyRound("sf", 2), emptyRound("f", 1)],
+    champion: null
+  };
+}
+
+function advanceTournamentBracketAfterStage(st) {
+  const t = state.tournament;
+  if (!t || !st || st.isGroupStage || st._bracketRecorded) return;
+  const isWorld = st.competition === "WORLD";
+  const bracket = isWorld ? t.worldBracket : t.ffBracket;
+  const roundIdx = isWorld ? (t.stageIndex - 7) : t.stageIndex;
+  if (!bracket || !Array.isArray(bracket.rounds) || roundIdx < 0 || roundIdx > 3) return;
+
+  st._bracketRecorded = true;
+  const round = bracket.rounds[roundIdx] || [];
+  round.forEach((m, idx) => {
+    if (!m || m.played) return;
+    if (idx === 0) {
+      m.scoreA = st.userScore || 0;
+      m.scoreB = st.oppScore || 0;
+      m.played = true;
+      if (st.penalties && st.penaltiesText) {
+        m.penText = `${st.penalties.userGoals ?? 0} x ${st.penalties.oppGoals ?? 0}`;
+      }
+      const userFirst = !m.a || m.a.isUser;
+      m.winner = st.won ? (userFirst ? m.a : m.b) : (userFirst ? m.b : m.a);
+    } else if (m.a && m.b) {
+      const sim = simulateParallelGroupMatch(m.a, m.b);
+      m.scoreA = sim.gA;
+      m.scoreB = sim.gB;
+      m.played = true;
+      if (sim.gA > sim.gB) {
+        m.winner = m.a;
+      } else if (sim.gB > sim.gA) {
+        m.winner = m.b;
+      } else {
+        const edge = ((m.a.baseOvr || 84) - (m.b.baseOvr || 84)) * 0.03;
+        const aWinsPen = Math.random() < Math.max(0.25, Math.min(0.75, 0.5 + edge));
+        m.winner = aWinsPen ? m.a : m.b;
+        m.penText = aWinsPen ? "4 x 3" : "3 x 4";
+      }
+    }
+  });
+
+  if (roundIdx < 3) {
+    const nextRound = bracket.rounds[roundIdx + 1] || [];
+    for (let i = 0; i < nextRound.length; i++) {
+      nextRound[i].a = round[i * 2]?.winner || null;
+      nextRound[i].b = round[i * 2 + 1]?.winner || null;
+    }
+    const nextStage = t.stages?.[t.stageIndex + 1];
+    const nextUserMatch = nextRound[0];
+    if (st.won && nextStage && nextUserMatch?.b?.id) {
+      const realOpp = (DB.teams || []).find((tm) => tm.id === nextUserMatch.b.id);
+      if (realOpp) nextStage.oppTeam = realOpp;
+    }
+  } else {
+    bracket.champion = round[0]?.winner || null;
+  }
+}
+
 function startTournamentGo() {
   clearTournamentTimers(false);
   resetSquadPrepBonuses();
@@ -568,10 +702,19 @@ function startTournamentGo() {
     });
   });
 
+  const ffBracket = createKnockoutBracket(
+    "FF",
+    "Chaveamento • Futebol Fronteira",
+    stages[0].oppTeam,
+    domestic.slice().sort((a, b) => (a.baseOvr || 84) - (b.baseOvr || 84)),
+    new Set([stages[0].oppTeam.id])
+  );
+
   state.phase = "tournament";
   state.tournament = {
     ...createFreshTournamentState(),
-    stages
+    stages,
+    ffBracket
   };
 
   // Preparação em Inazuma também antes da 1ª partida!
@@ -660,6 +803,34 @@ function finalizeWorldGroupRound(st) {
   }
 
   sortWorldGroupStandings(wg.standings);
+
+  if (st.groupRoundIdx === 2 && getUserGroupRank(wg) <= 2 && !t.worldBracket) {
+    const worldPool = DB.teams.filter((tm) => WORLD_TEAM_IDS.has(tm.id));
+    const koFallbackPool = DB.teams.filter((tm) => (tm.baseOvr || 80) >= 86);
+    const otherQualRow = wg.standings.find((r) => !r.isUser);
+    const otherQualTeam = otherQualRow ? DB.teams.find((tm) => tm.id === otherQualRow.id) || null : null;
+    const eliminatedGrpIds = wg.standings
+      .filter((r) => !r.isUser && r.id !== otherQualTeam?.id)
+      .map((r) => r.id);
+    if (t.stages?.[7]) {
+      const r16Cur = t.stages[7].oppTeam;
+      if (!r16Cur || eliminatedGrpIds.includes(r16Cur.id) || r16Cur.id === otherQualTeam?.id) {
+        const alt = pickPoolTeam(
+          [worldPool.filter((tm) => (tm.baseOvr || 84) >= 87), worldPool, koFallbackPool],
+          new Set([...eliminatedGrpIds, otherQualTeam?.id].filter(Boolean))
+        );
+        t.stages[7].oppTeam = alt;
+      }
+      t.worldBracket = createKnockoutBracket(
+        "WORLD",
+        "Chaveamento • Mata-Mata Mundial (FFI)",
+        t.stages[7].oppTeam,
+        [...worldPool, ...koFallbackPool],
+        new Set([...eliminatedGrpIds, t.stages[7].oppTeam.id]),
+        otherQualTeam
+      );
+    }
+  }
 }
 
 function advanceToWorldCup() {

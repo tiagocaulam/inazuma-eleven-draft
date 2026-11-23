@@ -646,7 +646,14 @@ function resolvePhysicalDribbleClash(st, pitch, carrier, marker, attSupport, def
     const startX = carrier.x;
     const startY = carrier.y;
     const dodgeSign = startY >= marker.y ? 1 : -1;
-    const dashToX = Math.max(10, Math.min(90, startX + dir * 10.5));
+    const defList = attIsUser ? (pitch.oppNodes || []) : (pitch.userNodes || []);
+    const oppGk = defList.find((d) => d.role === "GK");
+    const gkMargin = 6.8;
+    const maxSafeX = attIsUser ? (oppGk ? Math.min(84.5, oppGk.x - gkMargin) : 84.5) : 90;
+    const minSafeX = !attIsUser ? (oppGk ? Math.max(15.5, oppGk.x + gkMargin) : 15.5) : 10;
+    const dashToX = attIsUser
+      ? Math.max(10, Math.min(Math.max(startX - 1.5, maxSafeX), startX + dir * 10.5))
+      : Math.min(90, Math.max(Math.min(startX + 1.5, minSafeX), startX + dir * 10.5));
     const dashToY = Math.max(12, Math.min(88, startY + dodgeSign * 5.2));
     const dashMs = state.simSpeed === 4 ? 95 : state.simSpeed === 2 ? 190 : 380;
 
@@ -818,9 +825,11 @@ function resolveGkRushClash(st, pitch, carrier, oppGk, attSupport, defSupport, o
   if (!gkWon) {
     const dodgeSign = carrier.y >= oppGk.y ? 1 : -1;
     const dir = carrier.side === "user" ? 1 : -1;
-    carrier.x = Math.max(8, Math.min(92, carrier.x + dir * 2.2));
-    carrier.y = Math.max(14, Math.min(86, carrier.y + dodgeSign * 4.4));
-    carrier.decisionTimer = 0.06;
+    const safeMinX = carrier.side === "user" ? 10 : Math.max(14.5, oppGk.x + 5.0);
+    const safeMaxX = carrier.side === "user" ? Math.min(85.5, oppGk.x - 5.0) : 90;
+    carrier.x = Math.max(safeMinX, Math.min(safeMaxX, carrier.x + dir * 1.0));
+    carrier.y = Math.max(14, Math.min(86, carrier.y + dodgeSign * 4.6));
+    carrier.decisionTimer = 0.04;
     oppGk.staggerTimer = 0.72;
     showNodeBadge(pitch, carrier.uid, "Passou pelo Goleiro!", "badge-dribble", 1300, "OF");
     pitch.ticker = `${st.minute}' ${carrier.player.name} tirou do alcance de ${oppGk.player.name} na área!`;
@@ -928,8 +937,8 @@ function launchContinuousPass(st, pitch, carrier, attNodes, defNodes, strictForw
   let leadY;
 
   if (passOptions.isCross) {
-    const crossBoxX = attIsUser ? Math.max(77, Math.min(90, receiver.x + 2.2)) : Math.min(23, Math.max(10, receiver.x - 2.2));
-    leadX = Number.isFinite(crossBoxX) ? crossBoxX : (attIsUser ? 83 : 17);
+    const crossBoxX = attIsUser ? Math.max(76, Math.min(85, receiver.x + 1.8)) : Math.min(24, Math.max(15, receiver.x - 1.8));
+    leadX = Number.isFinite(crossBoxX) ? crossBoxX : (attIsUser ? 82 : 18);
     leadY = Math.max(24, Math.min(76, receiver.y * 0.72 + 50 * 0.28));
   } else if (isThroughBall) {
     // Projeta a bola à frente no espaço vazio para o recebedor avançar com dash e buscar!
@@ -938,9 +947,9 @@ function launchContinuousPass(st, pitch, carrier, attNodes, defNodes, strictForw
 
     let projX = receiver.x + fwdDir * spaceLeadDist;
     if (attIsUser) {
-      projX = Math.max(12, Math.min(89.5, projX));
+      projX = Math.max(12, Math.min(85.5, projX));
     } else {
-      projX = Math.max(10.5, Math.min(88, projX));
+      projX = Math.max(14.5, Math.min(88, projX));
     }
 
     const rx = Number.isFinite(receiver.x) ? receiver.x : (attIsUser ? 45 : 55);
@@ -963,9 +972,11 @@ function launchContinuousPass(st, pitch, carrier, attNodes, defNodes, strictForw
     const rawVy = receiver.vy || 0;
     const leadStepX = Math.max(-5.5, Math.min(5.5, rawVx * estFlight * 0.55));
     const leadStepY = Math.max(-4.5, Math.min(4.5, rawVy * estFlight * 0.55));
-    // Leve toque na passada à frente do receptor para o passe fluir sem precisar parar a jogada
+    // Leve toque na passada à frente do receptor para o passe fluir sem empurrar para o goleiro
     const stridePushX = (!isGkOutlet && !safeRestart && Math.abs(leadStepX) < 1.5) ? fwdDir * 1.6 : 0;
-    leadX = Math.max(8, Math.min(92, rx + leadStepX + stridePushX));
+    const minPassX = attIsUser ? 8 : 14.5;
+    const maxPassX = attIsUser ? 85.5 : 92;
+    leadX = Math.max(minPassX, Math.min(maxPassX, rx + leadStepX + stridePushX));
     leadY = Math.max(10, Math.min(90, ry + leadStepY));
   }
 
@@ -2768,22 +2779,26 @@ function stepContinuousPhysics(st, pitch, dt) {
       pitch.ballY += (footY - pitch.ballY) * alpha;
     }
 
-    // 1) Checa contato físico real: primeiro saída do Goleiro na área, depois Drible (OF) vs Desarme (DF) ou Tabela!
-    if (carrier.role !== "GK" && !pitch.justKickedOff && carrier.duelCooldown <= 0) {
-      const oppGk = defNodes.find((d) => d.role === "GK");
-      if (oppGk && oppGk.staggerTimer <= 0 && oppGk.duelCooldown <= 0 && carrier.carryTime >= 0.14) {
+    const oppGk = defNodes.find((d) => d.role === "GK");
+
+    // 1) Checa saída/abafa do Goleiro na área ANTES do cooldown de drible: se o atacante colar, o GK rouba com a mão!
+    if (carrier.role !== "GK" && !pitch.justKickedOff) {
+      if (oppGk && oppGk.staggerTimer <= 0 && oppGk.duelCooldown <= 0 && carrier.carryTime >= 0.05) {
         const gkDist = visualPitchDist(oppGk.x, oppGk.y, carrier.x, carrier.y);
         const carrierInOppBox = attIsUser
           ? carrier.x >= 75 && Math.abs(carrier.y - 50) <= 28
           : carrier.x <= 25 && Math.abs(carrier.y - 50) <= 28;
         const gkOffLine = attIsUser ? oppGk.x < 91.5 : oppGk.x > 8.5;
-        const gkRushRange = gkOffLine ? 5.6 : 4.8;
+        const gkRushRange = gkOffLine ? 5.6 : 4.6;
         if (carrierInOppBox && gkDist <= gkRushRange) {
           resolveGkRushClash(st, pitch, carrier, oppGk, attSupport, defSupport, ovrDiff);
           return;
         }
       }
+    }
 
+    // 2) Depois checa contato físico com marcadores de linha: Drible (OF) vs Desarme (DF) ou Tabela!
+    if (carrier.role !== "GK" && !pitch.justKickedOff && carrier.duelCooldown <= 0) {
       let closestDef = null;
       let closestDist = 999;
       defNodes.forEach((d) => {
@@ -2817,10 +2832,14 @@ function stepContinuousPhysics(st, pitch, dt) {
             const stamMod = carrier.stamina >= 75 ? 2.1 : carrier.stamina >= 55 ? 0.8 : -0.6;
             const rawDashDist = Math.max(6.5, Math.min(14.5, 7.0 + Math.max(0, spdDiff - 4) * 0.42 + stamMod));
             const maxSafeDist = oppGk
-              ? Math.max(4.5, (attIsUser ? oppGk.x - startX : startX - oppGk.x) - 6.2)
+              ? Math.max(0, (attIsUser ? oppGk.x - startX : startX - oppGk.x) - 6.8)
               : rawDashDist;
-            const dashDist = Math.max(5.5, Math.min(rawDashDist, maxSafeDist));
-            const dashToX = Math.max(10, Math.min(90, startX + dir * dashDist));
+            const dashDist = Math.max(2.5, Math.min(rawDashDist, maxSafeDist));
+            const safeMaxBurstX = attIsUser ? (oppGk ? Math.min(84.5, oppGk.x - 6.8) : 84.5) : 90;
+            const safeMinBurstX = !attIsUser ? (oppGk ? Math.max(15.5, oppGk.x + 6.8) : 15.5) : 10;
+            const dashToX = attIsUser
+              ? Math.max(10, Math.min(Math.max(startX - 1.0, safeMaxBurstX), startX + dir * dashDist))
+              : Math.min(90, Math.max(Math.min(startX + 1.0, safeMinBurstX), startX + dir * dashDist));
             const dashToY = Math.max(12, Math.min(88, startY + dodgeSign * 4.4));
             const baseMs = state.simSpeed === 4 ? 90 : state.simSpeed === 2 ? 180 : 360;
             const dashMs = Math.round(baseMs * Math.max(0.65, Math.min(1.25, dashDist / 11.0)));

@@ -44,6 +44,7 @@ function getPrepScopeLabel(ev) {
     const roles = ev.applyRoles || [];
     if (roles.length === 1 && roles[0] === "MF") return "Todos os Meias";
     if (roles.length === 1 && roles[0] === "FW") return "Todos os Atacantes";
+    if (roles.length === 2 && roles.includes("DF") && roles.includes("GK")) return "Goleiro & Zaga";
     return "Elenco Todo";
   }
   if (ev.kind === "ITEM_PICK") {
@@ -58,6 +59,7 @@ function getPrepScopeLabel(ev) {
     const map = {
       efficiencyLvl: "Na Cidade",
       restLvl: "Dormitório & Intervalo",
+      recoveryLvl: "Entre Partidas",
       enduranceLvl: "Em Campo",
       wingExplosionLvl: "ATQ & MEI",
       midSynergyLvl: "Meias & Química",
@@ -132,7 +134,7 @@ function getPrepChoiceComboHTML(ev) {
 function getPrepBuffPill(ev) {
   if (!ev) return "";
   if (ev.shortDesc) return ev.shortDesc;
-  if (ev.kind === "PASSIVE_DOUBLE_EVENT") return `<span class="b-tech">4 Ações/Rodada</span> • <span class="b-chem">-3% Custo</span>`;
+  if (ev.kind === "PASSIVE_DOUBLE_EVENT") return `<span class="b-tech">4 Ações/Rodada</span> • <span class="b-chem">-3% Custo · 4ª Ação 50% OFF</span>`;
   if (ev.kind === "PASSIVE_LATE_RESIST") return `<span class="b-chem">-50% Desgaste (75'+)</span>`;
   if (ev.kind === "STREET_5V5") return `<span class="b-lvl">+95–115 XP</span> • <span class="b-tech">Recruta Craque</span>`;
   if (ev.id === "shoes_legend") return `<span class="b-lvl">+1 Nv</span> • <span class="b-pwr">+5 FOR / +7 VEL</span> • <span class="b-pwr">+26 Poder</span>`;
@@ -142,13 +144,14 @@ function getPrepBuffPill(ev) {
   if (ev.id === "captain_armband") return `<span class="b-lvl">+1 Nv</span> • <span class="b-tech">+4 TEC / +3 FOR / +3 FIS</span> • <span class="b-chem">+8% Quím</span>`;
   if (ev.id === "misanga_friend") return `<span class="b-lvl">+1 Nv</span> • <span class="b-tech">+4 TEC / +3 FOR / +3 FIS</span> • <span class="b-chem">+8% Quím</span>`;
   if (ev.id === "elem_crest_boost") return `<span class="b-lvl">+125 XP</span> • <span class="b-pwr">+12 Poder</span> <span class="b-tech">(por titular igual)</span>`;
-  if (ev.id === "elem_resonance_tome") return `<span class="b-lvl">+105 XP (Todos)</span> • <span class="b-chem">+6% Quím</span> • <span class="b-pwr">Links +</span>`;
-  if (ev.id === "secret_hissatsu_mastery") return `<span class="b-lvl">+1 Nv</span> • <span class="b-tech">Técnica Suprema</span> • <span class="b-pwr">+22 Poder</span>`;
-  if (ev.kind === "KESHIN_PICK") return `<span class="b-lvl">+1 Nv</span> • <span class="b-tech">Ativa 1x/Jogo</span> • <span class="b-pwr">+10% Chance Duelos (Aura)</span>`;
-  if (ev.kind === "EVO_PICK") return `<span class="b-lvl">+${ev.levelGain || 1} Nv</span> • <span class="b-tech">Evolui Técnica</span> • <span class="b-pwr">+${ev.indivPower || 16} Poder</span>`;
+  if (ev.id === "elem_resonance_tome") return `<span class="b-lvl">+145 XP (Todos)</span> • <span class="b-chem">+6% Quím</span> • <span class="b-pwr">Links +</span>`;
+  if (ev.id === "secret_hissatsu_mastery") return `<span class="b-lvl">+1 Nv (+65 XP Elenco)</span> • <span class="b-tech">Técnica Suprema</span> • <span class="b-pwr">+22 Poder</span>`;
+  if (ev.kind === "KESHIN_PICK") return `<span class="b-lvl">+1 Nv (+65 XP Elenco)</span> • <span class="b-tech">Ativa 1x/Jogo</span> • <span class="b-pwr">+10% Chance Duelos (Aura)</span>`;
+  if (ev.kind === "EVO_PICK") return `<span class="b-lvl">+${ev.levelGain || 1} Nv (+65 XP Elenco)</span> • <span class="b-tech">Evolui Técnica</span> • <span class="b-pwr">+${ev.indivPower || 16} Poder</span>`;
   if (ev.id === "river_xp") return `<span class="b-lvl">+105 XP (Todos)</span> • <span class="b-chem">+4% Quím</span> • <span class="b-pwr">+26 Poder</span>`;
   if (ev.id === "river_tactics") return `<span class="b-lvl">+135 XP (Meias)</span> • <span class="b-chem">+8% Quím</span> • <span class="b-pwr">+18 Poder</span>`;
   if (ev.id === "river_shot") return `<span class="b-lvl">+135 XP (ATQ)</span> • <span class="b-pwr">+14 Poder/ATQ</span> • <span class="b-pwr">+18 Time</span>`;
+  if (ev.id === "river_defense") return `<span class="b-lvl">+135 XP (DEF/GOL)</span> • <span class="b-chem">+5% Quím</span> • <span class="b-pwr">+14 Poder/DEF</span>`;
   if (ev.kind === "SCALABLE_BUFF") {
     const curLvl = state.tournament?.prepBonuses?.[ev.buffKey] || 0;
     const nextLvl = Math.min(ev.maxLevel || 3, curLvl + 1);
@@ -158,6 +161,10 @@ function getPrepBuffPill(ev) {
     }
     if (ev.buffKey === "restLvl") {
       return `<span class="b-chem">Sono +${45 + nextLvl * 7}%</span> • <span class="b-lvl">Tática +${35 + nextLvl * 10} XP</span> • <span class="b-lvl">+${nextLvl * 4}% Intervalo</span>`;
+    }
+    if (ev.buffKey === "recoveryLvl") {
+      const bonusR = nextLvl * 5;
+      return `<span class="b-chem">+${bonusR}% Energia entre Partidas</span>`;
     }
     if (ev.buffKey === "enduranceLvl") {
       const nextP = [0, 8, 15, 22][nextLvl] || 22;
@@ -221,6 +228,9 @@ function getPrepChoiceSummary(ev) {
     }
     if (ev.buffKey === "restLvl") {
       return `Melhora o descanso gratuito no Dormitório (<span class="b-chem">Sono +${45 + nextLvl * 7}%</span> e <span class="b-lvl">Tática +${35 + nextLvl * 10} XP</span>) e recupera <span class="b-lvl">+${nextLvl * 4}% de fôlego</span> no intervalo das partidas.`;
+    }
+    if (ev.buffKey === "recoveryLvl") {
+      return `Aumenta a recuperação passiva do elenco entre as partidas para <span class="b-chem">+${20 + nextLvl * 5}% de Energia</span> automáticos antes de cada rodada.`;
     }
     if (ev.buffKey === "enduranceLvl") {
       const nextP = [0, 8, 15, 22][nextLvl] || 22;
@@ -290,7 +300,7 @@ function getPrepLocationsCatalog() {
           icon: UI.manualInazuma || UI.ffLogo,
           kind: "PASSIVE_DOUBLE_EVENT",
           weight: 2.2,
-          summary: `Libera <span class="b-tech">1 ação extra na cidade</span> antes de cada jogo (4 ações) e barateia em <span class="b-chem">-3%</span> todas as visitas pelo resto do torneio.`
+          summary: `Libera <span class="b-tech">1 ação extra na cidade</span> (4 ações/rodada), barateia em <span class="b-chem">-3%</span> as visitas e deixa a <span class="b-chem">4ª ação com 50% de desconto</span>.`
         },
         {
           id: "pendant_endurance",
@@ -440,25 +450,25 @@ function getPrepLocationsCatalog() {
     {
       id: "riverbank",
       title: "Margem do Rio",
-      sub: "Campinho da Raimon",
-      mapLabel: "Campinho 5x5",
+      sub: "Treinos Coletivos & 5x5",
+      mapLabel: "Campinho",
       mapX: 31,
       mapY: 71,
-      energyCost: 25,
+      energyCost: 20,
       cta: "Ir para o Campinho",
-      spinMsg: "Sorteando 3 oportunidades na Margem do Rio...",
-      resultEyebrow: "Escolha 1 de 3 Oportunidades na Margem",
+      spinMsg: "Sorteando 3 treinos coletivos no Campinho...",
+      resultEyebrow: "Escolha 1 de 3 Treinos no Campinho",
       banner: UI.locRiverbank || UI.stadiumBg,
       badgeIcon: UI.iconCampinho || UI.ffLogo,
       subIcon: UI.iconBattleVR || UI.ffLogo,
-      desc: "5x5 com recrutamento de craque, subida de Nível em grupo e táticas.",
+      desc: "Treinos coletivos para todos os setores (ATQ, MEI, DEF/GOL), vigor entre jogos e desafio 5x5.",
       events: [
         {
           id: "clash_5v5",
           title: "Confronto 5x5 com Craque",
           icon: UI.ffLogo || UI.moveSH,
           kind: "STREET_5V5",
-          weight: 2.8,
+          weight: 2.5,
           summary: `Partida rápida de Gol de Ouro: vencer dá <span class="b-lvl">muito XP</span> aos 5 participantes e libera o <span class="b-tech">recrutamento de um craque rival</span>.`
         },
         {
@@ -471,7 +481,7 @@ function getPrepLocationsCatalog() {
           teamPower: 16,
           teamChem: 4,
           xpGain: 90,
-          weight: 2.1,
+          weight: 2.2,
           summary: `Evolui os <span class="b-lvl">11 titulares juntos</span> com um grande pacote de XP, elevando o entrosamento e o poder geral.`
         },
         {
@@ -499,8 +509,33 @@ function getPrepLocationsCatalog() {
           teamPower: 18,
           teamChem: 0,
           xpGain: 80,
-          weight: 1.8,
+          weight: 1.9,
           summary: `Treino pesado de finalização para deixar <span class="b-pwr">todos os Atacantes</span> mais letais e com mais XP.`
+        },
+        {
+          id: "river_defense",
+          title: "Muralha Coletiva (DEF & GOL)",
+          icon: UI.moveDF || UI.itemSpikeBlock,
+          kind: "COLLECTIVE",
+          applyRoles: ["DF", "GK"],
+          levelGain: 1,
+          indivPower: 14,
+          teamPower: 16,
+          teamChem: 5,
+          xpGain: 135,
+          weight: 2.0,
+          summary: `Treino coletivo de cobertura para <span class="b-lvl">Goleiro e Zagueiros</span> ganharem XP, Química e firmeza nos duelos.`
+        },
+        {
+          id: "recovery_upgrade",
+          title: "Vigor de Campanha",
+          icon: UI.onigiriIcon || UI.sportsDrink || UI.tpPendant,
+          kind: "SCALABLE_BUFF",
+          buffKey: "recoveryLvl",
+          maxLevel: 3,
+          teamPower: 12,
+          weight: 1.9,
+          summary: `Eleva a recuperação automática de energia <span class="b-chem">entre todas as partidas</span> (+5%/+10%/+15% extra antes de cada rodada).`
         },
         {
           id: "wing_explosion_upgrade",
@@ -556,14 +591,14 @@ function getPrepLocationsCatalog() {
       mapLabel: "Treino Secreto",
       mapX: 82,
       mapY: 66,
-      energyCost: 30,
+      energyCost: 26,
       cta: "Treinar no Inabikari",
       spinMsg: "Sorteando 3 salas de treino no Centro Inabikari...",
       resultEyebrow: "Escolha 1 de 3 Treinos no Inabikari",
       banner: UI.locTraining || UI.stadiumBg,
       badgeIcon: UI.iconSecretTrain || UI.keshinPegasus,
       subIcon: UI.iconSpecialTrainVR || UI.steelTowerIcon,
-      desc: "Manual Secreto, Incorporação Keshin, Evolução de Técnica e Sinergia Elemental.",
+      desc: "Manual Secreto, Incorporação Keshin, Evolução (+65 XP no elenco) e Sinergia Elemental.",
       events: [
         {
           id: "secret_hissatsu_mastery",
@@ -575,7 +610,7 @@ function getPrepLocationsCatalog() {
           teamPower: 15,
           xpGain: 95,
           weight: 2.5,
-          summary: `Ensina uma <span class="b-tech">Super Técnica suprema</span> para 1 titular, além de subir nível e reforçar seu atributo principal.`
+          summary: `Ensina uma <span class="b-tech">Super Técnica suprema</span> para 1 titular e concede <span class="b-lvl">+65 XP coletivos</span> para todo o restante do time.`
         },
         {
           id: "keshin_awaken",
@@ -587,7 +622,7 @@ function getPrepLocationsCatalog() {
           teamPower: 15,
           xpGain: 95,
           weight: 2.4,
-          summary: `1 titular recebe um <span class="b-tech">Espírito Guerreiro</span>: ele decide quando ativar na partida (<span class="b-pwr">1x/jogo</span>, exceto em esforço Baixo), ganhando <span class="b-pwr">aura de poder</span> por ~18' antes de cansar.`
+          summary: `1 titular desperta um <span class="b-tech">Espírito Guerreiro</span> (1x/jogo) e o treino garante <span class="b-lvl">+65 XP</span> para os outros 10 titulares.`
         },
         {
           id: "evo_move",
@@ -599,7 +634,7 @@ function getPrepLocationsCatalog() {
           teamPower: 14,
           xpGain: 85,
           weight: 2.2,
-          summary: `Aprimora a <span class="b-tech">técnica principal</span> de 1 titular para o próximo estágio, deixando-a muito mais forte nos duelos.`
+          summary: `Evolui a <span class="b-tech">técnica principal</span> de 1 titular para G2/Shin e distribui <span class="b-lvl">+65 XP</span> para o resto do elenco.`
         },
         {
           id: "endurance_upgrade",
@@ -621,10 +656,10 @@ function getPrepLocationsCatalog() {
           levelGain: 1,
           teamPower: 16,
           teamChem: 6,
-          xpGain: 85,
+          xpGain: 145,
           elemResonance: true,
-          weight: 1.8,
-          summary: `Distribui <span class="b-lvl">XP para os 11 titulares</span>, sobe a Química e amplifica o poder dos <span class="b-pwr">Links Elementais</span> do elenco.`
+          weight: 1.9,
+          summary: `Distribui <span class="b-lvl">+145 XP para os 11 titulares</span>, sobe a Química e amplifica os <span class="b-pwr">Links Elementais</span>.`
         },
         {
           id: "def_block_upgrade",
@@ -1201,6 +1236,7 @@ function openBetweenMatchPrep(nextStageIdx, opts = {}) {
       permanentDoublePrep: false,
       efficiencyLvl: 0,
       restLvl: 0,
+      recoveryLvl: 0,
       enduranceLvl: 0,
       wingExplosionLvl: 0,
       midSynergyLvl: 0,
@@ -1220,7 +1256,8 @@ function openBetweenMatchPrep(nextStageIdx, opts = {}) {
     autoRestMsg = `${prepAssetIconHTML(UI.ffLogo, "")} Viagem para a Ilha Liocott: Energia do elenco restaurada para 100%!`;
   } else if (nextStageIdx > 0) {
     const prevE = Math.round(getTeamEnergy());
-    const nextE = Math.round(adjustTeamEnergy(20));
+    const recGain = 20 + (t.prepBonuses?.recoveryLvl || 0) * 5;
+    const nextE = Math.round(adjustTeamEnergy(recGain));
     if (nextE > prevE) {
       autoRestMsg = `${prepAssetIconHTML(UI.sportsDrink || UI.raimonEmblem, "")} Você recuperou +${nextE - prevE}% de Energia entre as partidas (${prevE}% ➔ ${nextE}%).`;
     }
@@ -1401,7 +1438,7 @@ function handleChoosePrepOption(choiceEvent) {
     }
     prep.phase = "DONE";
     prep.affectedPlayers = [];
-    prep.appliedMsg = `Passiva ativada: seu time agora tem <span class="b-tech">4 ações por rodada</span> e <span class="b-chem">-3% custo de energia</span> nos locais da cidade.`;
+    prep.appliedMsg = `Passiva ativada: seu time agora tem <span class="b-tech">4 ações por rodada</span>, <span class="b-chem">-3% custo</span> nos locais e <span class="b-chem">50% de desconto na 4ª ação</span>.`;
     renderAll();
     return;
   }
@@ -1480,6 +1517,9 @@ function handleChoosePrepOption(choiceEvent) {
       effectTxt = `<span class="b-chem">-${disc}% custo de energia</span> nos locais da cidade`;
     } else if (key === "restLvl") {
       effectTxt = `Sono do Dormitório agora recupera <span class="b-chem">+${45 + nextL * 7}% Energia</span>, Análise Tática dá <span class="b-lvl">+${35 + nextL * 10} XP</span> e intervalos recuperam <span class="b-lvl">+${nextL * 4}% fôlego</span>`;
+    } else if (key === "recoveryLvl") {
+      const recBonus = nextL * 5;
+      effectTxt = `Recuperação passiva entre partidas sobe para <span class="b-chem">+${20 + recBonus}% de Energia</span> antes de cada rodada`;
     }
     else if (key === "enduranceLvl") {
       const pct = [0, 8, 15, 22][nextL] || 22;
@@ -1590,7 +1630,7 @@ function applyPrepCollectiveEvent(event) {
       let learnedMoves = [];
       if (lvlGain > 0) {
         // Em vez de pular direto de nível em bloco de 11 atletas, concede grande pacote de XP com progressão natural
-        const xpAmount = isTeamWide ? 105 : 135;
+        const xpAmount = isTeamWide ? Math.max(105, event.xpGain || 105) : Math.max(135, event.xpGain || 135);
         const xpRes = gainPlayerXp(p, xpAmount, slot.role);
         learnedMoves = xpRes.learnedMoves || [];
       }
@@ -1779,6 +1819,35 @@ function applyPrepPlayerReward(slotId) {
       learnedMoves
     });
     msg = `${player.name} dominou <span class="b-tech">${techBadge}</span> (<span class="b-lvl">Nv. ${prevLvl} → Nv. ${newLvl}</span> • <span class="b-pwr">+${pwrDelta} Poder</span>).`;
+  }
+
+  // Treinos do Inabikari (Keshin / Manual / Evolução) também dão +65 XP reais para o restante do time titular!
+  if (event.kind === "KESHIN_PICK" || event.kind === "EVO_PICK") {
+    getSlots().forEach((s) => {
+      if (s.id === slotId) return;
+      const mate = state.squad[s.id];
+      if (!mate) return;
+      const mPrevLvl = getPlayerLevel(mate);
+      const mBeforePwr = calcIndividualPlayerPower(mate, s.role, mPrevLvl);
+      const mXp = gainPlayerXp(mate, 65, s.role);
+      const mNewLvl = getPlayerLevel(mate);
+      const mAfterPwr = calcIndividualPlayerPower(mate, s.role, mNewLvl);
+      if (mXp.levelsGained > 0 || (mXp.learnedMoves && mXp.learnedMoves.length > 0)) {
+        affectedPlayers.push({
+          name: mate.name,
+          role: s.role,
+          sprite: getPlayerFormSprite(mate, s.role),
+          prevLevel: mPrevLvl,
+          newLevel: mNewLvl,
+          levelsGained: Math.max(0, mNewLvl - mPrevLvl),
+          pwrGained: Math.max(0, mAfterPwr - mBeforePwr),
+          newPwr: mAfterPwr,
+          extraBadge: "+65 XP Coletivo",
+          learnedMoves: mXp.learnedMoves || []
+        });
+      }
+    });
+    msg += ` <span class="b-lvl">(+65 XP coletivo para os outros 10 titulares!)</span>`;
   }
 
   t.prepBonuses.xp += event.xpGain || 80;
@@ -2291,8 +2360,8 @@ function buildActiveScalableBuffsHTML(t) {
 
   if (b.permanentDoublePrep) {
     const title = "Passe Livre do Treinador";
-    const stat = "4 Ações por rodada • -3% Custo na Cidade";
-    const desc = "Libera 1 ação extra na cidade antes de cada partida e barateia todas as visitas pelo resto do torneio.";
+    const stat = "4 Ações (4ª com 50% OFF) • -3% Custo na Cidade";
+    const desc = "Libera 1 ação extra na cidade antes de cada partida (com metade do custo de energia na 4ª ação) e barateia todas as visitas pelo resto do torneio.";
     chips.push(
       `<button type="button" class="scalable-buff-chip is-passive" aria-label="${escapeHtmlAttr(`${title} — ${stat}`)}" data-buff-tip-title="${escapeHtmlAttr(title)}" data-buff-tip-stat="${escapeHtmlAttr(stat)}" data-buff-tip-desc="${escapeHtmlAttr(desc)}">Passe Livre <strong>4 Ações</strong></button>`
     );
@@ -2320,6 +2389,13 @@ function buildActiveScalableBuffsHTML(t) {
       fullTitle: "Descanso Aprimorado",
       stat: (l) => `Sono +${45 + l * 7}% • Tática +${35 + l * 10} XP • +${l * 4}% Intervalo`,
       desc: () => "Melhora a recuperação gratuita no Dormitório do Clube, aumenta o XP da Análise Tática e recupera mais fôlego no intervalo."
+    },
+    {
+      key: "recoveryLvl",
+      label: "Vigor Campanha",
+      fullTitle: "Vigor de Campanha",
+      stat: (l) => `+${20 + l * 5}% Energia entre Partidas (+${l * 5}% extra)`,
+      desc: () => "Aumenta a recuperação automática de energia do elenco entre todas as rodadas do torneio."
     },
     {
       key: "enduranceLvl",
@@ -2528,7 +2604,9 @@ function buildBetweenMatchPrepHTML(t, stats) {
         </div>
         <div class="prep-banner-actions">
           <span class="prep-xp-pill">Ações: ${remActions}/${totActions}</span>
+          ${typeof isFourthActionHalfCostActive === "function" && isFourthActionHalfCostActive(t) ? `<span class="prep-xp-pill prep-half-cost-pill">4ª Ação: 50% OFF!</span>` : ""}
           <span class="prep-xp-pill">Dormitório: ${prep.restUsedThisRound ? "Usado" : isNight ? `${PREP_SVG_MOON} Liberado` : "Disponível"}</span>
+          ${typeof getActiveBracketForTournament === "function" && getActiveBracketForTournament(t, prep.nextStageIdx) ? `<button type="button" class="ie-cmd-btn ie-cmd-blue" id="btn-open-bracket-modal"><span>Ver Chaveamento</span></button>` : ""}
           <button class="ie-cmd-btn ie-cmd-green" id="btn-prep-proceed">
             <span>Ir para ${nextStage.stageName} →</span>
           </button>

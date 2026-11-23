@@ -219,6 +219,27 @@ const FRIENDSHIP_BONDS = [
     chemPerMatch: 16
   },
   {
+    id: "irmaos_fubuki",
+    name: "Irmãos Fubuki",
+    members: ["Fubuki Shirou", "Fubuki Atsuya"],
+    minCount: 2,
+    chemPerMatch: 18
+  },
+  {
+    id: "a_fenix",
+    name: "A Fênix",
+    members: ["Endou Mamoru", "Ichinose Kazuya", "Domon Asuka"],
+    minCount: 2,
+    chemPerMatch: 14
+  },
+  {
+    id: "laco_unicorn",
+    name: "Unicórnio (EUA)",
+    members: ["Ichinose Kazuya", "Domon Asuka", "Mark Krueger", "Dylan Keith"],
+    minCount: 2,
+    chemPerMatch: 13
+  },
+  {
     id: "laco_imperial",
     name: "Irmandade Imperial",
     members: ["Kidou Yuuto", "Sakuma Jirou", "Genda Koujirou", "Fudou Akio"],
@@ -227,24 +248,24 @@ const FRIENDSHIP_BONDS = [
   },
   {
     id: "trio_caos",
-    name: "Trio Caos / Dragão",
-    members: ["Afuro Terumi", "Nagumo Haruya", "Suzuno Fuusuke", "Choi Chang-soo"],
+    name: "Ataque Caos",
+    members: ["Afuro Terumi", "Nagumo Haruya", "Suzuno Fuusuke", "Netsuha Natsuhiko"],
     minCount: 2,
     chemPerMatch: 13
   },
   {
-    id: "laco_aliea",
-    name: "Instituto Alien",
-    members: ["Kiyama Hiroto", "Midorikawa Ryuuji", "Saginuma Osamu", "Yagami Reina", "Nemuro Kimiyuki"],
+    id: "dragao_fogo",
+    name: "Dragão de Fogo",
+    members: ["Afuro Terumi", "Nagumo Haruya", "Suzuno Fuusuke", "Choi Chang-soo"],
     minCount: 2,
-    chemPerMatch: 12
+    chemPerMatch: 14
   },
   {
-    id: "laco_fenix_usa",
-    name: "Fênix & Unicórnio",
-    members: ["Ichinose Kazuya", "Domon Asuka", "Mark Krueger", "Dylan Keith", "Endou Mamoru"],
+    id: "laco_aliea",
+    name: "Instituto Alien",
+    members: ["Kiyama Hiroto", "Kiyama Tatsuya", "Midorikawa Ryuuji", "Saginuma Osamu", "Yagami Reina", "Nagumo Haruya", "Suzuno Fuusuke"],
     minCount: 2,
-    chemPerMatch: 11
+    chemPerMatch: 12
   },
   {
     id: "caravana_inazuma",
@@ -258,7 +279,7 @@ const FRIENDSHIP_BONDS = [
       "Kogure Yuuya"
     ],
     minCount: 2,
-    chemPerMatch: 9
+    chemPerMatch: 10
   },
   {
     id: "inazuma_japan_ffi",
@@ -268,9 +289,12 @@ const FRIENDSHIP_BONDS = [
       "Tobitaka Seiya",
       "Hijikata Raiden",
       "Kiyama Hiroto",
-      "Fubuki Shirou",
-      "Gouenji Shuuya",
-      "Endou Mamoru"
+      "Kazemaru Ichirouta",
+      "Kabeyama Heigorou",
+      "Fudou Akio",
+      "Tachimukai Yuuki",
+      "Tsunami Jousuke",
+      "Someoka Ryuugo"
     ],
     minCount: 2,
     chemPerMatch: 10
@@ -280,7 +304,14 @@ const FRIENDSHIP_BONDS = [
     name: "Mestres da Orfeu",
     members: ["Fidio Aldena", "Nakata Hidetoshi", "Gigi Blasi"],
     minCount: 2,
-    chemPerMatch: 14
+    chemPerMatch: 15
+  },
+  {
+    id: "rivais_ffi",
+    name: "Rivais do Mundial (FFI)",
+    members: ["Edgar Valtinas", "Teles Torrue", "Fidio Aldena", "Mack Ronijo", "Rococo Ulpa", "Mark Krueger"],
+    minCount: 2,
+    chemPerMatch: 12
   },
   {
     id: "legado_daisuke",
@@ -300,10 +331,30 @@ const FRIENDSHIP_BONDS = [
       "Nishizono Shinsuke",
       "Fei Rune",
       "Nanobana Kinako",
-      "Zanark Avalonic"
+      "Zanark Avalonic",
+      "Nishiki Ryouma",
+      "Amemiya Taiyou",
+      "Hakuryuu",
+      "Torb"
     ],
     minCount: 2,
     chemPerMatch: 12
+  },
+  {
+    id: "quinto_setor_go",
+    name: "Elite Quinto Setor",
+    members: [
+      "Senguuji Yamato",
+      "Kurosaki Makoto",
+      "Amemiya Taiyou",
+      "Mahoro Tadashi",
+      "Namikawa Rensuke",
+      "Yukimura Hyouga",
+      "Hyoudou Tsukasa",
+      "Minamisawa Atsushi"
+    ],
+    minCount: 2,
+    chemPerMatch: 13
   },
   {
     id: "dupla_zero",
@@ -311,6 +362,64 @@ const FRIENDSHIP_BONDS = [
     members: ["Hakuryuu", "Shuu"],
     minCount: 2,
     chemPerMatch: 18
+  },
+  {
+    id: "protocolo_omega",
+    name: "Protocolo Ômega",
+    members: ["Alpha", "Beta", "Gamma"],
+    minCount: 2,
+    chemPerMatch: 16
+  },
+  {
+    id: "earth_eleven_galaxy",
+    name: "Earth Eleven (Galaxy)",
+    members: [
+      "Ibuki Munemasa",
+      "Matatagi Hayato",
+      "Morimura Konoha",
+      "Minaho Kazuto",
+      "Manabe Jinichirou",
+      "Tetsukado Shin",
+      "Kusaka Ryuuji",
+      "Nozaki Sakura",
+      "Ichikawa Zanakurou",
+      "Matsukaze Tenma",
+      "Tsurugi Kyousuke",
+      "Shindou Takuto"
+    ],
+    minCount: 2,
+    chemPerMatch: 12
+  },
+  {
+    id: "estrelas_galaxia",
+    name: "Confronto Galáctico",
+    members: [
+      "Bitway Ozrock",
+      "Tsurugi Kyousuke",
+      "Argo Burgess",
+      "Rodan Gasgus",
+      "Ryugel Baran",
+      "Gandares Baran",
+      "Alvega Gordon",
+      "Stag Kuwatta"
+    ],
+    minCount: 2,
+    chemPerMatch: 12
+  },
+  {
+    id: "inakuni_raimon_bond",
+    name: "Raimon Inakuni (Ares)",
+    members: [
+      "Inamori Asuto",
+      "Kozoumaru Sasuke",
+      "Hiura Kirina",
+      "Umihara Norika",
+      "Goujin Tetsunosuke",
+      "Mansaku Yuuichirou",
+      "Iwato Takashi"
+    ],
+    minCount: 2,
+    chemPerMatch: 12
   },
   {
     id: "trio_ares_orion",
@@ -329,25 +438,16 @@ const FRIENDSHIP_BONDS = [
   {
     id: "laco_orion_amigos",
     name: "Estrelas de Orion",
-    members: ["Ichihoshi Mitsuru", "Ichihoshi Hikaru", "Froy Girikanan", "Malik Kuabel", "Inamori Asuto", "Yurika Beor"],
+    members: ["Ichihoshi Mitsuru", "Ichihoshi Hikaru", "Froy Girikanan", "Malik Kuabel", "Inamori Asuto", "Clario Orvan"],
     minCount: 2,
     chemPerMatch: 13
   },
   {
-    id: "earth_eleven_galaxy",
-    name: "Earth Eleven",
-    members: [
-      "Ibuki Munemasa",
-      "Matatagi Hayato",
-      "Morimura Konoha",
-      "Minaho Kazuto",
-      "Manabe Jinichirou",
-      "Matsukaze Tenma",
-      "Tsurugi Kyousuke",
-      "Shindou Takuto"
-    ],
+    id: "ameaca_suprema",
+    name: "Chefe Supremo",
+    members: ["Baddap Sleed", "Saryuu Evan", "Zanark Avalonic", "Yurika Beor", "Bitway Ozrock"],
     minCount: 2,
-    chemPerMatch: 12
+    chemPerMatch: 14
   }
 ];
 
@@ -382,6 +482,7 @@ function createFreshPrepBonuses() {
     boostedElement: null,
     efficiencyLvl: 0,
     restLvl: 0,
+    recoveryLvl: 0,
     enduranceLvl: 0,
     wingExplosionLvl: 0,
     midSynergyLvl: 0,
@@ -474,6 +575,8 @@ function createFreshTournamentState() {
     stages: [],
     worldUnlocked: false,
     worldGroup: null,
+    ffBracket: null,
+    worldBracket: null,
     timerId: null,
     pitchRafId: null,
     clashTimer1: null,
@@ -573,9 +676,9 @@ function getTeamEnergyBand(energy = getTeamEnergy()) {
   }
   if (e >= 35) {
     const tYellow = (70 - e) / 35;
-    const duelPenalty = Number((-0.8 - tYellow * 3.0).toFixed(2));
-    const penaltyPct = Math.max(2, Math.round(Math.abs(duelPenalty) * 3));
-    const startStamina = Math.round(78 + ((e - 35) / 35) * 14);
+    const duelPenalty = Number((-0.3 - tYellow * 1.2).toFixed(2));
+    const penaltyPct = Math.max(1, Math.round(Math.abs(duelPenalty) * 3));
+    const startStamina = Math.round(88 + ((e - 35) / 35) * 8);
     return {
       key: "YELLOW",
       label: "Cansado",
@@ -613,13 +716,23 @@ function adjustTeamEnergy(delta) {
   return next;
 }
 
+function isFourthActionHalfCostActive(t = state.tournament) {
+  return Boolean(
+    t?.prepBonuses?.permanentDoublePrep &&
+    t?.prep &&
+    (t.prep.eventsTotal || 0) >= 4 &&
+    (t.prep.eventsRemaining || 0) === 1
+  );
+}
+
 function getPrepLocationCost(loc, t = state.tournament) {
   const baseCost = loc?.energyCost || 0;
   if (baseCost <= 0) return 0;
   const bonuses = t?.prepBonuses || {};
   const passDiscount = bonuses.permanentDoublePrep ? 3 : 0;
   const effDiscount = [0, 4, 7, 10][Math.min(3, bonuses.efficiencyLvl || 0)] || 0;
-  return Math.max(5, baseCost - passDiscount - effDiscount);
+  const flatCost = Math.max(5, baseCost - passDiscount - effDiscount);
+  return isFourthActionHalfCostActive(t) ? Math.max(4, Math.round(flatCost * 0.5)) : flatCost;
 }
 
 function getRestEnergyGain(t = state.tournament) {
@@ -1619,8 +1732,14 @@ function evaluateTeamStats(slots, getPlayerForSlot, options = {}) {
     if (dispName) clubPlayersMap[tId].push(dispName);
     if (p.teamEmblem) teamEmblems[tId] = p.teamEmblem;
     if (p.fullName) {
-      fullNamesInSquad.add(p.fullName);
-      fullToShortName[p.fullName] = dispName || p.fullName;
+      const normFull =
+        p.fullName === "Kazuya Ichinose"
+          ? "Ichinose Kazuya"
+          : p.fullName === "Asuka Domon"
+          ? "Domon Asuka"
+          : p.fullName;
+      fullNamesInSquad.add(normFull);
+      fullToShortName[normFull] = dispName || normFull;
     }
 
     if (s.role === "FW") { atkSum += eff; atkCnt++; }
@@ -1976,8 +2095,8 @@ function getOpponentSlotAssignments(oppTeam) {
   return { formSlots: best.formSlots, assignments: best.assignments };
 }
 
-// Tabela de Nível dos Times Adversários por Fase (calibrada com evolução real de Keshin/Técnicas/Manual da CPU!)
-const STAGE_OPPONENT_LEVELS = [2, 3, 4, 5, 6, 7, 9, 11, 13, 15, 17];
+// Tabela de Nível dos Times Adversários por Fase (Grupos próximos 6-6-7, Mata-Mata Mundial 8-9-11-12!)
+const STAGE_OPPONENT_LEVELS = [2, 3, 4, 5, 6, 6, 7, 8, 9, 11, 12];
 
 function getStageOpponentBuff(stageIdx) {
   const idx = Math.max(0, stageIdx || 0);
@@ -2180,11 +2299,11 @@ function getEvolvedOpponentRoster(oppTeam, stageIdx) {
 
   ranked.sort((a, b) => b.starScore - a.starScore);
 
-  // Quantos craques rivais têm Keshin (desde o começo!), Manual Secreto, técnicas evoluídas e bônus de item
-  const keshinCount = sIdx <= 1 ? 1 : sIdx <= 4 ? 2 : sIdx <= 7 ? 3 : sIdx <= 8 ? 4 : 5;
-  const evoCount = sIdx === 0 ? 1 : sIdx <= 2 ? 2 : sIdx <= 4 ? 3 : sIdx <= 6 ? 5 : sIdx <= 8 ? 8 : 10;
-  const equipCount = sIdx === 0 ? 1 : sIdx <= 2 ? 3 : sIdx <= 5 ? 5 : sIdx <= 7 ? 8 : 11;
-  const manualCount = sIdx >= 9 ? 4 : sIdx >= 8 ? 3 : sIdx >= 6 ? 2 : sIdx >= 4 ? 1 : 0;
+  // Quantos craques rivais têm Keshin, Manual Secreto, técnicas evoluídas e bônus de item
+  const keshinCount = sIdx <= 1 ? 1 : sIdx <= 5 ? 2 : sIdx <= 8 ? 3 : 4;
+  const evoCount = sIdx === 0 ? 1 : sIdx <= 2 ? 2 : sIdx <= 5 ? 3 : sIdx <= 7 ? 5 : sIdx <= 9 ? 7 : 8;
+  const equipCount = sIdx === 0 ? 1 : sIdx <= 2 ? 3 : sIdx <= 5 ? 4 : sIdx <= 8 ? 6 : 8;
+  const manualCount = sIdx >= 9 ? 3 : sIdx >= 7 ? 2 : sIdx >= 4 ? 1 : 0;
 
   const idSeed = String(oppTeam?.id || oppTeam?.name || "opp")
     .split("")
