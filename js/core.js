@@ -496,7 +496,7 @@ function createFreshPrepBonuses() {
   };
 }
 
-const RANKING_LOCAL_KEY = "ie_dream_team_rankings_v1";
+const RANKING_LOCAL_KEY = "ie_dream_team_rankings_v2";
 const TEAM_NAME_LOCAL_KEY = "ie_dream_team_nickname_v1";
 const ACTIVE_RUN_SAVE_KEY = "ie_dream_team_active_run_v1";
 const VALID_RANKING_ROLES = new Set(["FW", "MF", "DF", "GK"]);
