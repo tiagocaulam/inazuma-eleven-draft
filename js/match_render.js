@@ -163,6 +163,8 @@ function resetPitchForKickoff(pitch, kickoffSide, snapNodes = false, isGoalReset
   pitch.ballVx = 0;
   pitch.ballVy = 0;
   pitch.ballVz = 0;
+  pitch.ballSpinDeg = 0;
+  pitch.ballSpinVel = 0;
   pitch.synergyLinkFx = null;
   pitch.camX = 50;
   pitch.camY = 50;
@@ -753,6 +755,9 @@ function calcNodeDuelScore(node, teamSupportBonus, opponentElem = null, actionKi
       if (livePitch && (livePitch.catenaccioCounterTimer || 0) > 0 && roleOrAction === "SH") {
         tacticalAndEnergyAdj += 1.8;
       }
+      if (typeof isBetaMode === "function" && isBetaMode() && node && (node.synergyPassBuffTimer || 0) > 0) {
+        tacticalAndEnergyAdj += Number(node.synergyPassBuffBonus || 0.85);
+      }
     }
   } else if (node.side === "opp") {
     const sIdx = !isIn5v5 ? (state.tournament?.stageIndex || 0) : 0;
@@ -958,6 +963,8 @@ function initMatchPitchState(st, stageIdx) {
     ballVx: 0,
     ballVy: 0,
     ballVz: 0,
+    ballSpinDeg: 0,
+    ballSpinVel: 0,
     synergyLinkFx: null,
     camX: 50,
     camY: 50,
@@ -1234,8 +1241,11 @@ function computeNodeRoleTarget(node, pitch, carrier, chaserUid, coverUid, deepes
   // 1B) Bola solta rolando no gramado: recebedor e perseguidor mais próximo disparam (dash) para disputar a posse!
   if (pitch.ballMode === "LOOSE_BALL" && pitch.looseState) {
     const ls = pitch.looseState;
-    const predX = Math.max(6, Math.min(94, (pitch.ballX ?? 50) + (ls.vx || 0) * 0.16));
-    const predY = Math.max(9, Math.min(91, (pitch.ballY ?? 50) + (ls.vy || 0) * 0.16));
+    const isBetaBall = typeof isBetaMode === "function" && isBetaMode();
+    const rawDist = Math.hypot((pitch.ballX ?? 50) - node.x, (pitch.ballY ?? 50) - node.y);
+    const lookT = isBetaBall ? Math.min(0.40, 0.14 + rawDist * 0.014) : 0.16;
+    const predX = Math.max(6, Math.min(94, (pitch.ballX ?? 50) + (ls.vx || 0) * lookT));
+    const predY = Math.max(9, Math.min(91, (pitch.ballY ?? 50) + (ls.vy || 0) * lookT));
     const gkSweepDepth = prof.archetype === "GOLEIRO_LIBERO" ? 21 : 17.5;
     const inOwnPenaltyBox = isUser ? predX <= gkSweepDepth && Math.abs(predY - 50) <= 25 : predX >= (100 - gkSweepDepth) && Math.abs(predY - 50) <= 25;
 
@@ -1257,6 +1267,11 @@ function computeNodeRoleTarget(node, pitch, carrier, chaserUid, coverUid, deepes
         ty: Math.max(10, Math.min(90, predY)),
         sprint: Math.min(1.85, urgentBoost)
       };
+    } else if (isBetaBall && tr === "DF" && !isAttRunner && !isDefRunner && prof.vision >= 0.62) {
+      // Defensores com leitura tática seguram a linha de cobertura enquanto o cão de caça fecha a bola solta
+      const coverX = isUser ? Math.min(44, Math.max(12, predX - 10)) : Math.max(56, Math.min(88, predX + 10));
+      const coverY = Math.max(14, Math.min(86, node.baseY * 0.65 + predY * 0.35));
+      return { tx: coverX, ty: coverY, sprint: 1.04 };
     }
   }
 
@@ -1425,13 +1440,17 @@ function computeNodeRoleTarget(node, pitch, carrier, chaserUid, coverUid, deepes
       node.staggerTimer <= 0
     ) {
       const ps = pitch.passState;
-      const predFrac = chaserUid === node.uid ? 0.65 : 0.85;
+      const isBetaAir = typeof isBetaMode === "function" && isBetaMode() && (Number(ps.peakZ) || 0) >= 0.60;
+      const predFrac = isBetaAir
+        ? (chaserUid === node.uid ? 0.88 : 0.95)
+        : (chaserUid === node.uid ? 0.65 : 0.85);
       const cutX = (ps.fromX ?? ballX) * (1 - predFrac) + (ps.toX ?? ballX) * predFrac;
       const cutY = (ps.fromY ?? ballY) * (1 - predFrac) + (ps.toY ?? ballY) * predFrac;
+      const iqBoost = (typeof isBetaMode === "function" && isBetaMode() && prof.vision >= 0.72) ? 0.08 : 0;
       return {
         tx: Math.max(8, Math.min(92, cutX)),
         ty: Math.max(10, Math.min(90, cutY)),
-        sprint: Math.min(1.38, 1.06 + prof.combativeness * 0.16 + prof.vision * 0.14)
+        sprint: Math.min(1.44, 1.06 + prof.combativeness * 0.16 + prof.vision * 0.14 + iqBoost)
       };
     }
 
@@ -2208,8 +2227,19 @@ function renderPitchDOMFrame(pitch, st, now) {
   let ballTransform = "translate(-50%, -50%)";
   let isShotBall = false;
   if (pitch.ballMode === "CARRIED" && !pitch.ballFlight) {
-    pitch.ballZ = 0;
-    pitch.ballVz = 0;
+    if (betaOn) {
+      const zCushion = Math.max(0, Number(pitch.ballZ) || 0);
+      if (zCushion <= 0.008) {
+        pitch.ballZ = 0;
+        pitch.ballVz = 0;
+      }
+      const carrySpin = Number(pitch.ballSpinDeg) || 0;
+      const carryScale = zCushion > 0.008 ? 1 + zCushion * 0.45 : 1;
+      ballTransform = `translate(-50%, -50%) rotate(${carrySpin.toFixed(0)}deg) scale(${carryScale.toFixed(2)})`;
+    } else {
+      pitch.ballZ = 0;
+      pitch.ballVz = 0;
+    }
   }
   if (pitch.ballFlight) {
     const f = pitch.ballFlight;
@@ -2238,7 +2268,9 @@ function renderPitchDOMFrame(pitch, st, now) {
       ballTransform = `translate(-50%, -50%) rotate(${angleDeg.toFixed(1)}deg) scale(${stretch.toFixed(2)}, ${squash.toFixed(2)})`;
     } else {
       ballScale = betaOn ? 1 + (pitch.ballZ || 0) * 0.45 + Math.sin(t * Math.PI) * 0.14 : 1 + Math.sin(t * Math.PI) * 0.28;
-      ballTransform = `translate(-50%, -50%) scale(${ballScale.toFixed(2)})`;
+      ballTransform = betaOn
+        ? `translate(-50%, -50%) rotate(${(Number(pitch.ballSpinDeg) || 0).toFixed(0)}deg) scale(${ballScale.toFixed(2)})`
+        : `translate(-50%, -50%) scale(${ballScale.toFixed(2)})`;
     }
     if (pitch.passTrail) {
       pitch.passTrail.curX = pitch.ballX;
@@ -2260,7 +2292,10 @@ function renderPitchDOMFrame(pitch, st, now) {
       : zHeight > 0.01
       ? 1 + zHeight * 0.52
       : 1 + Math.sin(pitch.passState.progress * Math.PI) * 0.08;
-    ballTransform = `translate(-50%, -50%) scale(${ballScale.toFixed(2)})`;
+    const passSpin = betaOn ? (Number(pitch.ballSpinDeg) || ((pitch.passState.progress || 0) * 320)) : 0;
+    ballTransform = betaOn
+      ? `translate(-50%, -50%) rotate(${passSpin.toFixed(0)}deg) scale(${ballScale.toFixed(2)})`
+      : `translate(-50%, -50%) scale(${ballScale.toFixed(2)})`;
     if (pitch.passTrail) {
       pitch.passTrail.curX = pitch.ballX;
       pitch.passTrail.curY = pitch.ballY;
@@ -2273,7 +2308,8 @@ function renderPitchDOMFrame(pitch, st, now) {
     if (betaOn) {
       const zLoose = Math.max(0, Number(pitch.ballZ) || 0);
       ballScale = 1 + zLoose * 0.48;
-      ballTransform = `translate(-50%, -50%) rotate(${rollSpin.toFixed(0)}deg) scale(${ballScale.toFixed(2)})`;
+      const liveSpin = Number.isFinite(pitch.ballSpinDeg) ? pitch.ballSpinDeg : rollSpin;
+      ballTransform = `translate(-50%, -50%) rotate(${liveSpin.toFixed(0)}deg) scale(${ballScale.toFixed(2)})`;
     } else {
       ballTransform = `translate(-50%, -50%) rotate(${rollSpin.toFixed(0)}deg)`;
     }
@@ -2582,6 +2618,12 @@ function pickPassReceiver(nodes, defNodes, carrier, strictForward = false, pitch
   }
   if (candidates.length === 0) return nodes[0];
 
+  const betaPickOn = typeof isBetaMode === "function" && isBetaMode();
+  const teamChemNow =
+    betaPickOn && attIsUser && !pitch?.is5v5
+      ? (pitch?.support?.user?.chem ?? (typeof calcSquadStats === "function" ? (calcSquadStats()?.chem ?? 50) : 50))
+      : 50;
+
   const weights = candidates.map((n) => {
     const forwardGain = attIsUser ? n.targetX - carrier.x : carrier.x - n.targetX;
     const dist = Math.hypot(n.targetX - carrier.x, n.targetY - carrier.y);
@@ -2673,11 +2715,13 @@ function pickPassReceiver(nodes, defNodes, carrier, strictForward = false, pitch
       }
     }
 
-    const betaPickOn = typeof isBetaMode === "function" && isBetaMode();
     let pairAffinityW = 1.0;
     if (betaPickOn && attIsUser && !pitch?.is5v5 && typeof getPairAffinityEntry === "function") {
       const pairEnt = getPairAffinityEntry(carrier.player, n.player);
       pairAffinityW = [1.0, 1.08, 1.18, 1.30][pairEnt?.level || 0] || 1.0;
+      if (teamChemNow < 24 && (pairEnt?.points || 0) === 0) {
+        pairAffinityW *= 0.94;
+      }
     }
 
     const isRouteOfSkyNow =

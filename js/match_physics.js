@@ -1166,9 +1166,14 @@ function launchContinuousPass(st, pitch, carrier, attNodes, defNodes, strictForw
 
     const profPasser = typeof getNodePersonality === "function" ? getNodePersonality(carrier) : { archetype: "EQUILIBRADO" };
     const routeSkyOn = attIsUser && !pitch?.is5v5 && (pitch?.hissatsuTacticTimer || 0) > 0 && pitch?.activeHissatsuTacticId === "route_of_sky";
-    if (passOptions.isCross) {
+    if (passOptions.forceClearance) {
+      passType = "GK_CLEAR";
+      peakZ = 1.28;
+    } else if (passOptions.isCross) {
       passType = "CROSS";
-      peakZ = 1.05;
+      const recFis = receiver?.attrs?.fis || 75;
+      const recVel = receiver?.attrs?.vel || 75;
+      peakZ = recFis >= recVel + 4 ? 1.15 : 0.72;
     } else if (isGkOutlet && dist >= 22) {
       passType = "GK_CLEAR";
       peakZ = 1.30;
@@ -1193,7 +1198,8 @@ function launchContinuousPass(st, pitch, carrier, attNodes, defNodes, strictForw
     }
   }
 
-  const passSpeed = peakZ >= 0.9 ? 39 : peakZ > 0 ? 42 : dist > 32 ? 50 : isThroughBall ? 46 : 44;
+  const crossWhipBonus = betaAerial && passOptions.isCross && peakZ < 0.9 ? 5 : 0;
+  const passSpeed = (peakZ >= 0.9 ? 39 : peakZ > 0 ? 42 : dist > 32 ? 50 : isThroughBall ? 46 : 44) + crossWhipBonus;
   const duration = betaAerial ? Math.max(0.22, Math.min(1.45, dist / passSpeed)) : Math.max(0.22, Math.min(1.25, dist / passSpeed));
   pitch.ballZ = 0;
   pitch.ballVz = 0;
@@ -1203,6 +1209,7 @@ function launchContinuousPass(st, pitch, carrier, attNodes, defNodes, strictForw
   let ctrlX = (fromX + leadX) * 0.5;
   let ctrlY = (fromY + leadY) * 0.5;
   let isCurvedPass = false;
+  let curveSpinSign = 0;
   if (dist >= 11.5) {
     const ux = dx / dist;
     const uy = dy / dist;
@@ -1244,6 +1251,7 @@ function launchContinuousPass(st, pitch, carrier, attNodes, defNodes, strictForw
         const centerSide = (50 - ctrlY) * ny + fwdDir * nx * 0.4;
         curveSign = Math.abs(centerSide) > 0.1 ? (centerSide >= 0 ? 1 : -1) : (fromY < 50 ? 1 : -1);
       }
+      curveSpinSign = curveSign;
       const maxArc = passOptions.isCross ? 6.4 : hasBlockerInLane ? 5.6 : isThroughBall ? 4.8 : 4.2;
       const minArc = passOptions.isCross ? 2.4 : hasBlockerInLane ? 1.5 : 1.0;
       const arcMag = Math.min(maxArc, Math.max(minArc, dist * (passOptions.isCross ? 0.16 : hasBlockerInLane ? 0.145 : 0.105)));
@@ -1332,6 +1340,23 @@ function launchContinuousPass(st, pitch, carrier, attNodes, defNodes, strictForw
     showNodeBadge(pitch, receiver.uid, "⚡ Avançou!", "badge-pass", 900);
   }
 
+  const passSpinVel = betaAerial
+    ? (isCurvedPass
+        ? (curveSpinSign || 1) * (passOptions.isCross ? 620 : 480)
+        : peakZ >= 0.90
+        ? 420
+        : peakZ > 0
+        ? 340
+        : isThroughBall
+        ? 260
+        : 180)
+    : 0;
+  const releaseToLooseAt =
+    betaAerial && isThroughBall && !isOneTwoPass && !passOptions.isReturnOneTwo && !passOptions.isCross && dist >= 14
+      ? Math.min(0.90, Math.max(0.76, 0.78 + ((carrier.effOvr || 75) - 70) * 0.0035))
+      : null;
+  pitch.ballSpinVel = passSpinVel;
+
   pitch.ballMode = "PASS_FLIGHT";
   pitch.carrierUid = null;
   pitch.challengerUid = null;
@@ -1352,6 +1377,8 @@ function launchContinuousPass(st, pitch, carrier, attNodes, defNodes, strictForw
     isCross: Boolean(passOptions.isCross),
     passType,
     peakZ,
+    spinVel: passSpinVel,
+    releaseToLooseAt,
     wasOffsideAtPassTime,
     fromX,
     fromY,
@@ -2849,11 +2876,26 @@ function stepContinuousPhysics(st, pitch, dt) {
     pitch.catenaccioCounterTimer = Math.max(0, pitch.catenaccioCounterTimer - dt);
   }
 
-  // Decaimento de timers de aura e voleio
+  // Decaimento de timers de aura, voleio e passe de sintonia
   allNodes.forEach((n) => {
     if ((n.captainPassBuffTimer || 0) > 0) n.captainPassBuffTimer = Math.max(0, n.captainPassBuffTimer - dt);
     if ((n.crossVolleyTimer || 0) > 0) n.crossVolleyTimer = Math.max(0, n.crossVolleyTimer - dt);
+    if ((n.synergyPassBuffTimer || 0) > 0) n.synergyPassBuffTimer = Math.max(0, n.synergyPassBuffTimer - dt);
   });
+
+  if (typeof isBetaMode === "function" && isBetaMode()) {
+    pitch.ballSpinDeg = ((pitch.ballSpinDeg || 0) + (pitch.ballSpinVel || 0) * dt) % 360;
+    if (pitch.ballMode === "CARRIED" && !pitch.ballFlight) {
+      if ((pitch.ballZ || 0) > 0) {
+        pitch.ballZ = Math.max(0, pitch.ballZ - dt * 2.15);
+        pitch.ballVz = 0;
+      }
+      const cCarrier = findPitchNode(pitch, pitch.carrierUid);
+      const cSpd = cCarrier ? Math.hypot(cCarrier.vx || 0, cCarrier.vy || 0) : 0;
+      const dirSign = (cCarrier?.side || pitch.ballSide) === "user" ? 1 : -1;
+      pitch.ballSpinVel = cSpd > 0.5 ? dirSign * Math.min(340, 110 + cSpd * 11) : (pitch.ballSpinVel || 0) * Math.exp(-5 * dt);
+    }
+  }
 
   // Avança minutos do relógio (com mini-acréscimo +1'..+3' se lance perigoso acontecer no limite!) e recupera energia fora da posse
   if ((pitch.stoppageTicks || 0) > 0 && pitch.stoppageBoundaryMin && !isPlayThreateningBoundary(st)) {
@@ -3051,7 +3093,8 @@ function stepContinuousPhysics(st, pitch, dt) {
     const footY = carrier.y + 0.9 + weave;
     // Domínio suave sem teleporte: puxa a bola naturalmente do ponto de contato até o pé de condução
     if (!pitch.ballFlight) {
-      const settleRate = carrier.carryTime < 0.25 ? 14 : 28;
+      const betaSoft = typeof isBetaMode === "function" && isBetaMode();
+      const settleRate = carrier.carryTime < 0.25 ? (betaSoft ? 10 : 14) : 28;
       const alpha = Math.min(1, dt * settleRate);
       pitch.ballX += (footX - pitch.ballX) * alpha;
       pitch.ballY += (footY - pitch.ballY) * alpha;
@@ -3569,6 +3612,18 @@ function stepContinuousPhysics(st, pitch, dt) {
             (userStyle === "possession" ? 0.14 : 0));
       const forceRecycle = carrier.carryTime >= holdLimit && (!inFinalThird || blockingDefs >= 1);
 
+      if (
+        typeof isBetaMode === "function" &&
+        isBetaMode() &&
+        carrier.role === "DF" &&
+        nearestDefDist < 4.8 &&
+        (attIsUser ? carrier.x < 35 : carrier.x > 65) &&
+        roll < 0.72
+      ) {
+        launchContinuousPass(st, pitch, carrier, attNodes, defNodes, true, false, false, { forceClearance: true });
+        return;
+      }
+
       if (tiredPass || pressPass || crowdedRecycle || flowPass || forceRecycle) {
         // Se estiver cercado no terço final, permite passe pensado de reorganização; Vertical força progressão!
         const strictFwd = carrier.role === "DF" || userStyle === "vertical" || (inFinalThird && !boxedInFinalThird);
@@ -3709,6 +3764,7 @@ function stepContinuousPhysics(st, pitch, dt) {
         }
       });
     }
+    const isBetaCatch = typeof isBetaMode === "function" && isBetaMode();
     pitch.lastAssistCandidate = playMeta.isGkOutlet
       ? null
       : { passerUid: playMeta.passerUid, receiverUid: catcher.uid, side: catcher.side };
@@ -3717,19 +3773,26 @@ function stepContinuousPhysics(st, pitch, dt) {
     pitch.carrierUid = catcher.uid;
     pitch.passState = null;
     pitch.looseState = null;
-    pitch.ballZ = 0;
+    pitch.ballZ = isBetaCatch ? Math.min(0.28, (Number(pitch.ballZ) || 0) * 0.55) : 0;
     pitch.ballVz = 0;
+    if (isBetaCatch) {
+      pitch.ballSpinVel = (pitch.ballSpinVel || 0) * 0.45;
+    }
     if (attIsUser && !pitch.is5v5 && playMeta.passerNode) {
       if (
-        typeof isBetaMode === "function" &&
-        isBetaMode() &&
-        (playMeta.isReturnOneTwo || playMeta.isOneTwoPass) &&
+        isBetaCatch &&
         catcher.uid !== playMeta.passerUid &&
         typeof addPairAffinityPoints === "function"
       ) {
-        const pts = playMeta.isReturnOneTwo ? 8 : 5;
-        const tblRes = addPairAffinityPoints(playMeta.passerNode.player, catcher.player, pts, playMeta.isReturnOneTwo ? "tables" : null);
-        if (tblRes && ((tblRes.entry?.level || 0) >= 1 || playMeta.isReturnOneTwo)) {
+        const isOneTwo = Boolean(playMeta.isReturnOneTwo || playMeta.isOneTwoPass);
+        const pts = playMeta.isReturnOneTwo ? 8 : playMeta.isOneTwoPass ? 5 : !playMeta.isGkOutlet ? 2 : 0;
+        const tblRes = pts > 0 ? addPairAffinityPoints(playMeta.passerNode.player, catcher.player, pts, playMeta.isReturnOneTwo ? "tables" : null) : null;
+        const pairLv = tblRes?.entry?.level ?? (typeof getPairAffinityEntry === "function" ? getPairAffinityEntry(playMeta.passerNode.player, catcher.player)?.level || 0 : 0);
+        if (pairLv >= 1) {
+          catcher.synergyPassBuffTimer = 2.4;
+          catcher.synergyPassBuffBonus = [0, 0.65, 1.15, 1.70][pairLv] || 0.65;
+        }
+        if (tblRes && ((pairLv >= 2 && !playMeta.isGkOutlet) || isOneTwo)) {
           pitch.synergyLinkFx = {
             fromUid: playMeta.passerNode.uid,
             toUids: [catcher.uid],
@@ -3753,6 +3816,54 @@ function stepContinuousPhysics(st, pitch, dt) {
     catcher.carryTime = 0;
     catcher.duelCooldown = playMeta.isGkOutlet ? 0.65 : 0.25;
     catcher.decisionTimer = playMeta.isGkOutlet ? 0.14 : (playMeta.isOneTwoPass || playMeta.isCross) ? 0.06 : 0.30;
+
+    if (
+      isBetaCatch &&
+      !playMeta.isSafeProtectedPass &&
+      !playMeta.isGkOutlet &&
+      !playMeta.isOneTwoPass &&
+      !playMeta.isReturnOneTwo
+    ) {
+      const fwdDirTouch = catcher.side === "user" ? 1 : -1;
+      const nearPressDefs = (defNodes || []).filter(
+        (d) => d.role !== "GK" && d.staggerTimer <= 0 && visualPitchDist(d.x, d.y, catcher.x, catcher.y) <= 4.4
+      ).length;
+      const inOppDangerBox = attIsUser ? catcher.x >= 76 : catcher.x <= 24;
+      const catchSkill = (catcher.attrs?.tec || 75) * 0.6 + (catcher.stamina || 80) * 0.25;
+      const touchDiff = nearPressDefs * 15 + ((Number(playMeta.peakZ) || 0) >= 0.85 ? 16 : playMeta.isThroughBall ? 10 : 4);
+      const heavyMargin = touchDiff - catchSkill * 0.62;
+      if (!inOppDangerBox && nearPressDefs >= 1 && heavyMargin > 4) {
+        const heavyProb = Math.min(0.26, 0.08 + heavyMargin * 0.012);
+        if (Math.random() < heavyProb) {
+          const knockVx = fwdDirTouch * 14.5;
+          const knockVy = (Math.random() - 0.5) * 7.0;
+          pitch.ballMode = "LOOSE_BALL";
+          pitch.carrierUid = null;
+          pitch.ballZ = 0.08;
+          pitch.ballVz = 0.75;
+          pitch.ballSpinVel = (pitch.ballSpinVel || 240) * 1.15;
+          pitch.looseState = {
+            vx: knockVx,
+            vy: knockVy,
+            passerUid: playMeta.passerUid,
+            passerNode: playMeta.passerNode,
+            receiverUid: catcher.uid,
+            isGkOutlet: false,
+            isOneTwoPass: false,
+            isThroughBall: false,
+            wasOffsideAtPassTime: false,
+            age: 0
+          };
+          catcher.decisionTimer = 0.08;
+          showNodeBadge(pitch, catcher.uid, "Adiantou!", "badge-lost", 950);
+          syncLivePitchDOM(st);
+          return;
+        }
+      } else if ((catcher.attrs?.tec || 75) >= 82 || (catcher.attrs?.vel || 75) >= 84) {
+        catcher.vx = (catcher.vx || 0) + fwdDirTouch * 6.5;
+        catcher.decisionTimer = Math.min(catcher.decisionTimer, 0.16);
+      }
+    }
     // NUNCA teletransporta a bola ao recebedor: mantém pitch.ballX/Y onde houve o contato real;
     // CARRIED desliza suavemente a bola do ponto de domínio para o pé de condução!
 
@@ -3865,6 +3976,12 @@ function stepContinuousPhysics(st, pitch, dt) {
             }
             if (getUserCaptainAuraType(pitch) === "STRATEGIST") {
               finalInterceptProb *= 0.85;
+            }
+            if (typeof isBetaMode === "function" && isBetaMode() && ps.passerNode && receiver && typeof getPairAffinityEntry === "function") {
+              const pairAffLv = getPairAffinityEntry(ps.passerNode.player, receiver.player)?.level || 0;
+              if (pairAffLv > 0) {
+                finalInterceptProb *= [1, 0.92, 0.84, 0.75][pairAffLv] || 1;
+              }
             }
           }
         } else if (!attIsUser && !pitch.is5v5 && finalInterceptProb > 0) {
@@ -3992,8 +4109,11 @@ function stepContinuousPhysics(st, pitch, dt) {
       }
     }
 
-    // Recepção apenas por alcance FÍSICO real (bola alta só pode ser dominada quando já estiver descendo!)
-    const canCatchByHeight = peakZ < 0.60 || pitch.ballZ <= 0.62 || ps.progress >= 0.72;
+    // Recepção apenas por alcance FÍSICO real (no Teste Beta exige descida real antes de dominar bolas altas!)
+    const isBetaFlight = typeof isBetaMode === "function" && isBetaMode();
+    const canCatchByHeight = isBetaFlight
+      ? (peakZ < 0.45 || (ps.progress >= 0.82 && pitch.ballZ <= 0.36) || pitch.ballZ <= 0.24)
+      : (peakZ < 0.60 || pitch.ballZ <= 0.62 || ps.progress >= 0.72);
     const catchRadius = (ps.isThroughBall || ps.isOneTwoPass) ? 2.85 : 2.35;
     let physicalCatcher = null;
     if (canCatchByHeight && receiver && ps.progress >= 0.32 && visualPitchDist(receiver.x, receiver.y, pitch.ballX, pitch.ballY) <= catchRadius) {
@@ -4012,13 +4132,14 @@ function stepContinuousPhysics(st, pitch, dt) {
       return;
     }
 
-    // A bola chegou ao ponto alvo sem ninguém ter encostado ainda -> vira BOLA SOLTA rolando/quicando no gramado!
-    if (ps.progress >= 1) {
-      const deriv = evalQuadraticBezierDeriv(ps.fromX, ps.fromY, cpx, cpy, ps.toX, ps.toY, 1);
+    // Passe no espaço (ou chegada sem toque): vira BOLA SOLTA viva rolando/quicando com spin para disputarem na corrida!
+    const shouldReleaseToLoose = (isBetaFlight && ps.releaseToLooseAt && ps.progress >= ps.releaseToLooseAt) || ps.progress >= 1;
+    if (shouldReleaseToLoose) {
+      const deriv = evalQuadraticBezierDeriv(ps.fromX, ps.fromY, cpx, cpy, ps.toX, ps.toY, Math.min(1, u));
       const rawVx = (deriv.dx * 0.76) / Math.max(0.2, ps.duration);
       const rawVy = (deriv.dy * 0.76) / Math.max(0.2, ps.duration);
       const mag = Math.hypot(rawVx, rawVy) || 1;
-      const cappedSpeed = Math.min(22, Math.max(8, mag * 0.42));
+      const cappedSpeed = Math.min(24, Math.max(9, mag * (isBetaFlight && ps.releaseToLooseAt ? 0.52 : 0.42)));
       const endVx = (rawVx / mag) * cappedSpeed;
       const endVy = (rawVy / mag) * cappedSpeed;
 
@@ -4029,8 +4150,14 @@ function stepContinuousPhysics(st, pitch, dt) {
         pitch.passTrail.fadeUntil = performance.now() + 420;
       }
       pitch.ballMode = "LOOSE_BALL";
-      pitch.ballZ = 0;
-      pitch.ballVz = peakZ > 0 ? Math.min(2.6, peakZ * 2.1) : 0;
+      if (isBetaFlight) {
+        pitch.ballZ = Math.max(0, Number(pitch.ballZ) || 0);
+        pitch.ballVz = pitch.ballZ > 0.08 ? -0.9 : peakZ > 0 ? Math.min(2.6, peakZ * 2.1) : 0;
+        if (Number.isFinite(ps.spinVel)) pitch.ballSpinVel = ps.spinVel * 0.85;
+      } else {
+        pitch.ballZ = 0;
+        pitch.ballVz = 0;
+      }
       pitch.looseState = {
         vx: endVx,
         vy: endVy,
@@ -4066,6 +4193,14 @@ function stepContinuousPhysics(st, pitch, dt) {
       if (pitch.ballZ <= 0) {
         pitch.ballZ = 0;
         pitch.ballVz = Math.abs(pitch.ballVz) > 0.45 ? Math.abs(pitch.ballVz) * 0.52 : 0;
+      }
+      // Desaceleração natural do spin na grama e leve curva magnus em bolas com efeito
+      pitch.ballSpinVel = (pitch.ballSpinVel || 0) * Math.exp(-1.9 * dt);
+      const spdNow = Math.hypot(ls.vx, ls.vy);
+      if (spdNow > 2.5 && Math.abs(pitch.ballSpinVel || 0) > 80) {
+        const swerve = (pitch.ballSpinVel / 600) * 1.45 * dt;
+        ls.vx += (-ls.vy / spdNow) * swerve;
+        ls.vy += (ls.vx / spdNow) * swerve;
       }
     } else {
       pitch.ballZ = 0;

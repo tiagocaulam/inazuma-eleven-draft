@@ -537,6 +537,7 @@ function renderTournamentScreen() {
         t.prep.slotStrips = null;
         t.prep.event = null;
         t.prep.synergySelectedSlots = [];
+        t.prep.synergyChat = null;
         t.prep.clash5v5 = null;
         t.prep.recruitCandidate = null;
         t.prep.energyNotice = null;
@@ -590,8 +591,28 @@ function renderTournamentScreen() {
     const confirmSynergyBtn = document.getElementById("btn-confirm-synergy-pick");
     if (confirmSynergyBtn) {
       confirmSynergyBtn.addEventListener("click", () => {
-        if (typeof applyPrepSynergyTrain === "function") {
+        if (typeof startPrepSynergyChat === "function") {
+          startPrepSynergyChat();
+        } else if (typeof applyPrepSynergyTrain === "function") {
           applyPrepSynergyTrain();
+        }
+      });
+    }
+
+    document.querySelectorAll("[data-chat-choice]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const idx = Number(btn.getAttribute("data-chat-choice"));
+        if (typeof resolvePrepSynergyChatChoice === "function") {
+          resolvePrepSynergyChatChoice(Number.isFinite(idx) ? idx : 0);
+        }
+      });
+    });
+
+    const finishChatBtn = document.getElementById("btn-finish-synergy-chat");
+    if (finishChatBtn) {
+      finishChatBtn.addEventListener("click", () => {
+        if (typeof finishPrepSynergyChat === "function") {
+          finishPrepSynergyChat();
         }
       });
     }

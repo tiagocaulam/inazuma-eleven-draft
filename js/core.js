@@ -682,6 +682,187 @@ function addPairAffinityPoints(pA, pB, delta, statField = null, t = state.tourna
   };
 }
 
+const COOP_LEARNABLE_MOVES = {
+  DUO_SH: [
+    "Relâmpago Nº 1",
+    "Furacão Dragão",
+    "Fogo Cruzado (Crossfire)",
+    "Impacto Wyvern",
+    "Impulso Duplo",
+    "A Origem (The Birth)",
+    "Lenda Suprema (Prime Legend)",
+    "Alvorecer Negro",
+    "Zero Magnum",
+    "Tempestade do Tigre"
+  ],
+  TRIO_SH: [
+    "Tempestade Relâmpago (Inazuma Break)",
+    "Tri-Pégaso",
+    "A Fênix",
+    "Fênix Negra",
+    "Pinguins Imperiais Nº 2",
+    "Zona Mortal",
+    "Grande Fogo",
+    "Big Bang",
+    "A Terra (The Earth)",
+    "Corrente de Jato (Jet Stream)"
+  ],
+  DUO_OF: [
+    "Campo Assassino",
+    "Corrida em Dupla",
+    "Passe Duplo",
+    "Cruz Britânica",
+    "Harmonia Olímpica"
+  ],
+  TRIO_OF: [
+    "Disparada Tripla"
+  ],
+  DUO_DF: [
+    "Ciclone Duplo",
+    "Tempestade Dupla",
+    "Ponte Relâmpago",
+    "Muralha de Ferro",
+    "Jogada Ensaiada",
+    "Equação Defensiva"
+  ],
+  TRIO_DF: [
+    "Selva Profunda",
+    "Zona Sigma",
+    "Zona do Pentagrama"
+  ]
+};
+
+function normalizeLearnableCoopName(moveName) {
+  return String(moveName || "")
+    .split("➔")
+    .pop()
+    .replace(/\s*\(enfraquecido\)\s*/gi, "")
+    .replace(/(?:\s*(?:g[2-5]|shin|kai|v[2-4]|\+|★))+$/gi, "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/º/g, "o")
+    .trim()
+    .toLowerCase();
+}
+
+function teachCoopMoveToGroup(groupEntries, minAffinityLvl = 1, preferredCat = null) {
+  if (typeof isBetaMode === "function" && !isBetaMode()) {
+    return { learned: false, move: null, cat: null, tier: null, recipientNames: [], newlyAddedNames: [] };
+  }
+  if (!Array.isArray(groupEntries) || groupEntries.length < 2) {
+    return { learned: false, move: null, cat: null, tier: null, recipientNames: [], newlyAddedNames: [] };
+  }
+
+  const seenKeys = new Set();
+  const valid = [];
+  groupEntries.forEach((item) => {
+    const p = item?.player || item;
+    if (!p || typeof p !== "object") return;
+    const key = String(p.id || p.fullName || p.name || "").trim().toLowerCase();
+    if (!key || seenKeys.has(key)) return;
+    seenKeys.add(key);
+    valid.push({
+      player: p,
+      role: String(item?.role || p.pos || "MF").toUpperCase()
+    });
+  });
+
+  if (valid.length < 2) {
+    return { learned: false, move: null, cat: null, tier: null, recipientNames: [], newlyAddedNames: [] };
+  }
+
+  const counts = { FW: 0, MF: 0, DF: 0, GK: 0 };
+  valid.forEach((e) => {
+    if (counts[e.role] !== undefined) counts[e.role] += 1;
+    else counts.MF += 1;
+  });
+
+  let catOrder = ["OF", "SH", "DF"];
+  if (preferredCat && ["SH", "OF", "DF"].includes(preferredCat)) {
+    catOrder = [preferredCat, ...["SH", "OF", "DF"].filter((c) => c !== preferredCat)];
+  } else if (counts.FW > 0 && counts.FW >= counts.DF) {
+    catOrder = ["SH", "OF", "DF"];
+  } else if (counts.MF >= counts.DF && counts.MF >= counts.FW) {
+    catOrder = Math.random() < 0.56 ? ["OF", "SH", "DF"] : ["SH", "OF", "DF"];
+  } else if (counts.DF > 0) {
+    catOrder = ["DF", "OF", "SH"];
+  } else {
+    catOrder = ["DF", "SH", "OF"];
+  }
+
+  const tierPrefixes = valid.length >= 3
+    ? (minAffinityLvl >= 1 ? ["TRIO", "DUO"] : ["DUO", "TRIO"])
+    : ["DUO"];
+
+  let chosen = null;
+  for (const prefix of tierPrefixes) {
+    for (const cat of catOrder) {
+      const pool = COOP_LEARNABLE_MOVES[`${prefix}_${cat}`] || [];
+      if (!pool.length) continue;
+
+      const fullyUnknown = [];
+      const partiallyUnknown = [];
+      pool.forEach((mv) => {
+        const mvKey = normalizeLearnableCoopName(mv);
+        const missingCount = valid.reduce((acc, entry) => {
+          const list = Array.isArray(entry.player?.moves?.[cat]) ? entry.player.moves[cat] : [];
+          const hasIt = list.some((m) => normalizeLearnableCoopName(m) === mvKey);
+          return acc + (hasIt ? 0 : 1);
+        }, 0);
+        if (missingCount === valid.length) fullyUnknown.push(mv);
+        else if (missingCount > 0) partiallyUnknown.push(mv);
+      });
+
+      const candidates = fullyUnknown.length > 0 ? fullyUnknown : partiallyUnknown;
+      if (candidates.length > 0) {
+        chosen = {
+          move: candidates[Math.floor(Math.random() * candidates.length)],
+          cat,
+          tier: prefix
+        };
+        break;
+      }
+    }
+    if (chosen) break;
+  }
+
+  if (!chosen) {
+    return { learned: false, move: null, cat: null, tier: null, recipientNames: [], newlyAddedNames: [] };
+  }
+
+  const chosenKey = normalizeLearnableCoopName(chosen.move);
+  const newlyAddedNames = [];
+  valid.forEach(({ player }) => {
+    if (!player.moves || typeof player.moves !== "object") {
+      player.moves = { SH: [], OF: [], DF: [], GK: [] };
+    }
+    if (!Array.isArray(player.moves[chosen.cat])) {
+      player.moves[chosen.cat] = [];
+    }
+    const already = player.moves[chosen.cat].some((m) => normalizeLearnableCoopName(m) === chosenKey);
+    if (!already) {
+      const insertAt = Math.min(1, player.moves[chosen.cat].length);
+      player.moves[chosen.cat].splice(insertAt, 0, chosen.move);
+      newlyAddedNames.push(player.name || player.fullName || "Jogador");
+    }
+    if (!Array.isArray(player.learnedCoopMoves)) {
+      player.learnedCoopMoves = [];
+    }
+    if (!player.learnedCoopMoves.some((x) => normalizeLearnableCoopName(x?.move) === chosenKey)) {
+      player.learnedCoopMoves.push({ move: chosen.move, cat: chosen.cat, tier: chosen.tier });
+    }
+  });
+
+  return {
+    learned: newlyAddedNames.length > 0,
+    move: chosen.move,
+    cat: chosen.cat,
+    tier: chosen.tier,
+    recipientNames: valid.map((v) => v.player.name || v.player.fullName || "Jogador"),
+    newlyAddedNames
+  };
+}
+
 function cloneFreshPlayerForSquad(player, teamInfo = null, forcedLevel = 1) {
   if (!player) return null;
   const rawMoves = player.moves || {};
@@ -1871,7 +2052,7 @@ function evaluateTeamStats(slots, getPlayerForSlot, options = {}) {
     const maxClub = Math.max(0, ...Object.values(teamsCount));
     if (maxClub >= 2) {
       const clubChem = Math.min(28, Math.round(12 + maxClub * 1.5));
-      const clubPwr = Math.round(Math.min(68, maxClub * 6.0) * tierScale);
+      const clubPwr = Math.round(Math.min(86, maxClub * 7.6) * tierScale);
       chem += clubChem;
       bondsPower += clubPwr;
       activeBonds.push({
@@ -1881,14 +2062,14 @@ function evaluateTeamStats(slots, getPlayerForSlot, options = {}) {
     }
 
     if (oppLevel > 1 || oppStageIdx > 0) {
-      bondsPower += Math.round(Math.max(0, oppLevel - 1) * 14 + Math.max(0, oppStageIdx) * 22);
+      bondsPower += Math.round(Math.max(0, oppLevel - 1) * 20 + Math.max(0, oppStageIdx) * 30);
       chem += Math.min(34, Math.round(Math.max(0, oppStageIdx) * 3.2));
     }
 
     chem = Math.min(100, Math.max(0, chem));
     const chemPower = Math.round(chem * 1.05 * tierScale);
     const basePower = Math.round(sumBasePwr);
-    const power = count > 0 ? basePower + chemPower + bondsPower : 0;
+    const power = count > 0 ? Math.round((basePower + chemPower + bondsPower) * 1.04) : 0;
 
     return {
       count,

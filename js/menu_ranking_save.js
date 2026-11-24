@@ -1355,6 +1355,10 @@ function deserializePrepFromSave(rawPrep, t) {
     riskTargetSlotId: null
   };
 
+  if (prep.phase === "SYNERGY_CHAT") {
+    prep.phase = prep.affectedPlayers?.length ? "DONE" : prep.event ? "RESULT" : "CHOOSE_LOC";
+    prep.synergyChat = null;
+  }
   const isBrokenResult = prep.phase === "RESULT" && (!prep.event || prep.event.kind === "STREET_5V5");
   if (prep.phase === "CLASH_5V5" || prep.phase === "SPINNING" || prep.phase === "SPINNING_CHOICES" || isBrokenResult) {
     const loc = getPrepLocationsCatalog().find((x) => x.id === (prep.locId || "riverbank"));

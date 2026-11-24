@@ -154,7 +154,8 @@ function getPrepBuffPill(ev) {
   if (ev.id === "river_tactics") return `<span class="b-lvl">+135 XP (Meias)</span> • <span class="b-chem">+8% Quím</span> • <span class="b-pwr">+18 Poder</span>`;
   if (ev.id === "river_shot") return `<span class="b-lvl">+135 XP (ATQ)</span> • <span class="b-pwr">+14 Poder/ATQ</span> • <span class="b-pwr">+18 Time</span>`;
   if (ev.id === "river_defense") return `<span class="b-lvl">+135 XP (DEF/GOL)</span> • <span class="b-chem">+5% Quím</span> • <span class="b-pwr">+14 Poder/DEF</span>`;
-  if (ev.kind === "SYNERGY_PICK") return `<span class="b-chem">+35 Sintonia</span> • <span class="b-lvl">+85 XP</span> • <span class="b-chem">+4% Quím</span>`;
+  if (ev.id === "rest_team_bonding" || ev.isRestChat) return `<span class="b-chem">+${ev.energyGain || 30}% Energia</span> • <span class="b-tech">Resenha 2–3</span> • <span class="b-lvl">+${ev.xpGain || 20} XP</span>`;
+  if (ev.kind === "SYNERGY_PICK") return `<span class="b-tech">Resenha Dupla/Trio</span> • <span class="b-chem">+Sintonia</span> • <span class="b-lvl">+85 XP</span>`;
   if (ev.kind === "SCALABLE_BUFF") {
     const curLvl = state.tournament?.prepBonuses?.[ev.buffKey] || 0;
     const nextLvl = Math.min(ev.maxLevel || 3, curLvl + 1);
@@ -538,15 +539,15 @@ function getPrepLocationsCatalog() {
           ? [
               {
                 id: "river_synergy_train",
-                title: "Treino de Sintonia (Dupla/Trio)",
+                title: "Resenha & Treino Combinado",
                 icon: UI.formation || UI.manualInazuma || UI.ffLogo,
                 kind: "SYNERGY_PICK",
-                affinityPoints: 35,
+                affinityPoints: 34,
                 teamPower: 14,
-                teamChem: 4,
+                teamChem: 5,
                 xpGain: 85,
-                weight: 2.2,
-                summary: `Escolha <span class="b-tech">2 ou 3 titulares</span> para ensaiar jogadas combinadas (<span class="b-chem">+35 Sintonia</span> entre si, fortalecendo <span class="b-pwr">técnicas em dupla/trio e passes</span>) + <span class="b-lvl">+85 XP</span>.`
+                weight: 2.35,
+                summary: `Reúna <span class="b-tech">2 ou 3 titulares</span> para conversar e ensaiar jogadas (<span class="b-chem">Clima Dinâmico + Sintonia</span>). Com química alta, eles aprendem <span class="b-pwr">técnicas em dupla/trio</span> e fortalecem passes!`
               }
             ]
           : []),
@@ -770,11 +771,15 @@ function getPrepLocationsCatalog() {
                 id: "rest_team_bonding",
                 title: "Resenha & Entrosamento",
                 icon: UI.raimonEmblem || UI.formation || UI.ffLogo,
-                kind: "REST_ACTIVE",
+                kind: "SYNERGY_PICK",
+                isRestChat: true,
                 restMode: "BOND",
+                affinityPoints: 26,
+                teamPower: 8,
+                teamChem: 4,
                 energyGain: bondRestGain,
                 xpGain: bondRestXp,
-                summary: `Conversa tática leve que recupera <span class="b-chem">+${bondRestGain}% de Energia</span>, dá <span class="b-lvl">+${bondRestXp} XP</span> ao elenco e eleva em <span class="b-tech">+18 a Sintonia</span> de 3 duplas próximas.`
+                summary: `Bate-papo descontraído no quarto com <span class="b-tech">2 ou 3 titulares</span>: recupera <span class="b-chem">+${bondRestGain}% de Energia</span>, gera <span class="b-lvl">+${bondRestXp} XP</span> e cria conexões para técnicas combinadas (encerra a noite).`
               }
             ]
           : [])
@@ -1669,7 +1674,28 @@ function handleChoosePrepOption(choiceEvent) {
 
   // 5. Itens, Keshin, Evolução ou Sintonia (2 ou 3 titulares selecionados)
   if (choiceEvent.kind === "SYNERGY_PICK") {
-    prep.synergySelectedSlots = [];
+    prep.synergyChat = null;
+    if (choiceEvent.isRestChat) {
+      const slots = getSlots().filter((s) => state.squad[s.id]);
+      const scored = [];
+      for (let i = 0; i < slots.length; i++) {
+        for (let j = i + 1; j < slots.length; j++) {
+          const dist = Math.hypot((slots[i].x || 50) - (slots[j].x || 50), (slots[i].y || 50) - (slots[j].y || 50));
+          scored.push({ a: slots[i].id, b: slots[j].id, dist });
+        }
+      }
+      scored.sort((x, y) => x.dist - y.dist);
+      if (scored[0]) {
+        const seedIds = [scored[0].a, scored[0].b];
+        const third = slots.find((s) => s.role !== "GK" && !seedIds.includes(s.id));
+        if (third) seedIds.push(third.id);
+        prep.synergySelectedSlots = seedIds;
+      } else {
+        prep.synergySelectedSlots = slots.slice(0, 2).map((s) => s.id);
+      }
+    } else {
+      prep.synergySelectedSlots = [];
+    }
   }
   prep.phase = "RESULT";
   if (typeof saveActiveRunProgress === "function") saveActiveRunProgress();
@@ -1971,7 +1997,467 @@ function togglePrepSynergySlot(slotId) {
   renderTournamentScreen();
 }
 
-function applyPrepSynergyTrain() {
+function computeGroupChatClimate(selectedIds, t = state.tournament) {
+  const validIds = Array.isArray(selectedIds) ? selectedIds.filter((id) => state.squad[id]) : [];
+  const teamChem = typeof calcSquadStats === "function" ? (calcSquadStats()?.chem || 0) : 40;
+  let pairPtsSum = 0;
+  let pairCount = 0;
+  let relBonus = 0;
+  let egoClash = 0;
+
+  for (let i = 0; i < validIds.length; i++) {
+    for (let j = i + 1; j < validIds.length; j++) {
+      const pA = state.squad[validIds[i]];
+      const pB = state.squad[validIds[j]];
+      const ent = typeof getPairAffinityEntry === "function" ? getPairAffinityEntry(pA, pB, t) : { points: 0, level: 0 };
+      pairPtsSum += ent?.points || 0;
+      pairCount++;
+      if (typeof hasFriendshipLinkBetween === "function" && hasFriendshipLinkBetween(pA, pB)) {
+        relBonus += 16;
+      }
+      if (pA.teamId && pA.teamId === pB.teamId) {
+        relBonus += 10;
+      }
+      if (pA.element && pA.element === pB.element) {
+        relBonus += 6;
+      }
+      const arcA = pA.archetype || "";
+      const arcB = pB.archetype || "";
+      if (arcA === "INDIVIDUALISTA" && arcB === "INDIVIDUALISTA" && (ent?.points || 0) < 35) {
+        egoClash += 12;
+      }
+    }
+  }
+
+  const avgPairPts = pairCount > 0 ? pairPtsSum / pairCount : 0;
+  const rawScore = Math.round(avgPairPts * 0.62 + teamChem * 0.46 + relBonus - egoClash);
+  const climateScore = Math.max(0, Math.min(110, rawScore));
+
+  if (climateScore < 26 || (teamChem < 24 && avgPairPts < 18)) {
+    return {
+      id: "TOXICO",
+      label: "Clima Tenso • Discórdia",
+      badgeClass: "is-toxic",
+      icon: "⚡💢",
+      climateScore,
+      avgPairPts: Math.round(avgPairPts),
+      teamChem: Math.round(teamChem),
+      hint: "Química baixa gera intrigas e cobranças duras no grupo. Medie o clima antes de tentar técnicas combinadas."
+    };
+  }
+  if (climateScore < 48) {
+    return {
+      id: "NEUTRO",
+      label: "Resenha • Quebrando o Gelo",
+      badgeClass: "is-neutral",
+      icon: "💬😅",
+      climateScore,
+      avgPairPts: Math.round(avgPairPts),
+      teamChem: Math.round(teamChem),
+      hint: "Clima leve entre provocações e estudo do rival. Boa chance de elevar sintonia e começar a esboçar jogadas."
+    };
+  }
+  if (climateScore < 74) {
+    return {
+      id: "CONFIANCA",
+      label: "Alta Confiança • Ideias em Dobro",
+      badgeClass: "is-trust",
+      icon: "🔥🤝",
+      climateScore,
+      avgPairPts: Math.round(avgPairPts),
+      teamChem: Math.round(teamChem),
+      hint: "Elogios mútuos e sintonia afiada! Grande chance de aprender uma Técnica Combinada em Dupla/Trio."
+    };
+  }
+  return {
+    id: "SINTONIA_MAX",
+    label: "Sintonia Máxima • Imparáveis!",
+    badgeClass: "is-max",
+    icon: "⚡🌟",
+    climateScore,
+    avgPairPts: Math.round(avgPairPts),
+    teamChem: Math.round(teamChem),
+    hint: "Entrosamento absoluto! Técnicas combinadas fluem naturalmente e fortalecem cada passe no próximo jogo."
+  };
+}
+
+function getNextOpponentDisplayName(t) {
+  const prep = t?.prep;
+  const nextStage = t?.stages?.[prep?.nextStageIdx];
+  return nextStage?.opp?.name || nextStage?.oppTeam?.name || nextStage?.team?.name || nextStage?.stageName || "o próximo adversário";
+}
+
+function getPlayerSignatureMoveName(p) {
+  if (!p) return "Chute Relâmpago";
+  const order = p.pos === "GK" ? ["GK", "DF", "SH", "OF"] : p.pos === "DF" ? ["DF", "OF", "SH", "GK"] : p.pos === "MF" ? ["OF", "SH", "DF", "GK"] : ["SH", "OF", "DF", "GK"];
+  for (const cat of order) {
+    if (Array.isArray(p.moves?.[cat]) && p.moves[cat][0]) return p.moves[cat][0];
+  }
+  return p.hissatsu || "Super Técnica";
+}
+
+function buildSynergyChatSession(selectedIds, ev, t = state.tournament) {
+  const slotsMap = {};
+  getSlots().forEach((s) => { slotsMap[s.id] = s; });
+  const participants = selectedIds
+    .map((sid, idx) => {
+      const slot = slotsMap[sid];
+      const p = state.squad[sid];
+      if (!slot || !p) return null;
+      return {
+        slotId: sid,
+        idx,
+        name: p.name,
+        role: slot.role,
+        element: p.element,
+        sprite: getPlayerFormSprite(p, slot.role),
+        sigMove: getPlayerSignatureMoveName(p)
+      };
+    })
+    .filter(Boolean);
+
+  const climate = computeGroupChatClimate(selectedIds, t);
+  const p0 = participants[0];
+  const p1 = participants[1] || participants[0];
+  const p2 = participants[2] || null;
+  const isTrio = participants.length >= 3;
+  const oppName = getNextOpponentDisplayName(t);
+  const seed = Math.floor(Math.random() * 1000);
+  const n0 = p0.name;
+  const n1 = p1.name;
+  const n2 = p2 ? p2.name : n0;
+  const m0 = p0.sigMove;
+  const m1 = p1.sigMove;
+
+  const mkMsg = (senderIdx, text, tone = "normal") => {
+    const part = participants[senderIdx] || p0;
+    return {
+      senderIdx,
+      speakerRole: `P${senderIdx}`,
+      speakerName: part.name,
+      speakerSprite: part.sprite,
+      roleTag: part.role,
+      tone,
+      text
+    };
+  };
+
+  let openingLines = [];
+  let coachChoices = [];
+  const baseAff = ev?.affinityPoints || 32;
+  const baseChem = ev?.teamChem || 4;
+
+  if (climate.id === "TOXICO") {
+    const scenarios = [
+      [
+        mkMsg(0, `Sinceramente, ${n1}, você tá segurando demais a bola. Contra ${oppName} não dá pra jogar só olhando pro chão.`, "toxic"),
+        mkMsg(1, `Ah é?! E você que some da linha do passe toda vez que eu aperto a marcação? Tá fácil culpar os outros, ${n0}.`, "toxic"),
+        ...(isTrio ? [mkMsg(2, `Se vocês dois continuarem batendo boca assim, ${oppName} vai passar por cima antes dos 15 minutos...`, "tense")] : [])
+      ],
+      [
+        mkMsg(1, `Com essa química baixa no time, prefiro tentar resolver na minha ${m1} mesmo do que arriscar toque torto.`, "toxic"),
+        mkMsg(0, `Que bela mentalidade de equipe... Vai lá então, tenta driblar cinco de ${oppName} sozinho e vê no que dá.`, "toxic"),
+        ...(isTrio ? [mkMsg(2, `Dá pra sentir o climão pesado daqui. Ou a gente se alinha agora ou vai dar ruim em campo.`, "tense")] : [])
+      ],
+      [
+        mkMsg(0, `Na boa, se eu mandar a bola no espaço você acompanha ou vai ficar reclamando igual no último jogo, ${n1}?`, "toxic"),
+        mkMsg(1, `Manda uma bola decente primeiro! Até agora você só chutou torto tentando aparecer!`, "toxic"),
+        ...(isTrio ? [mkMsg(2, `Caramba, parem de se estranhar antes do apito! O treinador tá olhando tudo.`, "tense")] : [])
+      ],
+      [
+        mkMsg(1, `Não tô afim de papo hoje não. O vestiário tá um caos e ninguém entende meu movimento sem bola.`, "toxic"),
+        mkMsg(0, `Ninguém tem bola de cristal, ${n1}. Sem conversar não existe jogada combinada!`, "toxic"),
+        ...(isTrio ? [mkMsg(2, `Do jeito que tá, até um passe simples vai virar bola perdida contra ${oppName}...`, "tense")] : [])
+      ]
+    ];
+    openingLines = scenarios[seed % scenarios.length];
+    coachChoices = [
+      {
+        id: 0,
+        label: "Apaziguar o grupo e ajustar o passe simples",
+        effectTag: `+${Math.round(baseAff * 0.7)} Sintonia • Acalma o clima`,
+        affDelta: Math.round(baseAff * 0.7),
+        chemDelta: baseChem + 1,
+        xpBonus: 10,
+        powerBonus: 0,
+        coopChance: 0,
+        coachLine: `Respiração funda, time. Contra ${oppName} vocês não precisam ser melhores amigos fora de campo — só confiem no próximo passe.`,
+        reactions: [
+          mkMsg(0, `É... faz sentido. Vou soltar a bola mais rápido na sua corrida, ${n1}.`, "calm"),
+          mkMsg(1, `Fechado. Se você abrir espaço, eu garanto o apoio de volta.`, "calm"),
+          ...(isTrio ? [mkMsg(2, `Menos mal! Já deu pra baixar a poeira e respirar melhor.`, "calm")] : [])
+        ]
+      },
+      {
+        id: 1,
+        label: "Botar os dois frente a frente: resolvam treinando pressão",
+        effectTag: `Tensão • Faísca competitiva (+XP • 10% Co-op)`,
+        affDelta: Math.round(baseAff * 0.45),
+        chemDelta: Math.max(1, baseChem - 1),
+        xpBonus: 35,
+        powerBonus: 4,
+        coopChance: 0.10,
+        coachLine: `Querem discutir? Então transformem essa marra em intensidade contra ${oppName} e me provem dentro das quatro linhas!`,
+        reactions: [
+          mkMsg(1, `Beleza! Se quer ver intensidade, ${n0}, tenta acompanhar minha próxima arrancada!`, "intense"),
+          mkMsg(0, `Pode mandar! Não vou ficar um passo atrás de você nem de ${oppName}!`, "intense"),
+          ...(isTrio ? [mkMsg(2, `Nossa... virou rivalidade pura, mas pelo menos agora ninguém vai tirar o pé!`, "tense")] : [])
+        ]
+      },
+      {
+        id: 2,
+        label: "Quebrar o gelo com zoeira e aposta do lanche",
+        effectTag: `+Química (${baseChem + 2}%) • Melhora o ambiente`,
+        affDelta: Math.round(baseAff * 0.55),
+        chemDelta: baseChem + 2,
+        xpBonus: 0,
+        powerBonus: 0,
+        coopChance: 0,
+        coachLine: `Chega dessa cara fechada! Quem errar menos passes contra ${oppName} escolhe o lanche da galera depois.`,
+        reactions: [
+          mkMsg(0, `Haha, aí apelou, treinador... mas não vou perder suco grátis pro ${n1} nunca!`, "banter"),
+          mkMsg(1, `Vai preparando a carteira, ${n0}, porque hoje eu não erro um domínio!`, "banter"),
+          ...(isTrio ? [mkMsg(2, `Pronto, era só falar de comida que o clima já mudou da água pro vinho.`, "banter")] : [])
+        ]
+      }
+    ];
+  } else if (climate.id === "NEUTRO") {
+    const scenarios = [
+      [
+        mkMsg(0, `Estava vendo uns lances de ${oppName}... A defesa deles fecha bem rápido pelo meio.`, "normal"),
+        mkMsg(1, `Verdade, mas se a gente tabelar no ritmo certo eles abrem o buraco. Só não vale dormir na recepção, hein ${n0}!`, "banter"),
+        ...(isTrio ? [mkMsg(2, `Haha! Quem perder bola boba hoje paga o lámen da volta, combinado?`, "banter")] : [])
+      ],
+      [
+        mkMsg(1, `Tô pensando numa variação nova pra encaixar com a ${m0}. Acho que falta só um toque extra antes do giro.`, "idea"),
+        mkMsg(0, `Curti a ideia! Se você me der um segundo pra chegar na diagonal, dá pra surpreender ${oppName}.`, "normal"),
+        ...(isTrio ? [mkMsg(2, `Eu fico na cobertura pra recolher o rebote — ou roubar a cena no final, kkk.`, "banter")] : [])
+      ],
+      [
+        mkMsg(0, `Falando sério: ${oppName} tem respeito pelo nosso ataque, ouvi o pessoal comentando no corredor.`, "normal"),
+        mkMsg(1, `Melhor assim! Se eles vierem mordidos, nossa zoeira em campo quebra o ritmo deles.`, "banter"),
+        ...(isTrio ? [mkMsg(2, `Só bora ajustar os detalhes aqui que esse jogo já tá com uma cara boa.`, "normal")] : [])
+      ],
+      [
+        mkMsg(1, `Cara, aquele teu último lance foi muito bom... quase tão bom quanto o meu, claro.`, "banter"),
+        mkMsg(0, `Convencido! Mas falando sério, com mais algumas partidas juntos a gente vai encaixar sinistro.`, "normal"),
+        ...(isTrio ? [mkMsg(2, `Deixa o ego de lado vocês dois e bora desenhar essa jogada pro jogo!`, "banter")] : [])
+      ]
+    ];
+    openingLines = scenarios[seed % scenarios.length];
+    coachChoices = [
+      {
+        id: 0,
+        label: "Lapidar tabelas rápidas e leitura do espaço",
+        effectTag: `+${baseAff} Sintonia • +15 XP`,
+        affDelta: baseAff,
+        chemDelta: baseChem,
+        xpBonus: 15,
+        powerBonus: 0,
+        coopChance: 0.25,
+        coachLine: `Boa conversa! Treinem o passe com giro e a corrida diagonal — quero vocês se achando sem hesitar contra ${oppName}.`,
+        reactions: [
+          mkMsg(0, `Entendido, professor! Olho levantado e bola viva na passada de ${n1}.`, "calm"),
+          mkMsg(1, `Já tô visualizando a linha do passe. Vai encaixar limpo!`, "calm"),
+          ...(isTrio ? [mkMsg(2, `Com nós três sincronizados nesse corredor, não tem marcação que segure!`, "calm")] : [])
+        ]
+      },
+      {
+        id: 1,
+        label: "Incentivar criarem uma técnica combinada",
+        effectTag: `+${Math.round(baseAff * 0.9)} Sintonia • 35% Técnica Co-op`,
+        affDelta: Math.round(baseAff * 0.9),
+        chemDelta: baseChem,
+        xpBonus: 5,
+        powerBonus: 0,
+        coopChance: 0.35,
+        coachLine: `Vocês têm potencial de sobra. Que tal juntarem a criatividade e ensaiarem uma técnica combinada em ${isTrio ? "Trio" : "Dupla"}?`,
+        reactions: [
+          mkMsg(1, `Boa! Eu já tava com uma ideia na cabeça envolvendo ${m1}!`, "idea"),
+          mkMsg(0, `Bora testar o tempo dos passos agora — se clicar, ${oppName} não vai nem entender!`, "idea"),
+          ...(isTrio ? [mkMsg(2, `Tô dentro! O terceiro homem sempre faz a diferença na hora do impacto!`, "idea")] : [])
+        ]
+      },
+      {
+        id: 2,
+        label: "Animar a resenha e subir a moral do vestiário",
+        effectTag: `+Química (${baseChem + 3}%) • Moral em alta`,
+        affDelta: Math.round(baseAff * 0.85),
+        chemDelta: baseChem + 3,
+        xpBonus: 10,
+        powerBonus: 4,
+        coopChance: 0.18,
+        coachLine: `É disso que eu gosto! Time leve dentro e fora de campo joga o dobro contra ${oppName}!`,
+        reactions: [
+          mkMsg(0, `Agora sim! Bora entrar rindo e sair com a vitória!`, "banter"),
+          mkMsg(1, `Se eu fizer gol de letra eu cobro um extra no placar, hein!`, "banter"),
+          ...(isTrio ? [mkMsg(2, `Clima 10/10! Agora ${oppName} que se segure!`, "hype")] : [])
+        ]
+      }
+    ];
+  } else if (climate.id === "CONFIANCA") {
+    const scenarios = [
+      [
+        mkMsg(0, `Falando sério, ${n1}: aquela sua cobertura ontem salvou o time inteiro. Dá muita segurança jogar contigo.`, "praise"),
+        mkMsg(1, `Tamo junto, ${n0}! E na real... tô pensando nessa técnica nova onde você puxa a zaga e eu entro de trás com tudo!`, "idea"),
+        ...(isTrio ? [mkMsg(2, `E se eu fechar o triângulo no terceiro toque? ${oppName} não vai ter chance contra nós!`, "hype")] : [])
+      ],
+      [
+        mkMsg(1, `Honestamente? Vendo como nosso grupo encaixou os passes, eles não têm a menor chance contra nós hoje!`, "hype"),
+        mkMsg(0, `Concordo! Só quero afiar um detalhe: quando a marcação fechar meu lado com ${m0}, vou soltar com curva no seu ponto cego.`, "idea"),
+        ...(isTrio ? [mkMsg(2, `Pode mandar com efeito! Eu acompanho o ritmo de vocês e fecho a triangulação!`, "praise")] : [])
+      ],
+      [
+        mkMsg(0, `Que evolução absurda a nossa, hein ${n1}. Antes a gente batia cabeça, hoje já sei onde você vai correr antes do passe.`, "praise"),
+        mkMsg(1, `Total! E se ${oppName} tentar marcar individual, vamos girar a bola tão rápido que o marcador vai ficar tonto!`, "hype"),
+        ...(isTrio ? [mkMsg(2, `Tô pilhado demais! Vamos transformar essa confiança em mais uma Hissatsu combinada!`, "hype")] : [])
+      ],
+      [
+        mkMsg(1, `Tive uma ideia maluca no treino de mais cedo: e se combinarmos a força da ${m1} com um corte seco antes do domínio?`, "idea"),
+        mkMsg(0, `Gênio! Se o passe vier vivo no espaço certo, dá pra emendar de primeira sem deixar o goleiro respirar!`, "hype"),
+        ...(isTrio ? [mkMsg(2, `Partiu ensaiar isso agora! Essa combinação vai virar nossa marca registrada!`, "hype")] : [])
+      ]
+    ];
+    openingLines = scenarios[seed % scenarios.length];
+    coachChoices = [
+      {
+        id: 0,
+        label: "Consolidar a técnica combinada do grupo agora",
+        effectTag: `75% Técnica ${isTrio ? "Trio" : "Dupla"} • +${baseAff} Sintonia`,
+        affDelta: baseAff,
+        chemDelta: baseChem + 1,
+        xpBonus: 15,
+        powerBonus: 4,
+        coopChance: 0.75,
+        coachLine: `A leitura de vocês tá afiadíssima! Transformem esse rascunho em uma Técnica Combinada oficial pra estrear contra ${oppName}!`,
+        reactions: [
+          mkMsg(0, `Agora ficou sério! Sente a batida no pé, ${n1}, vamos encaixar no segundo exato!`, "hype"),
+          mkMsg(1, `No mesmo compasso! É agora que a mágica acontece!`, "hype"),
+          ...(isTrio ? [mkMsg(2, `Três mentes, um único movimento — vamo nessa!!`, "hype")] : [])
+        ]
+      },
+      {
+        id: 1,
+        label: "Focar em velocidade de passe & domínio sob pressão",
+        effectTag: `+${Math.round(baseAff * 1.15)} Sintonia • Buff Passes (52% Co-op)`,
+        affDelta: Math.round(baseAff * 1.15),
+        chemDelta: baseChem + 2,
+        xpBonus: 20,
+        powerBonus: 2,
+        coopChance: 0.52,
+        coachLine: `Passe forte, recepção macia e leitura limpa. Com essa conexão de vocês, cada passe em campo vai deixar o companheiro mais perigoso!`,
+        reactions: [
+          mkMsg(1, `Cada passe meu pra você vai sair com velocidade e visão de jogo, ${n0}!`, "praise"),
+          mkMsg(0, `E eu devolvo redonda no ponto futuro pra gente quebrar a linha deles!`, "praise"),
+          ...(isTrio ? [mkMsg(2, `Assim fica gostoso demais de jogar! Ninguém intercepta a gente hoje.`, "hype")] : [])
+        ]
+      },
+      {
+        id: 2,
+        label: "Inflamar a confiança pra cima do adversário",
+        effectTag: `+Poder (+6) • +Química (${baseChem + 3}%) • 45% Co-op`,
+        affDelta: Math.round(baseAff * 0.95),
+        chemDelta: baseChem + 3,
+        xpBonus: 25,
+        powerBonus: 6,
+        coopChance: 0.45,
+        coachLine: `Olhem no espelho do elenco que construímos. ${oppName} pode vir como quiser — hoje vocês entram pra mandar no campo!`,
+        reactions: [
+          mkMsg(0, `Eles não têm chance contra nós! Tô pronto pro apito inicial!`, "hype"),
+          mkMsg(1, `Pode escrever: hoje nossa conexão vai brilhar no placar!`, "hype"),
+          ...(isTrio ? [mkMsg(2, `Vamos atropelar do primeiro ao último minuto!`, "hype")] : [])
+        ]
+      }
+    ];
+  } else {
+    // SINTONIA_MAX
+    const scenarios = [
+      [
+        mkMsg(0, `Real, ${n1}... jogar com você parece que estamos ligados por telepatia. Antes de eu olhar, você já tá no ponto certo!`, "hype"),
+        mkMsg(1, `Eles não têm chance contra nós, ${n0}! Sério, mesmo se ${oppName} fechar com três atrás, a gente fura com uma jogada só!`, "hype"),
+        ...(isTrio ? [mkMsg(2, `Tô sentindo a aura subindo aqui! Se juntarmos ${m0} com a ${m1}, nasce uma técnica lendária AGORA!`, "hype")] : [])
+      ],
+      [
+        mkMsg(1, `Tô pensando numa técnica nova absurda: bola erguida com efeito, dois cortes no ar e impacto sincronizado no pé!`, "idea"),
+        mkMsg(0, `Isso é puro futebol Inazuma! Com o nosso entrosamento no auge, vamos dominar o tempo disso na primeira tentativa!`, "hype"),
+        ...(isTrio ? [mkMsg(2, `Eu entro fechando o vértice do triângulo! Vai tremer o estádio inteiro contra ${oppName}!`, "hype")] : [])
+      ],
+      [
+        mkMsg(0, `Quando a gente se elogia é porque a coisa tá séria: ${n1}, seu ritmo e visão mudaram o patamar desse time inteiro.`, "praise"),
+        mkMsg(1, `Você que puxa todos nós pro topo! Com essa energia, até o goleiro de ${oppName} vai tremer quando a bola rodar entre nós!`, "hype"),
+        ...(isTrio ? [mkMsg(2, `Não sobra nem poeira de ${oppName} quando esse trio dispara junto!`, "hype")] : [])
+      ]
+    ];
+    openingLines = scenarios[seed % scenarios.length];
+    coachChoices = [
+      {
+        id: 0,
+        label: `Despertar Técnica Combinada Suprema (${isTrio ? "Trio" : "Dupla"})`,
+        effectTag: `Técnica Co-op GARANTIDA • +${Math.round(baseAff * 1.15)} Sintonia`,
+        affDelta: Math.round(baseAff * 1.15),
+        chemDelta: baseChem + 2,
+        xpBonus: 25,
+        powerBonus: 6,
+        coopChance: 1.0,
+        coachLine: `A conexão de vocês atingiu o limite máximo! Não segurem nada — sincronizem a aura e criem a nova Técnica Combinada agora!`,
+        reactions: [
+          mkMsg(0, `SENTIRAM ISSO?! O ritmo bateu perfeito no mesmo segundo!!`, "hype"),
+          mkMsg(1, `Absurdo!! ${oppName} nunca vai esquecer esse lance!`, "hype"),
+          ...(isTrio ? [mkMsg(2, `É a força máxima do nosso entrosamento em campo!`, "hype")] : [])
+        ]
+      },
+      {
+        id: 1,
+        label: "Treinar passes cegos em velocidade máxima",
+        effectTag: `95% Técnica Co-op • +${Math.round(baseAff * 1.25)} Sintonia`,
+        affDelta: Math.round(baseAff * 1.25),
+        chemDelta: baseChem + 2,
+        xpBonus: 20,
+        powerBonus: 4,
+        coopChance: 0.95,
+        coachLine: `Passe de primeira, bola viva no ponto futuro e cobertura imediata. Mostrem pra ${oppName} o que é sintonia pura!`,
+        reactions: [
+          mkMsg(1, `Nem preciso olhar! Sei exatamente onde a bola tem que chegar!`, "hype"),
+          mkMsg(0, `E cada toque entre nós já deixa o próximo chute imparável!`, "hype"),
+          ...(isTrio ? [mkMsg(2, `Que máquina virou esse setor! Dá orgulho de ver!`, "praise")] : [])
+        ]
+      },
+      {
+        id: 2,
+        label: "Liderar discurso épico pro elenco inteiro",
+        effectTag: `+Poder (+8) • +Química (${baseChem + 4}%) • 85% Co-op`,
+        affDelta: baseAff,
+        chemDelta: baseChem + 4,
+        xpBonus: 30,
+        powerBonus: 8,
+        coopChance: 0.85,
+        coachLine: `Escutem o que eles construíram aqui: respeito, ousadia e sintonia máxima. Levem esse espírito pro vestiário inteiro!`,
+        reactions: [
+          mkMsg(0, `Todos os 11 no mesmo batimento! Vamos buscar esse título!`, "hype"),
+          mkMsg(1, `Eles não têm chance contra nós! Pode apitar logo o jogo!`, "hype"),
+          ...(isTrio ? [mkMsg(2, `Inazuma Eleven em estado puro!!`, "hype")] : [])
+        ]
+      }
+    ];
+  }
+
+  return {
+    eventId: ev?.id || "river_synergy_train",
+    isRestChat: Boolean(ev?.isRestChat),
+    energyGain: ev?.energyGain || 0,
+    climate,
+    oppName,
+    participants,
+    selectedIds: [...selectedIds],
+    messages: openingLines,
+    coachChoices,
+    resolved: false,
+    chosenIdx: null,
+    learnedCoop: null
+  };
+}
+
+function startPrepSynergyChat() {
   const t = state.tournament;
   const prep = t?.prep;
   const ev = prep?.event;
@@ -1979,20 +2465,81 @@ function applyPrepSynergyTrain() {
   const selectedIds = Array.isArray(prep.synergySelectedSlots) ? prep.synergySelectedSlots.filter((id) => state.squad[id]) : [];
   if (selectedIds.length < 2 || selectedIds.length > 3) return;
 
+  prep.synergyChat = buildSynergyChatSession(selectedIds, ev, t);
+  prep.phase = "SYNERGY_CHAT";
+  if (typeof saveActiveRunProgress === "function") saveActiveRunProgress();
+  renderTournamentScreen();
+}
+
+function resolvePrepSynergyChatChoice(choiceIdx) {
+  const t = state.tournament;
+  const prep = t?.prep;
+  const ev = prep?.event;
+  const chat = prep?.synergyChat;
+  if (!prep || !ev || !chat || chat.resolved) return;
+
+  const choice = chat.coachChoices?.[choiceIdx] || chat.coachChoices?.[0];
+  if (!choice) return;
+
+  chat.messages.push({
+    senderIdx: -1,
+    speakerRole: "COACH",
+    speakerName: "Você (Técnico)",
+    speakerSprite: UI.coachIcon || UI.ffLogo || "",
+    roleTag: "COACH",
+    tone: "coach",
+    text: choice.coachLine
+  });
+  if (Array.isArray(choice.reactions)) {
+    choice.reactions.forEach((m) => chat.messages.push(m));
+  }
+
+  const selectedIds = chat.selectedIds.filter((id) => state.squad[id]);
   const slotsMap = {};
   getSlots().forEach((s) => { slotsMap[s.id] = s; });
-  const affPts = ev.affinityPoints || 35;
-  const xpAmt = ev.xpGain || 85;
-  const pairSummaries = [];
 
+  const affPts = Math.max(8, choice.affDelta || ev.affinityPoints || 30);
+  const xpAmt = Math.max(0, (ev.xpGain || 40) + (choice.xpBonus || 0));
+  const chemGain = Math.max(1, choice.chemDelta || ev.teamChem || 4);
+  const pwrGain = Math.max(0, (ev.teamPower || 10) + (choice.powerBonus || 0));
+
+  const pairSummaries = [];
+  let maxNewAffLv = 0;
   for (let i = 0; i < selectedIds.length; i++) {
     for (let j = i + 1; j < selectedIds.length; j++) {
       const pA = state.squad[selectedIds[i]];
       const pB = state.squad[selectedIds[j]];
       const res = typeof addPairAffinityPoints === "function" ? addPairAffinityPoints(pA, pB, affPts, null, t) : null;
       if (res) {
+        maxNewAffLv = Math.max(maxNewAffLv, res.newLevel || 0);
         pairSummaries.push(`${pA.name} & ${pB.name} (Nv.${res.newLevel} • ${res.entry.points}/120)`);
       }
+    }
+  }
+
+  let learnedCoop = { learned: false, move: null, cat: null, tier: null, recipientNames: [], newlyAddedNames: [] };
+  if (Math.random() < (choice.coopChance || 0) && typeof teachCoopMoveToGroup === "function") {
+    const groupEntries = selectedIds.map((sid) => ({
+      player: state.squad[sid],
+      role: slotsMap[sid]?.role || "MF"
+    }));
+    learnedCoop = teachCoopMoveToGroup(groupEntries, Math.max(1, maxNewAffLv));
+    if (learnedCoop.learned) {
+      for (let i = 0; i < selectedIds.length; i++) {
+        for (let j = i + 1; j < selectedIds.length; j++) {
+          addPairAffinityPoints(state.squad[selectedIds[i]], state.squad[selectedIds[j]], 6, "coopMoves", t);
+        }
+      }
+      const tierTxt = learnedCoop.tier === "TRIO" ? "Trio" : "Dupla";
+      chat.messages.push({
+        senderIdx: -2,
+        speakerRole: "SYSTEM",
+        speakerName: `Nova Técnica em ${tierTxt}!`,
+        speakerSprite: "",
+        roleTag: learnedCoop.cat || "SH",
+        tone: "system",
+        text: `⚡ O grupo desenvolveu e aprendeu a técnica combinada 【${learnedCoop.move}】 (${learnedCoop.cat}) para usar em campo!`
+      });
     }
   }
 
@@ -2006,6 +2553,10 @@ function applyPrepSynergyTrain() {
     const xpRes = gainPlayerXp(p, xpAmt, slot.role);
     const newLvl = getPlayerLevel(p);
     const afterPwr = calcIndividualPlayerPower(p, slot.role, newLvl);
+    const allLearned = [...(xpRes.learnedMoves || [])];
+    if (learnedCoop.learned && !allLearned.some((x) => (x?.move || x) === learnedCoop.move)) {
+      allLearned.push({ move: learnedCoop.move, cat: learnedCoop.cat });
+    }
     affectedPlayers.push({
       name: p.name,
       role: slot.role,
@@ -2016,21 +2567,52 @@ function applyPrepSynergyTrain() {
       levelsGained: Math.max(0, newLvl - prevLvl),
       pwrGained: Math.max(0, afterPwr - beforePwr),
       newPwr: afterPwr,
-      extraBadge: `Sintonia +${affPts}`,
-      learnedMoves: xpRes.learnedMoves || []
+      extraBadge: learnedCoop.learned ? `Sintonia +${affPts} • ${learnedCoop.move}` : `Sintonia +${affPts}`,
+      learnedMoves: allLearned
     });
   });
 
   t.prepBonuses.xp += xpAmt;
-  t.prepBonuses.chem += ev.teamChem || 4;
-  t.prepBonuses.power += ev.teamPower || 14;
+  t.prepBonuses.chem += chemGain;
+  t.prepBonuses.power += pwrGain;
+
+  let restMsgPart = "";
+  if (ev.isRestChat) {
+    const prevE = Math.round(getTeamEnergy());
+    const gain = ev.energyGain || Math.max(25, (typeof getRestEnergyGain === "function" ? getRestEnergyGain(t) : 35) - 5);
+    const nextE = Math.round(adjustTeamEnergy(gain));
+    prep.restUsedThisRound = true;
+    prep.lastActionWasFreeRest = true;
+    prep.eventsRemaining = 0;
+    restMsgPart = `<span class="b-chem">+${gain}% Energia</span> (${prevE}% ➔ ${nextE}%) • `;
+  }
+
   const namesTxt = affectedPlayers.map((x) => x.name).join(" + ");
-  t.prepBonuses.log.push(`Sintonia: ${namesTxt}`);
-  prep.synergySelectedSlots = [];
-  prep.phase = "DONE";
+  const coopLog = learnedCoop.learned ? ` [Aprendido: ${learnedCoop.move}]` : "";
+  t.prepBonuses.log.push(`Resenha (${chat.climate.id}): ${namesTxt}${coopLog}`);
+
+  chat.resolved = true;
+  chat.chosenIdx = choiceIdx;
+  chat.learnedCoop = learnedCoop;
   prep.affectedPlayers = affectedPlayers;
-  prep.appliedMsg = `<span class="b-tech">Treino de Sintonia concluído!</span> ${pairSummaries.join(" • ")} — <span class="b-lvl">+${xpAmt} XP</span> e <span class="b-chem">+${ev.teamChem || 4}% Química</span>.`;
+  prep.appliedMsg = `<span class="b-tech">${ev.title} (${chat.climate.label}):</span> ${restMsgPart}${pairSummaries.join(" • ")} — <span class="b-lvl">+${xpAmt} XP</span>, <span class="b-chem">+${chemGain}% Química</span>${learnedCoop.learned ? ` • <span class="b-pwr">Nova Técnica: ${learnedCoop.move}!</span>` : ""}${ev.isRestChat ? ` <span style="color:#93c5fd;">(Noite encerrada — pronto para o jogo!)</span>` : ""}`;
+
+  if (typeof saveActiveRunProgress === "function") saveActiveRunProgress();
   renderAll();
+}
+
+function finishPrepSynergyChat() {
+  const prep = state.tournament?.prep;
+  if (!prep) return;
+  prep.synergySelectedSlots = [];
+  prep.synergyChat = null;
+  prep.phase = "DONE";
+  if (typeof saveActiveRunProgress === "function") saveActiveRunProgress();
+  renderAll();
+}
+
+function applyPrepSynergyTrain() {
+  startPrepSynergyChat();
 }
 
 function runStreet5v5Challenge() {
@@ -3106,11 +3688,12 @@ function buildBetweenMatchPrepHTML(t, stats) {
             const pA = state.squad[selectedIds[i]];
             const pB = state.squad[selectedIds[j]];
             const curAff = typeof getPairAffinityEntry === "function" ? getPairAffinityEntry(pA, pB, t) : { points: 0, level: 0 };
-            const nextPts = Math.min(120, (curAff.points || 0) + (ev.affinityPoints || 35));
-            const nextLv = typeof calcPairAffinityLevel === "function" ? calcPairAffinityLevel(nextPts) : 1;
-            selectedPairChips.push(`<span>${pA.name} & ${pB.name}: Nv.${curAff.level || 0} ➔ <strong>Nv.${nextLv}</strong> (${nextPts} pts)</span>`);
+            selectedPairChips.push(`<span>${pA.name} & ${pB.name}: <strong>Nv.${curAff.level || 0}</strong> (${curAff.points || 0} pts)</span>`);
           }
         }
+        const previewClimate = selectedIds.length >= 2 && typeof computeGroupChatClimate === "function"
+          ? computeGroupChatClimate(selectedIds, t)
+          : null;
         outcomeHTML = `
           <div class="prep-reward-box">
             <div class="prep-reward-hero">
@@ -3125,7 +3708,7 @@ function buildBetweenMatchPrepHTML(t, stats) {
               </div>
             </div>
             <div style="font-size:0.76rem; font-weight:800; color:#93c5fd;">
-              Selecione <strong>2 ou 3 titulares</strong> para treinar sintonia (${selectedIds.length}/3 escolhidos):
+              Escolha <strong>2 ou 3 titulares</strong> para reunir na conversa (${selectedIds.length}/3 escolhidos):
             </div>
             <div class="prep-pick-grid">
               ${pickList
@@ -3165,10 +3748,11 @@ function buildBetweenMatchPrepHTML(t, stats) {
             </div>
             <div class="synergy-pick-footer">
               <div class="synergy-pair-preview">
-                ${selectedPairChips.length > 0 ? selectedPairChips.join(" · ") : "Toque em 2 ou 3 titulares acima para ver o ganho de Sintonia."}
+                ${previewClimate ? `<span class="synergy-climate-badge ${previewClimate.badgeClass}">${previewClimate.icon} ${previewClimate.label}</span> ` : ""}
+                ${selectedPairChips.length > 0 ? selectedPairChips.join(" · ") : "Toque em 2 ou 3 titulares acima para ver o clima da conversa."}
               </div>
               <button type="button" class="ie-cmd-btn ie-cmd-green" id="btn-confirm-synergy-pick" ${selectedIds.length < 2 ? "disabled" : ""}>
-                <span>Confirmar Sintonia (${selectedIds.length})</span>
+                <span>💬 Iniciar Conversa (${selectedIds.length})</span>
               </button>
             </div>
           </div>
@@ -3256,6 +3840,105 @@ function buildBetweenMatchPrepHTML(t, stats) {
           </div>
         `;
       }
+    } else if (prep.phase === "SYNERGY_CHAT" && prep.synergyChat) {
+      const chat = prep.synergyChat;
+      const cl = chat.climate || {};
+      const partsHTML = (chat.participants || [])
+        .map(
+          (pt) => `
+            <div class="synergy-chat-avatar-chip">
+              <img src="${pt.sprite}" alt="${pt.name}" />
+              <span>${pt.name}</span>
+            </div>
+          `
+        )
+        .join("");
+      const feedHTML = (chat.messages || [])
+        .map((m) => {
+          const roleClass =
+            m.speakerRole === "COACH"
+              ? "is-coach"
+              : m.speakerRole === "SYSTEM"
+              ? "is-system"
+              : m.senderIdx === 1
+              ? "is-p1"
+              : m.senderIdx === 2
+              ? "is-p2"
+              : "is-p0";
+          const toneClass = m.tone === "toxic" ? "is-toxic" : m.tone === "hype" ? "is-hype" : m.tone === "idea" ? "is-idea" : "";
+          return `
+            <div class="chat-bubble-row ${roleClass} ${toneClass}">
+              ${m.speakerSprite ? `<img class="chat-bubble-avatar" src="${m.speakerSprite}" alt="${m.speakerName}" />` : ""}
+              <div class="chat-bubble">
+                <div class="chat-bubble-head">
+                  <span class="chat-bubble-name">${m.speakerName}</span>
+                  ${m.roleTag ? `<span class="chat-bubble-role">${m.roleTag}</span>` : ""}
+                </div>
+                <div class="chat-bubble-text">${m.text}</div>
+              </div>
+            </div>
+          `;
+        })
+        .join("");
+      const coopBannerHTML = chat.learnedCoop?.learned
+        ? `
+          <div class="synergy-coop-learned-banner">
+            <div style="font-size:0.7rem; font-weight:900; color:#fde047; text-transform:uppercase; letter-spacing:0.4px;">
+              ⚡ Nova Técnica em ${chat.learnedCoop.tier === "TRIO" ? "Trio" : "Dupla"} Desbloqueada!
+            </div>
+            <div style="font-size:0.98rem; font-weight:900; color:#fff; margin-top:2px;">
+              ${chat.learnedCoop.move} <span style="font-size:0.74rem; color:#93c5fd;">(${chat.learnedCoop.cat})</span>
+            </div>
+            <div style="font-size:0.7rem; color:#cbd5e1; margin-top:2px;">
+              Aprendida por: <strong>${(chat.learnedCoop.recipientNames || []).join(" & ")}</strong>
+            </div>
+          </div>
+        `
+        : "";
+      const footerHTML = chat.resolved
+        ? `
+          <div class="synergy-chat-done-footer">
+            <div style="font-size:0.76rem; color:#cbd5e1; line-height:1.35;">${prep.appliedMsg || ""}</div>
+            <button type="button" class="ie-cmd-btn ie-cmd-green" id="btn-finish-synergy-chat">
+              <span>${chat.isRestChat ? "Encerrar Noite & Prosseguir ✓" : "Concluir Resenha ✓"}</span>
+            </button>
+          </div>
+        `
+        : `
+          <div class="synergy-coach-prompt">Como você entra na conversa? (Escolha a orientação do Técnico)</div>
+          <div class="synergy-coach-choices">
+            ${(chat.coachChoices || [])
+              .map(
+                (ch) => `
+                  <button type="button" class="synergy-coach-btn" data-chat-choice="${ch.id}">
+                    <span class="synergy-coach-btn-title">${ch.label}</span>
+                    <span class="synergy-coach-btn-tag">${ch.effectTag}</span>
+                  </button>
+                `
+              )
+              .join("")}
+          </div>
+        `;
+      outcomeHTML = `
+        <div class="synergy-chat-box">
+          <div class="synergy-chat-header">
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap;">
+              <div>
+                <div style="font-size:0.68rem; font-weight:900; color:#93c5fd; text-transform:uppercase;">
+                  ${chat.isRestChat ? "Dormitório do Clube • Resenha Noturna" : "Campinho • Conversa & Entrosamento"} • Próximo: ${chat.oppName || ""}
+                </div>
+                <div style="font-size:0.96rem; font-weight:900; color:#fff;">Papo de Vestiário</div>
+              </div>
+              <span class="synergy-climate-badge ${cl.badgeClass || "is-neutral"}">${cl.icon || "💬"} ${cl.label || "Resenha"}</span>
+            </div>
+            <div style="font-size:0.68rem; color:#94a3b8; margin-top:4px;">${cl.hint || ""}</div>
+            <div class="synergy-chat-participants">${partsHTML}</div>
+          </div>
+          <div class="synergy-chat-feed">${feedHTML}</div>
+          ${coopBannerHTML}
+          <div class="synergy-chat-footer">${footerHTML}</div>
+        </div>
+      `;
     } else if (prep.phase === "DONE") {
       const rawAffected = prep.affectedPlayers && prep.affectedPlayers.length > 0
         ? prep.affectedPlayers
@@ -3274,7 +3957,7 @@ function buildBetweenMatchPrepHTML(t, stats) {
                     const xpText = px.xpGained ? `<span class="b-chem">+${px.xpGained} XP</span> • ` : "";
                     const pwrText = px.pwrGained > 0 ? ` • <span class="b-pwr">+${px.pwrGained} Poder</span>` : "";
                     const newMoveBadges = (px.learnedMoves || [])
-                      .map((m) => `<div class="new-move-pill">Nova Técnica: ${m.move}</div>`)
+                      .map((m) => `<div class="new-move-pill">Nova Técnica: ${m?.move || m}</div>`)
                       .join("");
                     const extraBadge = px.extraBadge
                       ? `<div class="new-move-pill">${px.extraBadge}</div>`
