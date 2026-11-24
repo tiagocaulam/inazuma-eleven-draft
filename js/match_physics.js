@@ -2839,8 +2839,10 @@ function stepContinuousPhysics(st, pitch, dt) {
   });
 
   // Avança minutos do relógio (com mini-acréscimo +1'..+3' se lance perigoso acontecer no limite!) e recupera energia fora da posse
-  if ((pitch.stoppageTicks || 0) > 0 && !isPlayThreateningBoundary(st)) {
-    pitch.stoppageTicks = 0;
+  if ((pitch.stoppageTicks || 0) > 0 && pitch.stoppageBoundaryMin && !isPlayThreateningBoundary(st)) {
+    // Ataque perigoso nos acréscimos encerrou: apita imediatamente sem resetar o contador!
+    pitch.minuteFloat = Math.max(pitch.minuteFloat, pitch.stoppageBoundaryMin);
+    pitch.stoppageTicks = 3;
   }
   const targetMin = Math.floor(pitch.minuteFloat);
   if (targetMin > st.minute) {
@@ -2848,10 +2850,11 @@ function stepContinuousPhysics(st, pitch, dt) {
       const nextMin = st.minute + 1;
       const isHoldBoundary =
         (nextMin === 45 && !st.halftimeHandled) ||
-        (nextMin === 90 && !st.fulltimeExtraChecked) ||
+        (nextMin === 90 && st.maxMinute === 90) ||
         (nextMin === 105 && !st.etHalftimeHandled && st.maxMinute === 120) ||
         nextMin >= st.maxMinute;
       if (isHoldBoundary && isPlayThreateningBoundary(st) && (pitch.stoppageTicks || 0) < 3) {
+        pitch.stoppageBoundaryMin = nextMin;
         pitch.stoppageTicks = (pitch.stoppageTicks || 0) + 1;
         pitch.minuteFloat = nextMin - 0.55;
         const clockEl = document.getElementById("live-clock-text");
@@ -2863,6 +2866,7 @@ function stepContinuousPhysics(st, pitch, dt) {
         break;
       }
       pitch.stoppageTicks = 0;
+      pitch.stoppageBoundaryMin = null;
       st.minute = nextMin;
       const clockEl = document.getElementById("live-clock-text");
       const barEl = document.getElementById("live-bar-fill");
@@ -4182,6 +4186,13 @@ function startMatchInterval() {
 
 function runLiveMatchSimulation(stageIdx) {
   clearTournamentTimers(false);
+  const resolvedIdx = typeof stageIdx === "number"
+    ? stageIdx
+    : state.tournament?.stages?.indexOf(stageIdx);
+  if (!Number.isInteger(resolvedIdx) || resolvedIdx < 0 || !state.tournament?.stages?.[resolvedIdx]) {
+    return;
+  }
+  stageIdx = resolvedIdx;
   state.tournament.stageIndex = stageIdx;
   state.tournament.showRunSummary = false;
   state.tournament.preMatchTeamEnergy = getTeamEnergy();
