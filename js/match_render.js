@@ -758,6 +758,16 @@ function calcNodeDuelScore(node, teamSupportBonus, opponentElem = null, actionKi
       if (typeof isBetaMode === "function" && isBetaMode() && node && (node.synergyPassBuffTimer || 0) > 0) {
         tacticalAndEnergyAdj += Number(node.synergyPassBuffBonus || 0.85);
       }
+      if (typeof isBetaMode === "function" && isBetaMode() && !isIn5v5 && Array.isArray(state.tournament?.nextMatchChatBuffs)) {
+        const pid = node?.player?.id;
+        for (const cb of state.tournament.nextMatchChatBuffs) {
+          if (cb.type === "BLOOD_FOCUS" && pid && cb.playerIds?.includes(pid)) {
+            tacticalAndEnergyAdj += 0.75;
+          } else if (cb.type === "MORALE_BOOST" && (node?.stamina || 0) >= 60) {
+            tacticalAndEnergyAdj += 0.45;
+          }
+        }
+      }
     }
   } else if (node.side === "opp") {
     const sIdx = !isIn5v5 ? (state.tournament?.stageIndex || 0) : 0;
@@ -814,6 +824,12 @@ function spendStamina(node, cost) {
   let extraMul = 1.0;
   if (!isIn5v5 && node.side === "user") {
     if (tac.style === "possession") extraMul *= 0.90;
+    if (typeof isBetaMode === "function" && isBetaMode() && Array.isArray(state.tournament?.nextMatchChatBuffs)) {
+      const pid = node?.player?.id;
+      if (pid && state.tournament.nextMatchChatBuffs.some((b) => b.type === "LIGHT_LOCKER" && b.playerIds?.includes(pid))) {
+        extraMul *= 0.88;
+      }
+    }
     const lp = activeStage?.pitch;
     if (lp && (lp.hissatsuTacticTimer || 0) > 0 && lp.activeHissatsuTacticId === "lightning_press") {
       extraMul *= 1.20;

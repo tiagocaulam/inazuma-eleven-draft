@@ -1296,6 +1296,47 @@ function deserializeBracketFromSave(rawBr) {
   };
 }
 
+function serializeTeamChatsForSave(chats) {
+  if (!Array.isArray(chats)) return [];
+  return chats.map((ch) => ({
+    ...ch,
+    participants: Array.isArray(ch.participants)
+      ? ch.participants.map(({ sprite, ...rest }) => rest)
+      : [],
+    messages: Array.isArray(ch.messages)
+      ? ch.messages.map(({ speakerSprite, ...rest }) => rest)
+      : []
+  }));
+}
+
+function deserializeTeamChatsFromSave(rawChats) {
+  if (!Array.isArray(rawChats)) return [];
+  return rawChats.map((ch) => {
+    const parts = Array.isArray(ch.participants)
+      ? ch.participants.map((pt) => {
+          const sqPlayer = pt.slotId ? state.squad?.[pt.slotId] : null;
+          const sprite = sqPlayer && typeof getPlayerFormSprite === "function"
+            ? getPlayerFormSprite(sqPlayer, pt.role || sqPlayer.pos || "MF")
+            : resolveRankingPlayerSprite({ name: pt.name, role: pt.role });
+          return { ...pt, sprite };
+        })
+      : [];
+    const msgs = Array.isArray(ch.messages)
+      ? ch.messages.map((m) => {
+          let speakerSprite = "";
+          if (m.speakerRole === "COACH") {
+            speakerSprite = UI.coachIcon || UI.ffLogo || "";
+          } else if (m.speakerRole !== "SYSTEM") {
+            const pMatch = parts[m.senderIdx] || parts.find((p) => p.name === m.speakerName);
+            speakerSprite = pMatch?.sprite || resolveRankingPlayerSprite({ name: m.speakerName });
+          }
+          return { ...m, speakerSprite };
+        })
+      : [];
+    return { ...ch, participants: parts, messages: msgs };
+  });
+}
+
 function serializePrepForSave(prep) {
   if (!prep || typeof prep !== "object") return null;
   return {
@@ -1309,6 +1350,9 @@ function serializePrepForSave(prep) {
     autoRestMsg: prep.autoRestMsg || null,
     usedEventIdsThisRound: Array.isArray(prep.usedEventIdsThisRound) ? [...prep.usedEventIdsThisRound] : [],
     synergySelectedSlots: Array.isArray(prep.synergySelectedSlots) ? [...prep.synergySelectedSlots] : [],
+    teamChats: serializeTeamChatsForSave(prep.teamChats),
+    activeChatId: prep.activeChatId || null,
+    chatReturnPhase: prep.chatReturnPhase || "CHOOSE_LOC",
     appliedMsg: prep.appliedMsg || null,
     choiceIds: Array.isArray(prep.choices) ? prep.choices.map((c) => c?.id).filter(Boolean) : [],
     eventId: prep.event?.id || null,
@@ -1348,6 +1392,9 @@ function deserializePrepFromSave(rawPrep, t) {
     autoRestMsg: rawPrep.autoRestMsg || null,
     usedEventIdsThisRound: Array.isArray(rawPrep.usedEventIdsThisRound) ? [...rawPrep.usedEventIdsThisRound] : [],
     synergySelectedSlots: Array.isArray(rawPrep.synergySelectedSlots) ? [...rawPrep.synergySelectedSlots] : [],
+    teamChats: deserializeTeamChatsFromSave(rawPrep.teamChats),
+    activeChatId: rawPrep.activeChatId || null,
+    chatReturnPhase: rawPrep.chatReturnPhase || "CHOOSE_LOC",
     appliedMsg: rawPrep.appliedMsg || null,
     affectedPlayers,
     clash5v5: null,
@@ -1355,9 +1402,8 @@ function deserializePrepFromSave(rawPrep, t) {
     riskTargetSlotId: null
   };
 
-  if (prep.phase === "SYNERGY_CHAT") {
-    prep.phase = prep.affectedPlayers?.length ? "DONE" : prep.event ? "RESULT" : "CHOOSE_LOC";
-    prep.synergyChat = null;
+  if (prep.phase === "TEAM_CHAT" || prep.phase === "SYNERGY_CHAT") {
+    prep.phase = "CHOOSE_LOC";
   }
   const isBrokenResult = prep.phase === "RESULT" && (!prep.event || prep.event.kind === "STREET_5V5");
   if (prep.phase === "CLASH_5V5" || prep.phase === "SPINNING" || prep.phase === "SPINNING_CHOICES" || isBrokenResult) {
@@ -1518,6 +1564,7 @@ function saveActiveRunProgress() {
           teamEnergy: safeEnergy,
           preMatchTeamEnergy: safeEnergy,
           nextMatchEnergyMul: typeof t.nextMatchEnergyMul === "number" ? t.nextMatchEnergyMul : 1,
+          nextMatchChatBuffs: Array.isArray(t.nextMatchChatBuffs) ? JSON.parse(JSON.stringify(t.nextMatchChatBuffs)) : [],
           tactics: { ...(t.tactics || { lane: "balanced", posture: "balanced", intensity: "medium" }) },
           prepBonuses: {
             ...(t.prepBonuses || createFreshPrepBonuses()),
@@ -1661,6 +1708,7 @@ function resumeSavedRunProgress() {
       teamEnergy: typeof rt.teamEnergy === "number" ? Math.max(0, Math.min(100, rt.teamEnergy)) : 100,
       preMatchTeamEnergy: typeof rt.preMatchTeamEnergy === "number" ? rt.preMatchTeamEnergy : undefined,
       nextMatchEnergyMul: typeof rt.nextMatchEnergyMul === "number" ? rt.nextMatchEnergyMul : 1,
+      nextMatchChatBuffs: Array.isArray(rt.nextMatchChatBuffs) ? JSON.parse(JSON.stringify(rt.nextMatchChatBuffs)) : [],
       tactics: {
         lane: ["wings", "balanced", "center"].includes(rt.tactics?.lane) ? rt.tactics.lane : "balanced",
         posture: ["defensive", "balanced", "offensive"].includes(rt.tactics?.posture) ? rt.tactics.posture : "balanced",

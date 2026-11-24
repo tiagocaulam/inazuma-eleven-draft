@@ -537,11 +537,19 @@ function renderTournamentScreen() {
         t.prep.slotStrips = null;
         t.prep.event = null;
         t.prep.synergySelectedSlots = [];
-        t.prep.synergyChat = null;
+        t.prep.activeChatId = null;
         t.prep.clash5v5 = null;
         t.prep.recruitCandidate = null;
         t.prep.energyNotice = null;
         t.prep.appliedMsg = null;
+        if (
+          typeof isBetaMode === "function" &&
+          isBetaMode() &&
+          typeof spawnSpontaneousTeamChat === "function" &&
+          Math.random() < 0.55
+        ) {
+          spawnSpontaneousTeamChat(t);
+        }
         saveActiveRunProgress();
         renderTournamentScreen();
       });
@@ -580,42 +588,61 @@ function renderTournamentScreen() {
       });
     });
 
-    container.querySelectorAll("[data-synergy-slot]").forEach((sCard) => {
-      sCard.addEventListener("click", () => {
-        if (typeof togglePrepSynergySlot === "function") {
-          togglePrepSynergySlot(sCard.getAttribute("data-synergy-slot"));
-        }
+    const openMapChatsBtn = document.getElementById("btn-open-map-chats");
+    if (openMapChatsBtn) {
+      openMapChatsBtn.addEventListener("click", () => {
+        if (typeof openPrepTeamChats === "function") openPrepTeamChats("CHOOSE_LOC");
       });
-    });
+    }
 
-    const confirmSynergyBtn = document.getElementById("btn-confirm-synergy-pick");
-    if (confirmSynergyBtn) {
-      confirmSynergyBtn.addEventListener("click", () => {
-        if (typeof startPrepSynergyChat === "function") {
-          startPrepSynergyChat();
-        } else if (typeof applyPrepSynergyTrain === "function") {
-          applyPrepSynergyTrain();
+    const openDoneChatsBtn = document.getElementById("btn-open-map-chats-done");
+    if (openDoneChatsBtn) {
+      openDoneChatsBtn.addEventListener("click", () => {
+        if (typeof openPrepTeamChats === "function") openPrepTeamChats("DONE");
+      });
+    }
+
+    const closeChatsBtn = document.getElementById("btn-close-map-chats");
+    if (closeChatsBtn) {
+      closeChatsBtn.addEventListener("click", () => {
+        if (typeof closePrepTeamChats === "function") closePrepTeamChats();
+      });
+    }
+
+    const closeChatsFooterBtn = document.getElementById("btn-close-map-chats-footer");
+    if (closeChatsFooterBtn) {
+      closeChatsFooterBtn.addEventListener("click", () => {
+        if (typeof closePrepTeamChats === "function") closePrepTeamChats();
+      });
+    }
+
+    const nextUnreadBtn = document.getElementById("btn-next-unread-chat");
+    if (nextUnreadBtn) {
+      nextUnreadBtn.addEventListener("click", () => {
+        const nextId = nextUnreadBtn.getAttribute("data-next-chat-id");
+        if (nextId && typeof selectPrepTeamChatThread === "function") {
+          selectPrepTeamChatThread(nextId);
         }
       });
     }
 
-    document.querySelectorAll("[data-chat-choice]").forEach((btn) => {
+    container.querySelectorAll("[data-chat-thread-id]").forEach((tabEl) => {
+      tabEl.addEventListener("click", () => {
+        const tid = tabEl.getAttribute("data-chat-thread-id");
+        if (tid && typeof selectPrepTeamChatThread === "function") {
+          selectPrepTeamChatThread(tid);
+        }
+      });
+    });
+
+    container.querySelectorAll("[data-chat-choice]").forEach((btn) => {
       btn.addEventListener("click", () => {
         const idx = Number(btn.getAttribute("data-chat-choice"));
-        if (typeof resolvePrepSynergyChatChoice === "function") {
-          resolvePrepSynergyChatChoice(Number.isFinite(idx) ? idx : 0);
+        if (typeof resolveSpontaneousTeamChat === "function") {
+          resolveSpontaneousTeamChat(t.prep.activeChatId, Number.isFinite(idx) ? idx : 0);
         }
       });
     });
-
-    const finishChatBtn = document.getElementById("btn-finish-synergy-chat");
-    if (finishChatBtn) {
-      finishChatBtn.addEventListener("click", () => {
-        if (typeof finishPrepSynergyChat === "function") {
-          finishPrepSynergyChat();
-        }
-      });
-    }
 
     bindTournamentBracketModalEvents(null);
 

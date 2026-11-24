@@ -440,6 +440,14 @@ function evaluateCoopMoveSupport(moveName, cat, actorNode, teamNodes, pitch, awa
   });
 
   const cap = isShot ? (partners.length >= 2 ? 3.8 : 2.6) : (partners.length >= 2 ? 2.8 : 2.0);
+  if (
+    actorNode?.side === "user" &&
+    !pitch?.is5v5 &&
+    Array.isArray(state.tournament?.nextMatchChatBuffs) &&
+    state.tournament.nextMatchChatBuffs.some((b) => b.type === "COOP_SYNC" && actorNode?.player?.id && b.playerIds?.includes(actorNode.player.id))
+  ) {
+    total += 0.80;
+  }
   const bonusScore = Number(Math.min(cap, total).toFixed(2));
   const kindWord = partners.length >= 2 ? "Trio" : "Dupla";
   const synSuffix = maxAffLv > 0 ? ` Nv.${maxAffLv}` : anyBond ? " Laço" : "";
@@ -3981,6 +3989,15 @@ function stepContinuousPhysics(st, pitch, dt) {
               const pairAffLv = getPairAffinityEntry(ps.passerNode.player, receiver.player)?.level || 0;
               if (pairAffLv > 0) {
                 finalInterceptProb *= [1, 0.92, 0.84, 0.75][pairAffLv] || 1;
+              }
+            }
+            if (typeof isBetaMode === "function" && isBetaMode() && Array.isArray(state.tournament?.nextMatchChatBuffs)) {
+              const cBuffs = state.tournament.nextMatchChatBuffs;
+              if (cBuffs.some((b) => b.type === "RIVAL_READ")) {
+                finalInterceptProb *= 0.88;
+              }
+              if (cBuffs.some((b) => b.type === "COOP_SYNC" && ps.passerNode?.player?.id && b.playerIds?.includes(ps.passerNode.player.id))) {
+                finalInterceptProb *= 0.90;
               }
             }
           }
