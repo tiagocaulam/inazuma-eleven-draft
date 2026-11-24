@@ -309,12 +309,24 @@ function showRefereeWhistleModal(st, type, onProceed) {
       if (st.pitch) {
         st.pitch.minuteFloat = 45;
         st.minute = 45;
+        st.pitch.stoppageTicks = 0;
+        st.pitch.stoppageBoundaryMin = null;
       }
     } else if (isExtraTime) {
       st.running = true;
       if (st.pitch) {
         st.pitch.minuteFloat = 90;
         st.minute = 90;
+        st.pitch.stoppageTicks = 0;
+        st.pitch.stoppageBoundaryMin = null;
+      }
+    } else if (isEtHalftime) {
+      st.running = true;
+      if (st.pitch) {
+        st.pitch.minuteFloat = 105;
+        st.minute = 105;
+        st.pitch.stoppageTicks = 0;
+        st.pitch.stoppageBoundaryMin = null;
       }
     }
 
@@ -416,6 +428,8 @@ function handleMinuteEndBoundaries(st, ovrDiff) {
     const restNote = rec.restBonus > 0 ? ` (+${rec.restBonus}% Descanso)` : "";
     if (st.pitch) {
       st.pitch.minuteFloat = 45;
+      st.pitch.stoppageTicks = 0;
+      st.pitch.stoppageBoundaryMin = null;
       st.pitch.ticker = `45' Fim do 1º tempo! Placar: ${st.userScore} x ${st.oppScore} (+${rec.userField}% Fôlego${restNote})`;
       const secondHalfSide = st.pitch.initialSide === "user" ? "opp" : "user";
       resetPitchForKickoff(st.pitch, secondHalfSide, true);
@@ -434,6 +448,8 @@ function handleMinuteEndBoundaries(st, ovrDiff) {
       if (st.pitch) {
         st.pitch.minuteFloat = 45;
         st.minute = 45;
+        st.pitch.stoppageTicks = 0;
+        st.pitch.stoppageBoundaryMin = null;
       }
       if (!st.finished && st.running) {
         startMatchInterval();
@@ -450,6 +466,8 @@ function handleMinuteEndBoundaries(st, ovrDiff) {
     const restNote = rec.restBonus > 0 ? ` (+${rec.restBonus}% Descanso)` : "";
     if (st.pitch) {
       st.pitch.minuteFloat = 90;
+      st.pitch.stoppageTicks = 0;
+      st.pitch.stoppageBoundaryMin = null;
       resetPitchForKickoff(st.pitch, "user", true);
       st.pitch.ticker = `90' Prorrogação iniciada! Dream Team recupera +${rec.userField}% de fôlego${restNote}!`;
       syncLivePitchDOM(st);
@@ -467,6 +485,8 @@ function handleMinuteEndBoundaries(st, ovrDiff) {
       if (st.pitch) {
         st.pitch.minuteFloat = 90;
         st.minute = 90;
+        st.pitch.stoppageTicks = 0;
+        st.pitch.stoppageBoundaryMin = null;
       }
       if (!st.finished && st.running) {
         startMatchInterval();
@@ -482,6 +502,9 @@ function handleMinuteEndBoundaries(st, ovrDiff) {
     const rec = applyIntervalStaminaRecharge(st, 18, 25);
     const restNote = rec.restBonus > 0 ? ` (+${rec.restBonus}% Descanso)` : "";
     if (st.pitch) {
+      st.pitch.minuteFloat = 105;
+      st.pitch.stoppageTicks = 0;
+      st.pitch.stoppageBoundaryMin = null;
       resetPitchForKickoff(st.pitch, "opp", true);
       st.pitch.ticker = `105' Virada da Prorrogação! Fôlego recarregado (+${rec.userField}%${restNote}) para os 15 minutos finais!`;
       syncLivePitchDOM(st);
@@ -496,7 +519,15 @@ function handleMinuteEndBoundaries(st, ovrDiff) {
     );
     showRefereeWhistleModal(st, "ET_HALFTIME", () => {
       st.running = true;
-      runLiveMatchSimulation(st);
+      if (st.pitch) {
+        st.pitch.minuteFloat = 105;
+        st.minute = 105;
+        st.pitch.stoppageTicks = 0;
+        st.pitch.stoppageBoundaryMin = null;
+      }
+      if (!st.finished && st.running) {
+        startMatchInterval();
+      }
     });
     return true;
   }
@@ -509,6 +540,8 @@ function handleMinuteEndBoundaries(st, ovrDiff) {
       st.finished = false;
       st.penalties = createPenaltyShootoutState(st);
       if (st.pitch) {
+        st.pitch.stoppageTicks = 0;
+        st.pitch.stoppageBoundaryMin = null;
         st.pitch.ticker = `120' Empate em ${st.userScore} x ${st.oppScore}! Decisão por Pênaltis — defina os batedores!`;
       }
       prependNarrationLine(
@@ -528,6 +561,14 @@ function handleMinuteEndBoundaries(st, ovrDiff) {
     st.finished = true;
     st.isDraw = st.userScore === st.oppScore;
     st.won = st.userScore > st.oppScore;
+    if (st.pitch) {
+      st.pitch.ballFlight = null;
+      st.pitch.goalBurstFx = null;
+      st.pitch.passState = null;
+      st.pitch.looseState = null;
+      st.pitch.stoppageTicks = 0;
+      st.pitch.stoppageBoundaryMin = null;
+    }
     prependNarrationLine(
       st,
       st.won ? "nar-goal-user" : st.isDraw ? "nar-save" : "nar-goal-opp",
