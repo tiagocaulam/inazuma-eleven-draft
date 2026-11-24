@@ -1284,6 +1284,7 @@ function serializePrepForSave(prep) {
     lastActionWasFreeRest: Boolean(prep.lastActionWasFreeRest),
     autoRestMsg: prep.autoRestMsg || null,
     usedEventIdsThisRound: Array.isArray(prep.usedEventIdsThisRound) ? [...prep.usedEventIdsThisRound] : [],
+    synergySelectedSlots: Array.isArray(prep.synergySelectedSlots) ? [...prep.synergySelectedSlots] : [],
     appliedMsg: prep.appliedMsg || null,
     choiceIds: Array.isArray(prep.choices) ? prep.choices.map((c) => c?.id).filter(Boolean) : [],
     eventId: prep.event?.id || null,
@@ -1322,6 +1323,7 @@ function deserializePrepFromSave(rawPrep, t) {
     lastActionWasFreeRest: Boolean(rawPrep.lastActionWasFreeRest),
     autoRestMsg: rawPrep.autoRestMsg || null,
     usedEventIdsThisRound: Array.isArray(rawPrep.usedEventIdsThisRound) ? [...rawPrep.usedEventIdsThisRound] : [],
+    synergySelectedSlots: Array.isArray(rawPrep.synergySelectedSlots) ? [...rawPrep.synergySelectedSlots] : [],
     appliedMsg: rawPrep.appliedMsg || null,
     affectedPlayers,
     clash5v5: null,
@@ -1487,6 +1489,7 @@ function saveActiveRunProgress() {
             ...(t.prepBonuses || createFreshPrepBonuses()),
             log: Array.isArray(t.prepBonuses?.log) ? [...t.prepBonuses.log] : []
           },
+          pairAffinity: t.pairAffinity && typeof t.pairAffinity === "object" ? JSON.parse(JSON.stringify(t.pairAffinity)) : {},
           prep: serializePrepForSave(t.prep),
           showRunSummary: Boolean(t.showRunSummary),
           stages: compactStages
@@ -1638,6 +1641,7 @@ function resumeSavedRunProgress() {
         ...(rt.prepBonuses || {}),
         log: Array.isArray(rt.prepBonuses?.log) ? [...rt.prepBonuses.log] : []
       },
+      pairAffinity: rt.pairAffinity && typeof rt.pairAffinity === "object" ? JSON.parse(JSON.stringify(rt.pairAffinity)) : {},
       showRunSummary: Boolean(rt.showRunSummary)
     };
 

@@ -594,6 +594,7 @@ function createFreshTournamentState() {
     prepMatchTimerId: null,
     prep: null,
     prepBonuses: createFreshPrepBonuses(),
+    pairAffinity: {},
     teamEnergy: 100,
     tactics: {
       lane: "balanced", // "wings" | "balanced" | "center"
@@ -606,6 +607,74 @@ function createFreshTournamentState() {
       markedOppId: null
     },
     showRunSummary: false
+  };
+}
+
+function normalizePlayerFullName(name) {
+  const raw = String(name || "").trim();
+  if (raw === "Kazuya Ichinose") return "Ichinose Kazuya";
+  if (raw === "Asuka Domon") return "Domon Asuka";
+  return raw;
+}
+
+function getPairAffinityKey(idA, idB) {
+  const a = String(idA || "").trim();
+  const b = String(idB || "").trim();
+  if (!a || !b || a === b) return null;
+  return a < b ? `${a}::${b}` : `${b}::${a}`;
+}
+
+function calcPairAffinityLevel(points) {
+  const p = Number(points) || 0;
+  if (p >= 100) return 3;
+  if (p >= 60) return 2;
+  if (p >= 25) return 1;
+  return 0;
+}
+
+function getPairAffinityEntry(pA, pB, t = state.tournament) {
+  const idA = pA?.id || pA?.fullName || pA?.name;
+  const idB = pB?.id || pB?.fullName || pB?.name;
+  const key = getPairAffinityKey(idA, idB);
+  const stored = key && t?.pairAffinity ? t.pairAffinity[key] : null;
+  if (stored) return stored;
+  return { points: 0, level: 0, tables: 0, assists: 0, chains: 0, coopMoves: 0 };
+}
+
+function addPairAffinityPoints(pA, pB, delta, statField = null, t = state.tournament) {
+  if (!t || !pA || !pB) return null;
+  const rawIdA = String(pA.id || pA.fullName || pA.name || "").trim();
+  const rawIdB = String(pB.id || pB.fullName || pB.name || "").trim();
+  const key = getPairAffinityKey(rawIdA, rawIdB);
+  if (!key) return null;
+  if (!t.pairAffinity || typeof t.pairAffinity !== "object") t.pairAffinity = {};
+  const firstIsA = rawIdA < rawIdB;
+  const existing = t.pairAffinity[key] || {
+    aId: firstIsA ? rawIdA : rawIdB,
+    bId: firstIsA ? rawIdB : rawIdA,
+    aName: firstIsA ? (pA.name || pA.fullName || rawIdA) : (pB.name || pB.fullName || rawIdB),
+    bName: firstIsA ? (pB.name || pB.fullName || rawIdB) : (pA.name || pA.fullName || rawIdA),
+    points: 0,
+    level: 0,
+    tables: 0,
+    assists: 0,
+    chains: 0,
+    coopMoves: 0
+  };
+  const prevLevel = existing.level || 0;
+  existing.points = Math.max(0, Math.min(120, Math.round((existing.points || 0) + (delta || 0))));
+  existing.level = calcPairAffinityLevel(existing.points);
+  if (statField && typeof existing[statField] === "number") {
+    existing[statField] += 1;
+  } else if (statField) {
+    existing[statField] = 1;
+  }
+  t.pairAffinity[key] = existing;
+  return {
+    entry: existing,
+    prevLevel,
+    newLevel: existing.level,
+    leveledUp: existing.level > prevLevel
   };
 }
 
@@ -1732,12 +1801,7 @@ function evaluateTeamStats(slots, getPlayerForSlot, options = {}) {
     if (dispName) clubPlayersMap[tId].push(dispName);
     if (p.teamEmblem) teamEmblems[tId] = p.teamEmblem;
     if (p.fullName) {
-      const normFull =
-        p.fullName === "Kazuya Ichinose"
-          ? "Ichinose Kazuya"
-          : p.fullName === "Asuka Domon"
-          ? "Domon Asuka"
-          : p.fullName;
+      const normFull = normalizePlayerFullName(p.fullName);
       fullNamesInSquad.add(normFull);
       fullToShortName[normFull] = dispName || normFull;
     }
@@ -1941,6 +2005,45 @@ function evaluateTeamStats(slots, getPlayerForSlot, options = {}) {
       });
     }
   });
+
+  // 3b. Sintonia Dinâmica em Campo (Afinidade acumulada entre duplas/trios titulares)
+  if (!isOpponent && state.phase === "tournament" && state.tournament?.pairAffinity) {
+    const starterList = Object.values(slotPlayerMap).filter(Boolean);
+    const activePairs = [];
+    for (let i = 0; i < starterList.length; i++) {
+      for (let j = i + 1; j < starterList.length; j++) {
+        const pA = starterList[i];
+        const pB = starterList[j];
+        const aff = getPairAffinityEntry(pA, pB, state.tournament);
+        if ((aff?.level || 0) >= 1) {
+          activePairs.push({
+            aName: pA.name || pA.fullName,
+            bName: pB.name || pB.fullName,
+            level: aff.level,
+            points: aff.points || 0
+          });
+        }
+      }
+    }
+    if (activePairs.length > 0) {
+      let rawSynChem = 0;
+      let rawSynPwr = 0;
+      activePairs.forEach((ap) => {
+        rawSynChem += [0, 2, 4, 7][ap.level] || 7;
+        rawSynPwr += [0, 10, 22, 38][ap.level] || 38;
+      });
+      const synChem = Math.min(20, rawSynChem);
+      const synPwr = Math.min(Math.round(115 * tierScale), Math.round(rawSynPwr * tierScale));
+      chem += synChem;
+      bondsPower += synPwr;
+      activePairs.sort((a, b) => b.level - a.level || b.points - a.points);
+      activeBonds.push({
+        type: "friendship",
+        label: `${activePairs.length}x Sintonia de Campo (+${synChem}% • +${synPwr})`,
+        players: activePairs.map((ap) => `${ap.aName} & ${ap.bName} (Nv.${ap.level})`)
+      });
+    }
+  }
 
   // 4. COMBOS DE ITENS & SINERGIAS DE TREINO (Novos Combos!)
   const activeCombos = [];

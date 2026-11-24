@@ -3483,6 +3483,19 @@ body {
   color: #fef08a;
 }
 
+.pitch-ball-shadow {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  width: 16px;
+  height: 7px;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at center, rgba(2, 6, 23, 0.72) 0%, rgba(2, 6, 23, 0) 75%);
+  z-index: 6;
+  pointer-events: none;
+  opacity: 0;
+  will-change: left, top, transform, opacity;
+}
+
 .pitch-ball-dot {
   position: absolute;
   transform: translate(-50%, -50%);
@@ -9192,6 +9205,64 @@ body {
     grid-template-columns: repeat(4, minmax(175px, 1fr));
     gap: 8px;
   }
+}
+
+.clash-coop-syn-badge {
+  margin-top: 3px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-size: 0.62rem;
+  font-weight: 900;
+  color: #fde047;
+  background: rgba(234, 179, 8, 0.16);
+  border: 1px solid rgba(250, 204, 21, 0.45);
+  white-space: nowrap;
+}
+
+.prep-triple-cols-grid.is-four-cols {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+@media (max-width: 900px) {
+  .prep-triple-cols-grid.is-four-cols {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .prep-triple-cols-grid.is-four-cols {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+.prep-pick-card.is-synergy-selected {
+  border-color: #4ade80 !important;
+  background: linear-gradient(135deg, rgba(22, 101, 52, 0.42), rgba(15, 31, 70, 0.94)) !important;
+  box-shadow: 0 0 0 1px rgba(74, 222, 128, 0.35), 0 4px 12px rgba(22, 163, 74, 0.2);
+}
+
+.synergy-pick-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(59, 130, 246, 0.28);
+}
+
+.synergy-pair-preview {
+  flex: 1 1 240px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: #cbd5e1;
+}
+
+#btn-confirm-synergy-pick[disabled] {
+  opacity: 0.45;
+  cursor: not-allowed;
+  filter: grayscale(0.4);
 }
 
 
