@@ -536,6 +536,7 @@ function renderTournamentScreen() {
         t.prep.choices = null;
         t.prep.slotStrips = null;
         t.prep.event = null;
+        t.prep.synergySelectedSlots = [];
         t.prep.clash5v5 = null;
         t.prep.recruitCandidate = null;
         t.prep.energyNotice = null;
@@ -577,6 +578,23 @@ function renderTournamentScreen() {
         applyPrepPlayerReward(pCard.getAttribute("data-prep-pick"));
       });
     });
+
+    container.querySelectorAll("[data-synergy-slot]").forEach((sCard) => {
+      sCard.addEventListener("click", () => {
+        if (typeof togglePrepSynergySlot === "function") {
+          togglePrepSynergySlot(sCard.getAttribute("data-synergy-slot"));
+        }
+      });
+    });
+
+    const confirmSynergyBtn = document.getElementById("btn-confirm-synergy-pick");
+    if (confirmSynergyBtn) {
+      confirmSynergyBtn.addEventListener("click", () => {
+        if (typeof applyPrepSynergyTrain === "function") {
+          applyPrepSynergyTrain();
+        }
+      });
+    }
 
     bindTournamentBracketModalEvents(null);
 

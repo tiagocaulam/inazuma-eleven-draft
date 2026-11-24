@@ -36,8 +36,10 @@ function getPrepScopeLabel(ev) {
   if (ev.kind === "REST_ACTIVE") {
     if (ev.restMode === "TACTICAL") return "Energia + Elenco";
     if (ev.restMode === "SNACK") return "Próxima Partida";
+    if (ev.restMode === "BOND") return "Energia + Sintonia";
     return "Energia do Time";
   }
+  if (ev.kind === "SYNERGY_PICK") return "2 ou 3 Titulares";
   if (ev.kind === "ELEM_BOOST_PICK") return "Mesmo Elemento";
   if (ev.kind === "KESHIN_PICK" || ev.kind === "EVO_PICK") return "1 Titular";
   if (ev.kind === "COLLECTIVE") {
@@ -152,6 +154,7 @@ function getPrepBuffPill(ev) {
   if (ev.id === "river_tactics") return `<span class="b-lvl">+135 XP (Meias)</span> • <span class="b-chem">+8% Quím</span> • <span class="b-pwr">+18 Poder</span>`;
   if (ev.id === "river_shot") return `<span class="b-lvl">+135 XP (ATQ)</span> • <span class="b-pwr">+14 Poder/ATQ</span> • <span class="b-pwr">+18 Time</span>`;
   if (ev.id === "river_defense") return `<span class="b-lvl">+135 XP (DEF/GOL)</span> • <span class="b-chem">+5% Quím</span> • <span class="b-pwr">+14 Poder/DEF</span>`;
+  if (ev.kind === "SYNERGY_PICK") return `<span class="b-chem">+35 Sintonia</span> • <span class="b-lvl">+85 XP</span> • <span class="b-chem">+4% Quím</span>`;
   if (ev.kind === "SCALABLE_BUFF") {
     const curLvl = state.tournament?.prepBonuses?.[ev.buffKey] || 0;
     const nextLvl = Math.min(ev.maxLevel || 3, curLvl + 1);
@@ -207,6 +210,9 @@ function getPrepBuffPill(ev) {
     }
     if (ev.restMode === "SNACK") {
       return `<span class="b-chem">+${ev.energyGain || 30}% Energia</span> • <span class="b-tech">-20% Gasto no Jogo</span>`;
+    }
+    if (ev.restMode === "BOND") {
+      return `<span class="b-chem">+${ev.energyGain || 30}% Energia</span> • <span class="b-tech">+18 Sintonia (3 Pares)</span> • <span class="b-lvl">+${ev.xpGain || 20} XP</span>`;
     }
     return `<span class="b-chem">+${ev.energyGain || 45}% Energia</span>`;
   }
@@ -277,6 +283,8 @@ function getPrepLocationsCatalog() {
   const tacticalRestGain = Math.max(20, restBase - 10);
   const snackRestGain = Math.max(25, restBase - 5);
   const tacticalRestXp = 35 + restLvlCur * 10;
+  const bondRestGain = Math.max(25, restBase - 5);
+  const bondRestXp = 20;
   return [
     {
       id: "town",
@@ -526,6 +534,22 @@ function getPrepLocationsCatalog() {
           weight: 2.0,
           summary: `Treino coletivo de cobertura para <span class="b-lvl">Goleiro e Zagueiros</span> ganharem XP, Química e firmeza nos duelos.`
         },
+        ...(isBetaMode()
+          ? [
+              {
+                id: "river_synergy_train",
+                title: "Treino de Sintonia (Dupla/Trio)",
+                icon: UI.formation || UI.manualInazuma || UI.ffLogo,
+                kind: "SYNERGY_PICK",
+                affinityPoints: 35,
+                teamPower: 14,
+                teamChem: 4,
+                xpGain: 85,
+                weight: 2.2,
+                summary: `Escolha <span class="b-tech">2 ou 3 titulares</span> para ensaiar jogadas combinadas (<span class="b-chem">+35 Sintonia</span> entre si, fortalecendo <span class="b-pwr">técnicas em dupla/trio e passes</span>) + <span class="b-lvl">+85 XP</span>.`
+              }
+            ]
+          : []),
         {
           id: "recovery_upgrade",
           title: "Vigor de Campanha",
@@ -739,7 +763,21 @@ function getPrepLocationsCatalog() {
           restMode: "SNACK",
           energyGain: snackRestGain,
           summary: `Recupera <span class="b-chem">+${snackRestGain}% de Energia</span> e deixa o elenco <span class="b-tech">20% mais resistente ao cansaço</span> durante toda a próxima partida.`
-        }
+        },
+        ...(isBetaMode()
+          ? [
+              {
+                id: "rest_team_bonding",
+                title: "Resenha & Entrosamento",
+                icon: UI.raimonEmblem || UI.formation || UI.ffLogo,
+                kind: "REST_ACTIVE",
+                restMode: "BOND",
+                energyGain: bondRestGain,
+                xpGain: bondRestXp,
+                summary: `Conversa tática leve que recupera <span class="b-chem">+${bondRestGain}% de Energia</span>, dá <span class="b-lvl">+${bondRestXp} XP</span> ao elenco e eleva em <span class="b-tech">+18 a Sintonia</span> de 3 duplas próximas.`
+              }
+            ]
+          : [])
       ]
     }
   ];
@@ -1176,8 +1214,11 @@ function initStreet5v5PitchState(miniSt, c5) {
     chaserUid: null,
     ballX: 50,
     ballY: 50,
+    ballZ: 0,
     ballVx: 0,
     ballVy: 0,
+    ballVz: 0,
+    synergyLinkFx: null,
     camX: 50,
     camY: 50,
     camSnap: true,
@@ -1281,6 +1322,7 @@ function openBetweenMatchPrep(nextStageIdx, opts = {}) {
     lastActionWasFreeRest: false,
     autoRestMsg,
     usedEventIdsThisRound: [],
+    synergySelectedSlots: [],
     appliedMsg: null,
     clash5v5: null,
     recruitCandidate: null,
@@ -1414,6 +1456,55 @@ function handleChoosePrepOption(choiceEvent) {
       gain = Math.max(25, base - 5);
       t.nextMatchEnergyMul = 0.80;
       extraTxt = ` e <span class="b-tech">-20% gasto de energia</span> na próxima partida`;
+    } else if (choiceEvent.restMode === "BOND") {
+      gain = Math.max(25, base - 5);
+      const bondXp = 20;
+      const allSlots = getSlots();
+      allSlots.forEach((slot) => {
+        const p = state.squad[slot.id];
+        if (!p) return;
+        const prevLvl = getPlayerLevel(p);
+        const beforePwr = calcIndividualPlayerPower(p, slot.role, prevLvl);
+        const xpRes = gainPlayerXp(p, bondXp, slot.role);
+        const newLvl = getPlayerLevel(p);
+        const afterPwr = calcIndividualPlayerPower(p, slot.role, newLvl);
+        affected.push({
+          name: p.name,
+          role: slot.role,
+          sprite: getPlayerFormSprite(p, slot.role),
+          xpGained: bondXp,
+          prevLevel: prevLvl,
+          newLevel: newLvl,
+          levelsGained: Math.max(0, newLvl - prevLvl),
+          pwrGained: Math.max(0, afterPwr - beforePwr),
+          newPwr: afterPwr,
+          learnedMoves: xpRes.learnedMoves || []
+        });
+      });
+      const candPairs = [];
+      for (let i = 0; i < allSlots.length; i++) {
+        for (let j = i + 1; j < allSlots.length; j++) {
+          const pA = state.squad[allSlots[i].id];
+          const pB = state.squad[allSlots[j].id];
+          if (!pA || !pB) continue;
+          const cur = typeof getPairAffinityEntry === "function" ? getPairAffinityEntry(pA, pB, t) : { level: 0, points: 0 };
+          if ((cur.level || 0) < 3) {
+            const dist = Math.hypot((allSlots[i].x || 50) - (allSlots[j].x || 50), (allSlots[i].y || 50) - (allSlots[j].y || 50));
+            candPairs.push({ pA, pB, dist, points: cur.points || 0 });
+          }
+        }
+      }
+      candPairs.sort((a, b) => a.dist - b.dist || a.points - b.points);
+      const boostedLabels = [];
+      candPairs.slice(0, 3).forEach((pair) => {
+        if (typeof addPairAffinityPoints === "function") {
+          addPairAffinityPoints(pair.pA, pair.pB, 18, null, t);
+        }
+        boostedLabels.push(`${pair.pA.name} & ${pair.pB.name}`);
+      });
+      t.prepBonuses.xp += bondXp;
+      const pairTxt = boostedLabels.length > 0 ? ` • <span class="b-tech">+18 Sintonia</span> (${boostedLabels.join(", ")})` : "";
+      extraTxt = ` e <span class="b-lvl">+${bondXp} XP</span> no elenco${pairTxt}`;
     }
 
     const nextE = Math.round(adjustTeamEnergy(gain));
@@ -1576,7 +1667,10 @@ function handleChoosePrepOption(choiceEvent) {
     return;
   }
 
-  // 5. Itens, Keshin ou Evolução para 1 jogador selecionado do elenco
+  // 5. Itens, Keshin, Evolução ou Sintonia (2 ou 3 titulares selecionados)
+  if (choiceEvent.kind === "SYNERGY_PICK") {
+    prep.synergySelectedSlots = [];
+  }
   prep.phase = "RESULT";
   if (typeof saveActiveRunProgress === "function") saveActiveRunProgress();
   renderTournamentScreen();
@@ -1857,6 +1951,85 @@ function applyPrepPlayerReward(slotId) {
   prep.phase = "DONE";
   prep.affectedPlayers = affectedPlayers;
   prep.appliedMsg = msg;
+  renderAll();
+}
+
+function togglePrepSynergySlot(slotId) {
+  const prep = state.tournament?.prep;
+  if (!prep || prep.event?.kind !== "SYNERGY_PICK") return;
+  if (!Array.isArray(prep.synergySelectedSlots)) prep.synergySelectedSlots = [];
+  const idx = prep.synergySelectedSlots.indexOf(slotId);
+  if (idx >= 0) {
+    prep.synergySelectedSlots.splice(idx, 1);
+  } else {
+    if (prep.synergySelectedSlots.length >= 3) {
+      prep.synergySelectedSlots.shift();
+    }
+    prep.synergySelectedSlots.push(slotId);
+  }
+  if (typeof saveActiveRunProgress === "function") saveActiveRunProgress();
+  renderTournamentScreen();
+}
+
+function applyPrepSynergyTrain() {
+  const t = state.tournament;
+  const prep = t?.prep;
+  const ev = prep?.event;
+  if (!prep || !ev || ev.kind !== "SYNERGY_PICK") return;
+  const selectedIds = Array.isArray(prep.synergySelectedSlots) ? prep.synergySelectedSlots.filter((id) => state.squad[id]) : [];
+  if (selectedIds.length < 2 || selectedIds.length > 3) return;
+
+  const slotsMap = {};
+  getSlots().forEach((s) => { slotsMap[s.id] = s; });
+  const affPts = ev.affinityPoints || 35;
+  const xpAmt = ev.xpGain || 85;
+  const pairSummaries = [];
+
+  for (let i = 0; i < selectedIds.length; i++) {
+    for (let j = i + 1; j < selectedIds.length; j++) {
+      const pA = state.squad[selectedIds[i]];
+      const pB = state.squad[selectedIds[j]];
+      const res = typeof addPairAffinityPoints === "function" ? addPairAffinityPoints(pA, pB, affPts, null, t) : null;
+      if (res) {
+        pairSummaries.push(`${pA.name} & ${pB.name} (Nv.${res.newLevel} • ${res.entry.points}/120)`);
+      }
+    }
+  }
+
+  const affectedPlayers = [];
+  selectedIds.forEach((sid) => {
+    const slot = slotsMap[sid];
+    const p = state.squad[sid];
+    if (!slot || !p) return;
+    const prevLvl = getPlayerLevel(p);
+    const beforePwr = calcIndividualPlayerPower(p, slot.role, prevLvl);
+    const xpRes = gainPlayerXp(p, xpAmt, slot.role);
+    const newLvl = getPlayerLevel(p);
+    const afterPwr = calcIndividualPlayerPower(p, slot.role, newLvl);
+    affectedPlayers.push({
+      name: p.name,
+      role: slot.role,
+      sprite: getPlayerFormSprite(p, slot.role),
+      xpGained: xpAmt,
+      prevLevel: prevLvl,
+      newLevel: newLvl,
+      levelsGained: Math.max(0, newLvl - prevLvl),
+      pwrGained: Math.max(0, afterPwr - beforePwr),
+      newPwr: afterPwr,
+      extraBadge: `Sintonia +${affPts}`,
+      learnedMoves: xpRes.learnedMoves || []
+    });
+  });
+
+  t.prepBonuses.xp += xpAmt;
+  t.prepBonuses.chem += ev.teamChem || 4;
+  t.prepBonuses.power += ev.teamPower || 14;
+  const namesTxt = affectedPlayers.map((x) => x.name).join(" + ");
+  t.prepBonuses.log.push(`Sintonia: ${namesTxt}`);
+  prep.synergySelectedSlots = [];
+  prep.phase = "DONE";
+  prep.affectedPlayers = affectedPlayers;
+  prep.appliedMsg = `<span class="b-tech">Treino de Sintonia concluído!</span> ${pairSummaries.join(" • ")} — <span class="b-lvl">+${xpAmt} XP</span> e <span class="b-chem">+${ev.teamChem || 4}% Química</span>.`;
   renderAll();
 }
 
@@ -2708,6 +2881,9 @@ function buildBetweenMatchPrepHTML(t, stats) {
       } else if (chosenWinner.kind === "EVO_PICK") {
         rarityCls = "rarity-nv2";
         badgeTxt = "TÉCNICA";
+      } else if (chosenWinner.kind === "SYNERGY_PICK") {
+        rarityCls = "rarity-nv2";
+        badgeTxt = "SINTONIA";
       } else if (chosenWinner.kind === "COLLECTIVE") {
         badgeTxt = "TREINO";
       }
@@ -2763,7 +2939,7 @@ function buildBetweenMatchPrepHTML(t, stats) {
             </div>
           </div>
         ` : ""}
-        <div class="prep-triple-cols-grid">
+        <div class="prep-triple-cols-grid ${(prep.choices || []).length >= 4 ? "is-four-cols" : ""}">
           ${slotColsHTML}
         </div>
       </div>
@@ -2921,6 +3097,82 @@ function buildBetweenMatchPrepHTML(t, stats) {
             </div>
           `;
         }
+      } else if (ev.kind === "SYNERGY_PICK") {
+        const selectedIds = Array.isArray(prep.synergySelectedSlots) ? prep.synergySelectedSlots.filter((id) => state.squad[id]) : [];
+        const pickList = getSlots().filter((s) => state.squad[s.id]);
+        const selectedPairChips = [];
+        for (let i = 0; i < selectedIds.length; i++) {
+          for (let j = i + 1; j < selectedIds.length; j++) {
+            const pA = state.squad[selectedIds[i]];
+            const pB = state.squad[selectedIds[j]];
+            const curAff = typeof getPairAffinityEntry === "function" ? getPairAffinityEntry(pA, pB, t) : { points: 0, level: 0 };
+            const nextPts = Math.min(120, (curAff.points || 0) + (ev.affinityPoints || 35));
+            const nextLv = typeof calcPairAffinityLevel === "function" ? calcPairAffinityLevel(nextPts) : 1;
+            selectedPairChips.push(`<span>${pA.name} & ${pB.name}: Nv.${curAff.level || 0} ➔ <strong>Nv.${nextLv}</strong> (${nextPts} pts)</span>`);
+          }
+        }
+        outcomeHTML = `
+          <div class="prep-reward-box">
+            <div class="prep-reward-hero">
+              <div class="prep-reward-icon-frame">
+                ${ev.icon ? `<img src="${ev.icon}" alt="" />` : ""}
+              </div>
+              <div style="flex:1; min-width:200px;">
+                <div style="font-size:0.7rem; font-weight:900; color:#facc15; text-transform:uppercase;">${activeLoc?.resultEyebrow || activeLoc?.title || ""}</div>
+                <div style="font-size:1.05rem; font-weight:900; color:#fff;">${ev.title}</div>
+                <div class="prep-choice-buff-pill is-hero-pill">${getPrepBuffPill(ev)}</div>
+                <div style="font-size:0.76rem; color:#cbd5e1; margin-top:4px;">${getPrepChoiceSummary(ev)}</div>
+              </div>
+            </div>
+            <div style="font-size:0.76rem; font-weight:800; color:#93c5fd;">
+              Selecione <strong>2 ou 3 titulares</strong> para treinar sintonia (${selectedIds.length}/3 escolhidos):
+            </div>
+            <div class="prep-pick-grid">
+              ${pickList
+                .map((slot) => {
+                  const p = state.squad[slot.id];
+                  const isSel = selectedIds.includes(slot.id);
+                  const curOvr = getEffectiveOvr(p, slot.role);
+                  const curLvl = getPlayerLevel(p);
+                  let pairStatusLine = "Sem sintonia ainda com escolhidos";
+                  if (selectedIds.length > 0) {
+                    const rels = selectedIds
+                      .filter((oid) => oid !== slot.id && state.squad[oid])
+                      .map((oid) => {
+                        const mate = state.squad[oid];
+                        const ent = typeof getPairAffinityEntry === "function" ? getPairAffinityEntry(p, mate, t) : { points: 0, level: 0 };
+                        return `${mate.name}: Nv.${ent.level || 0}`;
+                      });
+                    if (rels.length > 0) pairStatusLine = rels.join(" • ");
+                  }
+                  return `
+                    <div class="prep-pick-card ${isSel ? "is-synergy-selected" : ""}" data-synergy-slot="${slot.id}">
+                      <img class="prep-pick-sprite" src="${getPlayerFormSprite(p, slot.role)}" alt="${p.name}" />
+                      <div style="min-width:0; flex:1;">
+                        <div style="display:flex; align-items:center; gap:4px; flex-wrap:wrap; font-size:0.76rem; font-weight:900; color:#fff;">
+                          ${posIconHTML(slot.role, true)}
+                          <span style="min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1 1 auto;">${p.name}</span>
+                          <span style="color:#fde047; flex-shrink:0;">${isSel ? "✓ Escolhido" : `OVR ${curOvr}`}</span>
+                        </div>
+                        <div style="font-size:0.66rem; font-weight:800; color:${isSel ? "#4ade80" : "#7dd3fc"}; margin-top:2px;">
+                          ${elemIconHTML(p.element, "inline-elem-icon")} Nv.${curLvl} • ${pairStatusLine}
+                        </div>
+                      </div>
+                    </div>
+                  `;
+                })
+                .join("")}
+            </div>
+            <div class="synergy-pick-footer">
+              <div class="synergy-pair-preview">
+                ${selectedPairChips.length > 0 ? selectedPairChips.join(" · ") : "Toque em 2 ou 3 titulares acima para ver o ganho de Sintonia."}
+              </div>
+              <button type="button" class="ie-cmd-btn ie-cmd-green" id="btn-confirm-synergy-pick" ${selectedIds.length < 2 ? "disabled" : ""}>
+                <span>Confirmar Sintonia (${selectedIds.length})</span>
+              </button>
+            </div>
+          </div>
+        `;
       } else {
         // Escolha de jogador elegível para Item / Keshin / Evolução / Manual (sem permitir duplicatas no mesmo jogador!)
         const eligibleSlots = getEligibleSlotsForPrepEvent(ev);
