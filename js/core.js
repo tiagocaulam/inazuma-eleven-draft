@@ -640,7 +640,7 @@ const state = {
   gameMode: "relampago",
   storyLockNotice: false,
   formation: "4-3-3",
-  hideOvrBeforePick: true, // Dificuldade: true = Sem Overall no sorteio, false = Com Overall visível
+  hideOvrBeforePick: false, // Dificuldade: true = Sem Overall no sorteio, false = Com Overall visível
   squad: {}, // slotId -> player
   currentTeam: null,
   selectedPlayer: null,
