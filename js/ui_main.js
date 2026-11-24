@@ -609,6 +609,13 @@ function renderTournamentScreen() {
       });
     }
 
+    const closeChatsTopBtn = document.getElementById("btn-close-map-chats-top");
+    if (closeChatsTopBtn) {
+      closeChatsTopBtn.addEventListener("click", () => {
+        if (typeof closePrepTeamChats === "function") closePrepTeamChats();
+      });
+    }
+
     const closeChatsFooterBtn = document.getElementById("btn-close-map-chats-footer");
     if (closeChatsFooterBtn) {
       closeChatsFooterBtn.addEventListener("click", () => {
@@ -635,7 +642,26 @@ function renderTournamentScreen() {
       });
     });
 
+    const fakePreviewEl = document.getElementById("wpp-fake-input-preview");
+    const fakePlaceholder = fakePreviewEl?.getAttribute("data-placeholder") || "Toque em uma resposta acima para enviar...";
     container.querySelectorAll("[data-chat-choice]").forEach((btn) => {
+      const showPreview = () => {
+        if (!fakePreviewEl) return;
+        const txt = btn.getAttribute("data-preview-line");
+        if (txt) {
+          fakePreviewEl.textContent = txt;
+          fakePreviewEl.classList.add("is-typing");
+        }
+      };
+      const clearPreview = () => {
+        if (!fakePreviewEl) return;
+        fakePreviewEl.textContent = fakePlaceholder;
+        fakePreviewEl.classList.remove("is-typing");
+      };
+      btn.addEventListener("mouseenter", showPreview);
+      btn.addEventListener("focus", showPreview);
+      btn.addEventListener("mouseleave", clearPreview);
+      btn.addEventListener("blur", clearPreview);
       btn.addEventListener("click", () => {
         const idx = Number(btn.getAttribute("data-chat-choice"));
         if (typeof resolveSpontaneousTeamChat === "function") {
@@ -643,6 +669,11 @@ function renderTournamentScreen() {
         }
       });
     });
+
+    const wppFeedEl = document.getElementById("wpp-chat-feed");
+    if (wppFeedEl && t.prep?.phase === "TEAM_CHAT") {
+      wppFeedEl.scrollTop = wppFeedEl.scrollHeight;
+    }
 
     bindTournamentBracketModalEvents(null);
 
