@@ -2203,6 +2203,7 @@ function renderPitchDOMFrame(pitch, st, now) {
     }
   }
 
+  const betaOn = typeof isBetaMode === "function" && isBetaMode();
   let ballScale = 1;
   let ballTransform = "translate(-50%, -50%)";
   let isShotBall = false;
@@ -2218,8 +2219,13 @@ function renderPitchDOMFrame(pitch, st, now) {
     const eased = isShot ? (f.linear ? t : Math.pow(t, 1.06)) : (1 - Math.pow(1 - t, 2.1));
     pitch.ballX = f.fromX + (f.toX - f.fromX) * eased;
     const verticalArc = isShot ? 0 : Math.sin(t * Math.PI) * (f.arcHeight || 0);
-    pitch.ballY = f.fromY + (f.toY - f.fromY) * eased;
-    pitch.ballZ = isShot ? 0 : Math.min(1.3, verticalArc * 0.25);
+    if (betaOn) {
+      pitch.ballY = f.fromY + (f.toY - f.fromY) * eased;
+      pitch.ballZ = isShot ? 0 : Math.min(1.3, verticalArc * 0.25);
+    } else {
+      pitch.ballY = f.fromY + (f.toY - f.fromY) * eased - verticalArc;
+      pitch.ballZ = 0;
+    }
 
     if (isShot) {
       // Disparo direto reto: distorção de movimento (squash & stretch alinhado à trajetória)
@@ -2231,7 +2237,7 @@ function renderPitchDOMFrame(pitch, st, now) {
       const squash = Math.max(0.62, 1.0 - flightIntensity * 0.32);
       ballTransform = `translate(-50%, -50%) rotate(${angleDeg.toFixed(1)}deg) scale(${stretch.toFixed(2)}, ${squash.toFixed(2)})`;
     } else {
-      ballScale = 1 + (pitch.ballZ || 0) * 0.45 + Math.sin(t * Math.PI) * 0.14;
+      ballScale = betaOn ? 1 + (pitch.ballZ || 0) * 0.45 + Math.sin(t * Math.PI) * 0.14 : 1 + Math.sin(t * Math.PI) * 0.28;
       ballTransform = `translate(-50%, -50%) scale(${ballScale.toFixed(2)})`;
     }
     if (pitch.passTrail) {
@@ -2248,8 +2254,12 @@ function renderPitchDOMFrame(pitch, st, now) {
       pitch.ballFlight = null;
     }
   } else if (pitch.passState && pitch.ballMode === "PASS_FLIGHT") {
-    const zHeight = Math.max(0, Number(pitch.ballZ) || 0);
-    ballScale = zHeight > 0.01 ? 1 + zHeight * 0.52 : 1 + Math.sin(pitch.passState.progress * Math.PI) * 0.08;
+    const zHeight = betaOn ? Math.max(0, Number(pitch.ballZ) || 0) : 0;
+    ballScale = !betaOn
+      ? 1 + Math.sin(pitch.passState.progress * Math.PI) * 0.22
+      : zHeight > 0.01
+      ? 1 + zHeight * 0.52
+      : 1 + Math.sin(pitch.passState.progress * Math.PI) * 0.08;
     ballTransform = `translate(-50%, -50%) scale(${ballScale.toFixed(2)})`;
     if (pitch.passTrail) {
       pitch.passTrail.curX = pitch.ballX;
@@ -2260,16 +2270,20 @@ function renderPitchDOMFrame(pitch, st, now) {
   } else if (pitch.ballMode === "LOOSE_BALL" && pitch.looseState) {
     const speedMag = Math.hypot(pitch.looseState.vx || 0, pitch.looseState.vy || 0);
     const rollSpin = ((pitch.simTime || 0) * speedMag * 18) % 360;
-    const zLoose = Math.max(0, Number(pitch.ballZ) || 0);
-    ballScale = 1 + zLoose * 0.48;
-    ballTransform = `translate(-50%, -50%) rotate(${rollSpin.toFixed(0)}deg) scale(${ballScale.toFixed(2)})`;
+    if (betaOn) {
+      const zLoose = Math.max(0, Number(pitch.ballZ) || 0);
+      ballScale = 1 + zLoose * 0.48;
+      ballTransform = `translate(-50%, -50%) rotate(${rollSpin.toFixed(0)}deg) scale(${ballScale.toFixed(2)})`;
+    } else {
+      ballTransform = `translate(-50%, -50%) rotate(${rollSpin.toFixed(0)}deg)`;
+    }
   } else if (pitch.holdBallPos && !pitch.carrierUid) {
     pitch.ballX = pitch.holdBallPos.x;
     pitch.ballY = pitch.holdBallPos.y;
     pitch.ballZ = 0;
   }
 
-  const ballZVis = isShotBall ? 0 : Math.max(0, Math.min(1.8, Number(pitch.ballZ) || 0));
+  const ballZVis = !betaOn || isShotBall ? 0 : Math.max(0, Math.min(1.8, Number(pitch.ballZ) || 0));
   const ballShadowEl = document.getElementById("live-pitch-ball-shadow");
   if (ballShadowEl) {
     ballShadowEl.style.left = `${pitch.ballX.toFixed(2)}%`;
@@ -2322,7 +2336,7 @@ function renderPitchDOMFrame(pitch, st, now) {
 
       lineMain.setAttribute("d", pathD);
       lineMain.setAttribute("stroke", tr.color);
-      lineMain.setAttribute("stroke-dasharray", tr.isAerial ? "5.2 3.8" : "2.5 1.8");
+      lineMain.setAttribute("stroke-dasharray", betaOn && tr.isAerial ? "5.2 3.8" : "2.5 1.8");
       lineMain.style.opacity = (0.95 * remain).toFixed(2);
     } else {
       pitch.passTrail = null;
@@ -2333,7 +2347,7 @@ function renderPitchDOMFrame(pitch, st, now) {
 
   const synLineEl = document.getElementById("pitch-synergy-line");
   if (synLineEl) {
-    const sfx = pitch.synergyLinkFx;
+    const sfx = betaOn ? pitch.synergyLinkFx : null;
     if (sfx && now < sfx.start + sfx.duration) {
       const nA = findPitchNode(pitch, sfx.fromUid);
       const nB = findPitchNode(pitch, sfx.toUids?.[0]);
@@ -2659,15 +2673,17 @@ function pickPassReceiver(nodes, defNodes, carrier, strictForward = false, pitch
       }
     }
 
+    const betaPickOn = typeof isBetaMode === "function" && isBetaMode();
     let pairAffinityW = 1.0;
-    if (attIsUser && !pitch?.is5v5 && typeof getPairAffinityEntry === "function") {
+    if (betaPickOn && attIsUser && !pitch?.is5v5 && typeof getPairAffinityEntry === "function") {
       const pairEnt = getPairAffinityEntry(carrier.player, n.player);
       pairAffinityW = [1.0, 1.08, 1.18, 1.30][pairEnt?.level || 0] || 1.0;
     }
 
     const isRouteOfSkyNow =
       attIsUser && !pitch?.is5v5 && (pitch?.hissatsuTacticTimer || 0) > 0 && pitch?.activeHissatsuTacticId === "route_of_sky";
-    const chipLobW = laneDefDist < 4.5 && minDefDist >= 6.5 && (prof.archetype === "ESTRATEGISTA" || isRouteOfSkyNow) ? 1.22 : 1.0;
+    const chipLobW =
+      betaPickOn && laneDefDist < 4.5 && minDefDist >= 6.5 && (prof.archetype === "ESTRATEGISTA" || isRouteOfSkyNow) ? 1.22 : 1.0;
 
     return forwardFactor * distFactor * openFactor * staminaW * antiPingPongW * wingSwitchW * skillW * elemSynergyW * spaceRunBonus * tapInBonus * tacticLaneW * aceW * styleW * pairAffinityW * chipLobW;
   });

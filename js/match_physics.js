@@ -410,6 +410,10 @@ function getCoopShotPartners(moveName, shooterNode, teamNodes, pitch, cat = "SH"
 }
 
 function evaluateCoopMoveSupport(moveName, cat, actorNode, teamNodes, pitch, awardAffinity = true) {
+  if (typeof isBetaMode === "function" && !isBetaMode()) {
+    const partners = cat === "SH" ? getCoopShotPartners(moveName, actorNode, teamNodes, pitch, "SH") : [];
+    return { partners, bonusScore: 0, summaryTag: "" };
+  }
   const partners = getCoopShotPartners(moveName, actorNode, teamNodes, pitch, cat);
   if (!partners || partners.length === 0) {
     return { partners: [], bonusScore: 0, summaryTag: "" };
@@ -464,6 +468,10 @@ function applyCoopStaminaCost(actorNode, baseCost, partners) {
   if (!actorNode) return;
   const cost = Number(baseCost) || 0;
   if (cost <= 0) return;
+  if (typeof isBetaMode === "function" && !isBetaMode()) {
+    spendStamina(actorNode, cost);
+    return;
+  }
   const fitPartners = (partners || []).filter((pt) => pt.node && (pt.node.stamina || 0) >= 45);
   if (fitPartners.length === 0) {
     spendStamina(actorNode, cost);
@@ -1135,56 +1143,58 @@ function launchContinuousPass(st, pitch, carrier, attNodes, defNodes, strictForw
   const dy = leadY - fromY;
   const dist = Math.hypot(dx, dy) || 0.1;
 
-  // Detecta se há marcador fechando o corredor rasteiro entre passador e alvo
-  let hasBlockerInCorridor = false;
-  if (dist >= 9.5 && defNodes && defNodes.length > 0) {
-    const uxB = dx / dist;
-    const uyB = dy / dist;
-    const nxB = -uyB;
-    const nyB = uxB;
-    hasBlockerInCorridor = defNodes.some((d) => {
-      if (d.role === "GK" || d.staggerTimer > 0) return false;
-      const rxD = d.x - fromX;
-      const ryD = d.y - fromY;
-      const along = rxD * uxB + ryD * uyB;
-      if (along <= dist * 0.16 || along >= dist * 0.84) return false;
-      return Math.abs(rxD * nxB + ryD * nyB) < 4.6;
-    });
-  }
-
-  // Classificação real de altura da bola (GROUND / CHIP / LOB / CROSS / GK_CLEAR)
-  const profPasser = typeof getNodePersonality === "function" ? getNodePersonality(carrier) : { archetype: "EQUILIBRADO" };
-  const routeSkyOn = attIsUser && !pitch?.is5v5 && (pitch?.hissatsuTacticTimer || 0) > 0 && pitch?.activeHissatsuTacticId === "route_of_sky";
+  // Classificação real de altura da bola (GROUND / CHIP / LOB / CROSS / GK_CLEAR) apenas no modo Teste Beta
+  const betaAerial = typeof isBetaMode === "function" && isBetaMode();
   let passType = "GROUND";
   let peakZ = 0;
-  if (passOptions.isCross) {
-    passType = "CROSS";
-    peakZ = 1.05;
-  } else if (isGkOutlet && dist >= 22) {
-    passType = "GK_CLEAR";
-    peakZ = 1.30;
-  } else if (
-    !isOneTwoPass &&
-    !passOptions.isReturnOneTwo &&
-    !safeRestart &&
-    (dist >= 26 || (isThroughBall && hasBlockerInCorridor && dist >= 16) || (Math.abs(dy) >= 24 && dist >= 20))
-  ) {
-    passType = "LOB";
-    peakZ = Number(Math.min(1.25, 0.85 + Math.max(0, dist - 16) * 0.015).toFixed(2));
-  } else if (
-    !isOneTwoPass &&
-    !passOptions.isReturnOneTwo &&
-    !safeRestart &&
-    hasBlockerInCorridor &&
-    dist >= 9.5 &&
-    (profPasser.archetype === "ESTRATEGISTA" || profPasser.archetype === "COLETIVISTA" || routeSkyOn || Math.random() < 0.72)
-  ) {
-    passType = "CHIP";
-    peakZ = 0.65;
+  if (betaAerial) {
+    let hasBlockerInCorridor = false;
+    if (dist >= 9.5 && defNodes && defNodes.length > 0) {
+      const uxB = dx / dist;
+      const uyB = dy / dist;
+      const nxB = -uyB;
+      const nyB = uxB;
+      hasBlockerInCorridor = defNodes.some((d) => {
+        if (d.role === "GK" || d.staggerTimer > 0) return false;
+        const rxD = d.x - fromX;
+        const ryD = d.y - fromY;
+        const along = rxD * uxB + ryD * uyB;
+        if (along <= dist * 0.16 || along >= dist * 0.84) return false;
+        return Math.abs(rxD * nxB + ryD * nyB) < 4.6;
+      });
+    }
+
+    const profPasser = typeof getNodePersonality === "function" ? getNodePersonality(carrier) : { archetype: "EQUILIBRADO" };
+    const routeSkyOn = attIsUser && !pitch?.is5v5 && (pitch?.hissatsuTacticTimer || 0) > 0 && pitch?.activeHissatsuTacticId === "route_of_sky";
+    if (passOptions.isCross) {
+      passType = "CROSS";
+      peakZ = 1.05;
+    } else if (isGkOutlet && dist >= 22) {
+      passType = "GK_CLEAR";
+      peakZ = 1.30;
+    } else if (
+      !isOneTwoPass &&
+      !passOptions.isReturnOneTwo &&
+      !safeRestart &&
+      (dist >= 26 || (isThroughBall && hasBlockerInCorridor && dist >= 16) || (Math.abs(dy) >= 24 && dist >= 20))
+    ) {
+      passType = "LOB";
+      peakZ = Number(Math.min(1.25, 0.85 + Math.max(0, dist - 16) * 0.015).toFixed(2));
+    } else if (
+      !isOneTwoPass &&
+      !passOptions.isReturnOneTwo &&
+      !safeRestart &&
+      hasBlockerInCorridor &&
+      dist >= 9.5 &&
+      (profPasser.archetype === "ESTRATEGISTA" || profPasser.archetype === "COLETIVISTA" || routeSkyOn || Math.random() < 0.72)
+    ) {
+      passType = "CHIP";
+      peakZ = 0.65;
+    }
   }
 
   const passSpeed = peakZ >= 0.9 ? 39 : peakZ > 0 ? 42 : dist > 32 ? 50 : isThroughBall ? 46 : 44;
-  const duration = Math.max(0.22, Math.min(1.45, dist / passSpeed));
+  const duration = betaAerial ? Math.max(0.22, Math.min(1.45, dist / passSpeed)) : Math.max(0.22, Math.min(1.25, dist / passSpeed));
   pitch.ballZ = 0;
   pitch.ballVz = 0;
 
@@ -1653,7 +1663,14 @@ function launchContinuousShot(st, pitch, shooterNode, defNodes, attSupport, defS
     pitch.lastAssistCandidate.passerUid !== shooterNode.uid
       ? pitch.lastAssistCandidate
       : null;
-  if (shotAssistCandidate && origAttIsUser && !pitch.is5v5 && typeof addPairAffinityPoints === "function") {
+  if (
+    typeof isBetaMode === "function" &&
+    isBetaMode() &&
+    shotAssistCandidate &&
+    origAttIsUser &&
+    !pitch.is5v5 &&
+    typeof addPairAffinityPoints === "function"
+  ) {
     const prePasser = findPitchNode(pitch, shotAssistCandidate.passerUid);
     if (prePasser?.player) {
       addPairAffinityPoints(prePasser.player, shooterNode.player, 5);
@@ -1780,7 +1797,7 @@ function launchContinuousShot(st, pitch, shooterNode, defNodes, attSupport, defS
           : null;
         if (assistNode && assistNode.uid !== activeShooter.uid && assistNode.side === "user") {
           recordUserPlayerStat(pitch, assistNode, "assists", 1);
-          if (!pitch.is5v5 && typeof addPairAffinityPoints === "function") {
+          if (typeof isBetaMode === "function" && isBetaMode() && !pitch.is5v5 && typeof addPairAffinityPoints === "function") {
             addPairAffinityPoints(assistNode.player, activeShooter.player, 14, "assists");
           }
         }
@@ -2201,7 +2218,7 @@ function launchContinuousShot(st, pitch, shooterNode, defNodes, attSupport, defS
         const ovrBoost = Math.max(0, (chainNode.effOvr - 75) * 0.15);
         const affChainBoost = [0, 0.5, 1.1, 1.8][chainAffLv] || 0;
         const chainPowerBoost = 4.8 + ovrBoost + cPick.bonus + affChainBoost;
-        if (curAttIsUser && !pitch.is5v5 && typeof addPairAffinityPoints === "function") {
+        if (typeof isBetaMode === "function" && isBetaMode() && curAttIsUser && !pitch.is5v5 && typeof addPairAffinityPoints === "function") {
           addPairAffinityPoints(activeShooter.player, chainNode.player, 12, "chains");
           pitch.synergyLinkFx = {
             fromUid: activeShooter.uid,
@@ -3703,7 +3720,13 @@ function stepContinuousPhysics(st, pitch, dt) {
     pitch.ballZ = 0;
     pitch.ballVz = 0;
     if (attIsUser && !pitch.is5v5 && playMeta.passerNode) {
-      if ((playMeta.isReturnOneTwo || playMeta.isOneTwoPass) && catcher.uid !== playMeta.passerUid && typeof addPairAffinityPoints === "function") {
+      if (
+        typeof isBetaMode === "function" &&
+        isBetaMode() &&
+        (playMeta.isReturnOneTwo || playMeta.isOneTwoPass) &&
+        catcher.uid !== playMeta.passerUid &&
+        typeof addPairAffinityPoints === "function"
+      ) {
         const pts = playMeta.isReturnOneTwo ? 8 : 5;
         const tblRes = addPairAffinityPoints(playMeta.passerNode.player, catcher.player, pts, playMeta.isReturnOneTwo ? "tables" : null);
         if (tblRes && ((tblRes.entry?.level || 0) >= 1 || playMeta.isReturnOneTwo)) {
@@ -3767,7 +3790,7 @@ function stepContinuousPhysics(st, pitch, dt) {
     const pos = evalQuadraticBezier(ps.fromX, ps.fromY, cpx, cpy, ps.toX, ps.toY, u);
     pitch.ballX = pos.x;
     pitch.ballY = pos.y;
-    const peakZ = Number(ps.peakZ) || 0;
+    const peakZ = typeof isBetaMode === "function" && isBetaMode() ? (Number(ps.peakZ) || 0) : 0;
     pitch.ballZ = peakZ > 0 ? Math.sin(Math.min(1, ps.progress) * Math.PI) * peakZ : 0;
 
     // 1) Goleiro sai para abafar cruzamento/lançamento alto dentro da sua área
@@ -4036,12 +4059,17 @@ function stepContinuousPhysics(st, pitch, dt) {
     pitch.ballX += ls.vx * dt;
     pitch.ballY += ls.vy * dt;
 
-    const GRAVITY = 6.2;
-    pitch.ballVz = (pitch.ballVz || 0) - GRAVITY * dt;
-    pitch.ballZ = (pitch.ballZ || 0) + pitch.ballVz * dt;
-    if (pitch.ballZ <= 0) {
+    if (typeof isBetaMode === "function" && isBetaMode()) {
+      const GRAVITY = 6.2;
+      pitch.ballVz = (pitch.ballVz || 0) - GRAVITY * dt;
+      pitch.ballZ = (pitch.ballZ || 0) + pitch.ballVz * dt;
+      if (pitch.ballZ <= 0) {
+        pitch.ballZ = 0;
+        pitch.ballVz = Math.abs(pitch.ballVz) > 0.45 ? Math.abs(pitch.ballVz) * 0.52 : 0;
+      }
+    } else {
       pitch.ballZ = 0;
-      pitch.ballVz = Math.abs(pitch.ballVz) > 0.45 ? Math.abs(pitch.ballVz) * 0.52 : 0;
+      pitch.ballVz = 0;
     }
 
     if (pitch.ballX < 7.0) {
@@ -4064,8 +4092,10 @@ function stepContinuousPhysics(st, pitch, dt) {
     [...attNodes, ...defNodes].forEach((n) => {
       if (n.staggerTimer > 0) return;
       if (n.uid === ls.passerUid && ls.age < 0.35) return;
-      const maxCatchZ = n.role === "GK" ? 0.85 : 0.48;
-      if ((pitch.ballZ || 0) > maxCatchZ) return;
+      if (typeof isBetaMode === "function" && isBetaMode()) {
+        const maxCatchZ = n.role === "GK" ? 0.85 : 0.48;
+        if ((pitch.ballZ || 0) > maxCatchZ) return;
+      }
       const d = visualPitchDist(n.x, n.y, pitch.ballX, pitch.ballY);
       const reach = n.uid === ls.receiverUid || n.role === "GK" ? 2.75 : 2.35;
       if (d <= reach) {

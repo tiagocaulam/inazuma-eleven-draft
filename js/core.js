@@ -633,6 +633,9 @@ function calcPairAffinityLevel(points) {
 }
 
 function getPairAffinityEntry(pA, pB, t = state.tournament) {
+  if (typeof isBetaMode === "function" && !isBetaMode()) {
+    return { points: 0, level: 0, tables: 0, assists: 0, chains: 0, coopMoves: 0 };
+  }
   const idA = pA?.id || pA?.fullName || pA?.name;
   const idB = pB?.id || pB?.fullName || pB?.name;
   const key = getPairAffinityKey(idA, idB);
@@ -642,6 +645,7 @@ function getPairAffinityEntry(pA, pB, t = state.tournament) {
 }
 
 function addPairAffinityPoints(pA, pB, delta, statField = null, t = state.tournament) {
+  if (typeof isBetaMode === "function" && !isBetaMode()) return null;
   if (!t || !pA || !pB) return null;
   const rawIdA = String(pA.id || pA.fullName || pA.name || "").trim();
   const rawIdB = String(pB.id || pB.fullName || pB.name || "").trim();
@@ -722,6 +726,10 @@ const state = {
   simSpeed: 1, // 1 = 420ms/min, 2 = 200ms/min, 4 = 80ms/min
   tournament: createFreshTournamentState()
 };
+
+function isBetaMode() {
+  return state.gameMode === "beta";
+}
 
 function getTeamEnergy() {
   const val = state.tournament?.teamEnergy;
@@ -2007,7 +2015,7 @@ function evaluateTeamStats(slots, getPlayerForSlot, options = {}) {
   });
 
   // 3b. Sintonia Dinâmica em Campo (Afinidade acumulada entre duplas/trios titulares)
-  if (!isOpponent && state.phase === "tournament" && state.tournament?.pairAffinity) {
+  if (!isOpponent && isBetaMode() && state.phase === "tournament" && state.tournament?.pairAffinity) {
     const starterList = Object.values(slotPlayerMap).filter(Boolean);
     const activePairs = [];
     for (let i = 0; i < starterList.length; i++) {

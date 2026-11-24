@@ -11,15 +11,16 @@ function renderHeaderAndBonds() {
   }
   const subEl = document.getElementById("topbar-brand-sub");
   if (subEl) {
+    const modeLabel = typeof isBetaMode === "function" && isBetaMode() ? "TESTE BETA" : "MODO RELÂMPAGO";
     if (state.phase === "tournament") {
       const curSt = state.tournament?.stages?.[state.tournament.stageIndex];
       const comp = state.tournament?.prep
         ? state.tournament.stages?.[state.tournament.prep.nextStageIdx]?.competition
         : curSt?.competition;
       subEl.textContent =
-        comp === "WORLD" ? "MODO RELÂMPAGO • MUNDIAL (FFI)" : "MODO RELÂMPAGO • FUTEBOL FRONTEIRA";
+        comp === "WORLD" ? `${modeLabel} • MUNDIAL (FFI)` : `${modeLabel} • FUTEBOL FRONTEIRA`;
     } else {
-      subEl.textContent = "DREAM TEAM • MODO RELÂMPAGO";
+      subEl.textContent = `DREAM TEAM • ${modeLabel}`;
     }
   }
   const headerWrap = document.getElementById("hud-bars-wrap");
@@ -275,7 +276,10 @@ function renderStartMenuScreen() {
         <div class="option-group" style="margin-top:0;">
           <label>${ffLogoIconHTML("inline-ui-icon")} 1. Escolha o Modo de Jogo:</label>
           <div class="mode-select-grid">
-            <div class="mode-card selected" data-game-mode="relampago">
+            ${(() => {
+              const isBeta = typeof isBetaMode === "function" && isBetaMode();
+              return `
+            <div class="mode-card ${!isBeta ? "selected" : ""}" data-game-mode="relampago">
               <div class="mode-card-head">
                 <div class="mode-card-title">
                   ${elemIconHTML("Vento")}
@@ -288,7 +292,20 @@ function renderStartMenuScreen() {
               </span>
             </div>
 
-            <div class="mode-card is-locked" data-game-mode="historia" aria-disabled="true">
+            <div class="mode-card is-beta ${isBeta ? "selected" : ""}" data-game-mode="beta">
+              <div class="mode-card-head">
+                <div class="mode-card-title">
+                  ${elemIconHTML("Floresta")}
+                  <strong>Teste Beta</strong>
+                </div>
+                <span class="mode-badge is-beta">BETA</span>
+              </div>
+              <span class="mode-card-desc">
+                Novidades em teste: <strong>Sintonia Dinâmica</strong> entre jogadores, <strong>Técnicas em Dupla/Trio</strong> mais fortes e <strong>Física Aérea 2.5D</strong> da bola (fora do Ranking oficial).
+              </span>
+            </div>
+
+            <div class="mode-card is-locked is-full-row" data-game-mode="historia" aria-disabled="true">
               <div class="mode-card-head">
                 <div class="mode-card-title">
                   <span class="mode-title-lock" aria-hidden="true">
@@ -302,10 +319,12 @@ function renderStartMenuScreen() {
                 Faça a história do seu time crescendo a partir do começo — evolua seus jogadores passo a passo até conquistar tudo!
               </span>
             </div>
+              `;
+            })()}
           </div>
           ${
             state.storyLockNotice
-              ? `<div class="mode-locked-toast">🔒 O <strong>Modo História</strong> ainda está em desenvolvimento e chegará em breve! Por enquanto, jogue o <strong>Modo Relâmpago</strong>.</div>`
+              ? `<div class="mode-locked-toast">🔒 O <strong>Modo História</strong> ainda está em desenvolvimento e chegará em breve! Por enquanto, jogue o <strong>Modo Relâmpago</strong> ou experimente o <strong>Teste Beta</strong>.</div>`
               : ""
           }
         </div>
@@ -339,9 +358,14 @@ function renderStartMenuScreen() {
           </div>
         </div>
 
-        <button class="start-big-btn" id="btn-start-game-now">
-          COMEÇAR MODO RELÂMPAGO E GIRAR ROLETA!
+        ${(() => {
+          const isBeta = typeof isBetaMode === "function" && isBetaMode();
+          return `
+        <button class="start-big-btn ${isBeta ? "is-beta" : ""}" id="btn-start-game-now">
+          ${isBeta ? "COMEÇAR TESTE BETA E GIRAR ROLETA!" : "COMEÇAR MODO RELÂMPAGO E GIRAR ROLETA!"}
         </button>
+          `;
+        })()}
       </div>
     </div>
 
@@ -384,7 +408,7 @@ function renderStartMenuScreen() {
         renderStartMenuScreen();
         return;
       }
-      state.gameMode = "relampago";
+      state.gameMode = mode === "beta" ? "beta" : "relampago";
       state.storyLockNotice = false;
       renderStartMenuScreen();
     });
@@ -1385,10 +1409,13 @@ function saveActiveRunProgress() {
       if (pickedCount === 0 && !state.currentTeam) return;
       const stats = calcSquadStats();
       const diffLabel = state.hideOvrBeforePick ? "Difícil" : "Fácil";
+      const isBetaSave = typeof isBetaMode === "function" && isBetaMode();
+      const draftStageTitle = pickedCount >= 11 ? "Draft 11/11 Pronto" : `Draft (${pickedCount}/11 Escalados)`;
       const payload = {
         v: 1,
         savedAt: new Date().toISOString(),
         phase: "draft",
+        gameMode: isBetaSave ? "beta" : "relampago",
         formation: state.formation || "4-3-3",
         hideOvrBeforePick: Boolean(state.hideOvrBeforePick),
         simSpeed: state.simSpeed || 1,
@@ -1399,7 +1426,7 @@ function saveActiveRunProgress() {
         preview: {
           phase: "draft",
           pickedCount,
-          stageLabel: pickedCount >= 11 ? "Draft 11/11 Pronto" : `Draft (${pickedCount}/11 Escalados)`,
+          stageLabel: `${isBetaSave ? "[BETA] " : ""}${draftStageTitle}`,
           metaLine: `${state.formation} • Modo ${diffLabel} • Poder ${Math.round(stats.power || 0).toLocaleString("pt-BR")}`
         }
       };
@@ -1421,12 +1448,14 @@ function saveActiveRunProgress() {
           : getTeamEnergy();
       const stats = calcSquadStats();
       const focusStage = t.prep ? t.stages?.[t.prep.nextStageIdx] || curSt : curSt;
+      const isBetaSave = typeof isBetaMode === "function" && isBetaMode();
       const stageTitle = focusStage?.stageName || "Torneio";
-      const stageLabel = t.prep
+      const baseStageLabel = t.prep
         ? `Preparação · ${stageTitle}`
         : curSt?.finished
         ? `Pós-Jogo · ${stageTitle}`
         : `Partida · ${stageTitle}`;
+      const stageLabel = `${isBetaSave ? "[BETA] " : ""}${baseStageLabel}`;
       const metaLine = `Poder ${Math.round(stats.power || 0).toLocaleString("pt-BR")} • Nv. ${stats.avgLevel || 1} • Energia ${Math.round(safeEnergy)}% • ${state.formation}`;
 
       const compactStages = (t.stages || []).map((s) => ({
@@ -1465,6 +1494,7 @@ function saveActiveRunProgress() {
         v: 1,
         savedAt: new Date().toISOString(),
         phase: "tournament",
+        gameMode: isBetaSave ? "beta" : "relampago",
         formation: state.formation || "4-3-3",
         hideOvrBeforePick: Boolean(state.hideOvrBeforePick),
         simSpeed: state.simSpeed || 1,
@@ -1545,6 +1575,7 @@ function resumeSavedRunProgress() {
   state.peekField = false;
   state.swapSlotId = null;
 
+  state.gameMode = save.gameMode === "beta" ? "beta" : "relampago";
   state.formation = DB.formations?.[save.formation] ? save.formation : "4-3-3";
   state.hideOvrBeforePick = Boolean(save.hideOvrBeforePick);
   state.simSpeed = [1, 2, 4].includes(save.simSpeed) ? save.simSpeed : 1;
@@ -1779,6 +1810,9 @@ function isTournamentRunTerminal(t = state.tournament) {
 }
 
 function getRankingStatusBadgeHTML(t) {
+  if (typeof isBetaMode === "function" && isBetaMode()) {
+    return `🧪 Modo Teste Beta — campanhas beta não entram no Ranking Oficial`;
+  }
   const cfg = getRankingConfig();
   if (t?.rankingStatus === "saving") {
     return `⏳ Salvando campanha no Ranking Global...`;
@@ -1799,6 +1833,7 @@ function updateRunRankingStatusBadge(t, customHtml = null) {
 }
 
 function maybeAutoSaveRunToRanking(t = state.tournament) {
+  if (typeof isBetaMode === "function" && isBetaMode()) return;
   if (!t || !t.runId) return;
   const summary = computeTournamentRunSummary(t);
   const stats = calcSquadStats();
@@ -1912,7 +1947,10 @@ function buildRunSummaryCardHTML(summary, stats, t) {
         <div class="run-ranking-status" id="run-ranking-status-badge">
           ${getRankingStatusBadgeHTML(t)}
         </div>
-        <form class="run-ranking-name-form" id="run-ranking-name-form">
+        ${
+          typeof isBetaMode === "function" && isBetaMode()
+            ? ""
+            : `<form class="run-ranking-name-form" id="run-ranking-name-form">
           <input type="text"
                  id="run-ranking-name-input"
                  class="run-ranking-name-input"
@@ -1923,7 +1961,8 @@ function buildRunSummaryCardHTML(summary, stats, t) {
           <button type="submit" class="ie-cmd-btn ie-cmd-gold run-ranking-save-btn" id="btn-save-ranking-name">
             <span>Salvar Nome</span>
           </button>
-        </form>
+        </form>`
+        }
       </div>
 
       <div class="run-team-totals-grid">
@@ -2614,7 +2653,8 @@ async function exportRunSummaryImage(summary, stats, t) {
   ctx.textAlign = "center";
   ctx.fillStyle = "#64748b";
   ctx.font = `700 14px ${fontFamily}`;
-  ctx.fillText("Inazuma Eleven Dream Team • Resumo Oficial da Campanha (Modo Relâmpago)", W / 2, 1434 + extraStageH);
+  const exportModeLabel = typeof isBetaMode === "function" && isBetaMode() ? "Teste Beta" : "Modo Relâmpago";
+  ctx.fillText(`Inazuma Eleven Dream Team • Resumo Oficial da Campanha (${exportModeLabel})`, W / 2, 1434 + extraStageH);
   ctx.textAlign = "left";
 
   const dataUrl = canvas.toDataURL("image/png");

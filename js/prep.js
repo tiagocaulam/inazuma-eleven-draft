@@ -534,18 +534,22 @@ function getPrepLocationsCatalog() {
           weight: 2.0,
           summary: `Treino coletivo de cobertura para <span class="b-lvl">Goleiro e Zagueiros</span> ganharem XP, Química e firmeza nos duelos.`
         },
-        {
-          id: "river_synergy_train",
-          title: "Treino de Sintonia (Dupla/Trio)",
-          icon: UI.formation || UI.manualInazuma || UI.ffLogo,
-          kind: "SYNERGY_PICK",
-          affinityPoints: 35,
-          teamPower: 14,
-          teamChem: 4,
-          xpGain: 85,
-          weight: 2.2,
-          summary: `Escolha <span class="b-tech">2 ou 3 titulares</span> para ensaiar jogadas combinadas (<span class="b-chem">+35 Sintonia</span> entre si, fortalecendo <span class="b-pwr">técnicas em dupla/trio e passes</span>) + <span class="b-lvl">+85 XP</span>.`
-        },
+        ...(isBetaMode()
+          ? [
+              {
+                id: "river_synergy_train",
+                title: "Treino de Sintonia (Dupla/Trio)",
+                icon: UI.formation || UI.manualInazuma || UI.ffLogo,
+                kind: "SYNERGY_PICK",
+                affinityPoints: 35,
+                teamPower: 14,
+                teamChem: 4,
+                xpGain: 85,
+                weight: 2.2,
+                summary: `Escolha <span class="b-tech">2 ou 3 titulares</span> para ensaiar jogadas combinadas (<span class="b-chem">+35 Sintonia</span> entre si, fortalecendo <span class="b-pwr">técnicas em dupla/trio e passes</span>) + <span class="b-lvl">+85 XP</span>.`
+              }
+            ]
+          : []),
         {
           id: "recovery_upgrade",
           title: "Vigor de Campanha",
@@ -760,16 +764,20 @@ function getPrepLocationsCatalog() {
           energyGain: snackRestGain,
           summary: `Recupera <span class="b-chem">+${snackRestGain}% de Energia</span> e deixa o elenco <span class="b-tech">20% mais resistente ao cansaço</span> durante toda a próxima partida.`
         },
-        {
-          id: "rest_team_bonding",
-          title: "Resenha & Entrosamento",
-          icon: UI.raimonEmblem || UI.formation || UI.ffLogo,
-          kind: "REST_ACTIVE",
-          restMode: "BOND",
-          energyGain: bondRestGain,
-          xpGain: bondRestXp,
-          summary: `Conversa tática leve que recupera <span class="b-chem">+${bondRestGain}% de Energia</span>, dá <span class="b-lvl">+${bondRestXp} XP</span> ao elenco e eleva em <span class="b-tech">+18 a Sintonia</span> de 3 duplas próximas.`
-        }
+        ...(isBetaMode()
+          ? [
+              {
+                id: "rest_team_bonding",
+                title: "Resenha & Entrosamento",
+                icon: UI.raimonEmblem || UI.formation || UI.ffLogo,
+                kind: "REST_ACTIVE",
+                restMode: "BOND",
+                energyGain: bondRestGain,
+                xpGain: bondRestXp,
+                summary: `Conversa tática leve que recupera <span class="b-chem">+${bondRestGain}% de Energia</span>, dá <span class="b-lvl">+${bondRestXp} XP</span> ao elenco e eleva em <span class="b-tech">+18 a Sintonia</span> de 3 duplas próximas.`
+              }
+            ]
+          : [])
       ]
     }
   ];
