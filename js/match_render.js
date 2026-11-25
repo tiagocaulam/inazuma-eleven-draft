@@ -166,6 +166,13 @@ function resetPitchForKickoff(pitch, kickoffSide, snapNodes = false, isGoalReset
   pitch.ballSpinDeg = 0;
   pitch.ballSpinVel = 0;
   pitch.synergyLinkFx = null;
+  pitch.coopFreeze = null;
+  [...(pitch.userNodes || []), ...(pitch.oppNodes || [])].forEach((n) => {
+    n.jumpZ = 0;
+    n.jumpElapsed = 0;
+    n.jumpDuration = 0;
+    n.jumpPeak = 0;
+  });
   pitch.camX = 50;
   pitch.camY = 50;
   pitch.camSnap = true;
@@ -2057,7 +2064,9 @@ function startBallFlight(pitch, fromX, fromY, toX, toY, durationMs, arcHeight = 
     duration: dur,
     arcHeight: actualArc,
     kind,
-    linear: linearShot
+    linear: linearShot,
+    isSpecial: Boolean(opts?.isSpecial),
+    elem: opts?.elem || null
   };
   if (kind !== "CONTROL") {
     const trailFromX = typeof opts?.trailOriginX === "number" ? opts.trailOriginX : fromX;
@@ -2069,6 +2078,7 @@ function startBallFlight(pitch, fromX, fromY, toX, toY, durationMs, arcHeight = 
       toY,
       curX: fromX,
       curY: fromY,
+      pts: [{ x: trailFromX, y: trailFromY }],
       color: trailColor,
       start: now,
       flightDuration: dur,
@@ -2147,11 +2157,42 @@ function renderPitchDOMFrame(pitch, st, now) {
 
   const activeDashUid = pitch.dashFx ? pitch.dashFx.uid : null;
   const simClock = pitch.simTime || 0;
+  const betaOn = typeof isBetaMode === "function" && isBetaMode();
+  const activeCoopFreeze = betaOn && pitch.coopFreeze && now < pitch.coopFreeze.start + pitch.coopFreeze.duration ? pitch.coopFreeze : null;
+  if (!activeCoopFreeze && pitch.coopFreeze) pitch.coopFreeze = null;
+  const coopStarSet = activeCoopFreeze
+    ? new Set([activeCoopFreeze.shooterUid, ...(activeCoopFreeze.partnerUids || [])])
+    : null;
+  const pitchFieldEl = document.querySelector(".live-pitch-field");
+  if (pitchFieldEl) {
+    pitchFieldEl.classList.toggle("is-coop-freeze", Boolean(activeCoopFreeze));
+  }
+  const coopBannerEl = document.getElementById("pitch-coop-banner");
+  if (coopBannerEl) {
+    if (activeCoopFreeze) {
+      coopBannerEl.style.display = "flex";
+      coopBannerEl.innerHTML = `<span class="coop-banner-tier">⚡ TÉCNICA EM ${activeCoopFreeze.tier}</span><strong>【${activeCoopFreeze.moveName}】</strong>`;
+    } else {
+      coopBannerEl.style.display = "none";
+    }
+  }
+
   const stepDomNode = (node) => {
     const el = document.getElementById(`pnode-${node.uid}`);
     if (el) {
+      const jZ = betaOn ? Math.max(0, Math.min(1.2, Number(node.jumpZ) || 0)) : 0;
+      const liftedNodeY = Math.max(2, node.y - jZ * 3.8);
       el.style.left = `${node.x.toFixed(2)}%`;
-      el.style.top = `${node.y.toFixed(2)}%`;
+      el.style.top = `${liftedNodeY.toFixed(2)}%`;
+      el.classList.toggle("is-jumping", jZ > 0.03);
+      if (jZ > 0.03) {
+        if (typeof el.style.setProperty === "function") el.style.setProperty("--jump-scale", (1 + jZ * 0.24).toFixed(2));
+        el.style.zIndex = "15";
+      } else {
+        if (typeof el.style.removeProperty === "function") el.style.removeProperty("--jump-scale");
+        el.style.zIndex = "";
+      }
+      el.classList.toggle("is-coop-star", Boolean(coopStarSet && coopStarSet.has(node.uid)));
       const isDribbleDash = node.uid === activeDashUid;
       const isReceiveDash = Boolean(
         !isDribbleDash &&
@@ -2241,7 +2282,6 @@ function renderPitchDOMFrame(pitch, st, now) {
     }
   }
 
-  const betaOn = typeof isBetaMode === "function" && isBetaMode();
   let ballScale = 1;
   let ballTransform = "translate(-50%, -50%)";
   let isShotBall = false;
@@ -2355,12 +2395,27 @@ function renderPitchDOMFrame(pitch, st, now) {
   }
 
   const ballEl = document.getElementById("live-pitch-ball");
+  const liftedY = Math.max(2, pitch.ballY - ballZVis * 3.8);
   if (ballEl) {
-    const liftedY = Math.max(2, pitch.ballY - ballZVis * 3.8);
     ballEl.style.left = `${pitch.ballX.toFixed(2)}%`;
     ballEl.style.top = `${liftedY.toFixed(2)}%`;
     ballEl.style.transform = ballTransform;
     ballEl.style.zIndex = ballZVis > 0.45 ? "16" : "9";
+
+    const specialShotFlame = Boolean(betaOn && isShotBall && pitch.ballFlight?.isSpecial);
+    const animeSpinActive = Boolean(betaOn && pitch.ballMode === "PASS_FLIGHT" && pitch.passState?.hasAnimeSpin);
+    ballEl.classList.toggle("is-elem-flame", specialShotFlame);
+    ballEl.classList.toggle("is-anime-spin", animeSpinActive);
+    const elemSlug = specialShotFlame
+      ? String(pitch.ballFlight?.elem || "Fogo")
+          .toLowerCase()
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+      : "";
+    ballEl.classList.toggle("elem-fogo", elemSlug === "fogo");
+    ballEl.classList.toggle("elem-vento", elemSlug === "vento");
+    ballEl.classList.toggle("elem-floresta", elemSlug === "floresta");
+    ballEl.classList.toggle("elem-montanha", elemSlug === "montanha");
   }
 
   const lineGlow = document.getElementById("pitch-pass-glow");
@@ -2371,12 +2426,23 @@ function renderPitchDOMFrame(pitch, st, now) {
       const fromX = Number.isFinite(tr.fromX) ? tr.fromX : 50;
       const fromY = Number.isFinite(tr.fromY) ? tr.fromY : 50;
       const rawEndX = tr.curX !== undefined ? tr.curX : tr.toX;
-      const rawEndY = tr.curY !== undefined ? tr.curY : tr.toY;
+      const rawEndY = betaOn ? liftedY : (tr.curY !== undefined ? tr.curY : tr.toY);
       const endX = Number.isFinite(rawEndX) ? rawEndX : fromX;
       const endY = Number.isFinite(rawEndY) ? rawEndY : fromY;
       const remain = Math.max(0, Math.min(1, (tr.fadeUntil - now) / 460));
       let pathD;
-      if (Number.isFinite(tr.ctrlX) && Number.isFinite(tr.ctrlY)) {
+      if (betaOn && Array.isArray(tr.pts) && (pitch.ballMode === "PASS_FLIGHT" || isShotBall)) {
+        const lastPt = tr.pts[tr.pts.length - 1];
+        if (!lastPt || Math.hypot(endX - lastPt.x, endY - lastPt.y) >= 0.75) {
+          tr.pts.push({ x: endX, y: endY });
+          if (tr.pts.length > 26) tr.pts.shift();
+        }
+        if (tr.pts.length >= 2) {
+          pathD = `M ${tr.pts[0].x.toFixed(1)} ${tr.pts[0].y.toFixed(1)} ` + tr.pts.slice(1).map((pt) => `L ${pt.x.toFixed(1)} ${pt.y.toFixed(1)}`).join(" ");
+        } else {
+          pathD = `M ${fromX.toFixed(1)} ${fromY.toFixed(1)} L ${endX.toFixed(1)} ${endY.toFixed(1)}`;
+        }
+      } else if (Number.isFinite(tr.ctrlX) && Number.isFinite(tr.ctrlY)) {
         const u = Number.isFinite(tr.u) ? Math.max(0.02, Math.min(1, tr.u)) : 1;
         // De Casteljau: sub-curva exata de 0 até u para o traçado acompanhar a parábola da bola!
         const subCx = fromX + (tr.ctrlX - fromX) * u;

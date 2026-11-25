@@ -4725,64 +4725,71 @@ body {
 .pen-goal-frame {
   position: relative;
   width: 100%;
-  max-width: 420px;
-  height: 162px;
-  border: 4px solid #f8fafc;
+  max-width: 430px;
+  height: 170px;
+  border: 5px solid #f8fafc;
   border-bottom: none;
-  border-radius: 6px 6px 0 0;
+  border-radius: 7px 7px 0 0;
+  overflow: visible;
   background:
-    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.08) 0 1px, transparent 1px 16px),
-    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.08) 0 1px, transparent 1px 16px),
-    rgba(6, 15, 36, 0.46);
-  box-shadow: inset 0 6px 20px rgba(0, 0, 0, 0.55);
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.11) 0 1px, transparent 1px 14px),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.11) 0 1px, transparent 1px 14px),
+    linear-gradient(180deg, rgba(6, 18, 44, 0.56), rgba(4, 12, 28, 0.72));
+  box-shadow: inset 0 8px 24px rgba(0, 0, 0, 0.62), 0 0 16px rgba(248, 250, 252, 0.18);
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
 }
 
-.pen-goal-grid {
-  position: relative;
-  z-index: 2;
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  grid-template-rows: repeat(2, 1fr);
-  gap: 6px;
+.pen-net-ripple {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(circle at 50% 45%, rgba(250, 204, 21, 0.34), rgba(34, 197, 94, 0.18) 52%, transparent 78%);
+}
+
+.pen-goal-frame.is-goal-net {
+  border-color: #fde047;
+  box-shadow: inset 0 0 28px rgba(34, 197, 94, 0.48), 0 0 22px rgba(250, 204, 21, 0.42);
+  animation: penNetBulge 0.42s ease-out;
+}
+.pen-goal-frame.is-goal-net .pen-net-ripple {
+  opacity: 1;
+  animation: penGoalFlash 0.48s ease-out;
+}
+.pen-goal-frame.is-post-shake {
+  border-color: #fb923c;
+  animation: penPostShake 0.36s ease-out;
+}
+
+@keyframes penNetBulge {
+  0% { transform: scale(1); }
+  45% { transform: scale(1.022, 0.985); }
+  100% { transform: scale(1); }
+}
+@keyframes penGoalFlash {
+  0% { opacity: 0.95; transform: scale(0.82); }
+  100% { opacity: 0.35; transform: scale(1.06); }
+}
+@keyframes penPostShake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-6px); }
+  45% { transform: translateX(5px); }
+  70% { transform: translateX(-3px); }
+}
+
+.pen-shot-trail {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
-  padding: 8px;
-}
-
-.pen-sector {
-  border: 1.5px dashed rgba(255, 255, 255, 0.22);
-  border-radius: 8px;
-  background: rgba(15, 31, 68, 0.26);
-  color: rgba(248, 250, 252, 0.65);
-  font-size: 0.62rem;
-  font-weight: 800;
-  letter-spacing: 0.3px;
+  z-index: 3;
   pointer-events: none;
-  cursor: default;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding-top: 0;
-  text-align: center;
-  transition: background-color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+  overflow: visible;
+  opacity: 0;
+  transition: opacity 0.18s ease-out;
 }
-
-.pen-sector.was-goal {
-  background: rgba(34, 197, 94, 0.34);
-  border-color: #4ade80;
-  color: #f0fdf4;
-  box-shadow: inset 0 0 12px rgba(250, 204, 21, 0.28);
-}
-
-.pen-sector.was-shot {
-  background: rgba(249, 115, 22, 0.30);
-  border-color: #fb923c;
-  color: #fff7ed;
-}
-
-.pen-sector.was-dive {
-  box-shadow: inset 0 0 0 2px #38bdf8;
-  color: #e0f2fe;
+.pen-shot-trail.is-visible {
+  opacity: 1;
 }
 
 .pen-gk-actor {
@@ -4824,27 +4831,39 @@ body {
 
 .pen-ball-actor {
   position: absolute;
-  transform: translate(-50%, -50%);
+  transform: translate(-50%, -50%) scale(1.04);
   z-index: 6;
-  width: 24px;
-  height: 24px;
+  width: 36px;
+  height: 36px;
   pointer-events: none;
-  filter: drop-shadow(0 3px 8px rgba(0, 0, 0, 0.85));
-  transition: left 0.34s cubic-bezier(0.22, 1, 0.36, 1), top 0.34s cubic-bezier(0.22, 1, 0.36, 1), transform 0.34s ease;
+  filter: drop-shadow(0 5px 10px rgba(0, 0, 0, 0.88));
+  transition: left 0.34s cubic-bezier(0.18, 0.88, 0.28, 1), top 0.34s cubic-bezier(0.18, 0.88, 0.28, 1), transform 0.34s ease, opacity 0.26s ease;
 }
 
 .pen-ball-svg {
-  width: 24px;
-  height: 24px;
+  width: 36px;
+  height: 36px;
   display: block;
 }
 
 .pen-ball-actor.ball-goal {
-  transform: translate(-50%, -50%) scale(0.92);
+  transform: translate(-50%, -50%) scale(0.84) rotate(540deg);
+  filter: drop-shadow(0 0 12px rgba(250, 204, 21, 0.78));
 }
 
 .pen-ball-actor.ball-saved {
-  transform: translate(-50%, -50%) scale(1.18);
+  transform: translate(-50%, -50%) scale(1.14) rotate(-320deg);
+  filter: drop-shadow(0 0 10px rgba(56, 189, 248, 0.75));
+}
+
+.pen-ball-actor.ball-post {
+  transform: translate(-50%, -50%) scale(0.96) rotate(420deg);
+  filter: drop-shadow(0 0 14px rgba(251, 146, 60, 0.92));
+}
+
+.pen-ball-actor.ball-miss {
+  transform: translate(-50%, -50%) scale(0.72) rotate(480deg);
+  opacity: 0.72;
 }
 
 .pen-result-pop {
@@ -4872,6 +4891,8 @@ body {
 
 .pen-result-pop.is-goal { background: linear-gradient(90deg, #16a34a, #eab308); color: #052e16; }
 .pen-result-pop.is-save { background: linear-gradient(90deg, #0284c7, #1d4ed8); }
+.pen-result-pop.is-post { background: linear-gradient(90deg, #ea580c, #facc15); color: #1c1917; }
+.pen-result-pop.is-miss { background: linear-gradient(90deg, #b91c1c, #ef4444); color: #ffffff; }
 
 .pen-turf-strip {
   position: relative;
@@ -10416,6 +10437,99 @@ body {
     height: 18px;
     font-size: 0.62rem;
   }
+}
+
+/* ==== TESTE BETA: FOGO ELEMENTAL NA BOLA, GIRO ANIMESCO, SALTO & FREEZE-FRAME DUPLA/TRIO ==== */
+.pitch-ball-flame,
+.pitch-ball-spin-ring {
+  position: absolute;
+  inset: -6px;
+  pointer-events: none;
+  opacity: 0;
+  border-radius: 50%;
+}
+
+.pitch-ball-dot.is-elem-flame .pitch-ball-flame {
+  opacity: 1;
+  inset: -8px -6px -8px -18px;
+  border-radius: 60% 45% 45% 60%;
+  filter: blur(1.2px);
+  animation: betaBallFlameFlicker 0.16s infinite alternate ease-in-out;
+}
+.pitch-ball-dot.is-elem-flame.elem-fogo .pitch-ball-flame {
+  background: radial-gradient(circle at 68% 50%, rgba(254, 240, 138, 0.96) 0%, rgba(249, 115, 22, 0.9) 46%, rgba(220, 38, 38, 0.55) 75%, transparent 100%);
+  box-shadow: 0 0 14px rgba(249, 115, 22, 0.85);
+}
+.pitch-ball-dot.is-elem-flame.elem-vento .pitch-ball-flame {
+  background: radial-gradient(circle at 68% 50%, rgba(224, 242, 254, 0.96) 0%, rgba(56, 189, 248, 0.9) 46%, rgba(2, 132, 199, 0.55) 75%, transparent 100%);
+  box-shadow: 0 0 14px rgba(56, 189, 248, 0.85);
+}
+.pitch-ball-dot.is-elem-flame.elem-floresta .pitch-ball-flame {
+  background: radial-gradient(circle at 68% 50%, rgba(220, 252, 231, 0.96) 0%, rgba(34, 197, 94, 0.9) 46%, rgba(21, 128, 61, 0.55) 75%, transparent 100%);
+  box-shadow: 0 0 14px rgba(34, 197, 94, 0.85);
+}
+.pitch-ball-dot.is-elem-flame.elem-montanha .pitch-ball-flame {
+  background: radial-gradient(circle at 68% 50%, rgba(254, 249, 195, 0.96) 0%, rgba(245, 158, 11, 0.92) 46%, rgba(180, 83, 9, 0.58) 75%, transparent 100%);
+  box-shadow: 0 0 14px rgba(245, 158, 11, 0.85);
+}
+@keyframes betaBallFlameFlicker {
+  0% { transform: scaleX(0.92) scaleY(0.95); }
+  100% { transform: scaleX(1.14) scaleY(1.06); }
+}
+
+.pitch-ball-dot.is-anime-spin .pitch-ball-spin-ring {
+  opacity: 0.9;
+  inset: -6px;
+  border: 2px dashed rgba(250, 204, 21, 0.85);
+  border-top-color: #38bdf8;
+  border-bottom-color: transparent;
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.55);
+  animation: betaAnimeSpinRing 0.24s linear infinite;
+}
+@keyframes betaAnimeSpinRing {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.pitch-token.is-jumping {
+  transform: translate(-50%, -50%) scale(var(--jump-scale, 1.18)) !important;
+  filter: drop-shadow(0 12px 6px rgba(0, 0, 0, 0.65));
+}
+
+.live-pitch-field.is-coop-freeze .pitch-token:not(.is-coop-star) {
+  opacity: 0.42;
+  filter: saturate(0.45) brightness(0.75);
+  transition: opacity 0.14s ease, filter 0.14s ease;
+}
+.live-pitch-field.is-coop-freeze .pitch-token.is-coop-star {
+  z-index: 20 !important;
+  filter: drop-shadow(0 0 12px rgba(250, 204, 21, 0.95));
+}
+
+.pitch-coop-banner {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 25;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 14px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(15, 23, 42, 0.95), rgba(30, 58, 138, 0.95));
+  border: 1.5px solid #facc15;
+  color: #ffffff;
+  font-size: 0.74rem;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.7), 0 0 14px rgba(250, 204, 21, 0.45);
+  pointer-events: none;
+  white-space: nowrap;
+}
+.pitch-coop-banner .coop-banner-tier {
+  font-size: 0.64rem;
+  font-weight: 900;
+  color: #fde047;
+  letter-spacing: 0.5px;
 }
 
 

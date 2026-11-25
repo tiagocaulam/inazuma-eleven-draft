@@ -158,7 +158,12 @@ function buildLivePitchBoxHTML(st, oppTeam, stats = calcSquadStats(), oppStats =
           </div>
           ${tokensHTML}
           <div id="live-pitch-ball-shadow" class="pitch-ball-shadow" style="left:${pitch.ballX}%; top:${pitch.ballY}%;"></div>
-          <div id="live-pitch-ball" class="pitch-ball-dot" style="left:${pitch.ballX}%; top:${pitch.ballY}%;">${buildMiniBallSVG("pitch-ball-svg")}</div>
+          <div id="live-pitch-ball" class="pitch-ball-dot" style="left:${pitch.ballX}%; top:${pitch.ballY}%;">
+            <span class="pitch-ball-flame" aria-hidden="true"></span>
+            <span class="pitch-ball-spin-ring" aria-hidden="true"></span>
+            ${buildMiniBallSVG("pitch-ball-svg")}
+          </div>
+          <div id="pitch-coop-banner" class="pitch-coop-banner" style="display:none;"></div>
           <div id="pitch-float-badge" class="pitch-float-badge"></div>
         </div>
         <div id="pitch-center-callout" class="pitch-center-callout" style="display:none;"></div>
@@ -1254,12 +1259,18 @@ function launchContinuousPass(st, pitch, carrier, attNodes, defNodes, strictForw
     const hasBlockerInLane = Math.abs(laneBias) > 0.22;
     const isLongSwitch = dist >= 28;
     const isDiagonalSpace = isThroughBall && dist >= 16 && Math.abs(dy) >= 6;
+    // No Modo Teste Beta, passes por cima (peakZ > 0) muitas vezes são ARCOS RETOS (sobem e descem sem efeito lateral),
+    // pegando efeito/giro animesco apenas em parte dos cruzamentos e lançamentos técnicos!
     const shouldCurve =
-      passOptions.isCross ||
-      hasBlockerInLane ||
-      (isLongSwitch && Math.random() < 0.72) ||
-      (isDiagonalSpace && Math.random() < 0.55) ||
-      (!isOneTwoPass && dist >= 16 && Math.random() < 0.26);
+      betaAerial && peakZ > 0
+        ? (passOptions.isCross
+            ? Math.random() < 0.56
+            : ((carrier.attrs?.tec || 75) >= 82 && Math.random() < 0.36) || Math.random() < 0.20)
+        : (passOptions.isCross ||
+            hasBlockerInLane ||
+            (isLongSwitch && Math.random() < 0.72) ||
+            (isDiagonalSpace && Math.random() < 0.55) ||
+            (!isOneTwoPass && dist >= 16 && Math.random() < 0.26));
 
     if (shouldCurve) {
       isCurvedPass = true;
@@ -1361,16 +1372,17 @@ function launchContinuousPass(st, pitch, carrier, attNodes, defNodes, strictForw
     showNodeBadge(pitch, receiver.uid, "⚡ Avançou!", "badge-pass", 900);
   }
 
+  const hasAnimeSpin = Boolean(betaAerial && isCurvedPass);
   const passSpinVel = betaAerial
-    ? (isCurvedPass
-        ? (curveSpinSign || 1) * (passOptions.isCross ? 620 : 480)
+    ? (hasAnimeSpin
+        ? (curveSpinSign || 1) * (passOptions.isCross ? 980 : 860)
         : peakZ >= 0.90
-        ? 420
-        : peakZ > 0
-        ? 340
-        : isThroughBall
         ? 260
-        : 180)
+        : peakZ > 0
+        ? 210
+        : isThroughBall
+        ? 240
+        : 160)
     : 0;
   const releaseToLooseAt =
     betaAerial && isThroughBall && !isOneTwoPass && !passOptions.isReturnOneTwo && !passOptions.isCross && dist >= 14
@@ -1398,6 +1410,7 @@ function launchContinuousPass(st, pitch, carrier, attNodes, defNodes, strictForw
     isCross: Boolean(passOptions.isCross),
     passType,
     peakZ,
+    hasAnimeSpin,
     spinVel: passSpinVel,
     releaseToLooseAt,
     wasOffsideAtPassTime,
@@ -1431,8 +1444,10 @@ function launchContinuousPass(st, pitch, carrier, attNodes, defNodes, strictForw
     toY: leadY,
     curX: fromX,
     curY: fromY,
+    pts: [{ x: fromX, y: fromY }],
     u: 0,
     isAerial: peakZ > 0,
+    hasAnimeSpin,
     color: trailColor,
     start: performance.now(),
     flightDuration: Math.round(duration * 1000),
@@ -1656,6 +1671,14 @@ function selectShotBlockerEntry(pathEnemies) {
   };
 }
 
+function triggerNodeJump(node, peak = 0.85, duration = 0.50) {
+  if (!node || typeof isBetaMode !== "function" || !isBetaMode()) return;
+  node.jumpPeak = Math.max(0.25, Math.min(1.15, Number(peak) || 0.85));
+  node.jumpDuration = Math.max(0.22, Number(duration) || 0.50);
+  node.jumpElapsed = 0;
+  node.jumpZ = 0.08;
+}
+
 function launchContinuousShot(st, pitch, shooterNode, defNodes, attSupport, defSupport, ovrDiff, attNodesArg = null, opts = {}) {
   const origAttIsUser = shooterNode.side === "user";
   const origAttNodes = attNodesArg || (origAttIsUser ? pitch.userNodes : pitch.oppNodes);
@@ -1703,6 +1726,45 @@ function launchContinuousShot(st, pitch, shooterNode, defNodes, attSupport, defS
   applyCoopStaminaCost(shooterNode, shotInfo.cost, coopShot.partners);
   pitch.ballZ = 0;
   pitch.ballVz = 0;
+
+  // TESTE BETA: Salto aéreo em voleios/técnicas aéreas e convergência sincronizada em Dupla/Trio!
+  const betaShotFx = typeof isBetaMode === "function" && isBetaMode();
+  if (betaShotFx) {
+    const isAerialMove =
+      isCrossVolley ||
+      (shotInfo.isHissatsu &&
+        /Furacão|Fênix|Dragão|Pássaro|Estrela|Meteoro|Trovão|Aéreo|Celestial|Tempestade/i.test(shotInfo.label || ""));
+    if (isAerialMove || coopShot.partners.length >= 1) {
+      triggerNodeJump(shooterNode, 0.92, 0.56);
+    }
+    if (shotInfo.isHissatsu && coopShot.partners.length >= 1 && !pitch.is5v5) {
+      const partnerOffsets = [
+        { dx: -2.4, dy: -3.4 },
+        { dx: -2.4, dy: 3.4 }
+      ];
+      coopShot.partners.forEach((pt, idx) => {
+        if (!pt?.node) return;
+        const off = partnerOffsets[idx] || { dx: -2.8, dy: 0 };
+        const tx = Math.max(6, Math.min(94, shotOriginX + (origAttIsUser ? off.dx : -off.dx)));
+        const ty = Math.max(8, Math.min(92, shotOriginY + off.dy));
+        startNodeInterceptTween(pitch, pt.node, tx, ty, 380, state.simSpeed !== 1);
+        triggerNodeJump(pt.node, 0.92, 0.58);
+      });
+      if (state.simSpeed === 1) {
+        pitch.coopFreeze = {
+          start: performance.now(),
+          duration: 520,
+          shooterUid: shooterNode.uid,
+          partnerUids: coopShot.partners.map((p) => p.node?.uid).filter(Boolean),
+          targetX: shotOriginX,
+          targetY: shotOriginY,
+          moveName: shotInfo.label,
+          tier: coopShot.partners.length >= 2 ? "TRIO" : "DUPLA",
+          elem: shooterNode.player?.element || "Fogo"
+        };
+      }
+    }
+  }
 
   const shotAssistCandidate =
     pitch.lastAssistCandidate &&
@@ -1808,7 +1870,9 @@ function launchContinuousShot(st, pitch, shooterNode, defNodes, attSupport, defS
     startBallFlight(pitch, fromX, fromY, duelX, duelY, flightMs, 0, "SHOT", trailCol, {
       trailOriginX: tOriginX,
       trailOriginY: tOriginY,
-      linear: isContinuation
+      linear: isContinuation,
+      isSpecial: Boolean(activeIsHissatsu),
+      elem: activeShooter?.player?.element || "Fogo"
     });
     startNodeInterceptTween(pitch, curGkNode, duelX, duelY, Math.round(flightMs * 0.88), instantMode);
     if (!weakenedByBlocker) {
@@ -2024,7 +2088,9 @@ function launchContinuousShot(st, pitch, shooterNode, defNodes, attSupport, defS
         startBallFlight(pitch, duelX, duelY, curGoalX, shotGoalY, netFlightMs, 0, "GOAL", "#fde047", {
           trailOriginX: tOriginX,
           trailOriginY: tOriginY,
-          linear: true
+          linear: true,
+          isSpecial: Boolean(activeIsHissatsu),
+          elem: activeShooter?.player?.element || "Fogo"
         });
         syncLivePitchDOM(st);
 
@@ -2905,6 +2971,27 @@ function stepContinuousPhysics(st, pitch, dt) {
   });
 
   if (typeof isBetaMode === "function" && isBetaMode()) {
+    allNodes.forEach((n) => {
+      if ((n.jumpDuration || 0) > 0) {
+        n.jumpElapsed = (n.jumpElapsed || 0) + dt;
+        const jp = Math.min(1, n.jumpElapsed / n.jumpDuration);
+        n.jumpZ = jp >= 1 ? 0 : Math.sin(jp * Math.PI) * (n.jumpPeak || 0.85);
+        if (jp >= 1) {
+          n.jumpElapsed = 0;
+          n.jumpDuration = 0;
+          n.jumpPeak = 0;
+          n.jumpZ = 0;
+        }
+      }
+    });
+    if (pitch.coopFreeze) {
+      const nowCf = performance.now();
+      if (nowCf < pitch.coopFreeze.start + pitch.coopFreeze.duration) {
+        // Freeze-frame cinematográfico: o resto do campo congela enquanto a Dupla/Trio converge!
+        return;
+      }
+      pitch.coopFreeze = null;
+    }
     pitch.ballSpinDeg = ((pitch.ballSpinDeg || 0) + (pitch.ballSpinVel || 0) * dt) % 360;
     if (pitch.ballMode === "CARRIED" && !pitch.ballFlight) {
       if ((pitch.ballZ || 0) > 0) {
@@ -3888,6 +3975,9 @@ function stepContinuousPhysics(st, pitch, dt) {
       }
     }
     catcher.crossVolleyTimer = playMeta.isCross ? 1.6 : 0;
+    if (isBetaCatch && (playMeta.isCross || (Number(playMeta.peakZ) || 0) >= 0.72)) {
+      triggerNodeJump(catcher, 0.68, 0.40);
+    }
     catcher.receiveDashUntil = 0;
     catcher.carryTime = 0;
     catcher.duelCooldown = playMeta.isGkOutlet ? 0.65 : 0.25;
@@ -4162,10 +4252,14 @@ function stepContinuousPhysics(st, pitch, dt) {
           (airDef.effOvr || 80) * 0.45 +
           ((airDef.stamina || 80) - 70) * 0.12;
         if (Math.random() < logisticWinProb(attAirScore, defAirScore, 1.8, 0.25, 0.85)) {
+          triggerNodeJump(receiver, 0.88, 0.48);
+          triggerNodeJump(airDef, 0.72, 0.44);
           showNodeBadge(pitch, receiver.uid, "Ganhou no Alto!", "badge-pass", 1100, "BALL");
           completeAttackingPassCatch(ps, receiver);
           return;
         } else {
+          triggerNodeJump(airDef, 0.96, 0.52);
+          triggerNodeJump(receiver, 0.68, 0.42);
           spendStamina(airDef, 2.2);
           pitch.ballSide = attIsUser ? "opp" : "user";
           pitch.ballMode = "CARRIED";

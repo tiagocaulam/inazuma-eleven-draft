@@ -175,21 +175,60 @@ function resolvePenaltyKick(st, isAuto = false) {
   const kicker = getCurrentPenaltyKicker(pen, isUserKicking ? "user" : "opp");
   const keeper = isUserKicking ? pen.oppGk : pen.userGk;
 
-  // Cobrança direta (sem técnicas): batedor escolhe 1 de 6 quadrantes; goleiro tenta adivinhar (~33%)
+  // Cobrança direta (sem técnicas): batedor mira 1 de 6 alvos internos; pode acertar gol, defesa, TRAVE ou FORA!
   const shootCorner = Math.floor(Math.random() * PENALTY_CORNERS.length);
   const kickerOvr = kicker?.effOvr || kicker?.player?.ovr || 85;
   const keeperOvr = keeper?.effOvr || keeper?.player?.ovr || 85;
+  const kickerStam = typeof kicker?.stamina === "number" ? kicker.stamina : 70;
+  const errFactor = Math.max(0.65, Math.min(1.42, 1 + (85 - kickerOvr) * 0.015 + (kickerStam < 40 ? 0.16 : 0)));
+  const postProb = 0.065 * errFactor;
+  const missProb = 0.055 * errFactor;
+
   const gkGuessProb = Math.max(0.28, Math.min(0.39, 1 / 3 + (keeperOvr - kickerOvr) * 0.004));
-  const gkGuessedRight = Math.random() < gkGuessProb;
+  const errRoll = Math.random();
+  let outcome = "GOAL";
+  let gkGuessedRight = false;
+  if (errRoll < postProb) {
+    outcome = "POST";
+  } else if (errRoll < postProb + missProb) {
+    outcome = "MISS";
+  } else {
+    gkGuessedRight = Math.random() < gkGuessProb;
+    outcome = gkGuessedRight ? "SAVED" : "GOAL";
+  }
+
   let diveCorner = shootCorner;
   if (!gkGuessedRight) {
     const others = PENALTY_CORNERS.map((c) => c.id).filter((id) => id !== shootCorner);
     diveCorner = others[Math.floor(Math.random() * others.length)];
   }
-  const isGoal = !gkGuessedRight;
+  const isGoal = outcome === "GOAL";
   const shootInfo = PENALTY_CORNERS[shootCorner] || PENALTY_CORNERS[0];
   const diveInfo = PENALTY_CORNERS[diveCorner] || PENALTY_CORNERS[0];
-  const shotBallY = Math.round(shootInfo.y + (Math.random() - 0.5) * 6);
+  let shotBallX = shootInfo.x;
+  let shotBallY = Math.round(shootInfo.y + (Math.random() - 0.5) * 6);
+  let postPartLabel = "na trave";
+  if (outcome === "POST") {
+    if (shootInfo.col === 1) {
+      shotBallX = Math.round(35 + Math.random() * 30);
+      shotBallY = 2;
+      postPartLabel = "no travessão";
+    } else {
+      shotBallX = shootInfo.col === 0 ? 1 : 99;
+      shotBallY = Math.round(16 + Math.random() * 52);
+      postPartLabel = shootInfo.col === 0 ? "na trave esquerda" : "na trave direita";
+    }
+  } else if (outcome === "MISS") {
+    if (shootInfo.col === 1 || Math.random() < 0.36) {
+      shotBallX = Math.round(28 + Math.random() * 44);
+      shotBallY = -18;
+      postPartLabel = "por cima do travessão";
+    } else {
+      shotBallX = shootInfo.col === 0 ? -9 : 109;
+      shotBallY = Math.round(12 + Math.random() * 58);
+      postPartLabel = shootInfo.col === 0 ? "à esquerda do gol" : "à direita do gol";
+    }
+  }
 
   if (isUserKicking) {
     pen.userTaken++;
@@ -199,14 +238,20 @@ function resolvePenaltyKick(st, isAuto = false) {
       sprite: kicker.player.sprite,
       corner: shootCorner,
       diveCorner,
-      outcome: isGoal ? "GOAL" : "SAVED"
+      outcome
     });
+    const narText =
+      outcome === "GOAL"
+        ? `[Pênalti ${pen.userTaken}] ${kicker.player.name} bateu no ${shootInfo.label} (${keeper.player.name} pulou no ${diveInfo.label}) — GOOOL! (${pen.userGoals} x ${pen.oppGoals})`
+        : outcome === "POST"
+        ? `[Pênalti ${pen.userTaken}] ${kicker.player.name} soltou a bomba e carimbou ${postPartLabel}! (${pen.userGoals} x ${pen.oppGoals})`
+        : outcome === "MISS"
+        ? `[Pênalti ${pen.userTaken}] ${kicker.player.name} pegou mal na bola e mandou pra fora (${postPartLabel})! (${pen.userGoals} x ${pen.oppGoals})`
+        : `[Pênalti ${pen.userTaken}] ${kicker.player.name} bateu no ${shootInfo.label}, mas ${keeper.player.name} adivinhou o canto e defendeu! (${pen.userGoals} x ${pen.oppGoals})`;
     prependNarrationLine(
       st,
       isGoal ? "nar-goal-user" : "nar-save",
-      isGoal
-        ? `[Pênalti ${pen.userTaken}] ${kicker.player.name} bateu no ${shootInfo.label} (${keeper.player.name} pulou no ${diveInfo.label}) — GOOOL! (${pen.userGoals} x ${pen.oppGoals})`
-        : `[Pênalti ${pen.userTaken}] ${kicker.player.name} bateu no ${shootInfo.label}, mas ${keeper.player.name} adivinhou o canto e defendeu! (${pen.userGoals} x ${pen.oppGoals})`,
+      narText,
       { name: kicker.player.name, sprite: kicker.player.sprite, side: "user" },
       { name: keeper.player.name, sprite: keeper.player.sprite, side: "opp" },
       null
@@ -214,20 +259,26 @@ function resolvePenaltyKick(st, isAuto = false) {
   } else {
     pen.oppTaken++;
     if (isGoal) pen.oppGoals++;
-    else recordUserPlayerStat(pitch, keeper, "saves", 1);
+    else if (outcome === "SAVED") recordUserPlayerStat(pitch, keeper, "saves", 1);
     pen.oppKicks.push({
       kickerName: kicker.player.name,
       sprite: kicker.player.sprite,
       corner: shootCorner,
       diveCorner,
-      outcome: isGoal ? "GOAL" : "SAVED"
+      outcome
     });
+    const narText =
+      outcome === "GOAL"
+        ? `[Pênalti ${pen.oppTaken}] ${kicker.player.name} bateu no ${shootInfo.label} (${keeper.player.name} pulou no ${diveInfo.label}) — Gol rival. (${pen.userGoals} x ${pen.oppGoals})`
+        : outcome === "POST"
+        ? `[NA TRAVE!] ${kicker.player.name} mandou ${postPartLabel} e desperdiçou o pênalti rival! (${pen.userGoals} x ${pen.oppGoals})`
+        : outcome === "MISS"
+        ? `[PRA FORA!] ${kicker.player.name} isolou ${postPartLabel} e perdeu o pênalti rival! (${pen.userGoals} x ${pen.oppGoals})`
+        : `[DEFESA DE ${keeper.player.name.toUpperCase()}!] ${keeper.player.name} acertou o ${diveInfo.label} e defendeu o pênalti de ${kicker.player.name}! (${pen.userGoals} x ${pen.oppGoals})`;
     prependNarrationLine(
       st,
       isGoal ? "nar-goal-opp" : "nar-save",
-      isGoal
-        ? `[Pênalti ${pen.oppTaken}] ${kicker.player.name} bateu no ${shootInfo.label} (${keeper.player.name} pulou no ${diveInfo.label}) — Gol rival. (${pen.userGoals} x ${pen.oppGoals})`
-        : `[DEFESA DE ${keeper.player.name.toUpperCase()}!] ${keeper.player.name} acertou o ${diveInfo.label} e defendeu o pênalti de ${kicker.player.name}! (${pen.userGoals} x ${pen.oppGoals})`,
+      narText,
       { name: keeper.player.name, sprite: keeper.player.sprite, side: "user" },
       { name: kicker.player.name, sprite: kicker.player.sprite, side: "opp" },
       null
@@ -251,7 +302,10 @@ function resolvePenaltyKick(st, isAuto = false) {
     diveCorner,
     shootInfo,
     diveInfo,
+    shotBallX,
     shotBallY,
+    outcome,
+    postPartLabel,
     isGoal,
     kicker,
     keeper,
@@ -260,12 +314,14 @@ function resolvePenaltyKick(st, isAuto = false) {
 
   renderTournamentScreen();
 
-  // Dispara transição do batedor, bola e goleiro no frame seguinte!
+  // Dispara transição fluida do batedor, bola, goleiro e impacto na rede/trave!
   setTimeout(() => {
     if (st.finished || st.penalties !== pen || pen.phase !== "RESULT_BEAT") return;
     const gkEl = document.getElementById("pen-gk-actor");
     const ballEl = document.getElementById("pen-ball-actor");
     const kickerEl = document.getElementById("pen-kicker-actor");
+    const goalFrameEl = document.getElementById("pen-goal-frame");
+    const trailEl = document.getElementById("pen-shot-trail");
     if (kickerEl) {
       kickerEl.classList.add("is-strike");
     }
@@ -274,10 +330,25 @@ function resolvePenaltyKick(st, isAuto = false) {
       gkEl.style.top = `${diveInfo.y}%`;
       gkEl.classList.add(diveInfo.diveCls);
     }
+    if (trailEl) {
+      trailEl.classList.add("is-visible");
+    }
     if (ballEl) {
-      ballEl.style.left = `${shootInfo.x}%`;
+      ballEl.style.left = `${shotBallX}%`;
       ballEl.style.top = `${shotBallY}%`;
-      ballEl.classList.add(isGoal ? "ball-goal" : "ball-saved");
+      const ballCls =
+        outcome === "GOAL"
+          ? "ball-goal"
+          : outcome === "POST"
+          ? "ball-post"
+          : outcome === "MISS"
+          ? "ball-miss"
+          : "ball-saved";
+      ballEl.classList.add(ballCls);
+    }
+    if (goalFrameEl) {
+      if (outcome === "GOAL") goalFrameEl.classList.add("is-goal-net");
+      else if (outcome === "POST") goalFrameEl.classList.add("is-post-shake");
     }
   }, 35);
 
@@ -414,36 +485,38 @@ function buildPenaltyShootoutHTML(st) {
     ? pen.userTaken + 1
     : pen.oppTaken + 1;
   const kickSideTitle = isUserKicking ? "DREAM TEAM" : st.oppTeam.name.toUpperCase();
+  const beatOutcome = isBeat ? (pen.lastAnim.outcome || (pen.lastAnim.isGoal ? "GOAL" : "SAVED")) : null;
   const modeTitle = isBeat
-    ? pen.lastAnim.isGoal
+    ? beatOutcome === "GOAL"
       ? "⚽ GOOOL!"
+      : beatOutcome === "POST"
+      ? "💥 NA TRAVE!"
+      : beatOutcome === "MISS"
+      ? "❌ PRA FORA!"
       : "🧤 DEFENDEU!"
     : `COBRANÇA ${kickNum} • ${kickSideTitle}`;
   const modeSub = isBeat
-    ? pen.lastAnim.isGoal
-      ? `${pen.lastAnim.kicker.player.name} bateu no ${pen.lastAnim.shootInfo.label} e ${pen.lastAnim.keeper.player.name} pulou no ${pen.lastAnim.diveInfo.label}!`
-      : `${pen.lastAnim.keeper.player.name} adivinhou o ${pen.lastAnim.diveInfo.label} e defendeu a cobrança de ${pen.lastAnim.kicker.player.name}!`
+    ? beatOutcome === "GOAL"
+      ? `${pen.lastAnim.kicker.player.name} mandou no fundo da rede (${pen.lastAnim.shootInfo.label})!`
+      : beatOutcome === "POST"
+      ? `${pen.lastAnim.kicker.player.name} carimbou ${pen.lastAnim.postPartLabel || "a trave"}!`
+      : beatOutcome === "MISS"
+      ? `${pen.lastAnim.kicker.player.name} mandou pra fora (${pen.lastAnim.postPartLabel || "longe do gol"})!`
+      : `${pen.lastAnim.keeper.player.name} voou no canto e defendeu a cobrança de ${pen.lastAnim.kicker.player.name}!`
     : `${kicker.player.name} caminha para a marca da cal contra ${keeper.player.name}...`;
-
-  const sectorsHTML = PENALTY_CORNERS.map((c) => {
-    const shootHere = isBeat && pen.lastAnim.shootCorner === c.id;
-    const diveHere = isBeat && pen.lastAnim.diveCorner === c.id;
-    const sCls = [
-      "pen-sector",
-      shootHere ? (pen.lastAnim.isGoal ? "was-goal" : "was-shot") : "",
-      diveHere ? "was-dive" : ""
-    ]
-      .filter(Boolean)
-      .join(" ");
-    return `
-      <div class="${sCls}">
-        <span>${c.short}</span>
-      </div>
-    `;
-  }).join("");
 
   const kickerShortName = (kicker.player.name || "").split(" ").slice(-1)[0];
   const keeperShortName = (keeper.player.name || "").split(" ").slice(-1)[0];
+  const trailTargetX = isBeat ? (pen.lastAnim.shotBallX ?? pen.lastAnim.shootInfo.x) : 50;
+  const trailTargetY = isBeat ? (pen.lastAnim.shotBallY ?? pen.lastAnim.shootInfo.y) : 50;
+  const trailColor =
+    beatOutcome === "GOAL"
+      ? "#facc15"
+      : beatOutcome === "POST"
+      ? "#fb923c"
+      : beatOutcome === "MISS"
+      ? "#f87171"
+      : "#38bdf8";
 
   return `
     <div id="live-pitch-box" class="live-pitch-card pen-shootout-card ${isUserKicking ? "poss-user" : "poss-opp"}">
@@ -471,7 +544,7 @@ function buildPenaltyShootoutHTML(st) {
           </div>
         </div>
 
-        <div class="pen-turn-callout ${isBeat ? (pen.lastAnim.isGoal ? "is-goal" : "is-save") : ""}">
+        <div class="pen-turn-callout ${isBeat ? (beatOutcome === "GOAL" ? "is-goal" : beatOutcome === "POST" || beatOutcome === "MISS" ? "is-miss" : "is-save") : ""}">
           <small>${modeTitle}</small>
           <strong>${modeSub}</strong>
         </div>
@@ -486,8 +559,21 @@ function buildPenaltyShootoutHTML(st) {
       </div>
 
       <div class="pen-goal-stage">
-        <div class="pen-goal-frame">
-          <div class="pen-goal-grid">${sectorsHTML}</div>
+        <div id="pen-goal-frame" class="pen-goal-frame">
+          <div class="pen-net-ripple"></div>
+          ${
+            isBeat
+              ? `<svg id="pen-shot-trail" class="pen-shot-trail" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+                  <defs>
+                    <linearGradient id="penTrailGrad" x1="50%" y1="100%" x2="${trailTargetX}%" y2="${trailTargetY}%">
+                      <stop offset="0%" stop-color="${trailColor}" stop-opacity="0.05" />
+                      <stop offset="100%" stop-color="${trailColor}" stop-opacity="0.88" />
+                    </linearGradient>
+                  </defs>
+                  <path d="M 50 102 Q ${Math.round((50 + trailTargetX) / 2)} ${Math.round((102 + trailTargetY) / 2) - 10} ${trailTargetX} ${trailTargetY}" fill="none" stroke="url(#penTrailGrad)" stroke-width="3.2" stroke-linecap="round" />
+                </svg>`
+              : ""
+          }
 
           <div id="pen-gk-actor" class="pen-gk-actor ${isUserKicking ? "side-opp" : "side-user"}" style="left:50%; top:58%;">
             <img src="${keeper.player.sprite || ""}" alt="${keeper.player.name}" />
@@ -500,8 +586,8 @@ function buildPenaltyShootoutHTML(st) {
 
           ${
             isBeat
-              ? `<div class="pen-result-pop ${pen.lastAnim.isGoal ? "is-goal" : "is-save"}">
-                  <span>${pen.lastAnim.isGoal ? "⚽ GOOOL!" : "🧤 DEFENDEU!"}</span>
+              ? `<div class="pen-result-pop ${beatOutcome === "GOAL" ? "is-goal" : beatOutcome === "POST" ? "is-post" : beatOutcome === "MISS" ? "is-miss" : "is-save"}">
+                  <span>${modeTitle}</span>
                 </div>`
               : ""
           }
