@@ -550,6 +550,19 @@ function setSavedTeamName(name) {
   return clean;
 }
 
+function getActiveTeamName() {
+  const tourName = state?.tournament?.rankingTeamName;
+  if (tourName && sanitizeTeamName(tourName) !== "Dream Team") {
+    return sanitizeTeamName(tourName);
+  }
+  const draftRaw = state?.draftTeamName;
+  if (draftRaw && String(draftRaw).trim()) {
+    return sanitizeTeamName(draftRaw);
+  }
+  const saved = getSavedTeamName();
+  return saved ? sanitizeTeamName(saved) : "Dream Team";
+}
+
 function generateRandomToken(prefix = "id") {
   try {
     if (window.crypto && typeof window.crypto.randomUUID === "function") {
@@ -1100,6 +1113,7 @@ const state = {
   isSpinning: false,
   spinTimerId: null,
   usedTeamIds: [],
+  draftTeamName: null,
   simSpeed: 1, // 1 = 420ms/min, 2 = 200ms/min, 4 = 80ms/min
   tournament: createFreshTournamentState()
 };

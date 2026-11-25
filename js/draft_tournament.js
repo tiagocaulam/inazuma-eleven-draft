@@ -538,7 +538,7 @@ function makeBracketTeamEntry(team, isUser = false) {
   if (isUser) {
     return {
       id: "user_dream",
-      name: state.tournament?.rankingTeamName || "Dream Team",
+      name: typeof getActiveTeamName === "function" ? getActiveTeamName() : (state.tournament?.rankingTeamName || "Dream Team"),
       emblem: UI.raimonEmblem || "",
       baseOvr: calcSquadStats().ovr || 85,
       isUser: true
@@ -710,9 +710,17 @@ function startTournamentGo() {
     new Set([stages[0].oppTeam.id])
   );
 
+  const chosenTeamName = typeof setSavedTeamName === "function"
+    ? setSavedTeamName(
+        state.draftTeamName !== undefined && state.draftTeamName !== null
+          ? state.draftTeamName
+          : (typeof getSavedTeamName === "function" ? getSavedTeamName() : "")
+      )
+    : "Dream Team";
   state.phase = "tournament";
   state.tournament = {
     ...createFreshTournamentState(),
+    rankingTeamName: chosenTeamName,
     stages,
     ffBracket
   };
@@ -860,7 +868,7 @@ function advanceToWorldCup() {
   const standings = [
     {
       id: "user_dream",
-      name: "Dream Team",
+      name: typeof getActiveTeamName === "function" ? getActiveTeamName() : "Dream Team",
       emblem: UI.raimonEmblem || "",
       isUser: true,
       baseOvr: stats.ovr,

@@ -40,7 +40,8 @@ function buildLivePitchBoxHTML(st, oppTeam, stats = calcSquadStats(), oppStats =
   const userPoss = Math.round((s.userTicks / totTicks) * 100);
   const isUserPoss = pitch.ballSide === "user";
   const possCls = isUserPoss ? "poss-user" : "poss-opp";
-  const possTeamLabel = isUserPoss ? "DREAM TEAM" : oppTeam.name.toUpperCase();
+  const userTeamDisp = typeof getActiveTeamName === "function" ? getActiveTeamName() : "Dream Team";
+  const possTeamLabel = isUserPoss ? userTeamDisp.toUpperCase() : oppTeam.name.toUpperCase();
 
   const oppTag = (oppTeam.name || "RIV").replace(/[^A-Za-zÀ-ÿ0-9]/g, "").slice(0, 3).toUpperCase() || "RIV";
 
@@ -905,6 +906,7 @@ function resolvePhysicalDribbleClash(st, pitch, carrier, marker, attSupport, def
     pitch.lastPasserUid = null;
     pitch.lastAction = "STEAL";
     pitch.teamConsecutivePasses = 0;
+    if (typeof playSfx === "function") playSfx("steal");
     marker.carryTime = 0;
     marker.decisionTimer = 0.25;
     marker.vx = -dir * marker.maxSpeed * 0.85;
@@ -1487,6 +1489,7 @@ function launchContinuousPass(st, pitch, carrier, attNodes, defNodes, strictForw
     : isThroughBall
     ? `${st.minute}' Bola Enfiada: ${carrier.player.name} ➔ espaço vazio para ${receiver.player.name}!`
     : `${st.minute}' Passe: ${carrier.player.name} ➔ ${receiver.player.name}`;
+  if (typeof playSfx === "function") playSfx(peakZ > 0 ? "pass_aerial" : "pass");
   return true;
 }
 
@@ -1873,6 +1876,9 @@ function launchContinuousShot(st, pitch, shooterNode, defNodes, attSupport, defS
     }
     pitch.ticker = `${st.minute}' CHUTE! ${activeShooter.player.name} (${activeShotLabel}) vs ${curGkNode.player.name}!`;
     syncLivePitchDOM(st);
+    if (typeof playSfx === "function") {
+      playSfx(activeIsHissatsu ? "hissatsu" : "shot", { elem: activeShooter?.player?.element });
+    }
 
     const gSide = curAttIsUser ? "right" : "left";
     const concedingSide = curAttIsUser ? "opp" : "user";
@@ -1881,6 +1887,8 @@ function launchContinuousShot(st, pitch, shooterNode, defNodes, attSupport, defS
     const commitGoalOutcome = () => {
       if (impactApplied) return;
       impactApplied = true;
+      if (typeof playSfx === "function") playSfx("goal");
+      const userTeamUpper = (typeof getActiveTeamName === "function" ? getActiveTeamName() : "Dream Team").toUpperCase();
 
       const weakNote = weakenedByBlocker ? " (mesmo após desvio da zaga)" : "";
       const styleTag = specialContext?.isChain
@@ -1924,8 +1932,8 @@ function launchContinuousShot(st, pitch, shooterNode, defNodes, attSupport, defS
           st,
           "nar-goal-user",
           activeIsHissatsu
-            ? `${st.minute}' GOOOL DO DREAM TEAM!${styleTag} ${activeShooter.player.name} disparou 【${activeShotLabel}】${assistTag}${weakNote} e furou ${gkMoveDisplay} de ${curGkNode.player.name}! (${st.userScore} x ${st.oppScore})`
-            : `${st.minute}' GOOOL DO DREAM TEAM!${styleTag} ${activeShooter.player.name} superou ${curGkNode.player.name} com ${formatPtShotArticle(activeShotLabel)}${assistTag}${weakNote}! (${st.userScore} x ${st.oppScore})`,
+            ? `${st.minute}' GOOOL DO ${userTeamUpper}!${styleTag} ${activeShooter.player.name} disparou 【${activeShotLabel}】${assistTag}${weakNote} e furou ${gkMoveDisplay} de ${curGkNode.player.name}! (${st.userScore} x ${st.oppScore})`
+            : `${st.minute}' GOOOL DO ${userTeamUpper}!${styleTag} ${activeShooter.player.name} superou ${curGkNode.player.name} com ${formatPtShotArticle(activeShotLabel)}${assistTag}${weakNote}! (${st.userScore} x ${st.oppScore})`,
           { name: activeShooter.player.name, sprite: activeShooter.player.sprite, side: "user" },
           { name: curGkNode.player.name, sprite: curGkNode.player.sprite, side: "opp" },
           "SH"
@@ -1960,6 +1968,7 @@ function launchContinuousShot(st, pitch, shooterNode, defNodes, attSupport, defS
     const commitSaveOutcome = () => {
       if (impactApplied) return;
       impactApplied = true;
+      if (typeof playSfx === "function") playSfx("save");
 
       if (!curAttIsUser) {
         pitch.stats.userSaves++;
@@ -2042,7 +2051,8 @@ function launchContinuousShot(st, pitch, shooterNode, defNodes, attSupport, defS
       if (isGoal) {
         const doKickoffReset = () => {
           resetPitchForKickoff(pitch, concedingSide, true, true);
-          pitch.ticker = `${st.minute}' Saída no centro com ${concedingSide === "user" ? "Dream Team" : st.oppTeam.name}! Goleiros recuperam fôlego.`;
+          const kickName = typeof getActiveTeamName === "function" ? getActiveTeamName() : "Dream Team";
+          pitch.ticker = `${st.minute}' Saída no centro com ${concedingSide === "user" ? kickName : st.oppTeam.name}! Goleiros recuperam fôlego.`;
         };
 
         if (skipRestart || nowInstant) {
@@ -3429,6 +3439,7 @@ function stepContinuousPhysics(st, pitch, dt) {
               pitch.ballY = recFootY;
             }
             triggerStealShockwave(pitch, closestDef.x, closestDef.y, closestDef.uid, carrier.uid);
+            if (typeof playSfx === "function") playSfx("steal");
             showNodeBadge(pitch, closestDef.uid, `⚡ Recuperação (+${Math.abs(spdDiff)} VEL)`, "badge-steal", 1500, "DF");
             showNodeBadge(pitch, carrier.uid, "Alcançado!", "badge-lost", 1500);
             pitch.ticker = `${st.minute}' Recuperação Veloz: ${closestDef.player.name} (VEL ${defSpd}) desarmou ${carrier.player.name} (VEL ${carrierSpd}) na corrida!`;
@@ -4188,6 +4199,7 @@ function stepContinuousPhysics(st, pitch, dt) {
           }
           pitch.ticker = `${st.minute}' ${oppGk.player.name} saiu pelo alto na área e segurou a bola!`;
           syncLivePitchDOM(st);
+          if (typeof playSfx === "function") playSfx("save");
           pauseForPitchBeat(st, "", "", 780, ovrDiff);
           return;
         }
@@ -4305,6 +4317,7 @@ function stepContinuousPhysics(st, pitch, dt) {
             "BALL"
           );
           syncLivePitchDOM(st);
+          if (typeof playSfx === "function") playSfx("steal");
           pauseForPitchBeat(st, "", "", 950, ovrDiff);
           return;
         } else {
@@ -4370,6 +4383,7 @@ function stepContinuousPhysics(st, pitch, dt) {
           }
           pitch.ticker = `${st.minute}' ${airDef.player.name} subiu mais alto e cortou a bola pelo alto!`;
           syncLivePitchDOM(st);
+          if (typeof playSfx === "function") playSfx("steal");
           pauseForPitchBeat(st, "", "", 780, ovrDiff);
           return;
         }
@@ -4542,6 +4556,7 @@ function stepContinuousPhysics(st, pitch, dt) {
         }
         pitch.ticker = `${st.minute}' ${bestCollector.player.name} ganhou a disputa na corrida e ficou com a bola!`;
         syncLivePitchDOM(st);
+        if (typeof playSfx === "function") playSfx("steal");
       }
     }
     return;
@@ -4702,4 +4717,5 @@ function runLiveMatchSimulation(stageIdx) {
   renderTournamentScreen();
   startPitchRafLoop(st);
   startMatchInterval();
+  if (typeof playSfx === "function") playSfx("whistle");
 }

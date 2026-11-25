@@ -207,6 +207,12 @@ function showRefereeWhistleModal(st, type, onProceed) {
   const isPenalties = type === "PENALTIES";
   const isFulltime = type === "FULLTIME";
 
+  if (typeof playSfx === "function") {
+    playSfx("whistle", { long: isFulltime || isPenalties });
+  }
+  const activeTeamName = typeof getActiveTeamName === "function" ? getActiveTeamName() : "Dream Team";
+  const activeTeamUpper = activeTeamName.toUpperCase();
+
   const t = state.tournament;
   const isAdvancingToNextStage = Boolean(
     t &&
@@ -240,7 +246,7 @@ function showRefereeWhistleModal(st, type, onProceed) {
     : isPenalties
     ? "DECISÃO POR PÊNALTIS!"
     : st.won
-    ? "VITÓRIA DO DREAM TEAM!"
+    ? (activeTeamName === "Dream Team" ? "VITÓRIA DO DREAM TEAM!" : `VITÓRIA DE ${activeTeamUpper}!`)
     : st.isDraw
     ? "FIM DE JOGO • EMPATE!"
     : `VITÓRIA DE ${st.oppTeam?.name || "ADVERSÁRIO"}!`;
@@ -286,7 +292,7 @@ function showRefereeWhistleModal(st, type, onProceed) {
       ${subtitleText ? `<div class="referee-subtitle">${subtitleText}</div>` : ""}
 
       <div class="referee-scoreboard">
-        <span class="ref-team-name">${st.userTeamName || "Dream Team"}</span>
+        <span class="ref-team-name">${st.userTeamName || activeTeamName}</span>
         <span class="ref-score-badge">${st.userScore} - ${st.oppScore}</span>
         <span class="ref-team-name">${st.oppTeam?.name || "Adversário"}</span>
       </div>
@@ -447,10 +453,11 @@ function handleMinuteEndBoundaries(st, ovrDiff) {
       resetPitchForKickoff(st.pitch, secondHalfSide, true);
       syncLivePitchDOM(st);
     }
+    const teamDisp = typeof getActiveTeamName === "function" ? getActiveTeamName() : "Dream Team";
     prependNarrationLine(
       st,
       "nar-pass",
-      `45' [Intervalo] Árbitro apitou o fim do 1º tempo (${st.userScore} x ${st.oppScore}) — Dream Team recupera +${rec.userField}% de fôlego (+${rec.userGk}% GOL)${restNote}!`,
+      `45' [Intervalo] Árbitro apitou o fim do 1º tempo (${st.userScore} x ${st.oppScore}) — ${teamDisp} recupera +${rec.userField}% de fôlego (+${rec.userGk}% GOL)${restNote}!`,
       null,
       null,
       "FF"
@@ -476,18 +483,19 @@ function handleMinuteEndBoundaries(st, ovrDiff) {
     clearTournamentTimers(false);
     const rec = applyIntervalStaminaRecharge(st, 30, 40);
     const restNote = rec.restBonus > 0 ? ` (+${rec.restBonus}% Descanso)` : "";
+    const teamDisp = typeof getActiveTeamName === "function" ? getActiveTeamName() : "Dream Team";
     if (st.pitch) {
       st.pitch.minuteFloat = 90;
       st.pitch.stoppageTicks = 0;
       st.pitch.stoppageBoundaryMin = null;
       resetPitchForKickoff(st.pitch, "user", true);
-      st.pitch.ticker = `90' Prorrogação iniciada! Dream Team recupera +${rec.userField}% de fôlego${restNote}!`;
+      st.pitch.ticker = `90' Prorrogação iniciada! ${teamDisp} recupera +${rec.userField}% de fôlego${restNote}!`;
       syncLivePitchDOM(st);
     }
     prependNarrationLine(
       st,
       "nar-save",
-      `90' Empate no tempo normal! Dream Team recupera +${rec.userField}% de fôlego (+${rec.userGk}% GOL)${restNote} para a Prorrogação (até os 120')!`,
+      `90' Empate no tempo normal! ${teamDisp} recupera +${rec.userField}% de fôlego (+${rec.userGk}% GOL)${restNote} para a Prorrogação (até os 120')!`,
       null,
       null,
       "FF"
@@ -521,10 +529,11 @@ function handleMinuteEndBoundaries(st, ovrDiff) {
       st.pitch.ticker = `105' Virada da Prorrogação! Fôlego recarregado (+${rec.userField}%${restNote}) para os 15 minutos finais!`;
       syncLivePitchDOM(st);
     }
+    const teamDisp = typeof getActiveTeamName === "function" ? getActiveTeamName() : "Dream Team";
     prependNarrationLine(
       st,
       "nar-pass",
-      `105' [Virada da Prorrogação] Dream Team recupera +${rec.userField}% de fôlego (+${rec.userGk}% GOL)${restNote} para o 2º tempo extra!`,
+      `105' [Virada da Prorrogação] ${teamDisp} recupera +${rec.userField}% de fôlego (+${rec.userGk}% GOL)${restNote} para o 2º tempo extra!`,
       null,
       null,
       "FF"
@@ -584,10 +593,11 @@ function handleMinuteEndBoundaries(st, ovrDiff) {
       st.pitch.stoppageTicks = 0;
       st.pitch.stoppageBoundaryMin = null;
     }
+    const teamDisp = typeof getActiveTeamName === "function" ? getActiveTeamName() : "Dream Team";
     prependNarrationLine(
       st,
       st.won ? "nar-goal-user" : st.isDraw ? "nar-save" : "nar-goal-opp",
-      `${st.minute}' APITO FINAL! Dream Team ${st.userScore} x ${st.oppScore} ${st.oppTeam.name}${st.isDraw ? " (Empate)" : ""}!`,
+      `${st.minute}' APITO FINAL! ${teamDisp} ${st.userScore} x ${st.oppScore} ${st.oppTeam.name}${st.isDraw ? " (Empate)" : ""}!`,
       null,
       null,
       "FF"
@@ -3042,7 +3052,8 @@ function syncLivePitchDOM(st) {
   if (possBar) {
     possBar.classList.toggle("poss-user", isUserPoss);
     possBar.classList.toggle("poss-opp", !isUserPoss);
-    const teamLabel = isUserPoss ? "DREAM TEAM" : (pitch.oppTeamName || "ADVERSÁRIO").toUpperCase();
+    const userUpper = (typeof getActiveTeamName === "function" ? getActiveTeamName() : "Dream Team").toUpperCase();
+    const teamLabel = isUserPoss ? userUpper : (pitch.oppTeamName || "ADVERSÁRIO").toUpperCase();
     const dirArrow = isUserPoss ? "Atacando ➔" : "⬅ Atacando";
     possBar.innerHTML = `
       <span class="poss-team-chip">
@@ -3130,13 +3141,14 @@ function syncLivePitchDOM(st) {
 function buildLiveScoreboardHTML(st, stats, oppStats) {
   const stadiumStyle = UI.stadiumBg ? `background-image: url('${UI.stadiumBg}');` : "";
   const oppLvl = oppStats.oppLevel || oppStats.avgLevel || 1;
+  const userTeamDisp = typeof getActiveTeamName === "function" ? getActiveTeamName() : "Dream Team";
   return `
     <div class="live-scoreboard" style="${stadiumStyle}">
       <div class="scoreboard-overlay"></div>
       <div class="score-team">
-        ${UI.raimonEmblem ? `<img class="score-emblem" src="${UI.raimonEmblem}" alt="Dream Team" />` : `<div style="font-size:1.9rem;">⚡</div>`}
+        ${UI.raimonEmblem ? `<img class="score-emblem" src="${UI.raimonEmblem}" alt="${escapeHtml(userTeamDisp)}" />` : `<div style="font-size:1.9rem;">⚡</div>`}
         <div style="font-weight:900; font-size:0.95rem; display:flex; align-items:center; justify-content:center; gap:5px;">
-          <span>Dream Team</span>
+          <span>${escapeHtml(userTeamDisp)}</span>
           <span class="stage-opp-buff-badge" style="border-color:#4ade80; color:#86efac; background:rgba(21,128,61,0.35);">Nv. ${stats.avgLevel || 1}</span>
         </div>
         <div style="font-size:0.7rem; color:#fed7aa; font-weight:800;">Poder ${stats.power.toLocaleString("pt-BR")} • OVR ${stats.ovr} • Quím ${stats.chem}%</div>
@@ -3182,12 +3194,13 @@ function buildMatchRecapBoxHTML(st, oppTeam, stats = calcSquadStats(), oppStats 
         (a.goals * 6 + a.assists * 4.5 + a.steals * 1.7 + a.dribblesOk * 1.3 + a.saves * 1.2)
     )[0];
 
+  const userTeamDisp = typeof getActiveTeamName === "function" ? getActiveTeamName() : "Dream Team";
   const verdictText = st.penaltiesText
     ? st.won
       ? "Vitória nos Pênaltis"
       : "Derrota nos Pênaltis"
     : st.won
-    ? "Vitória do Dream Team"
+    ? (userTeamDisp === "Dream Team" ? "Vitória do Dream Team" : `Vitória: ${userTeamDisp}`)
     : st.isDraw
     ? "Empate"
     : `Vitória de ${oppTeam.name}`;

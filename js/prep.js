@@ -1506,6 +1506,10 @@ function handleChoosePrepOption(choiceEvent) {
     prep.affectedPlayers = affected;
     prep.appliedMsg = `${choiceEvent.title}: <span class="b-chem">+${gain}% Energia</span> (${prevE}% ➔ ${nextE}%)${extraTxt}. <span style="color:#93c5fd;">(Noite encerrada — pronto para o jogo!)</span>`;
     t.prepBonuses.log.push(`${choiceEvent.title} (+${gain}% Energia)`);
+    if (typeof playSfx === "function") {
+      const anyUp = affected.some((ap) => (ap.levelsGained || 0) > 0 || (ap.learnedMoves && ap.learnedMoves.length > 0));
+      playSfx(anyUp ? "level_up" : "prep_reward");
+    }
     renderAll();
     return;
   }
@@ -1782,6 +1786,10 @@ function applyPrepCollectiveEvent(event) {
     }
   }
   t.prep.appliedMsg = `${event.title} concluído: <span class="b-lvl">${affectedPlayers.length} jogador(es)</span> evoluíram (<span class="b-pwr">+${totalPwr} Poder Total</span>${event.teamChem ? ` • <span class="b-chem">+${event.teamChem}% Química</span>` : ""}${synergyExtraMsg}).`;
+  if (typeof playSfx === "function") {
+    const anyUp = affectedPlayers.some((ap) => (ap.levelsGained || 0) > 0 || (ap.learnedMoves && ap.learnedMoves.length > 0));
+    playSfx(anyUp ? "level_up" : "prep_reward");
+  }
   renderAll();
 }
 
@@ -1973,6 +1981,10 @@ function applyPrepPlayerReward(slotId) {
   prep.phase = "DONE";
   prep.affectedPlayers = affectedPlayers;
   prep.appliedMsg = msg;
+  if (typeof playSfx === "function") {
+    const anyUp = affectedPlayers.some((ap) => (ap.levelsGained || 0) > 0 || (ap.learnedMoves && ap.learnedMoves.length > 0));
+    playSfx(anyUp ? "level_up" : "prep_reward");
+  }
   renderAll();
 }
 

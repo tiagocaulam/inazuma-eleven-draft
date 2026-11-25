@@ -444,6 +444,7 @@ function initWppChatSequence(wppFeedEl) {
       if (coopEl) {
         coopEl.classList.remove("is-wpp-hidden");
         coopEl.classList.add("is-wpp-pop");
+        if (typeof playSfx === "function") playSfx("unlock");
       }
       scrollFeedBottom();
       scheduleWppTimer(() => {
@@ -468,6 +469,7 @@ function initWppChatSequence(wppFeedEl) {
     if (role === "COACH" || role === "SYSTEM") {
       rowEl.classList.remove("is-wpp-hidden");
       rowEl.classList.add("is-wpp-pop");
+      if (role === "COACH" && typeof playSfx === "function") playSfx("chat_send");
       scrollFeedBottom();
       const nextWait = role === "COACH" ? 210 : idx === 0 ? 150 : 120;
       scheduleWppTimer(() => runStep(idx + 1), nextWait);
@@ -480,6 +482,7 @@ function initWppChatSequence(wppFeedEl) {
       if (typingEl) typingEl.style.display = "none";
       rowEl.classList.remove("is-wpp-hidden");
       rowEl.classList.add("is-wpp-pop");
+      if (typeof playSfx === "function") playSfx("chat_msg");
       scrollFeedBottom();
       scheduleWppTimer(() => runStep(idx + 1), betweenGap);
     }, typingDur);
@@ -1577,14 +1580,140 @@ function goToMenu() {
   state.peekField = false;
   state.swapSlotId = null;
   state.usedTeamIds = [];
+  state.draftTeamName = null;
   state.tournament = createFreshTournamentState();
   renderAll();
+}
+
+function updateSettingsBtnIndicator() {
+  const btn = document.getElementById("btn-settings");
+  if (!btn) return;
+  const on = typeof isSfxEnabled === "function" ? isSfxEnabled() : true;
+  const spanEl = btn.querySelector ? btn.querySelector("span") : null;
+  if (spanEl) {
+    spanEl.textContent = on ? "⚙️ Som" : "🔇 Mudo";
+  }
+  btn.classList.toggle("is-sfx-muted", !on);
+}
+
+let _settingsEscHandler = null;
+function closeSettingsModal() {
+  const existing = document.getElementById("settings-modal");
+  if (existing && existing.remove) existing.remove();
+  if (_settingsEscHandler && typeof document.removeEventListener === "function") {
+    document.removeEventListener("keydown", _settingsEscHandler);
+    _settingsEscHandler = null;
+  }
+}
+
+function openSettingsModal() {
+  closeSettingsModal();
+  const cfg = typeof getSfxSettings === "function" ? getSfxSettings() : { enabled: true, volume: 0.65 };
+  const pct = Math.round((cfg.volume ?? 0.65) * 100);
+
+  const backdrop = document.createElement("div");
+  backdrop.id = "settings-modal";
+  backdrop.className = "settings-modal-backdrop";
+  backdrop.innerHTML = `
+    <div class="settings-modal-card" role="dialog" aria-modal="true" aria-label="Configurações do Jogo">
+      <div class="settings-modal-head">
+        <strong>⚙️ Configurações</strong>
+        <button type="button" class="settings-close-x" id="btn-close-settings-x" aria-label="Fechar">✕</button>
+      </div>
+      <div class="settings-modal-body">
+        <div class="settings-row">
+          <div class="settings-row-info">
+            <strong>Efeitos Sonoros (SFX)</strong>
+            <small>Apito, chutes, super técnicas, gols, pênaltis e mensagens do InaZap</small>
+          </div>
+          <label class="settings-switch">
+            <input type="checkbox" id="cfg-sfx-enabled" ${cfg.enabled ? "checked" : ""} />
+            <span class="settings-switch-track"></span>
+          </label>
+        </div>
+
+        <div class="settings-row is-column">
+          <div class="settings-row-head">
+            <strong>Volume dos Efeitos</strong>
+            <span id="cfg-sfx-vol-label">${pct}%</span>
+          </div>
+          <input type="range" id="cfg-sfx-volume" class="settings-slider" min="0" max="100" step="5" value="${pct}" ${!cfg.enabled ? "disabled" : ""} />
+        </div>
+      </div>
+      <div class="settings-modal-foot">
+        <button type="button" class="ie-cmd-btn ie-cmd-gold" id="btn-sfx-test">
+          <span>🔊 Testar Som</span>
+        </button>
+        <button type="button" class="ie-cmd-btn ie-cmd-green" id="btn-close-settings">
+          <span>Fechar</span>
+        </button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(backdrop);
+
+  const enabledChk = document.getElementById("cfg-sfx-enabled");
+  const volSlider = document.getElementById("cfg-sfx-volume");
+  const volLabel = document.getElementById("cfg-sfx-vol-label");
+
+  if (enabledChk) {
+    enabledChk.addEventListener("change", () => {
+      const nextOn = Boolean(enabledChk.checked);
+      if (volSlider) volSlider.disabled = !nextOn;
+      if (typeof setSfxSettings === "function") setSfxSettings({ enabled: nextOn });
+      if (nextOn) {
+        if (typeof unlockSfxAudio === "function") unlockSfxAudio();
+        if (typeof playSfx === "function") playSfx("prep_reward", { force: true });
+      }
+    });
+  }
+
+  if (volSlider) {
+    volSlider.addEventListener("input", () => {
+      const v = Number(volSlider.value) || 0;
+      if (volLabel) volLabel.textContent = `${v}%`;
+      if (typeof setSfxSettings === "function") setSfxSettings({ volume: v / 100 });
+    });
+  }
+
+  const testBtn = document.getElementById("btn-sfx-test");
+  if (testBtn) {
+    testBtn.addEventListener("click", () => {
+      if (enabledChk && !enabledChk.checked) {
+        enabledChk.checked = true;
+        if (volSlider) volSlider.disabled = false;
+        if (typeof setSfxSettings === "function") setSfxSettings({ enabled: true });
+      }
+      if (typeof unlockSfxAudio === "function") unlockSfxAudio();
+      if (typeof playSfx === "function") playSfx("unlock", { force: true });
+    });
+  }
+
+  const closeX = document.getElementById("btn-close-settings-x");
+  const closeBtn = document.getElementById("btn-close-settings");
+  if (closeX) closeX.addEventListener("click", closeSettingsModal);
+  if (closeBtn) closeBtn.addEventListener("click", closeSettingsModal);
+  backdrop.addEventListener("click", (e) => {
+    if (e.target === backdrop) closeSettingsModal();
+  });
+
+  _settingsEscHandler = (e) => {
+    if (e.key === "Escape") closeSettingsModal();
+  };
+  document.addEventListener("keydown", _settingsEscHandler);
 }
 
 function init() {
   const topEmblem = document.getElementById("topbar-emblem");
   if (topEmblem && UI.raimonEmblem) {
     topEmblem.src = UI.raimonEmblem;
+  }
+
+  updateSettingsBtnIndicator();
+  const settingsBtn = document.getElementById("btn-settings");
+  if (settingsBtn) {
+    settingsBtn.addEventListener("click", () => openSettingsModal());
   }
 
   const resetBtn = document.getElementById("btn-reset");
@@ -1648,6 +1777,11 @@ function init() {
   }
 
   document.addEventListener("click", (e) => {
+    if (typeof unlockSfxAudio === "function") unlockSfxAudio();
+    const uiTrigger = e.target?.closest?.(".ie-cmd-btn, .prep-loc-pin, .wpp-reply-option, .wpp-thread-row, .prep-map-chat-fab");
+    if (uiTrigger && uiTrigger.id !== "btn-sfx-test" && typeof playSfx === "function") {
+      playSfx("ui_click");
+    }
     const buffChip = e.target.closest("[data-buff-tip-title]");
     if (buffChip) {
       e.stopPropagation();

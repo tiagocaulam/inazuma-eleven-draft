@@ -133,7 +133,8 @@ function finishPenaltyShootout(st) {
   if (typeof recordBetaPostMatchMemory === "function") {
     recordBetaPostMatchMemory(st);
   }
-  st.penaltiesText = `Decisão por Pênaltis: Dream Team ${pen.userGoals} x ${pen.oppGoals} ${st.oppTeam.name}`;
+  const userTeamDisp = typeof getActiveTeamName === "function" ? getActiveTeamName() : "Dream Team";
+  st.penaltiesText = `Decisão por Pênaltis: ${userTeamDisp} ${pen.userGoals} x ${pen.oppGoals} ${st.oppTeam.name}`;
   prependNarrationLine(
     st,
     st.won ? "nar-goal-user" : "nar-goal-opp",
@@ -350,6 +351,12 @@ function resolvePenaltyKick(st, isAuto = false) {
       if (outcome === "GOAL") goalFrameEl.classList.add("is-goal-net");
       else if (outcome === "POST") goalFrameEl.classList.add("is-post-shake");
     }
+    if (typeof playSfx === "function") {
+      playSfx(
+        outcome === "GOAL" ? "goal" : outcome === "POST" ? "post" : outcome === "MISS" ? "miss" : "save",
+        { force: true }
+      );
+    }
   }, 35);
 
   if (state.tournament.penTimerId) clearTimeout(state.tournament.penTimerId);
@@ -422,6 +429,7 @@ function buildPenaltyShootoutHTML(st) {
   if (!pen) return "";
 
   const seriesMax = Math.max(5, pen.userTaken, pen.oppTaken);
+  const userTeamDisp = typeof getActiveTeamName === "function" ? getActiveTeamName() : "Dream Team";
 
   if (pen.phase === "ORDER") {
     const rowsHTML = pen.userOrder
@@ -457,7 +465,7 @@ function buildPenaltyShootoutHTML(st) {
             <p>Defina a ordem dos batedores (cobranças diretas, sem técnicas). Depois, acompanhe a disputa na simulação.</p>
           </div>
           <button type="button" class="ie-cmd-btn" id="btn-pen-first-toggle" style="font-size:0.7rem; padding:6px 10px;">
-            <span>Inicia: ${pen.firstSide === "user" ? "Dream Team" : st.oppTeam.name}</span>
+            <span>Inicia: ${pen.firstSide === "user" ? escapeHtml(userTeamDisp) : st.oppTeam.name}</span>
           </button>
         </div>
 
@@ -484,7 +492,7 @@ function buildPenaltyShootoutHTML(st) {
     : isUserKicking
     ? pen.userTaken + 1
     : pen.oppTaken + 1;
-  const kickSideTitle = isUserKicking ? "DREAM TEAM" : st.oppTeam.name.toUpperCase();
+  const kickSideTitle = isUserKicking ? userTeamDisp.toUpperCase() : st.oppTeam.name.toUpperCase();
   const beatOutcome = isBeat ? (pen.lastAnim.outcome || (pen.lastAnim.isGoal ? "GOAL" : "SAVED")) : null;
   const modeTitle = isBeat
     ? beatOutcome === "GOAL"
@@ -522,7 +530,7 @@ function buildPenaltyShootoutHTML(st) {
     <div id="live-pitch-box" class="live-pitch-card pen-shootout-card ${isUserKicking ? "poss-user" : "poss-opp"}">
       <div class="pen-scoreboard">
         <div class="pen-sb-side">
-          <strong>Dream Team (${pen.userGoals})</strong>
+          <strong>${escapeHtml(userTeamDisp)} (${pen.userGoals})</strong>
           <div class="pen-dots-row">${buildPenaltyDotsHTML(pen.userKicks, seriesMax)}</div>
         </div>
         <div class="pen-sb-center">
