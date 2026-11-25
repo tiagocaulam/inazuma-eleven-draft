@@ -376,7 +376,9 @@
     whistle: 280,
     unlock: 260,
     level_up: 220,
-    prep_reward: 190
+    prep_reward: 190,
+    roulette_tick: 18,
+    roulette_stop: 150
   };
 
   const SPEED_4X_ALLOWED = new Set([
@@ -390,7 +392,9 @@
     "prep_reward",
     "chat_msg",
     "chat_send",
-    "ui_click"
+    "ui_click",
+    "roulette_tick",
+    "roulette_stop"
   ]);
 
   function playSfx(type, opts = {}) {
@@ -857,6 +861,71 @@
           delay: 0.04
         });
         break;
+
+      case "roulette_tick": {
+        const pm = Math.max(0.75, Math.min(1.4, Number(opts.pitchMul) || 1));
+        playNoiseSweep(ctx, dest, {
+          noiseType: "white",
+          filterType: "bandpass",
+          freqStart: 2050 * pm,
+          freqEnd: 1050 * pm,
+          q: 2.6,
+          dur: 0.016,
+          attack: 0.002,
+          gain: 0.17
+        });
+        playTone(ctx, dest, {
+          type: "triangle",
+          freq: 740 * pm,
+          freqEnd: 390 * pm,
+          dur: 0.022,
+          attack: 0.002,
+          gain: 0.11
+        });
+        break;
+      }
+
+      case "roulette_stop":
+        // Trava mecânica da roleta + brilho suave da revelação do time
+        playNoiseSweep(ctx, dest, {
+          noiseType: "white",
+          filterType: "bandpass",
+          freqStart: 1450,
+          freqEnd: 650,
+          q: 1.8,
+          dur: 0.028,
+          attack: 0.002,
+          gain: 0.22
+        });
+        playTone(ctx, dest, { type: "sine", freq: 523.25, dur: 0.22, attack: 0.004, gain: 0.14 });
+        playTone(ctx, dest, { type: "sine", freq: 783.99, dur: 0.28, delay: 0.055, attack: 0.004, gain: 0.15 });
+        break;
+    }
+    return true;
+  }
+
+  let rouletteTimers = [];
+  function stopRouletteSpinAudio() {
+    if (rouletteTimers.length > 0) {
+      rouletteTimers.forEach((id) => clearTimeout(id));
+      rouletteTimers = [];
+    }
+  }
+
+  function playRouletteSpinSequence(durationMs = 1550, tickCount = 19) {
+    stopRouletteSpinAudio();
+    if (!isSfxEnabled() || typeof window === "undefined") return false;
+    unlockSfxAudio();
+    const total = Math.max(8, Math.min(28, Number(tickCount) || 19));
+    const span = Math.max(400, Number(durationMs) || 1550) - 30;
+    for (let i = 0; i < total; i++) {
+      const u = i / total;
+      const delayMs = Math.round((0.22 * u + 0.78 * u * u) * span);
+      const pitchMul = 0.94 + u * 0.18;
+      const tid = setTimeout(() => {
+        playSfx("roulette_tick", { pitchMul, force: true });
+      }, delayMs);
+      rouletteTimers.push(tid);
     }
     return true;
   }
@@ -876,5 +945,7 @@
     window.isSfxEnabled = isSfxEnabled;
     window.unlockSfxAudio = unlockSfxAudio;
     window.playSfx = playSfx;
+    window.playRouletteSpinSequence = playRouletteSpinSequence;
+    window.stopRouletteSpinAudio = stopRouletteSpinAudio;
   }
 })();

@@ -41,6 +41,7 @@ function renderDraftWheelAndRoster(animateWheel = false) {
     clearTimeout(state.spinTimerId);
     state.spinTimerId = null;
   }
+  if (typeof stopRouletteSpinAudio === "function") stopRouletteSpinAudio();
 
   const pickedCount = getPickedCount();
   const pickedIds = getPickedPlayerIds();
@@ -250,10 +251,15 @@ function renderDraftWheelAndRoster(animateWheel = false) {
     void stripEl.offsetWidth;
     stripEl.style.transition = "transform 1.55s cubic-bezier(0.12, 0.82, 0.18, 1)";
     stripEl.style.transform = `translateX(${finalOffset}px)`;
+    if (typeof playRouletteSpinSequence === "function") {
+      playRouletteSpinSequence(1550, 19);
+    }
 
     state.spinTimerId = setTimeout(() => {
       state.spinTimerId = null;
       state.isSpinning = false;
+      if (typeof stopRouletteSpinAudio === "function") stopRouletteSpinAudio();
+      if (typeof playSfx === "function") playSfx("roulette_stop", { force: true });
       const rev = document.getElementById("roster-reveal-section");
       if (rev) {
         rev.innerHTML = buildRevealedTeamHTML();

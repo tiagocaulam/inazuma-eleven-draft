@@ -1571,6 +1571,7 @@ function goToMenu() {
     clearTimeout(state.spinTimerId);
     state.spinTimerId = null;
   }
+  if (typeof stopRouletteSpinAudio === "function") stopRouletteSpinAudio();
   state.isSpinning = false;
   state.storyLockNotice = false;
   state.phase = "menu";
@@ -1729,6 +1730,7 @@ function init() {
         clearTimeout(state.spinTimerId);
         state.spinTimerId = null;
       }
+      if (typeof stopRouletteSpinAudio === "function") stopRouletteSpinAudio();
       const wasDraft = state.phase === "draft";
       state.isSpinning = false;
       state.phase = "draft";

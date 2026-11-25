@@ -451,6 +451,7 @@ function renderStartMenuScreen() {
       clearTimeout(state.spinTimerId);
       state.spinTimerId = null;
     }
+    if (typeof stopRouletteSpinAudio === "function") stopRouletteSpinAudio();
     state.isSpinning = false;
     state.storyLockNotice = false;
     state.phase = "draft";
@@ -1669,6 +1670,7 @@ function resumeSavedRunProgress() {
     clearTimeout(state.spinTimerId);
     state.spinTimerId = null;
   }
+  if (typeof stopRouletteSpinAudio === "function") stopRouletteSpinAudio();
   state.isSpinning = false;
   state.storyLockNotice = false;
   state.selectedPlayer = null;
