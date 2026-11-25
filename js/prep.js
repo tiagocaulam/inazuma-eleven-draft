@@ -3972,15 +3972,18 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
       { pred: (a) => a.role === "FW", role: "FW" },
       { pred: (a) => a.archetype === "STRATEGIST" || a.role === "MF", role: "MF" }
     ],
-    (actors, ctx) => [
-      mkSpontaneousMsg(actors, 0, pickChatVariant([
+    (actors, ctx) => {
+      const a0Line = pickChatVariant([
         `Se é para decidir contra ${ctx.oppName}, a bola final tem que passar por mim! Minha ${actors[0].shMove} está afiada!`,
         `Todo ataque trava porque ninguém sabe quem é a referência oficial na frente!`
-      ]), "toxic"),
-      mkSpontaneousMsg(actors, 1, `Quem arma e pensa o jogo aqui sou eu com ${actors[1].ofMove}! Referência não é só ficar parado na área esperando!`, "toxic", {
-        quote: { speakerName: actors[0].name, text: `A bola final tem que passar por mim!` }
-      })
-    ],
+      ]);
+      return [
+        mkSpontaneousMsg(actors, 0, a0Line, "toxic"),
+        mkSpontaneousMsg(actors, 1, `Quem arma e pensa o jogo aqui sou eu com ${actors[1].ofMove}! Referência não é só ficar parado na área esperando!`, "toxic", {
+          quote: { speakerName: actors[0].name, text: a0Line }
+        })
+      ];
+    },
     (actors, ctx) => buildShuffledChatChoices(actors, {
       great: {
         label: `Definir ${actors[0].name} como Camisa 10 com estilo Vertical para acioná-lo rápido`,
@@ -7989,6 +7992,10 @@ function buildSilentResolutionDialogue(participants, coreCount, silentMatured, c
   const fourthIdx = participants.length >= 4 ? 3 : 1;
 
   if (silentMatured) {
+    const medLine = pickChatVariant([
+      `Ele está certo em confiar na gente, ${a0.name} e ${a1.name}. Vamos conversar direito porque o foco é ${opp}!`,
+      `Pessoal, respirem fundo. O vestiário é nosso para blindar, não para dividir antes do apito.`
+    ]);
     return [
       mkSpontaneousMsg(
         participants,
@@ -8002,10 +8009,7 @@ function buildSilentResolutionDialogue(participants, coreCount, silentMatured, c
       mkSpontaneousMsg(
         participants,
         medIdx,
-        pickChatVariant([
-          `Ele está certo em confiar na gente, ${a0.name} e ${a1.name}. Vamos conversar direito porque o foco é ${opp}!`,
-          `Pessoal, respirem fundo. O vestiário é nosso para blindar, não para dividir antes do apito.`
-        ]),
+        medLine,
         "calm"
       ),
       mkSpontaneousMsg(
@@ -8016,7 +8020,7 @@ function buildSilentResolutionDialogue(participants, coreCount, silentMatured, c
           `Beleza, ${a0.name}. Vamos deixar a cabeça quente para trás e pensar só em ganhar de ${opp}.`
         ]),
         "calm",
-        { quote: { speakerName: med.name, text: "o foco é " + opp } }
+        { quote: { speakerName: med.name, text: medLine } }
       ),
       mkSpontaneousMsg(
         participants,
@@ -8128,6 +8132,88 @@ function buildPostDecisionWrapUpMessages(participants, coreCount, quality, categ
   return out;
 }
 
+function sanitizeChatQuotes(messages, opts = {}) {
+  if (!Array.isArray(messages) || messages.length === 0) return messages;
+  const startIdx = Math.max(0, Number(opts.startIdx) || 0);
+  const enrichNatural = Boolean(opts.enrichNaturalQuotes);
+  const isPlayerMsg = (msg) => Boolean(msg && msg.speakerRole !== "SYSTEM" && msg.speakerRole !== "COACH");
+  let validQuotesCount = 0;
+
+  for (let i = 0; i < messages.length; i++) {
+    const m = messages[i];
+    if (!m) continue;
+    if (i < startIdx) {
+      if (m.quote && m.quote.text) validQuotesCount++;
+      continue;
+    }
+    if (!isPlayerMsg(m)) {
+      m.quote = null;
+      continue;
+    }
+
+    if (m.quote && m.quote.text) {
+      const targetAuthor = String(m.quote.speakerName || "").trim();
+      const rawQuoteTxt = String(m.quote.text || "").trim();
+      let matchedPrev = null;
+      let authorLatestPrev = null;
+
+      for (let j = i - 1; j >= 0; j--) {
+        const prev = messages[j];
+        if (!prev || prev.speakerRole === "SYSTEM" || !prev.text) continue;
+        if (prev.speakerName === m.speakerName) continue;
+        if (targetAuthor && prev.speakerName === targetAuthor) {
+          if (!authorLatestPrev) authorLatestPrev = prev;
+          if (rawQuoteTxt && String(prev.text).toLowerCase().includes(rawQuoteTxt.toLowerCase())) {
+            matchedPrev = prev;
+            break;
+          }
+        }
+      }
+
+      if (matchedPrev) {
+        validQuotesCount++;
+      } else if (authorLatestPrev) {
+        // Autor falou antes, mas a variante sorteada diferiu do texto fixo: sincroniza para a mensagem real!
+        m.quote = { speakerName: authorLatestPrev.speakerName, text: authorLatestPrev.text };
+        validQuotesCount++;
+      } else {
+        // Autor ainda não enviou nenhuma mensagem anterior: remove marcação fantasma
+        m.quote = null;
+      }
+    }
+  }
+
+  if (enrichNatural) {
+    const playerMsgsCount = messages.filter((x) => isPlayerMsg(x)).length;
+    const maxQuotes = playerMsgsCount >= 6 ? 2 : 1;
+    if (validQuotesCount < maxQuotes && playerMsgsCount >= 4) {
+      for (let i = Math.max(startIdx, 2); i < messages.length && validQuotesCount < maxQuotes; i++) {
+        const m = messages[i];
+        if (!isPlayerMsg(m) || m.quote) continue;
+        // Só marca mensagem anterior se houve outra fala intermediária e o texto citado for real e conciso
+        const inBetween = messages[i - 1];
+        if (!inBetween || inBetween.speakerName === m.speakerName) continue;
+        const candOffsets = [2, 3];
+        for (let k = 0; k < candOffsets.length; k++) {
+          const j = i - candOffsets[k];
+          if (j < 0) continue;
+          const prev = messages[j];
+          if (!isPlayerMsg(prev) || !prev.text) continue;
+          if (prev.speakerName === m.speakerName) continue;
+          const len = String(prev.text).trim().length;
+          if (len >= 18 && len <= 115 && Math.random() < 0.65) {
+            m.quote = { speakerName: prev.speakerName, text: prev.text };
+            validQuotesCount++;
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  return messages;
+}
+
 function spawnSpontaneousTeamChat(t = state.tournament, forcedCategory = null, opts = {}) {
   if (typeof isBetaMode === "function" && !isBetaMode()) return null;
   const prep = t?.prep;
@@ -8236,7 +8322,10 @@ function spawnSpontaneousTeamChat(t = state.tournament, forcedCategory = null, o
   const interactionMode = tpl.interactionMode || "CLASSIC";
   const baseMessages = tpl.buildDialogue(chosenActors, ctx);
   const chimeInMessages = buildSquadGroupChimeIns(chosenActors, coreCount, tpl.category, interactionMode, ctx);
-  const messages = stampThreadTimestamps([...baseMessages, ...chimeInMessages], baseTimeMin);
+  const messages = sanitizeChatQuotes(stampThreadTimestamps([...baseMessages, ...chimeInMessages], baseTimeMin), {
+    startIdx: 0,
+    enrichNaturalQuotes: interactionMode !== "AUTO_COMPLETE"
+  });
   const choices = interactionMode === "AUTO_COMPLETE" ? [] : (typeof tpl.buildChoices === "function" ? tpl.buildChoices(chosenActors, ctx) : []);
   const autoOutcome = interactionMode === "AUTO_COMPLETE" && typeof tpl.buildAutoOutcome === "function"
     ? tpl.buildAutoOutcome(chosenActors, ctx)
@@ -8547,6 +8636,8 @@ function finalizeAutonomousTeamChat(chatId, skipRender = false) {
     time: formatChatTimestamp(baseT, chat.messages.length),
     text: `${headline}${out.note ? ` — ${out.note}` : ""}`
   });
+
+  sanitizeChatQuotes(chat.messages, { startIdx: 0, enrichNaturalQuotes: true });
 
   chat.resolved = true;
   chat.outcomeQuality = out.tone || "AUTO";
@@ -8940,6 +9031,8 @@ function resolveSpontaneousTeamChat(chatId, choiceIdx) {
   if (pwrDelta > 0) baseStatParts.push(`<span class="b-pwr">+${pwrDelta} Poder</span>`);
   if (energyDelta > 0) baseStatParts.push(`<span class="b-chem">+${energyDelta}% Energia</span>`);
   else if (energyDelta < 0) baseStatParts.push(`<span style="color:#fca5a5;">${energyDelta}% Energia</span>`);
+
+  sanitizeChatQuotes(chat.messages, { startIdx: curLen, enrichNaturalQuotes: true });
 
   chat.resolved = true;
   chat.chosenIdx = choiceIdx;
