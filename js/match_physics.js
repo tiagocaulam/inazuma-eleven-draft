@@ -4300,17 +4300,17 @@ function stepContinuousPhysics(st, pitch, dt) {
       }
     }
 
-    // 3) Disputa aérea no ponto de queda de lançamento/cruzamento/cavadinha
-    if (!ps.aerialContestResolved && !ps.isSafeProtectedPass && peakZ >= 0.60 && ps.progress >= 0.78 && pitch.ballZ <= 0.55) {
+    // 3) Disputa aérea no ar (somente quando o lançamento ainda está alto, antes de cair no chão)
+    if (!ps.aerialContestResolved && !ps.isSafeProtectedPass && peakZ >= 0.78 && ps.progress >= 0.74 && pitch.ballZ >= 0.28 && pitch.ballZ <= 0.62) {
       const recDist = receiver ? visualPitchDist(receiver.x, receiver.y, pitch.ballX, pitch.ballY) : 99;
       const airDef = defNodes.find(
         (d) =>
           d.role !== "GK" &&
           d.staggerTimer <= 0 &&
           d.duelCooldown <= 0 &&
-          visualPitchDist(d.x, d.y, pitch.ballX, pitch.ballY) <= 2.9
+          visualPitchDist(d.x, d.y, pitch.ballX, pitch.ballY) <= 2.2
       );
-      if (receiver && airDef && recDist <= 3.2) {
+      if (receiver && airDef && recDist <= 2.6) {
         ps.aerialContestResolved = true;
         airDef.duelCooldown = 1.25;
         const routeAirBoost =
@@ -4327,14 +4327,14 @@ function stepContinuousPhysics(st, pitch, dt) {
           (airDef.effOvr || 80) * 0.45 +
           ((airDef.stamina || 80) - 70) * 0.12;
         if (Math.random() < logisticWinProb(attAirScore, defAirScore, 1.8, 0.25, 0.85)) {
-          triggerNodeJump(receiver, 0.88, 0.48);
-          triggerNodeJump(airDef, 0.72, 0.44);
+          triggerNodeJump(receiver, 0.55, 0.36);
+          triggerNodeJump(airDef, 0.45, 0.32);
           showNodeBadge(pitch, receiver.uid, "Ganhou no Alto!", "badge-pass", 1100, "BALL");
           completeAttackingPassCatch(ps, receiver);
           return;
         } else {
-          triggerNodeJump(airDef, 0.96, 0.52);
-          triggerNodeJump(receiver, 0.68, 0.42);
+          triggerNodeJump(airDef, 0.55, 0.36);
+          triggerNodeJump(receiver, 0.45, 0.32);
           spendStamina(airDef, 2.2);
           pitch.ballSide = attIsUser ? "opp" : "user";
           pitch.ballMode = "CARRIED";
@@ -4350,12 +4350,12 @@ function stepContinuousPhysics(st, pitch, dt) {
           pitch.ballVz = 0;
           airDef.carryTime = 0;
           airDef.decisionTimer = 0.25;
-          showNodeBadge(pitch, airDef.uid, "Corte Aéreo!", "badge-steal", 1300, "DF");
+          showNodeBadge(pitch, airDef.uid, "Interceptação!", "badge-steal", 1300, "DF");
           if (!attIsUser) {
             pitch.stats.userSteals++;
             recordUserPlayerStat(pitch, airDef, "steals", 1);
           }
-          pitch.ticker = `${st.minute}' ${airDef.player.name} subiu mais alto e cortou a bola pelo alto!`;
+          pitch.ticker = `${st.minute}' ${airDef.player.name} interceptou o lançamento pelo alto!`;
           syncLivePitchDOM(st);
           if (typeof playSfx === "function") playSfx("steal");
           pauseForPitchBeat(st, "", "", 780, ovrDiff);
