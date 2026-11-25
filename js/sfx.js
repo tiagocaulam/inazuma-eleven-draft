@@ -828,13 +828,131 @@
       }
 
       case "goal":
-        // Som real de torcida celebrando no estádio (MP3 Mixkit com fade suave)
-        playSampleClip(ctx, masterGain, "goal", { maxDur: 2.4, gain: 0.94, offset: 0.05 });
+        // Rompimento da barreira do goleiro: impacto pesado + estalo de raio + estilhaços + onda de choque + rede (0ms latência)
+        playKickTransient(ctx, dest, {
+          subStart: 150,
+          subEnd: 34,
+          subDur: 0.11,
+          slapFreq: 1650,
+          slapDur: 0.022,
+          slapGain: 0.36,
+          punchGain: 0.58,
+          saturate: true
+        });
+        playNoiseSweep(ctx, dest, {
+          noiseType: "white",
+          filterType: "bandpass",
+          freqStart: 3800,
+          freqEnd: 1400,
+          q: 1.8,
+          dur: 0.055,
+          attack: 0.003,
+          gain: 0.26,
+          delay: 0.008
+        });
+        playNoiseSweep(ctx, dest, {
+          noiseType: "white",
+          filterType: "bandpass",
+          freqStart: 4500,
+          freqEnd: 2200,
+          q: 2.0,
+          dur: 0.032,
+          attack: 0.002,
+          gain: 0.18,
+          delay: 0.042
+        });
+        playNoiseSweep(ctx, dest, {
+          noiseType: "white",
+          filterType: "bandpass",
+          freqStart: 3100,
+          freqEnd: 1300,
+          q: 1.9,
+          dur: 0.036,
+          attack: 0.002,
+          gain: 0.15,
+          delay: 0.088
+        });
+        playNoiseSweep(ctx, dest, {
+          noiseType: "white",
+          filterType: "bandpass",
+          freqStart: 2300,
+          freqEnd: 900,
+          q: 1.7,
+          dur: 0.042,
+          attack: 0.002,
+          gain: 0.12,
+          delay: 0.138
+        });
+        playNoiseSweep(ctx, satCurveNode || dest, {
+          noiseType: "brown",
+          filterType: "lowpass",
+          freqStart: 360,
+          freqEnd: 62,
+          q: 0.9,
+          dur: 0.52,
+          attack: 0.01,
+          gain: 0.36,
+          delay: 0.014
+        });
+        playNoiseSweep(ctx, dest, {
+          noiseType: "pink",
+          filterType: "bandpass",
+          freqStart: 1150,
+          freqEnd: 400,
+          q: 1.3,
+          dur: 0.28,
+          attack: 0.014,
+          gain: 0.14,
+          delay: 0.045
+        });
         break;
 
       case "goal_concede":
-        // Som real de torcida vaiando / lamentando gol sofrido
-        playSampleClip(ctx, masterGain, "goal_concede", { maxDur: 2.1, gain: 0.88, offset: 0.08 });
+        // Barreira defensiva rachando: impacto grave sombrio + trincas secas + queda de pressão
+        playKickTransient(ctx, dest, {
+          subStart: 118,
+          subEnd: 30,
+          subDur: 0.12,
+          slapFreq: 900,
+          slapDur: 0.024,
+          slapGain: 0.26,
+          punchGain: 0.52,
+          saturate: true
+        });
+        playNoiseSweep(ctx, dest, {
+          noiseType: "white",
+          filterType: "bandpass",
+          freqStart: 1850,
+          freqEnd: 620,
+          q: 1.7,
+          dur: 0.075,
+          attack: 0.003,
+          gain: 0.20,
+          delay: 0.012
+        });
+        playNoiseSweep(ctx, dest, {
+          noiseType: "white",
+          filterType: "bandpass",
+          freqStart: 1350,
+          freqEnd: 480,
+          q: 1.6,
+          dur: 0.06,
+          attack: 0.003,
+          gain: 0.14,
+          delay: 0.068
+        });
+        playNoiseSweep(ctx, satCurveNode || dest, {
+          noiseType: "brown",
+          filterType: "lowpass",
+          freqStart: 220,
+          freqEnd: 52,
+          q: 0.85,
+          dur: 0.48,
+          attack: 0.012,
+          gain: 0.34,
+          delay: 0.018
+        });
+        playTone(ctx, dest, { type: "sine", freq: 210, freqEnd: 115, dur: 0.26, attack: 0.008, gain: 0.11, delay: 0.04 });
         break;
 
       case "fail":
@@ -853,10 +971,20 @@
         break;
 
       case "defeat":
-        // Tom descendente suave + reação contida da arquibancada na derrota
+        // Tom descendente suave + decaimento grave imediato na derrota
         playTone(ctx, dest, { type: "sine", freq: 329.63, freqEnd: 246.94, dur: 0.18, attack: 0.008, gain: 0.14 });
         playTone(ctx, dest, { type: "sine", freq: 246.94, freqEnd: 174.61, dur: 0.28, delay: 0.14, attack: 0.008, gain: 0.15 });
-        playSampleClip(ctx, masterGain, "goal_concede", { maxDur: 1.55, gain: 0.56, offset: 0.12 });
+        playNoiseSweep(ctx, dest, {
+          noiseType: "brown",
+          filterType: "lowpass",
+          freqStart: 200,
+          freqEnd: 65,
+          q: 0.8,
+          dur: 0.42,
+          attack: 0.015,
+          gain: 0.22,
+          delay: 0.08
+        });
         break;
 
       case "save":
