@@ -2128,10 +2128,23 @@ function buildChatActorProfile(slot, player, t = state.tournament) {
     slot.role === "DF" ? dfMove :
     slot.role === "MF" ? (moves.OF?.[0] || moves.SH?.[0] || ofMove) :
     shMove;
+  const persona = typeof resolveInazumaPersona === "function"
+    ? resolveInazumaPersona({
+        id: player.id,
+        name: player.name,
+        fullName: player.fullName,
+        role: slot.role,
+        archetype,
+        element: player.element || "Vento",
+        isCaptain: Boolean(capObj?.player?.id && capObj.player.id === player.id)
+      })
+    : null;
   return {
     slotId: slot.id,
     id: player.id,
     name: player.name,
+    fullName: player.fullName || "",
+    voiceKey: persona ? persona.voice : null,
     role: slot.role,
     roleLabel: CHAT_ROLE_LABELS[slot.role] || "Titular",
     archetype,
@@ -2372,6 +2385,7 @@ function applyChatTacticalPatch(t, patch, actors = [], ctx = {}, opts = {}) {
 
 function mkSpontaneousMsg(actors, senderIdx, text, tone = "normal", opts = {}) {
   const actor = actors[senderIdx] || actors[0];
+  const cleanText = typeof humanizeInaZapText === "function" ? humanizeInaZapText(text, actor) : text;
   return {
     senderIdx,
     speakerRole: `P${senderIdx}`,
@@ -2380,8 +2394,10 @@ function mkSpontaneousMsg(actors, senderIdx, text, tone = "normal", opts = {}) {
     roleTag: `${actor.roleLabel} • ${actor.archetypeLabel}`,
     tone,
     quote: opts.quote || null,
+    reactions: Array.isArray(opts.reactions) ? opts.reactions : null,
+    voiceKey: actor?.voiceKey || null,
     time: opts.time || null,
-    text
+    text: cleanText
   };
 }
 
@@ -2389,13 +2405,14 @@ function buildShuffledChatChoices(actors, defs, ctx = {}) {
   const list = ["great", "good", "poor"].map((q) => {
     const d = defs[q];
     const patchDesc = d.tacticsPatch ? describeChatTacticsPatch(d.tacticsPatch, actors, ctx) : "";
+    const cleanCoach = typeof humanizeInaZapText === "function" ? humanizeInaZapText(d.coachLine, null) : d.coachLine;
     return {
       quality: q.toUpperCase(),
       label: d.label,
       approachTag: d.approachTag,
       configTag: patchDesc,
       tacticsPatch: d.tacticsPatch || null,
-      coachLine: d.coachLine,
+      coachLine: cleanCoach,
       reactions: d.reactions.map((r) =>
         typeof r === "function" ? r() : mkSpontaneousMsg(actors, r.idx, r.text, r.tone || "normal", { quote: r.quote || null })
       )
@@ -7922,6 +7939,9 @@ function pickExtraGroupChatActors(actors, coreActors, desiredExtraCount, t = sta
 }
 
 function buildSquadGroupChimeIns(participants, coreCount, category, interactionMode, ctx = {}) {
+  if (typeof buildDynamicGroupChimeIns === "function") {
+    return buildDynamicGroupChimeIns(participants, coreCount, category, interactionMode, ctx, state?.tournament);
+  }
   const out = [];
   if (!Array.isArray(participants) || participants.length <= coreCount) return out;
   const opp = ctx.oppName || "o próximo adversário";
@@ -7951,12 +7971,12 @@ function buildSquadGroupChimeIns(participants, coreCount, category, interactionM
     TATICA_RIVAL: [
       `Estava observando o mesmo detalhe de ${opp} no vídeo! Se fecharmos esse espaço, eles travam.`,
       `Para o meu setor também muda bastante conforme o plano que escolhermos contra ${opp}.`,
-      `Boa leitura — eu posso ajustar minha recomposição para ajudar nessa estratégia.`
+      `Boa leitura! Eu posso ajustar minha recomposição para ajudar nessa estratégia.`
     ],
     RESENHA: [
       `Cheguei agora no grupo e já estão aprontando antes do jogo contra ${opp}!`,
       `Não me deixem de fora dessa resenha no vestiário não!`,
-      `Esse elenco tem uma energia única — até no intervalo do treino rende história.`
+      `Esse elenco tem uma energia única, até no intervalo do treino rende história.`
     ]
   };
   if (e1) {
@@ -7966,8 +7986,8 @@ function buildSquadGroupChimeIns(participants, coreCount, category, interactionM
   if (e2 && (interactionMode === "AUTO_COMPLETE" || Math.random() < 0.72)) {
     const line2 = pickChatVariant([
       `Exatamente o que eu ia falar! ${a0.name} levantou um ponto que envolve o time todo.`,
-      `Estou acompanhando tudo aqui — o que decidirmos agora vai refletir direto contra ${opp}.`,
-      `Podem contar comigo também no que precisarem dentro das quatro linhas.`,
+      `Estou acompanhando tudo aqui, o que decidirmos agora vai refletir direto contra ${opp}.`,
+      `Podem contar comigo também no que precisarem em campo.`,
       `Se todo mundo remar para o mesmo lado, ${opp} não segura nosso ritmo.`
     ]);
     out.push(mkSpontaneousMsg(participants, e2Idx, line2, category === "RAIVA" ? "calm" : "hype"));
@@ -7983,6 +8003,9 @@ function buildSquadGroupChimeIns(participants, coreCount, category, interactionM
 }
 
 function buildSilentResolutionDialogue(participants, coreCount, silentMatured, category, ctx = {}) {
+  if (typeof buildDynamicSilentResolution === "function") {
+    return buildDynamicSilentResolution(participants, coreCount, silentMatured, category, ctx, state?.tournament);
+  }
   const opp = ctx.oppName || "o adversário";
   const a0 = participants[0] || { name: "Jogador" };
   const a1 = participants[1] || participants[0] || { name: "Companheiro" };
@@ -7994,7 +8017,7 @@ function buildSilentResolutionDialogue(participants, coreCount, silentMatured, c
   if (silentMatured) {
     const medLine = pickChatVariant([
       `Ele está certo em confiar na gente, ${a0.name} e ${a1.name}. Vamos conversar direito porque o foco é ${opp}!`,
-      `Pessoal, respirem fundo. O vestiário é nosso para blindar, não para dividir antes do apito.`
+      `Pessoal, respirem fundo. O vestiário é nosso para fechar o grupo, não para dividir antes do apito.`
     ]);
     return [
       mkSpontaneousMsg(
@@ -8002,7 +8025,7 @@ function buildSilentResolutionDialogue(participants, coreCount, silentMatured, c
         0,
         pickChatVariant([
           `Parece que o técnico visualizou e preferiu deixar a gente resolver como time...`,
-          `O professor nem precisou responder — o recado está claro: temos que assumir a maturidade aqui dentro.`
+          `O professor nem precisou responder. O recado está claro, temos que resolver isso entre a gente.`
         ]),
         "tense"
       ),
@@ -8026,8 +8049,8 @@ function buildSilentResolutionDialogue(participants, coreCount, silentMatured, c
         participants,
         fourthIdx,
         pickChatVariant([
-          `É isso! Resolvido entre nós — o técnico vai ver o grupo unido dentro de campo!`,
-          `Amadurecemos muito nessa conversa. Agora ninguém segura a nossa sintonia contra ${opp}!`
+          `É isso! Resolvido entre nós, o técnico vai ver o grupo unido em campo!`,
+          `Crescemos muito nessa conversa. Agora ninguém segura a nossa sintonia contra ${opp}!`
         ]),
         "hype"
       )
@@ -8074,7 +8097,10 @@ function buildSilentResolutionDialogue(participants, coreCount, silentMatured, c
   ];
 }
 
-function buildPostDecisionWrapUpMessages(participants, coreCount, quality, category, configChanges = [], ctx = {}, existingCount = 0) {
+function buildPostDecisionWrapUpMessages(participants, coreCount, quality, category, configChanges = [], ctx = {}, existingCount = 0, learnedCoop = null) {
+  if (typeof buildDynamicPostDecisionWrapUp === "function") {
+    return buildDynamicPostDecisionWrapUp(participants, coreCount, quality, category, configChanges, ctx, existingCount, state?.tournament, learnedCoop);
+  }
   const opp = ctx.oppName || "o adversário";
   const out = [];
   const totalWanted = Math.random() < 0.52 ? 4 : 3;
@@ -8095,7 +8121,7 @@ function buildPostDecisionWrapUpMessages(participants, coreCount, quality, categ
 
   const positiveLines = [
     hasTacChange ? `Anotado o ajuste (${tacText})! Já estou visualizando a movimentação contra ${opp}.` : `Agora sim ficou claro para o time inteiro como vamos jogar contra ${opp}!`,
-    `Pode confiar na nossa entrega, professor. O grupo comprou a ideia e vai executar até o último segundo!`,
+    `Pode confiar na nossa entrega, professor. O grupo fechou junto e vai correr até o apito final!`,
     `Essa conversa destravou o que faltava no vestiário. Vamos entrar leves e mordendo em cada bola!`,
     `Que sintonia boa no grupo hoje! Até no aquecimento vai dar para sentir a diferença.`
   ];
@@ -8106,9 +8132,9 @@ function buildPostDecisionWrapUpMessages(participants, coreCount, quality, categ
     `Combinado. Vamos provar na prática que essa aposta da comissão funciona.`
   ];
   const tenseLines = [
-    `Não era bem o que eu esperava ouvir, professor... mas vou cumprir minha parte no gramado.`,
+    `Não era bem o que eu esperava ouvir, professor... mas vou fazer o meu em campo.`,
     `O clima ainda ficou meio atravessado por aqui. Vamos torcer para não pesar contra ${opp}.`,
-    `Pessoal, respirem fundo — agora não adianta reclamar, temos que jogar bola.`,
+    `Pessoal, respirem fundo, agora não adianta reclamar, temos que jogar bola.`,
     `Fica o alerta para os próximos treinos, porque a pressão no vestiário subiu.`
   ];
 
@@ -8171,6 +8197,7 @@ function sanitizeChatQuotes(messages, opts = {}) {
       }
 
       if (matchedPrev) {
+        m.quote = { speakerName: matchedPrev.speakerName, text: matchedPrev.text };
         validQuotesCount++;
       } else if (authorLatestPrev) {
         // Autor falou antes, mas a variante sorteada diferiu do texto fixo: sincroniza para a mensagem real!
@@ -8326,7 +8353,21 @@ function spawnSpontaneousTeamChat(t = state.tournament, forcedCategory = null, o
     startIdx: 0,
     enrichNaturalQuotes: interactionMode !== "AUTO_COMPLETE"
   });
+  if (interactionMode !== "AUTO_COMPLETE" && typeof attachDynamicEmojiReactions === "function") {
+    attachDynamicEmojiReactions(messages, chosenActors, tpl.category, "GOOD", 0);
+  }
   const choices = interactionMode === "AUTO_COMPLETE" ? [] : (typeof tpl.buildChoices === "function" ? tpl.buildChoices(chosenActors, ctx) : []);
+  if (Array.isArray(choices) && typeof humanizeInaZapText === "function") {
+    choices.forEach((c) => {
+      if (!c) return;
+      if (c.coachLine) c.coachLine = humanizeInaZapText(c.coachLine, null);
+      if (Array.isArray(c.reactions)) {
+        c.reactions.forEach((r) => {
+          if (r && r.text) r.text = humanizeInaZapText(r.text, chosenActors[r.senderIdx] || null);
+        });
+      }
+    });
+  }
   const autoOutcome = interactionMode === "AUTO_COMPLETE" && typeof tpl.buildAutoOutcome === "function"
     ? tpl.buildAutoOutcome(chosenActors, ctx)
     : null;
@@ -8634,10 +8675,14 @@ function finalizeAutonomousTeamChat(chatId, skipRender = false) {
     roleTag: "Resumo",
     tone: "system",
     time: formatChatTimestamp(baseT, chat.messages.length),
-    text: `${headline}${out.note ? ` — ${out.note}` : ""}`
+    text: `${headline}${out.note ? ` (${out.note})` : ""}`
   });
 
+  chat.messages = stampThreadTimestamps(chat.messages, baseT);
   sanitizeChatQuotes(chat.messages, { startIdx: 0, enrichNaturalQuotes: true });
+  if (typeof attachDynamicEmojiReactions === "function") {
+    attachDynamicEmojiReactions(chat.messages, chat.participants, chat.category, out.tone || "GOOD", 0);
+  }
 
   chat.resolved = true;
   chat.outcomeQuality = out.tone || "AUTO";
@@ -8748,6 +8793,7 @@ function resolveSpontaneousTeamChat(chatId, choiceIdx) {
       });
     });
   } else {
+    const cleanCoachText = typeof humanizeInaZapText === "function" ? humanizeInaZapText(choice.coachLine, null) : choice.coachLine;
     chat.messages.push({
       senderIdx: -1,
       speakerRole: "COACH",
@@ -8756,7 +8802,7 @@ function resolveSpontaneousTeamChat(chatId, choiceIdx) {
       roleTag: "Técnico",
       tone: "coach",
       time: formatChatTimestamp(baseT, curLen),
-      text: choice.coachLine
+      text: cleanCoachText
     });
   }
 
@@ -8764,27 +8810,17 @@ function resolveSpontaneousTeamChat(chatId, choiceIdx) {
   const quality = isSilentIgnore ? (silentMatured ? "TRADEOFF" : "POOR") : rawQuality;
   const configChanges = applyChatTacticalPatch(t, choice.tacticsPatch, chat.participants, chat.ctx || {});
 
+  let baseReactionCount = 0;
   if (!isSilentIgnore) {
     const baseReactions = Array.isArray(choice.reactions) ? choice.reactions : [];
+    baseReactionCount = baseReactions.length;
     baseReactions.forEach((m) => {
+      const mActor = chat.participants?.[m.senderIdx] || null;
+      const cleanTxt = typeof humanizeInaZapText === "function" ? humanizeInaZapText(m.text, mActor) : m.text;
       chat.messages.push({
         ...m,
+        text: cleanTxt,
         time: m.time || formatChatTimestamp(baseT, chat.messages.length)
-      });
-    });
-    const extraWrapUp = buildPostDecisionWrapUpMessages(
-      chat.participants || [],
-      coreCount,
-      quality,
-      chat.category,
-      configChanges,
-      chat.ctx || {},
-      baseReactions.length
-    );
-    extraWrapUp.forEach((wm) => {
-      chat.messages.push({
-        ...wm,
-        time: wm.time || formatChatTimestamp(baseT, chat.messages.length)
       });
     });
   }
@@ -9032,7 +9068,30 @@ function resolveSpontaneousTeamChat(chatId, choiceIdx) {
   if (energyDelta > 0) baseStatParts.push(`<span class="b-chem">+${energyDelta}% Energia</span>`);
   else if (energyDelta < 0) baseStatParts.push(`<span style="color:#fca5a5;">${energyDelta}% Energia</span>`);
 
+  if (!isSilentIgnore) {
+    const extraWrapUp = buildPostDecisionWrapUpMessages(
+      chat.participants || [],
+      coreCount,
+      quality,
+      chat.category,
+      configChanges,
+      chat.ctx || {},
+      baseReactionCount,
+      learnedCoop
+    );
+    extraWrapUp.forEach((wm) => {
+      chat.messages.push({
+        ...wm,
+        time: wm.time || formatChatTimestamp(baseT, chat.messages.length)
+      });
+    });
+  }
+
+  chat.messages = stampThreadTimestamps(chat.messages, baseT);
   sanitizeChatQuotes(chat.messages, { startIdx: curLen, enrichNaturalQuotes: true });
+  if (typeof attachDynamicEmojiReactions === "function") {
+    attachDynamicEmojiReactions(chat.messages, chat.participants, chat.category, quality, curLen);
+  }
 
   chat.resolved = true;
   chat.chosenIdx = choiceIdx;
@@ -10353,8 +10412,14 @@ function buildBetweenMatchPrepHTML(t, stats) {
               `
               : "";
             const toneBadge = m.tone === "toxic" ? " is-toxic" : m.tone === "hype" ? " is-hype" : m.tone === "idea" ? " is-idea" : "";
+            const reactionsHTML = Array.isArray(m.reactions) && m.reactions.length > 0
+              ? `<div class="wpp-reactions-row">${m.reactions
+                  .map((r) => `<span class="wpp-reaction-pill">${r.emoji}${Number(r.count) > 1 ? `<span class="wpp-reaction-count">${r.count}</span>` : ""}</span>`)
+                  .join("")}</div>`
+              : "";
+            const hasReactCls = reactionsHTML ? " has-reactions" : "";
             return `
-              <div class="wpp-row is-in ${toneBadge}${hideCls}" ${msgAttrs}>
+              <div class="wpp-row is-in ${toneBadge}${hasReactCls}${hideCls}" ${msgAttrs}>
                 ${m.speakerSprite ? `<img class="wpp-msg-avatar" src="${m.speakerSprite}" alt="${m.speakerName}" />` : ""}
                 <div class="wpp-bubble is-in ${senderPaletteClass[cIdx]}">
                   <div class="wpp-msg-head">
@@ -10366,6 +10431,7 @@ function buildBetweenMatchPrepHTML(t, stats) {
                   <div class="wpp-bubble-meta">
                     <span>${m.time || "15:21"}</span>
                   </div>
+                  ${reactionsHTML}
                 </div>
               </div>
             `;

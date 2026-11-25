@@ -10484,6 +10484,40 @@ body {
   color: rgba(233, 237, 239, 0.62);
 }
 
+.wpp-row.has-reactions {
+  margin-bottom: 12px;
+}
+
+.wpp-reactions-row {
+  position: absolute;
+  bottom: -11px;
+  left: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  z-index: 2;
+}
+
+.wpp-reaction-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: #202c33;
+  border: 1px solid #2f414b;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
+  font-size: 0.68rem;
+  line-height: 1.25;
+  color: #d1d7db;
+}
+
+.wpp-reaction-count {
+  font-size: 0.6rem;
+  font-weight: 800;
+  color: #aebac1;
+}
+
 .wpp-checks {
   font-size: 0.68rem;
   font-weight: 800;
