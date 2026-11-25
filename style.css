@@ -10029,6 +10029,21 @@ body {
 .wpp-topbar-avatars img:first-child {
   margin-left: 0;
 }
+.wpp-topbar-more {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: #2a3942;
+  border: 1.5px solid #202c33;
+  color: #cbd5e1;
+  font-size: 0.64rem;
+  font-weight: 800;
+  margin-left: -6px;
+}
 
 .wpp-topbar-meta {
   display: flex;
@@ -10179,6 +10194,12 @@ body {
 }
 .wpp-bubble.is-in.is-c2 .wpp-msg-author {
   color: #fbbf24;
+}
+.wpp-bubble.is-in.is-c3 .wpp-msg-author {
+  color: #f472b6;
+}
+.wpp-bubble.is-in.is-c4 .wpp-msg-author {
+  color: #c084fc;
 }
 .wpp-bubble.is-out .wpp-msg-author {
   color: #a7f3d0;

@@ -2485,7 +2485,7 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
     (actors, ctx) => buildShuffledChatChoices(actors, {
       great: {
         label: "Marcar sinal visual: meia segura 1 tempo para o atacante abrir em diagonal",
-        approachTag: "Sincronia Estática",
+        approachTag: "Sincronia Tática",
         coachLine: `${actors[1].name} dita o segundo do passe; ${actors[0].name}, espere o ombro girar e ataque a diagonal livre.`,
         reactions: [
           { idx: 1, text: `Se ele cortar na diagonal assim, eu coloco na medida com ${actors[1].ofMove}!`, tone: "idea" },
@@ -3217,7 +3217,7 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
         ]
       },
       good: {
-        label: "Agradecer ao grupo e pedir serenidade estática durante os 90 minutos",
+        label: "Agradecer ao grupo e pedir serenidade tática durante os 90 minutos",
         approachTag: "Equilíbrio",
         coachLine: `Excelente postura de grupo. Mantenham a calma quando a bola rolar.`,
         reactions: [
@@ -3473,7 +3473,7 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
     (actors, ctx) => buildShuffledChatChoices(actors, {
       great: {
         label: "Confirmar a isca: atrair o zagueiro e explorar as costas com passe cirúrgico",
-        approachTag: "Leitura Estática",
+        approachTag: "Leitura Tática",
         coachLine: `Leitura brilhante de ${ctx.oppName}! Atraiam o primeiro marcador e rasguem a linha nas costas sem hesitar!`,
         reactions: [
           { idx: 0, text: `Já mapeamos o ponto fraco inteiro deles! Vai entrar passe limpo toda hora!`, tone: "hype" },
@@ -3542,7 +3542,7 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
         coachLine: `Esqueçam o ataque de ${ctx.oppName}, avancem todos para o meio e deixem o gol por conta do goleiro.`,
         reactions: [
           { idx: 0, text: `Vão me deixar no 3 contra 1 o jogo inteiro?!`, tone: "toxic" },
-          { idx: 1, text: `Loucura estática...`, tone: "tense" }
+          { idx: 1, text: `Loucura tática...`, tone: "tense" }
         ]
       }
     })
@@ -4042,7 +4042,7 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
         label: "Deixar os dois se xingando e trocar para intensidade máxima sem organização",
         approachTag: "Caos Total",
         tacticsPatch: { intensity: "high", style: "free" },
-        coachLine: `Resolvam na porrada em campo! Todo mundo no máximo sem estática.`,
+        coachLine: `Resolvam na porrada em campo! Todo mundo no máximo sem tática.`,
         reactions: [
           { idx: 2, text: `Assim o vestiário explode aos 10 minutos...`, tone: "toxic" }
         ]
@@ -4620,7 +4620,7 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
         ]
       },
       good: {
-        label: "Anotar no quadro estático para testar com calma depois",
+        label: "Anotar no quadro tático para testar com calma depois",
         approachTag: "Anotar Plano",
         coachLine: `Boa visão! Desenha na prancheta depois que todo mundo acordar.`,
         reactions: [
@@ -4791,7 +4791,7 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
     ],
     (actors) => buildShuffledChatChoices(actors, {
       great: {
-        label: "Ativar Harmonia da Raimon como Estática Especial e exaltar a união!",
+        label: "Ativar Harmonia da Raimon como Tática Especial e exaltar a união!",
         approachTag: "Harmonia Total",
         tacticsPatch: { hissatsuTactic: "raimon_harmony" },
         coachLine: `Harmonia da Raimon selecionada para o jogo! Quando a química brilha assim, nenhum adversário segura o nosso time!`,
@@ -5535,7 +5535,7 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
     ],
     (actors) => buildShuffledChatChoices(actors, {
       great: {
-        label: "Ativar Estática Especial Rota do Céu + estilo Vertical para furar por cima!",
+        label: "Ativar Tática Especial Rota do Céu + estilo Vertical para furar por cima!",
         approachTag: "Rota do Céu",
         tacticsPatch: { hissatsuTactic: "route_of_sky", style: "vertical" },
         coachLine: `Rota do Céu na agulha! Pula a pressão do meio com bolas aéreas girando direto para o ataque!`,
@@ -5644,7 +5644,7 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
       poor: {
         label: "Confiscar a mesa e dar sermão na frente de todo mundo",
         approachTag: "Severidade",
-        coachLine: `Proibido jogos recreativos no clube! Vão encarar a parede e pensar estática.`,
+        coachLine: `Proibido jogos recreativos no clube! Vão encarar a parede e pensar tática.`,
         reactions: [
           { idx: 0, text: `Poxa... a gente estava super leve...`, tone: "tense" }
         ]
@@ -5894,7 +5894,7 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
       poor: {
         label: "Ficar ofendido com a brincadeira e passar 20 slides extras",
         approachTag: "Levar a Mal",
-        coachLine: `Acham engraçado? Agora vão ver mais vinte diagramas estáticos!`,
+        coachLine: `Acham engraçado? Agora vão ver mais vinte diagramas táticos!`,
         reactions: [
           { idx: 0, text: `Opa... a brincadeira saiu caro hoje, haha.`, tone: "tense" }
         ]
@@ -5932,7 +5932,7 @@ function mkDilemmaChatTemplate(cfg) {
     RAIVA: { label: "Desentendimento", icon: "💢", badge: "is-tense" },
     CRIAR_TECNICA: { label: "Debate Técnico", icon: "⚡", badge: "is-idea" },
     ELOGIO: { label: "Liderança", icon: "⚖️", badge: "is-warm" },
-    TATICA_RIVAL: { label: "Dilema Estático", icon: "📋", badge: "is-neutral" },
+    TATICA_RIVAL: { label: "Dilema Tático", icon: "📋", badge: "is-neutral" },
     RESENHA: { label: "Vestiário", icon: "⚖️", badge: "is-neutral" }
   }[cfg.category] || { label: "Dilema", icon: "⚖️", badge: "is-neutral" };
   return {
@@ -6242,7 +6242,7 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
       { idx: 0, text: `Quem topa passar na barraca de lámen da estação antes de ir dormir? Eu pago o caldo extra!` },
       { idx: 2, text: `Estou dentro! Depois daquele treino puxado eu como duas tigelas fácil!`, tone: "hype" },
       { idx: 1, text: `Partiu! Só não deixa o ${a[2].name} pedir pimenta nível máximo igual semana passada.`, quote: { speakerName: a[2].name, text: "eu como duas tigelas fácil!" } },
-      { idx: 2, text: `Aquela vez foi acidente estático!! 😂` }
+      { idx: 2, text: `Aquela vez foi acidente tático!! 😂` }
     ],
     outcome: () => ({
       kind: "CHEMISTRY_BOND",
@@ -6494,8 +6494,8 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
         label: `Sessão leve só de vídeo e passe curto`,
         approachTag: "+Leitura / Equilibrado",
         tacticsPatch: { style: "possession", intensity: "medium" },
-        effects: { xpAmt: 25, affPts: 12, buffType: "RIVAL_READ", note: "Meio-termo estático sem desgaste" },
-        coachLine: `Nada de corrida: só toque curto e leitura estática do rival.`,
+        effects: { xpAmt: 25, affPts: 12, buffType: "RIVAL_READ", note: "Meio-termo tático sem desgaste" },
+        coachLine: `Nada de corrida: só toque curto e leitura tática do rival.`,
         reactions: [
           { idx: 1, text: `Solução perfeita. Todo mundo sai ganhando.` }
         ]
@@ -6629,7 +6629,7 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
   mkDilemmaChatTemplate({
     id: "dilemma_risky_tactic_vs_safe",
     category: "TATICA_RIVAL",
-    title: "Qual Estática Especial Preparar?",
+    title: "Qual Tática Especial Preparar?",
     actorSpecs: [{ role: "MF" }, { role: "DF" }],
     dialogue: (a, ctx) => [
       { idx: 0, text: `Contra o ${ctx.oppName}, podemos surpreender com Pressão Relâmpago logo de cara!` },
@@ -6639,7 +6639,7 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
     options: () => [
       {
         label: `Preparar Pressão Relâmpago (roubos altos, mais desgaste)`,
-        approachTag: "Estática: Pressão",
+        approachTag: "Tática: Pressão",
         tacticsPatch: { hissatsuTactic: "lightning_press", intensity: "high" },
         effects: { pwrDelta: 12, energyDelta: -5, buffType: "BLOOD_FOCUS", note: "Marcação sufocante" },
         coachLine: `Vamos de Pressão Relâmpago! Não deixem eles respirarem!`,
@@ -6647,7 +6647,7 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
       },
       {
         label: `Preparar Contra-Ataque Catenaccio (muralha segura)`,
-        approachTag: "Estática: Catenaccio",
+        approachTag: "Tática: Catenaccio",
         tacticsPatch: { hissatsuTactic: "catenaccio", posture: "defensive" },
         effects: { chemDelta: 2, affPts: 10, buffType: "RIVAL_READ", note: "Defesa sólida pronta para o bote" },
         coachLine: `Catenaccio armado! Primeiro fecha a porta, depois mata no contra-ataque.`,
@@ -6655,7 +6655,7 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
       },
       {
         label: `Preparar Rota do Céu (passes que rasgam a zaga)`,
-        approachTag: "Estática: Rota do Céu",
+        approachTag: "Tática: Rota do Céu",
         tacticsPatch: { hissatsuTactic: "route_of_sky", posture: "offensive" },
         effects: { pwrDelta: 8, affPts: 10, buffType: "COOP_SYNC", note: "Ataque fluido e aéreo" },
         coachLine: `Rota do Céu! Vamos passar por cima da marcação deles com classe!`,
@@ -6720,7 +6720,7 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
         reactions: [{ idx: 0, text: `É isso! Vou balançar as redes para calar a arquibancada!`, tone: "hype" }]
       },
       {
-        label: `Mandar baixar a bola e focar no estudo estático`,
+        label: `Mandar baixar a bola e focar no estudo tático`,
         approachTag: "+Leitura / +Química",
         effects: { chemDelta: 3, affPts: 10, buffType: "RIVAL_READ", note: "Cabeça fria contra rival irritado" },
         coachLine: `Futebol se ganha na bola, não na rede social. Baixa a bola e estuda o jogo.`,
@@ -7179,7 +7179,7 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
         label: `Enquadrar firme: quem desobedecer perde espaço no esquema`,
         approachTag: "Autoridade / +Respeito",
         effects: { respectDelta: 8, indivRespectDelta: -4, chemDelta: -1, pwrDelta: 6, note: "Ordem restabelecida na firmeza" },
-        coachLine: `Aqui existe comando! Da próxima vez que ignorar uma ordem estática, vai ouvir no vestiário inteiro!`,
+        coachLine: `Aqui existe comando! Da próxima vez que ignorar uma ordem tática, vai ouvir no vestiário inteiro!`,
         reactions: [{ idx: 0, text: `...Tudo bem, professor. Entendi o recado.`, tone: "tense" }]
       },
       {
@@ -7218,7 +7218,7 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
         reactions: [{ idx: 0, text: `Fechado 100%, professor!`, tone: "hype" }]
       },
       {
-        label: `Exigir que provem em campo obedecendo a estática`,
+        label: `Exigir que provem em campo obedecendo a tática`,
         approachTag: "+Respeito / +Duelo",
         effects: { respectDelta: 6, pwrDelta: 10, buffType: "BLOOD_FOCUS", note: "Cobrança produtiva" },
         coachLine: `Desculpa se mostra correndo pelo time no próximo jogo. Quero execução perfeita!`,
@@ -7253,7 +7253,7 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
         label: `Pedir desculpas e admitir que mudou por leitura do rival`,
         approachTag: "Recupera Respeito",
         effects: { respectDelta: 7, indivRespectDelta: 6, chemDelta: 1, note: "Transparência acalmou o elenco" },
-        coachLine: `Vocês têm razão, devia ter avisado antes de ajustar a estática. Da próxima eu alinho direto com vocês.`,
+        coachLine: `Vocês têm razão, devia ter avisado antes de ajustar a tática. Da próxima eu alinho direto com vocês.`,
         reactions: [{ idx: 0, text: `Beleza, professor. Só avisa a gente antes que fica tudo certo.` }]
       },
       {
@@ -7304,7 +7304,7 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
     dialogue: (a, ctx) => [
       { idx: 0, text: `Professor, sendo bem sincero: o vestiário está rachado (Respeito ${ctx.coachRespect || 40}%). Tem gente que não está comprando sua ideia.`, tone: "toxic" },
       { idx: 1, text: `A gente sente que você não confia no nosso jeito de jogar!`, tone: "toxic" },
-      { idx: 2, text: `Se a gente não se acertar hoje, vai ter jogador ignorando estática todo jogo.` }
+      { idx: 2, text: `Se a gente não se acertar hoje, vai ter jogador ignorando tática todo jogo.` }
     ],
     options: () => [
       {
@@ -7885,6 +7885,237 @@ function makeChatBuffByType(buffType, playerIds) {
   return null;
 }
 
+function pickExtraGroupChatActors(actors, coreActors, desiredExtraCount, t = state.tournament) {
+  if (!Array.isArray(actors) || desiredExtraCount <= 0) return [];
+  const used = new Set((coreActors || []).map((a) => a.slotId));
+  const counts = t && typeof t.chatActorCounts === "object" && t.chatActorCounts ? t.chatActorCounts : {};
+  const lastSet = new Set(Array.isArray(t?.lastChatActorIds) ? t.lastChatActorIds : []);
+  const extras = [];
+  for (let i = 0; i < desiredExtraCount; i++) {
+    const avail = actors.filter((a) => !used.has(a.slotId));
+    if (avail.length === 0) break;
+    const scored = avail.map((a) => ({
+      actor: a,
+      score: (counts[a.id] || 0) * 10 + (lastSet.has(a.id) ? 12 : 0) + Math.random() * 8
+    }));
+    scored.sort((x, y) => x.score - y.score);
+    const chosen = scored[0].actor;
+    used.add(chosen.slotId);
+    extras.push(chosen);
+  }
+  return extras;
+}
+
+function buildSquadGroupChimeIns(participants, coreCount, category, interactionMode, ctx = {}) {
+  const out = [];
+  if (!Array.isArray(participants) || participants.length <= coreCount) return out;
+  const opp = ctx.oppName || "o próximo adversário";
+  const a0 = participants[0] || { name: "Companheiro" };
+  const e1Idx = coreCount;
+  const e2Idx = coreCount + 1;
+  const e1 = participants[e1Idx];
+  const e2 = participants[e2Idx];
+  const e3 = participants[coreCount + 2];
+
+  const byCatLine1 = {
+    RAIVA: [
+      `Calma aí, vocês dois. No grupo inteiro todo mundo está escutando essa discussão.`,
+      `Deixa eu entrar no meio rapidinho: o clima pesado antes de pegar ${opp} só atrapalha nosso vestiário.`,
+      `Olha o tom da conversa, pessoal... somos do mesmo time dentro de campo.`
+    ],
+    CRIAR_TECNICA: [
+      `Se essa jogada pegar embalo nos treinos, eu ajudo a puxar a marcação para abrir o corredor de vocês!`,
+      `Fico imaginando a cara da defesa de ${opp} tentando adivinhar essa combinação!`,
+      `Posso entrar dando apoio no segundo toque se a marcação apertar em cima de vocês.`
+    ],
+    ELOGIO: [
+      `Concordo totalmente! O ambiente do nosso elenco cresce a cada treino juntos.`,
+      `Dá orgulho fazer parte de um grupo assim antes de encarar ${opp}.`,
+      `Quando a sintonia bate fora de campo, em campo a bola parece correr sozinha.`
+    ],
+    TATICA_RIVAL: [
+      `Estava observando o mesmo detalhe de ${opp} no vídeo! Se fecharmos esse espaço, eles travam.`,
+      `Para o meu setor também muda bastante conforme o plano que escolhermos contra ${opp}.`,
+      `Boa leitura — eu posso ajustar minha recomposição para ajudar nessa estratégia.`
+    ],
+    RESENHA: [
+      `Cheguei agora no grupo e já estão aprontando antes do jogo contra ${opp}!`,
+      `Não me deixem de fora dessa resenha no vestiário não!`,
+      `Esse elenco tem uma energia única — até no intervalo do treino rende história.`
+    ]
+  };
+  if (e1) {
+    const tone1 = category === "RAIVA" ? "tense" : category === "CRIAR_TECNICA" ? "idea" : category === "ELOGIO" ? "praise" : "normal";
+    out.push(mkSpontaneousMsg(participants, e1Idx, pickChatVariant(byCatLine1[category] || byCatLine1.RESENHA), tone1));
+  }
+  if (e2 && (interactionMode === "AUTO_COMPLETE" || Math.random() < 0.72)) {
+    const line2 = pickChatVariant([
+      `Exatamente o que eu ia falar! ${a0.name} levantou um ponto que envolve o time todo.`,
+      `Estou acompanhando tudo aqui — o que decidirmos agora vai refletir direto contra ${opp}.`,
+      `Podem contar comigo também no que precisarem dentro das quatro linhas.`,
+      `Se todo mundo remar para o mesmo lado, ${opp} não segura nosso ritmo.`
+    ]);
+    out.push(mkSpontaneousMsg(participants, e2Idx, line2, category === "RAIVA" ? "calm" : "hype"));
+  }
+  if (e3 && interactionMode === "AUTO_COMPLETE") {
+    const line3 = pickChatVariant([
+      `Fechado com vocês! O elenco inteiro sente quando o grupo se movimenta junto.`,
+      `Boa! Agora ficou muito mais claro para todo mundo do time.`
+    ]);
+    out.push(mkSpontaneousMsg(participants, coreCount + 2, line3, "calm"));
+  }
+  return out;
+}
+
+function buildSilentResolutionDialogue(participants, coreCount, silentMatured, category, ctx = {}) {
+  const opp = ctx.oppName || "o adversário";
+  const a0 = participants[0] || { name: "Jogador" };
+  const a1 = participants[1] || participants[0] || { name: "Companheiro" };
+  const hasMediator = participants.length >= 3;
+  const medIdx = hasMediator ? 2 : 0;
+  const med = participants[medIdx] || a0;
+  const fourthIdx = participants.length >= 4 ? 3 : 1;
+
+  if (silentMatured) {
+    return [
+      mkSpontaneousMsg(
+        participants,
+        0,
+        pickChatVariant([
+          `Parece que o técnico visualizou e preferiu deixar a gente resolver como time...`,
+          `O professor nem precisou responder — o recado está claro: temos que assumir a maturidade aqui dentro.`
+        ]),
+        "tense"
+      ),
+      mkSpontaneousMsg(
+        participants,
+        medIdx,
+        pickChatVariant([
+          `Ele está certo em confiar na gente, ${a0.name} e ${a1.name}. Vamos conversar direito porque o foco é ${opp}!`,
+          `Pessoal, respirem fundo. O vestiário é nosso para blindar, não para dividir antes do apito.`
+        ]),
+        "calm"
+      ),
+      mkSpontaneousMsg(
+        participants,
+        1,
+        pickChatVariant([
+          `Você tem razão, ${med.name}. Eu passei do ponto também... bola para frente, ${a0.name}.`,
+          `Beleza, ${a0.name}. Vamos deixar a cabeça quente para trás e pensar só em ganhar de ${opp}.`
+        ]),
+        "calm",
+        { quote: { speakerName: med.name, text: "o foco é " + opp } }
+      ),
+      mkSpontaneousMsg(
+        participants,
+        fourthIdx,
+        pickChatVariant([
+          `É isso! Resolvido entre nós — o técnico vai ver o grupo unido dentro de campo!`,
+          `Amadurecemos muito nessa conversa. Agora ninguém segura a nossa sintonia contra ${opp}!`
+        ]),
+        "hype"
+      )
+    ];
+  }
+
+  return [
+    mkSpontaneousMsg(
+      participants,
+      0,
+      pickChatVariant([
+        `Sério que o técnico só visualizou a mensagem e não falou nada?! Assim fica difícil!`,
+        `Ele leu tudo e ficou calado... parece que ninguém está levando a sério o que eu disse.`
+      ]),
+      "toxic"
+    ),
+    mkSpontaneousMsg(
+      participants,
+      1,
+      pickChatVariant([
+        `Está vendo, ${a0.name}? Se nem a comissão se posiciona, cada um vai ter que se virar em campo mesmo.`,
+        `Melhor encerrar esse assunto por aqui antes que piore ainda mais para o jogo contra ${opp}.`
+      ]),
+      "toxic"
+    ),
+    mkSpontaneousMsg(
+      participants,
+      medIdx,
+      pickChatVariant([
+        `Pessoal, baixem a guarda... se formos para campo nesse clima, quem ganha com isso é ${opp}.`,
+        `Calma aí, gente! Não deixem esse silêncio transformar o vestiário num campo minado.`
+      ]),
+      "tense"
+    ),
+    mkSpontaneousMsg(
+      participants,
+      fourthIdx,
+      pickChatVariant([
+        `O clima ficou pesado de vez... vamos ver como vamos reagir quando a bola rolar.`,
+        `Treino hoje vai ser tenso. Tomara que essa faísca não atrapalhe nossos passes em campo.`
+      ]),
+      "tense"
+    )
+  ];
+}
+
+function buildPostDecisionWrapUpMessages(participants, coreCount, quality, category, configChanges = [], ctx = {}, existingCount = 0) {
+  const opp = ctx.oppName || "o adversário";
+  const out = [];
+  const totalWanted = Math.random() < 0.52 ? 4 : 3;
+  const needed = Math.max(0, totalWanted - existingCount);
+  if (needed === 0) return out;
+
+  const hasTacChange = Array.isArray(configChanges) && configChanges.length > 0;
+  const tacText = hasTacChange ? configChanges[0] : "";
+  const extraStart = participants.length > coreCount ? coreCount : 0;
+
+  const pickSpeaker = (stepIdx) => {
+    if (participants.length <= 2) return stepIdx % 2;
+    if (stepIdx === 0 && extraStart > 0) return extraStart;
+    if (stepIdx === 1) return Math.min(1, participants.length - 1);
+    if (stepIdx === 2 && participants.length > extraStart + 1) return extraStart + 1;
+    return stepIdx % participants.length;
+  };
+
+  const positiveLines = [
+    hasTacChange ? `Anotado o ajuste (${tacText})! Já estou visualizando a movimentação contra ${opp}.` : `Agora sim ficou claro para o time inteiro como vamos jogar contra ${opp}!`,
+    `Pode confiar na nossa entrega, professor. O grupo comprou a ideia e vai executar até o último segundo!`,
+    `Essa conversa destravou o que faltava no vestiário. Vamos entrar leves e mordendo em cada bola!`,
+    `Que sintonia boa no grupo hoje! Até no aquecimento vai dar para sentir a diferença.`
+  ];
+  const tradeoffLines = [
+    hasTacChange ? `Entendido: ${tacText}. Cada um sabe exatamente o papel que vai cumprir em campo.` : `Decisão tomada, professor. Cada escolha tem seu preço e vamos assumir juntos em campo.`,
+    `Vou adaptar meu posicionamento para compensar esse detalhe contra ${opp}.`,
+    `Justo! O importante é o elenco inteiro seguir na mesma direção sem ficar dividido.`,
+    `Combinado. Vamos provar na prática que essa aposta da comissão funciona.`
+  ];
+  const tenseLines = [
+    `Não era bem o que eu esperava ouvir, professor... mas vou cumprir minha parte no gramado.`,
+    `O clima ainda ficou meio atravessado por aqui. Vamos torcer para não pesar contra ${opp}.`,
+    `Pessoal, respirem fundo — agora não adianta reclamar, temos que jogar bola.`,
+    `Fica o alerta para os próximos treinos, porque a pressão no vestiário subiu.`
+  ];
+
+  const pool = quality === "GREAT" || quality === "GOOD"
+    ? positiveLines
+    : quality === "TRADEOFF"
+    ? tradeoffLines
+    : tenseLines;
+  const tone = quality === "GREAT" ? "hype" : quality === "GOOD" ? "calm" : quality === "TRADEOFF" ? "normal" : "tense";
+
+  const usedIdx = new Set();
+  for (let i = 0; i < needed; i++) {
+    let pIdx = i % pool.length;
+    while (usedIdx.has(pIdx) && usedIdx.size < pool.length) {
+      pIdx = (pIdx + 1) % pool.length;
+    }
+    usedIdx.add(pIdx);
+    const spIdx = pickSpeaker(i);
+    out.push(mkSpontaneousMsg(participants, spIdx, pool[pIdx], tone));
+  }
+  return out;
+}
+
 function spawnSpontaneousTeamChat(t = state.tournament, forcedCategory = null, opts = {}) {
   if (typeof isBetaMode === "function" && !isBetaMode()) return null;
   const prep = t?.prep;
@@ -7950,25 +8181,33 @@ function spawnSpontaneousTeamChat(t = state.tournament, forcedCategory = null, o
       actorSource = [...preferred, ...others];
     }
   }
-  const chosenActors = Array.isArray(opts.exactActorIds) && opts.exactActorIds.length >= 2
+  const coreActors = Array.isArray(opts.exactActorIds) && opts.exactActorIds.length >= 2
     ? (() => {
         const matched = opts.exactActorIds.map((pid) => actors.find((a) => a.id === pid)).filter(Boolean);
         return matched.length >= 2 ? matched : tpl.pickActors(actorSource, t);
       })()
     : tpl.pickActors(actorSource, t);
-  if (!chosenActors || chosenActors.length < 2) return null;
+  if (!coreActors || coreActors.length < 2) return null;
 
-  // Registra participação para evitar repetir sempre os mesmos jogadores
+  const coreCount = coreActors.length;
+  const maxExtras = coreCount >= 3 ? (Math.random() < 0.55 ? 2 : 1) : (Math.random() < 0.35 ? 3 : 2);
+  const extraActors = pickExtraGroupChatActors(actors, coreActors, maxExtras, t);
+  const chosenActors = [...coreActors, ...extraActors];
+
+  // Registra participação dos atores principais e falantes extras para manter rotação natural do elenco
   if (!t.chatActorCounts || typeof t.chatActorCounts !== "object") t.chatActorCounts = {};
-  chosenActors.forEach((a) => {
+  coreActors.forEach((a) => {
     if (a?.id) t.chatActorCounts[a.id] = (t.chatActorCounts[a.id] || 0) + 1;
   });
-  t.lastChatActorIds = chosenActors.map((a) => a.id).filter(Boolean);
+  if (extraActors[0]?.id) {
+    t.chatActorCounts[extraActors[0].id] = (t.chatActorCounts[extraActors[0].id] || 0) + 1;
+  }
+  t.lastChatActorIds = coreActors.map((a) => a.id).filter(Boolean);
   if (!Array.isArray(t.chatTemplateHistory)) t.chatTemplateHistory = [];
   t.chatTemplateHistory.push(tpl.id);
   if (t.chatTemplateHistory.length > 32) t.chatTemplateHistory = t.chatTemplateHistory.slice(-32);
 
-  const selectedIds = chosenActors.map((a) => a.slotId);
+  const selectedIds = coreActors.map((a) => a.slotId);
   const oppName = getNextOpponentDisplayName(t);
   const rivalStar = getTopOutfieldRivalHighlight(t);
   const respectInfo = typeof getCoachRespectInfo === "function" ? getCoachRespectInfo(t) : { value: 66, tier: "MID" };
@@ -7982,8 +8221,10 @@ function spawnSpontaneousTeamChat(t = state.tournament, forcedCategory = null, o
   };
   const climate = computeGroupChatClimate(selectedIds, t);
   const baseTimeMin = 840 + Math.floor(Math.random() * 180) + prep.teamChats.length * 14;
-  const messages = stampThreadTimestamps(tpl.buildDialogue(chosenActors, ctx), baseTimeMin);
   const interactionMode = tpl.interactionMode || "CLASSIC";
+  const baseMessages = tpl.buildDialogue(chosenActors, ctx);
+  const chimeInMessages = buildSquadGroupChimeIns(chosenActors, coreCount, tpl.category, interactionMode, ctx);
+  const messages = stampThreadTimestamps([...baseMessages, ...chimeInMessages], baseTimeMin);
   const choices = interactionMode === "AUTO_COMPLETE" ? [] : (typeof tpl.buildChoices === "function" ? tpl.buildChoices(chosenActors, ctx) : []);
   const autoOutcome = interactionMode === "AUTO_COMPLETE" && typeof tpl.buildAutoOutcome === "function"
     ? tpl.buildAutoOutcome(chosenActors, ctx)
@@ -8003,6 +8244,7 @@ function spawnSpontaneousTeamChat(t = state.tournament, forcedCategory = null, o
     ctx,
     baseTimeMin,
     climate,
+    coreCount,
     participants: chosenActors,
     selectedIds,
     messages,
@@ -8249,7 +8491,7 @@ function finalizeAutonomousTeamChat(chatId, skipRender = false) {
       speakerRole: "SYSTEM",
       speakerName: "Acordo do Elenco",
       speakerSprite: "",
-      roleTag: "Estática",
+      roleTag: "Tática",
       tone: "system",
       time: formatChatTimestamp(baseT, chat.messages.length),
       text: `⚙️ O grupo combinou para o próximo jogo: ${configChanges.join(" • ")}`
@@ -8366,6 +8608,9 @@ function resolveSpontaneousTeamChat(chatId, choiceIdx) {
   const baseT = chat.baseTimeMin || 920;
   const curLen = chat.messages.length;
   const isSilentIgnore = choice.quality === "IGNORE_SILENT";
+  const coreCount = Number.isInteger(chat.coreCount) ? chat.coreCount : Math.min(3, (chat.participants || []).length || 2);
+  let silentMatured = false;
+
   if (isSilentIgnore) {
     chat.messages.push({
       senderIdx: -2,
@@ -8376,6 +8621,15 @@ function resolveSpontaneousTeamChat(chatId, choiceIdx) {
       tone: "system",
       time: formatChatTimestamp(baseT, curLen),
       text: `👀 Visualizado pelo Técnico (optou por não se meter)`
+    });
+    const rVal = typeof getCoachRespectInfo === "function" ? getCoachRespectInfo(t).value : 66;
+    silentMatured = Math.random() < (rVal >= 65 ? 0.56 : 0.40);
+    const silentMsgs = buildSilentResolutionDialogue(chat.participants || [], coreCount, silentMatured, chat.category, chat.ctx || {});
+    silentMsgs.forEach((sm) => {
+      chat.messages.push({
+        ...sm,
+        time: sm.time || formatChatTimestamp(baseT, chat.messages.length)
+      });
     });
   } else {
     chat.messages.push({
@@ -8389,23 +8643,43 @@ function resolveSpontaneousTeamChat(chatId, choiceIdx) {
       text: choice.coachLine
     });
   }
-  if (Array.isArray(choice.reactions)) {
-    choice.reactions.forEach((m, rIdx) => {
+
+  const rawQuality = choice.quality || "GOOD";
+  const quality = isSilentIgnore ? (silentMatured ? "TRADEOFF" : "POOR") : rawQuality;
+  const configChanges = applyChatTacticalPatch(t, choice.tacticsPatch, chat.participants, chat.ctx || {});
+
+  if (!isSilentIgnore) {
+    const baseReactions = Array.isArray(choice.reactions) ? choice.reactions : [];
+    baseReactions.forEach((m) => {
       chat.messages.push({
         ...m,
-        time: m.time || formatChatTimestamp(baseT, curLen + 1 + rIdx)
+        time: m.time || formatChatTimestamp(baseT, chat.messages.length)
+      });
+    });
+    const extraWrapUp = buildPostDecisionWrapUpMessages(
+      chat.participants || [],
+      coreCount,
+      quality,
+      chat.category,
+      configChanges,
+      chat.ctx || {},
+      baseReactions.length
+    );
+    extraWrapUp.forEach((wm) => {
+      chat.messages.push({
+        ...wm,
+        time: wm.time || formatChatTimestamp(baseT, chat.messages.length)
       });
     });
   }
 
-  const configChanges = applyChatTacticalPatch(t, choice.tacticsPatch, chat.participants, chat.ctx || {});
   if (configChanges.length > 0) {
     chat.messages.push({
       senderIdx: -2,
       speakerRole: "SYSTEM",
       speakerName: "Configuração da Equipe",
       speakerSprite: "",
-      roleTag: "Estática",
+      roleTag: "Tática",
       tone: "system",
       time: formatChatTimestamp(baseT, chat.messages.length),
       text: `⚙️ Configuração para o próximo jogo: ${configChanges.join(" • ")}`
@@ -8417,12 +8691,8 @@ function resolveSpontaneousTeamChat(chatId, choiceIdx) {
   (typeof getSlots === "function" ? getSlots() : []).forEach((s) => { slotsMap[s.id] = s; });
   const playerIds = selectedIds.map((sid) => state.squad[sid]?.id).filter(Boolean);
 
-  const rawQuality = choice.quality || "GOOD";
   const ce = choice.customEffects && typeof choice.customEffects === "object" ? choice.customEffects : null;
-  let silentMatured = false;
   if (isSilentIgnore) {
-    const rVal = typeof getCoachRespectInfo === "function" ? getCoachRespectInfo(t).value : 66;
-    silentMatured = Math.random() < (rVal >= 65 ? 0.56 : 0.40);
     chat.messages.push({
       senderIdx: -2,
       speakerRole: "SYSTEM",
@@ -8436,7 +8706,6 @@ function resolveSpontaneousTeamChat(chatId, choiceIdx) {
         : `🔥 Sem resposta do técnico, o clima azedou e virou uma treta aberta no vestiário!`
     });
   }
-  const quality = isSilentIgnore ? (silentMatured ? "TRADEOFF" : "POOR") : rawQuality;
 
   let affPts = isSilentIgnore
     ? (silentMatured ? 14 : -10)
@@ -9923,11 +10192,14 @@ function buildBetweenMatchPrepHTML(t, stats) {
         `;
       } else {
         const namesSubtitle = (activeChat.participants || []).map((pt) => `${pt.name} (${pt.roleLabel})`).join(", ");
-        const headerAvatarsHTML = (activeChat.participants || [])
-          .slice(0, 2)
-          .map((pt) => `<img src="${pt.sprite}" alt="${pt.name}" />`)
-          .join("");
-        const senderPaletteClass = ["is-c0", "is-c1", "is-c2"];
+        const ptList = activeChat.participants || [];
+        const headerAvatarsHTML =
+          ptList
+            .slice(0, 4)
+            .map((pt) => `<img src="${pt.sprite}" alt="${pt.name}" />`)
+            .join("") +
+          (ptList.length > 4 ? `<span class="wpp-topbar-more">+${ptList.length - 4}</span>` : "");
+        const senderPaletteClass = ["is-c0", "is-c1", "is-c2", "is-c3", "is-c4"];
 
         const feedHTML = (activeChat.messages || [])
           .map((m) => {
@@ -9947,7 +10219,7 @@ function buildBetweenMatchPrepHTML(t, stats) {
                 </div>
               `;
             }
-            const cIdx = Math.max(0, Number(m.senderIdx) || 0) % 3;
+            const cIdx = Math.max(0, Number(m.senderIdx) || 0) % 5;
             const quoteHTML = m.quote?.text
               ? `
                 <div class="wpp-quoted">
