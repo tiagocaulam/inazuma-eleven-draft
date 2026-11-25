@@ -9835,6 +9835,28 @@ body {
   color: #fde68a;
 }
 
+.wpp-respect-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 0.67rem;
+  font-weight: 800;
+  background: rgba(15, 23, 42, 0.72);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  color: #e2e8f0;
+  white-space: nowrap;
+}
+.wpp-respect-pill.is-high {
+  border-color: rgba(74, 222, 128, 0.55);
+  background: rgba(20, 83, 45, 0.38);
+}
+.wpp-respect-pill.is-low {
+  border-color: rgba(248, 113, 113, 0.65);
+  background: rgba(127, 29, 29, 0.42);
+}
+
 .wpp-thread-avatar-wrap {
   position: relative;
   width: 42px;

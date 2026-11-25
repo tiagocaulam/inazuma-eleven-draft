@@ -440,15 +440,28 @@ function evaluateCoopMoveSupport(moveName, cat, actorNode, teamNodes, pitch, awa
   });
 
   const cap = isShot ? (partners.length >= 2 ? 3.8 : 2.6) : (partners.length >= 2 ? 2.8 : 2.0);
-  if (
-    actorNode?.side === "user" &&
-    !pitch?.is5v5 &&
-    Array.isArray(state.tournament?.nextMatchChatBuffs) &&
-    state.tournament.nextMatchChatBuffs.some((b) => b.type === "COOP_SYNC" && actorNode?.player?.id && b.playerIds?.includes(actorNode.player.id))
-  ) {
-    total += 0.80;
+  if (actorNode?.side === "user" && !pitch?.is5v5) {
+    if (
+      Array.isArray(state.tournament?.nextMatchChatBuffs) &&
+      state.tournament.nextMatchChatBuffs.some((b) => b.type === "COOP_SYNC" && actorNode?.player?.id && b.playerIds?.includes(actorNode.player.id))
+    ) {
+      total += 0.80;
+    }
+    if (typeof getBetaPairArc === "function") {
+      partners.forEach((pt) => {
+        const arc = getBetaPairArc(actorNode.player, pt.node?.player);
+        if (!arc) return;
+        if (arc.state === "PARCERIA_EM_ALTA" || arc.state === "RECONCILIADOS") total += 0.45;
+        else if (arc.state === "TRETA_ABERTA") total -= 0.55;
+      });
+    }
+    if (typeof getCoachRespectInfo === "function") {
+      const rTier = getCoachRespectInfo().tier;
+      if (rTier === "HIGH") total += 0.25;
+      else if (rTier === "LOW") total -= 0.35;
+    }
   }
-  const bonusScore = Number(Math.min(cap, total).toFixed(2));
+  const bonusScore = Number(Math.max(0, Math.min(cap, total)).toFixed(2));
   const kindWord = partners.length >= 2 ? "Trio" : "Dupla";
   const synSuffix = maxAffLv > 0 ? ` Nv.${maxAffLv}` : anyBond ? " Laço" : "";
   const summaryTag = `${kindWord}${synSuffix} +${bonusScore.toFixed(1)}`;
@@ -3428,6 +3441,61 @@ function stepContinuousPhysics(st, pitch, dt) {
       const roll = Math.random();
       const effShotInstinct = Math.min(0.98, cProf.shotInstinct + (isCarrierAce ? 0.08 : 0));
 
+      // TESTE BETA: Desobediência tática por Respeito baixo ao técnico / Insatisfação individual ou Treta Aberta!
+      if (attIsUser && !pitch.is5v5 && typeof isBetaMode === "function" && isBetaMode()) {
+        if (!st.betaMatchStats) st.betaMatchStats = { disobediences: 0, feudSnubs: 0, honoredPromises: 0, brokenPromises: 0 };
+        const respectInfo = typeof getCoachRespectInfo === "function" ? getCoachRespectInfo() : { value: 66, tier: "MID" };
+        const pMood = typeof getPlayerRespectStatus === "function" ? getPlayerRespectStatus(carrier.player?.id) : { mood: "NEUTRAL" };
+        if (
+          betterShotTeammate &&
+          typeof getBetaPairArc === "function" &&
+          st.betaMatchStats.feudSnubs < 2
+        ) {
+          const pairArc = getBetaPairArc(carrier.player, betterShotTeammate.player);
+          if (pairArc && pairArc.state === "TRETA_ABERTA" && Math.random() < 0.34 && goalDist <= 38) {
+            st.betaMatchStats.feudSnubs += 1;
+            if (typeof prependNarrationLine === "function") {
+              prependNarrationLine(
+                st,
+                "nar-save",
+                `${st.minute}' 💢 ${carrier.player.name} evitou tocar para ${betterShotTeammate.player.name} (treta no vestiário) e arriscou por conta própria!`,
+                null,
+                null,
+                null
+              );
+            }
+            launchContinuousShot(st, pitch, carrier, defNodes, attSupport, defSupport, ovrDiff, attNodes, { forceLongShot: goalDist > 26 });
+            return;
+          }
+        }
+        const isUnhappyOrLowRespect = respectInfo.tier === "LOW" || pMood.mood === "UNHAPPY";
+        if (
+          isUnhappyOrLowRespect &&
+          st.betaMatchStats.disobediences < 3 &&
+          carrier.carryTime >= 0.35 &&
+          goalDist <= 40 &&
+          (userStyle === "possession" || userPosture === "defensive" || betterShotTeammate)
+        ) {
+          const disobeyProb = respectInfo.value < 30 ? 0.24 : respectInfo.tier === "LOW" ? 0.16 : 0.14;
+          if (Math.random() < disobeyProb) {
+            st.betaMatchStats.disobediences += 1;
+            const orderTxt = userStyle === "possession" ? "de posse" : userPosture === "defensive" ? "recuada" : "tática";
+            if (typeof prependNarrationLine === "function") {
+              prependNarrationLine(
+                st,
+                "nar-save",
+                `${st.minute}' ⚠️ ${carrier.player.name} ignorou a ordem ${orderTxt} do técnico e tentou resolver sozinho!`,
+                null,
+                null,
+                null
+              );
+            }
+            launchContinuousShot(st, pitch, carrier, defNodes, attSupport, defSupport, ovrDiff, attNodes, { forceLongShot: goalDist > 25 });
+            return;
+          }
+        }
+      }
+
       // LONG SHOT: técnica de Chute Longo (mais frequente para Individualistas, Camisa 10 e estilo Vertical)
       const longMove = getNodeLongShotMove(carrier);
       const inLongZone = attIsUser ? (carrier.x >= 28 && carrier.x < 68) : (carrier.x <= 72 && carrier.x > 32);
@@ -4403,6 +4471,40 @@ function runLiveMatchSimulation(stageIdx) {
       text: `0' Apito inicial pela ${st.stageName} do ${compLabel}: Sua Seleção enfrenta ${st.oppTeam.name}!`
     }
   ];
+  st._betaMemoryRecorded = false;
+  if (typeof isBetaMode === "function" && isBetaMode()) {
+    const promRes = typeof checkAndConsumeChatPromisesBeforeMatch === "function"
+      ? checkAndConsumeChatPromisesBeforeMatch(state.tournament)
+      : { honored: [], broken: [] };
+    st.betaMatchStats = {
+      disobediences: 0,
+      feudSnubs: 0,
+      honoredPromises: promRes.honored.length,
+      brokenPromises: promRes.broken.length
+    };
+    if (promRes.broken.length > 0) {
+      st.narration.unshift({
+        cls: "nar-save",
+        iconCat: "FF",
+        text: `0' ⚠️ O elenco notou que o combinado no vestiário (${promRes.broken[0].label}) foi alterado antes do apito inicial...`
+      });
+    } else if (typeof getCoachRespectInfo === "function") {
+      const rInfo = getCoachRespectInfo();
+      if (rInfo.tier === "HIGH") {
+        st.narration.unshift({
+          cls: "nar-goal-user",
+          iconCat: "FF",
+          text: `0' 🫡 Elenco fechado com o técnico (Respeito ${rInfo.value}%): foco total na estratégia!`
+        });
+      } else if (rInfo.tier === "LOW") {
+        st.narration.unshift({
+          cls: "nar-save",
+          iconCat: "FF",
+          text: `0' ⚠️ Clima tenso com a comissão técnica (Respeito ${rInfo.value}%): jogadores podem desobedecer ordens em campo!`
+        });
+      }
+    }
+  }
   st.running = true;
   st.finished = false;
   st.halftimeHandled = false;

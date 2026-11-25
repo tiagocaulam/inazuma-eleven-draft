@@ -130,6 +130,9 @@ function finishPenaltyShootout(st) {
   st.won = pen.userGoals > pen.oppGoals;
   st.finished = true;
   st.running = false;
+  if (typeof recordBetaPostMatchMemory === "function") {
+    recordBetaPostMatchMemory(st);
+  }
   st.penaltiesText = `Decisão por Pênaltis: Dream Team ${pen.userGoals} x ${pen.oppGoals} ${st.oppTeam.name}`;
   prependNarrationLine(
     st,

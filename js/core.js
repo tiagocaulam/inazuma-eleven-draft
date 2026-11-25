@@ -682,6 +682,202 @@ function addPairAffinityPoints(pA, pB, delta, statField = null, t = state.tourna
   };
 }
 
+// =========================================================================
+// TESTE BETA: SISTEMA DE RESPEITO AO TÉCNICO, PROMESSAS TÁTICAS & MICRO-ARCOS
+// =========================================================================
+function ensureBetaDynamicsState(t = state.tournament) {
+  if (!t || typeof t !== "object") return null;
+  if (typeof t.coachRespect !== "number" || !Number.isFinite(t.coachRespect)) t.coachRespect = 66;
+  if (!t.playerRespect || typeof t.playerRespect !== "object") t.playerRespect = {};
+  if (!Array.isArray(t.chatPromises)) t.chatPromises = [];
+  if (t.pendingBrokenPromise === undefined) t.pendingBrokenPromise = null;
+  if (!t.chatArcs || typeof t.chatArcs !== "object") t.chatArcs = {};
+  if (t.lastMatchMemory === undefined) t.lastMatchMemory = null;
+  if (t.last5v5Memory === undefined) t.last5v5Memory = null;
+  if (!t.prepFavoritismCounts || typeof t.prepFavoritismCounts !== "object") t.prepFavoritismCounts = {};
+  return t;
+}
+
+function adjustCoachRespect(delta = 0, playerIds = [], indivDelta = 0, t = state.tournament) {
+  if (typeof isBetaMode === "function" && !isBetaMode()) return null;
+  if (!ensureBetaDynamicsState(t)) return null;
+  const prev = t.coachRespect;
+  const next = Math.max(0, Math.min(100, Math.round(prev + (Number(delta) || 0))));
+  t.coachRespect = next;
+  const ids = Array.isArray(playerIds) ? playerIds : [];
+  const iDelta = Number(indivDelta) || 0;
+  if (iDelta !== 0 && ids.length > 0) {
+    ids.forEach((pid) => {
+      if (!pid) return;
+      const cur = Number(t.playerRespect[pid]) || 0;
+      t.playerRespect[pid] = Math.max(-30, Math.min(30, Math.round(cur + iDelta)));
+    });
+  }
+  return { prev, next, delta: next - prev };
+}
+
+function getCoachRespectInfo(t = state.tournament) {
+  ensureBetaDynamicsState(t);
+  const val = t && typeof t.coachRespect === "number" ? Math.max(0, Math.min(100, Math.round(t.coachRespect))) : 66;
+  if (val >= 75) {
+    return { value: val, tier: "HIGH", label: "Elenco Fechado", icon: "🫡", color: "#4ade80" };
+  }
+  if (val >= 45) {
+    return { value: val, tier: "MID", label: "Profissional", icon: "⚖️", color: "#93c5fd" };
+  }
+  return { value: val, tier: "LOW", label: "Vestiário Rachado", icon: "⚠️", color: "#f87171" };
+}
+
+function getPlayerRespectStatus(playerId, t = state.tournament) {
+  ensureBetaDynamicsState(t);
+  const score = playerId && t?.playerRespect ? (Number(t.playerRespect[playerId]) || 0) : 0;
+  if (score >= 10) return { score, mood: "LOYAL", label: "Fechado" };
+  if (score <= -10) return { score, mood: "UNHAPPY", label: "Insatisfeito" };
+  return { score, mood: "NEUTRAL", label: "Neutro" };
+}
+
+function recordBetaChatPromise(t, key, expectedValue, label, actorId = null, actorName = "") {
+  if (typeof isBetaMode === "function" && !isBetaMode()) return;
+  if (!ensureBetaDynamicsState(t) || !key || expectedValue === undefined || expectedValue === null) return;
+  t.chatPromises = t.chatPromises.filter((pr) => pr.key !== key);
+  t.chatPromises.push({
+    key,
+    expectedValue,
+    label: label || key,
+    actorId: actorId || null,
+    actorName: actorName || "",
+    stageIdx: t?.prep?.nextStageIdx ?? t?.stageIndex ?? 0
+  });
+}
+
+function checkAndConsumeChatPromisesBeforeMatch(t = state.tournament) {
+  if (typeof isBetaMode === "function" && !isBetaMode()) return { honored: [], broken: [] };
+  if (!ensureBetaDynamicsState(t)) return { honored: [], broken: [] };
+  const list = Array.isArray(t.chatPromises) ? [...t.chatPromises] : [];
+  t.chatPromises = [];
+  if (list.length === 0) return { honored: [], broken: [] };
+
+  const tac = typeof getTactics === "function" ? getTactics() : (t.tactics || {});
+  const honored = [];
+  const broken = [];
+  list.forEach((pr) => {
+    const actualVal = pr.key === "formation" ? state.formation : tac?.[pr.key];
+    if (actualVal === pr.expectedValue) {
+      honored.push(pr);
+    } else {
+      broken.push({ ...pr, actualValue: actualVal });
+    }
+  });
+
+  if (honored.length > 0) {
+    adjustCoachRespect(Math.min(6, honored.length * 3), honored.map((p) => p.actorId).filter(Boolean), 3, t);
+  }
+  if (broken.length > 0) {
+    adjustCoachRespect(-Math.min(14, broken.length * 8), broken.map((p) => p.actorId).filter(Boolean), -10, t);
+    t.pendingBrokenPromise = broken[0];
+  }
+  return { honored, broken };
+}
+
+function setBetaPairArc(pA, pB, arcState, topic = "", t = state.tournament) {
+  if (typeof isBetaMode === "function" && !isBetaMode()) return null;
+  if (!ensureBetaDynamicsState(t) || !pA || !pB) return null;
+  const rawIdA = String(pA.id || pA.fullName || pA.name || "").trim();
+  const rawIdB = String(pB.id || pB.fullName || pB.name || "").trim();
+  const key = getPairAffinityKey(rawIdA, rawIdB);
+  if (!key) return null;
+  const prev = t.chatArcs[key];
+  const firstIsA = rawIdA < rawIdB;
+  const entry = {
+    key,
+    aId: firstIsA ? rawIdA : rawIdB,
+    bId: firstIsA ? rawIdB : rawIdA,
+    aName: firstIsA ? (pA.name || rawIdA) : (pB.name || rawIdB),
+    bName: firstIsA ? (pB.name || rawIdB) : (pA.name || rawIdA),
+    state: arcState,
+    topic: topic || prev?.topic || "vestiário",
+    startedStage: prev?.startedStage ?? (t?.prep?.nextStageIdx ?? t?.stageIndex ?? 0),
+    updatedStage: t?.prep?.nextStageIdx ?? t?.stageIndex ?? 0,
+    chapter: prev && prev.state !== arcState ? (prev.chapter || 1) + 1 : (prev?.chapter || 1)
+  };
+  t.chatArcs[key] = entry;
+  return entry;
+}
+
+function getBetaPairArc(pAOrId, pBOrId, t = state.tournament) {
+  if (typeof isBetaMode === "function" && !isBetaMode()) return null;
+  if (!t?.chatArcs || !pAOrId || !pBOrId) return null;
+  const idA = typeof pAOrId === "string" ? pAOrId : (pAOrId.id || pAOrId.fullName || pAOrId.name || "");
+  const idB = typeof pBOrId === "string" ? pBOrId : (pBOrId.id || pBOrId.fullName || pBOrId.name || "");
+  const key = getPairAffinityKey(idA, idB);
+  return key ? (t.chatArcs[key] || null) : null;
+}
+
+function getActiveBetaArcsByState(arcState, t = state.tournament) {
+  if (!t?.chatArcs || typeof t.chatArcs !== "object") return [];
+  return Object.values(t.chatArcs).filter((arc) => arc && arc.state === arcState);
+}
+
+function recordBetaPostMatchMemory(st, t = state.tournament) {
+  if (typeof isBetaMode === "function" && !isBetaMode()) return;
+  if (!st || st.isGoldenGoal5v5 || st._betaMemoryRecorded || !ensureBetaDynamicsState(t)) return;
+  st._betaMemoryRecorded = true;
+
+  const goalsByName = {};
+  (st.goalsUser || []).forEach((g) => {
+    const nm = g?.name || "";
+    if (nm) goalsByName[nm] = (goalsByName[nm] || 0) + 1;
+  });
+  let topScorerName = null;
+  let topScorerGoals = 0;
+  Object.entries(goalsByName).forEach(([nm, cnt]) => {
+    if (cnt > topScorerGoals) {
+      topScorerName = nm;
+      topScorerGoals = cnt;
+    }
+  });
+  const slots = typeof getSlots === "function" ? getSlots() : [];
+  const findPlayerByName = (nm) => {
+    if (!nm) return null;
+    for (const sl of slots) {
+      const p = state.squad?.[sl.id];
+      if (p && p.name === nm) return p;
+    }
+    return null;
+  };
+  const topScorerPlayer = findPlayerByName(topScorerName);
+  const gkSlot = slots.find((s) => s.role === "GK");
+  const gkPlayer = gkSlot ? state.squad?.[gkSlot.id] : null;
+  const viaPenalties = Boolean(st.penalties && st.penalties.phase === "DONE");
+  const bStats = st.betaMatchStats || {};
+
+  t.lastMatchMemory = {
+    stageIdx: t.stageIndex || 0,
+    oppName: st.oppTeam?.name || "Rival",
+    won: Boolean(st.won),
+    isDraw: Boolean(st.isDraw),
+    userScore: Number(st.userScore) || 0,
+    oppScore: Number(st.oppScore) || 0,
+    viaPenalties,
+    topScorerId: topScorerPlayer?.id || null,
+    topScorerName: topScorerName || null,
+    topScorerGoals,
+    gkHeroId: gkPlayer?.id || null,
+    gkHeroName: gkPlayer?.name || null,
+    cleanSheet: (Number(st.oppScore) || 0) === 0,
+    disobediences: Number(bStats.disobediences) || 0,
+    feudSnubs: Number(bStats.feudSnubs) || 0,
+    brokenPromises: Number(bStats.brokenPromises) || 0
+  };
+
+  // Ajusta Respeito ao Técnico conforme o resultado em campo
+  if (st.won) {
+    adjustCoachRespect(viaPenalties ? 5 : 3, topScorerPlayer?.id ? [topScorerPlayer.id] : [], 2, t);
+  } else if (!st.isDraw) {
+    adjustCoachRespect(-4, [], 0, t);
+  }
+}
+
 const COOP_LEARNABLE_MOVES = {
   DUO_SH: [
     "Relâmpago Nº 1",

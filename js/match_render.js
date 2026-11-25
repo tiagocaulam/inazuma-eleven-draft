@@ -566,6 +566,9 @@ function handleMinuteEndBoundaries(st, ovrDiff) {
     st.finished = true;
     st.isDraw = st.userScore === st.oppScore;
     st.won = st.userScore > st.oppScore;
+    if (typeof recordBetaPostMatchMemory === "function") {
+      recordBetaPostMatchMemory(st);
+    }
     if (st.pitch) {
       st.pitch.ballFlight = null;
       st.pitch.goalBurstFx = null;
