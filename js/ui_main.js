@@ -1686,7 +1686,7 @@ function openSettingsModal() {
         if (typeof setSfxSettings === "function") setSfxSettings({ enabled: true });
       }
       if (typeof unlockSfxAudio === "function") unlockSfxAudio();
-      if (typeof playSfx === "function") playSfx("unlock", { force: true });
+      if (typeof playSfx === "function") playSfx("goal", { force: true });
     });
   }
 

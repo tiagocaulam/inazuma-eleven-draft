@@ -850,6 +850,7 @@ function resolvePhysicalDribbleClash(st, pitch, carrier, marker, attSupport, def
       start: performance.now(),
       duration: dashMs
     };
+    if (typeof playSfx === "function") playSfx("dribble");
     pitch.passTrail = {
       isDash: true,
       fromX: startX,
@@ -3364,6 +3365,7 @@ function stepContinuousPhysics(st, pitch, dt) {
               start: performance.now(),
               duration: dashMs
             };
+            if (typeof playSfx === "function") playSfx("dribble");
             pitch.passTrail = {
               isDash: true,
               fromX: startX,
