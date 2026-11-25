@@ -237,13 +237,14 @@ function renderDraftWheelAndRoster(animateWheel = false) {
     </div>
   `;
 
-  // Posiciona e anima a tira da roleta com CSS transition suave (responsivo desktop & mobile!)
+  // Posiciona e anima a tira da roleta com alinhamento exato pelo DOM dentro do marcador dourado
   const wheelBox = document.getElementById("wheel-box");
   const stripEl = document.getElementById("wheel-strip");
-  const firstItem = stripEl ? stripEl.querySelector(".wheel-item") : null;
-  const itemWidth = firstItem ? firstItem.offsetWidth + 6 : 126;
+  const targetEl = stripEl && stripEl.children ? stripEl.children[targetIdx] : null;
   const boxCenter = (wheelBox ? wheelBox.clientWidth : 340) / 2;
-  const finalOffset = boxCenter - targetIdx * itemWidth - itemWidth / 2;
+  const finalOffset = targetEl
+    ? Math.round(boxCenter - (targetEl.offsetLeft + targetEl.offsetWidth / 2))
+    : Math.round(boxCenter - targetIdx * 126 - 63);
 
   if (animateWheel && stripEl) {
     stripEl.style.transition = "none";
@@ -390,6 +391,18 @@ function buildPitchHTML(isComplete = false, liveStaminaByPlayerId = null) {
       }
 
       const effOvr = getEffectiveOvr(p, slot.role);
+      const ovrTierCls =
+        effOvr >= 100
+          ? "ovr-t100"
+          : effOvr >= 90
+          ? "ovr-t90"
+          : effOvr >= 80
+          ? "ovr-t80"
+          : effOvr >= 70
+          ? "ovr-t70"
+          : effOvr >= 60
+          ? "ovr-t60"
+          : "ovr-t50";
       const pLvl = getPlayerLevel(p);
       const pPwr = calcIndividualPlayerPower(p, slot.role, pLvl);
       const attrs = calcPlayerAttributes(p, slot.role, pLvl);
@@ -408,7 +421,7 @@ function buildPitchHTML(isComplete = false, liveStaminaByPlayerId = null) {
              data-slot="${slot.id}"
              title="${nodeTooltip}">
           <span class="node-lvl-chip" title="${nodeTooltip}">Nv.${pLvl}</span>
-          <div class="node-ovr" title="${nodeTooltip}">${effOvr}</div>
+          <div class="node-ovr ${ovrTierCls}" title="${nodeTooltip}">${effOvr}</div>
           <div class="node-avatar-wrap">
             <img class="node-avatar" src="${nodeSprite}" alt="${p.name}" />
             ${elemIconHTML(p.element, "node-elem-mini")}

@@ -517,23 +517,24 @@ function applyCoopStaminaCost(actorNode, baseCost, partners) {
 }
 
 function renderClashFighterColumnHTML(fighter, sideCls) {
-  const partners = Array.isArray(fighter.partners) ? fighter.partners : [];
-  const topPartner = partners.length >= 1 ? partners[0] : null;
-  const bottomPartner = partners.length >= 2 ? partners[1] : null;
+  const partners = Array.isArray(fighter.partners) ? fighter.partners.slice(0, 2) : [];
   return `
     <div class="clash-fighter ${partners.length > 0 ? "has-coop-partners" : ""} ${partners.length >= 2 ? "is-trio-coop" : partners.length === 1 ? "is-duo-coop" : ""}">
       <div class="clash-avatar-stack">
-        ${topPartner ? `
-          <div class="clash-coop-partner is-top" title="${topPartner.name}">
-            <img class="clash-coop-avatar ${sideCls}" src="${topPartner.sprite}" alt="${topPartner.name}" />
+        ${partners.length > 0 ? `
+          <div class="clash-coop-partners-row">
+            ${partners
+              .map(
+                (pt) => `
+                  <div class="clash-coop-partner" title="${pt.name}">
+                    <img class="clash-coop-avatar ${sideCls}" src="${pt.sprite}" alt="${pt.name}" />
+                  </div>
+                `
+              )
+              .join("")}
           </div>
         ` : ""}
         <img class="clash-avatar ${sideCls}" src="${fighter.sprite}" alt="${fighter.name}" />
-        ${bottomPartner ? `
-          <div class="clash-coop-partner is-bottom" title="${bottomPartner.name}">
-            <img class="clash-coop-avatar ${sideCls}" src="${bottomPartner.sprite}" alt="${bottomPartner.name}" />
-          </div>
-        ` : ""}
       </div>
       <div class="clash-fighter-name">${fighter.name}</div>
       <span class="clash-role-badge">${fighter.roleText}</span>

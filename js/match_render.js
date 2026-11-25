@@ -2242,6 +2242,28 @@ function renderPitchDOMFrame(pitch, st, now) {
           node._renderedSprite = nextSprite;
         }
       }
+      if ((isDribbleDash || isReceiveDash) && state.simSpeed === 1 && el.parentElement && typeof document.createElement === "function") {
+        const lastGhostAt = node._lastDashGhostAt || 0;
+        if (now - lastGhostAt >= 55) {
+          node._lastDashGhostAt = now;
+          const worldEl = el.parentElement;
+          const gSprite = node._renderedSprite || (typeof getPlayerFormSprite === "function" ? getPlayerFormSprite(node.player, node.role) : node.player?.sprite);
+          if (gSprite && worldEl && typeof worldEl.appendChild === "function") {
+            const ghost = document.createElement("div");
+            ghost.className = `pitch-dash-ghost ${node.side === "opp" ? "side-opp" : "side-user"}${isDribbleDash ? " is-dribble" : ""}`;
+            ghost.style.left = `${node.x.toFixed(2)}%`;
+            ghost.style.top = `${liftedNodeY.toFixed(2)}%`;
+            const gImg = document.createElement("img");
+            gImg.src = gSprite;
+            gImg.alt = "";
+            ghost.appendChild(gImg);
+            worldEl.appendChild(ghost);
+            setTimeout(() => {
+              if (ghost.parentNode) ghost.parentNode.removeChild(ghost);
+            }, 290);
+          }
+        }
+      }
     }
   };
   pitch.userNodes.forEach(stepDomNode);
@@ -3242,7 +3264,7 @@ function buildMatchRecapBoxHTML(st, oppTeam, stats = calcSquadStats(), oppStats 
         <div class="recap-stat-item">
           <small>Chutes</small>
           <strong>${s.userShots || 0} x ${s.oppShots || 0}</strong>
-          <span>Dream vs ${oppTeam.name}</span>
+          <span>${escapeHtml(userTeamDisp)} vs ${oppTeam.name}</span>
         </div>
         <div class="recap-stat-item">
           <small>Passes Certos</small>

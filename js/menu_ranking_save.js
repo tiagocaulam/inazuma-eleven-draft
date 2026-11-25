@@ -12,15 +12,18 @@ function renderHeaderAndBonds() {
   const subEl = document.getElementById("topbar-brand-sub");
   if (subEl) {
     const modeLabel = typeof isBetaMode === "function" && isBetaMode() ? "TESTE BETA" : "MODO RELÂMPAGO";
+    const activeTeamDisp = typeof getActiveTeamName === "function" ? getActiveTeamName() : "Dream Team";
+    const activeUpper = activeTeamDisp.toUpperCase();
     if (state.phase === "tournament") {
       const curSt = state.tournament?.stages?.[state.tournament.stageIndex];
       const comp = state.tournament?.prep
         ? state.tournament.stages?.[state.tournament.prep.nextStageIdx]?.competition
         : curSt?.competition;
+      const compTag = comp === "WORLD" ? "MUNDIAL (FFI)" : "FUTEBOL FRONTEIRA";
       subEl.textContent =
-        comp === "WORLD" ? `${modeLabel} • MUNDIAL (FFI)` : `${modeLabel} • FUTEBOL FRONTEIRA`;
+        activeTeamDisp !== "Dream Team" ? `${activeUpper} • ${modeLabel} • ${compTag}` : `${modeLabel} • ${compTag}`;
     } else {
-      subEl.textContent = `DREAM TEAM • ${modeLabel}`;
+      subEl.textContent = `${activeUpper} • ${modeLabel}`;
     }
   }
   const headerWrap = document.getElementById("hud-bars-wrap");

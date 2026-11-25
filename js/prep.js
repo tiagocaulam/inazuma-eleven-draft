@@ -3407,7 +3407,7 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
     (actors, ctx) => [
       mkSpontaneousMsg(actors, 1, `Olhando para trás desde o começo do torneio... cada um aqui evoluiu demais! Até os treinos pesados estão fluindo melhor.`, "praise"),
       mkSpontaneousMsg(actors, 0, `Verdade! Nossa defesa está mais firme e a bola sai mais limpa para o ataque.`, "praise"),
-      mkSpontaneousMsg(actors, 2, `Com essa união, ${ctx.oppName} vai enfrentar a melhor versão do nosso Dream Team!`, "hype")
+      mkSpontaneousMsg(actors, 2, `Com essa união, ${ctx.oppName} vai enfrentar a melhor versão do ${typeof getActiveTeamName === "function" ? getActiveTeamName() : "Dream Team"}!`, "hype")
     ],
     (actors) => buildShuffledChatChoices(actors, {
       great: {
@@ -8306,13 +8306,27 @@ function spawnSpontaneousTeamChat(t = state.tournament, forcedCategory = null, o
       actorSource = [...preferred, ...others];
     }
   }
-  const coreActors = Array.isArray(opts.exactActorIds) && opts.exactActorIds.length >= 2
+  let coreActors = Array.isArray(opts.exactActorIds) && opts.exactActorIds.length >= 2
     ? (() => {
         const matched = opts.exactActorIds.map((pid) => actors.find((a) => a.id === pid)).filter(Boolean);
         return matched.length >= 2 ? matched : tpl.pickActors(actorSource, t);
       })()
     : tpl.pickActors(actorSource, t);
   if (!coreActors || coreActors.length < 2) return null;
+  if (tpl.contextTrigger === "POST_MATCH_HERO" && opts.extraCtx?.lastMatch) {
+    const lmHero = opts.extraCtx.lastMatch;
+    const scorer =
+      actors.find((a) => lmHero.topScorerId && a.id === lmHero.topScorerId) ||
+      actors.find((a) => lmHero.topScorerName && a.name === lmHero.topScorerName) ||
+      coreActors[0];
+    if (scorer) {
+      const rest = coreActors.filter((a) => a.id !== scorer.id);
+      const backup = rest.length > 0 ? rest : actors.filter((a) => a.id !== scorer.id).slice(0, 1);
+      if (backup.length > 0) {
+        coreActors = [scorer, ...backup].slice(0, Math.max(2, coreActors.length));
+      }
+    }
+  }
 
   const coreCount = coreActors.length;
   const maxExtras = coreCount >= 3 ? (Math.random() < 0.55 ? 2 : 1) : (Math.random() < 0.35 ? 3 : 2);
@@ -8351,7 +8365,7 @@ function spawnSpontaneousTeamChat(t = state.tournament, forcedCategory = null, o
   const chimeInMessages = buildSquadGroupChimeIns(chosenActors, coreCount, tpl.category, interactionMode, ctx);
   const messages = sanitizeChatQuotes(stampThreadTimestamps([...baseMessages, ...chimeInMessages], baseTimeMin), {
     startIdx: 0,
-    enrichNaturalQuotes: interactionMode !== "AUTO_COMPLETE"
+    enrichNaturalQuotes: false
   });
   if (interactionMode !== "AUTO_COMPLETE" && typeof attachDynamicEmojiReactions === "function") {
     attachDynamicEmojiReactions(messages, chosenActors, tpl.category, "GOOD", 0);
@@ -8679,7 +8693,7 @@ function finalizeAutonomousTeamChat(chatId, skipRender = false) {
   });
 
   chat.messages = stampThreadTimestamps(chat.messages, baseT);
-  sanitizeChatQuotes(chat.messages, { startIdx: 0, enrichNaturalQuotes: true });
+  sanitizeChatQuotes(chat.messages, { startIdx: 0, enrichNaturalQuotes: false });
   if (typeof attachDynamicEmojiReactions === "function") {
     attachDynamicEmojiReactions(chat.messages, chat.participants, chat.category, out.tone || "GOOD", 0);
   }
@@ -9091,7 +9105,7 @@ function resolveSpontaneousTeamChat(chatId, choiceIdx) {
   }
 
   chat.messages = stampThreadTimestamps(chat.messages, baseT);
-  sanitizeChatQuotes(chat.messages, { startIdx: curLen, enrichNaturalQuotes: true });
+  sanitizeChatQuotes(chat.messages, { startIdx: curLen, enrichNaturalQuotes: false });
   if (typeof attachDynamicEmojiReactions === "function") {
     attachDynamicEmojiReactions(chat.messages, chat.participants, chat.category, quality, curLen);
   }
@@ -9881,8 +9895,9 @@ function buildBetweenMatchPrepHTML(t, stats) {
   const totActions = prep.eventsTotal || (t.prepBonuses?.permanentDoublePrep ? 4 : 3);
 
   if (prep.phase === "CHOOSE_LOC") {
+    const activeTeamDisp = typeof getActiveTeamName === "function" ? getActiveTeamName() : "Dream Team";
     const prepHeadline = isFirstMatchEver
-      ? "Prepare seu Dream Team antes da partida de estreia!"
+      ? `Prepare ${activeTeamDisp === "Dream Team" ? "seu Dream Team" : `o ${escapeHtml(activeTeamDisp)}`} antes da partida de estreia!`
       : isWorldDebut
       ? "Prepare a seleção para a estreia na Fase de Grupos do Mundial!"
       : `Escolha até ${totActions} ações na cidade ou vá direto para a partida:`;
@@ -10182,7 +10197,7 @@ function buildBetweenMatchPrepHTML(t, stats) {
                   <div style="font-size:0.82rem; font-weight:800; color:#cbd5e1;">Quem fizer o 1º gol vence!</div>
                 </div>
                 <div class="prep-5v5-score-pill">
-                  <span>Dream Team</span>
+                  <span>${escapeHtml(typeof getActiveTeamName === "function" ? getActiveTeamName() : "Dream Team")}</span>
                   <span id="live-score-user">${mSt.userScore}</span>
                   <span style="color:#93c5fd;">×</span>
                   <span id="live-score-opp">${mSt.oppScore}</span>

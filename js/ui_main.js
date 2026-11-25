@@ -230,12 +230,13 @@ function syncTacticsLeadersDOM(rootEl) {
 function buildUserSquadModalHTML(stats, t) {
   const clipIcon = typeof buildClipboardIconSVG === "function" ? buildClipboardIconSVG("tactics-clip-svg inline-ui-icon") : "";
   const formIcon = typeof formationIconHTML === "function" ? formationIconHTML("inline-ui-icon") : "";
+  const activeTeamDisp = typeof getActiveTeamName === "function" ? getActiveTeamName() : "Dream Team";
   return `
     <div class="live-tactics-modal-backdrop" id="squad-overview-modal">
       <div class="live-tactics-modal-card squad-overview-modal-card">
         <div class="live-tactics-modal-head">
           <div>
-            <div id="squad-modal-eyebrow" style="font-size:0.68rem; font-weight:900; color:#4ade80; text-transform:uppercase;">Dream Team • Formação <span id="squad-modal-form-val">${state.formation}</span></div>
+            <div id="squad-modal-eyebrow" style="font-size:0.68rem; font-weight:900; color:#4ade80; text-transform:uppercase;">${escapeHtml(activeTeamDisp)} • Formação <span id="squad-modal-form-val">${state.formation}</span></div>
             <h4 id="squad-modal-title" style="margin:0; font-size:1rem; font-weight:900; color:#fff;">Escalação (<span id="squad-modal-pwr-val">${stats.power.toLocaleString("pt-BR")}</span> Poder)</h4>
           </div>
           <button type="button" class="ie-cmd-btn" id="btn-close-squad-modal" style="padding:5px 12px; font-size:0.74rem; background:#334155;">
@@ -573,9 +574,10 @@ function renderTournamentScreen() {
       if (panelSquad) panelSquad.style.display = isTactics ? "none" : "block";
       if (panelTactics) panelTactics.style.display = isTactics ? "block" : "none";
       if (modalEyebrow) {
+        const activeTeamDisp = typeof getActiveTeamName === "function" ? getActiveTeamName() : "Dream Team";
         modalEyebrow.innerHTML = isTactics
-          ? `Dream Team • Comando Tático`
-          : `Dream Team • Formação <span id="squad-modal-form-val">${state.formation}</span>`;
+          ? `${escapeHtml(activeTeamDisp)} • Comando Tático`
+          : `${escapeHtml(activeTeamDisp)} • Formação <span id="squad-modal-form-val">${state.formation}</span>`;
       }
       if (modalTitle) {
         const curPwr = calcSquadStats().power.toLocaleString("pt-BR");
@@ -988,7 +990,8 @@ function renderTournamentScreen() {
         const pts = t.worldGroup?.standings?.find((r) => r.isUser)?.pts || 0;
         if (st.groupRoundIdx < 2) {
           const resTxt = st.won ? "Vitória" : st.isDraw ? "Empate" : "Derrota";
-          barTitle = `${resTxt} na ${st.stageName}! Dream Team em ${rank}º no Grupo A (${pts} pts)`;
+          const activeTeamDisp = typeof getActiveTeamName === "function" ? getActiveTeamName() : "Dream Team";
+          barTitle = `${resTxt} na ${st.stageName}! ${escapeHtml(activeTeamDisp)} em ${rank}º no Grupo A (${pts} pts)`;
           barSub = `Restam ${2 - st.groupRoundIdx} rodada(s) no grupo. Prepare o elenco para o próximo duelo!`;
         } else {
           barTitle = `Classificado em ${rank}º no Grupo A (${pts} pts)! Rumo às ${nextStage.stageName}!`;
@@ -1028,7 +1031,7 @@ function renderTournamentScreen() {
               ${compHeaderLabel} • ${st.stageName}
             </span>
             <h3 style="font-size:0.96rem; color:#fff; display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
-              <span>Dream Team (Nv. ${stats.avgLevel || 1}) vs ${st.oppTeam.name}</span>
+              <span>${escapeHtml(typeof getActiveTeamName === "function" ? getActiveTeamName() : "Dream Team")} (Nv. ${stats.avgLevel || 1}) vs ${st.oppTeam.name}</span>
               <span class="stage-opp-buff-badge">⚡ Nv. ${oppStats.oppLevel || 1}</span>
             </h3>
           </div>
@@ -1059,7 +1062,7 @@ function renderTournamentScreen() {
           <div id="goals-columns-box" class="goals-columns">
         <div class="goals-list" id="live-goals-user">
           <div style="font-size:0.7rem; font-weight:800; color:#4ade80; text-transform:uppercase; display:flex; align-items:center; gap:5px;">
-            ${moveIconHTML("SH")} <span>Gols do Dream Team</span>
+            ${moveIconHTML("SH")} <span>Gols (${escapeHtml(typeof getActiveTeamName === "function" ? getActiveTeamName() : "Dream Team")})</span>
           </div>
           ${
             st.goalsUser.length === 0
@@ -1146,7 +1149,7 @@ function renderTournamentScreen() {
           </div>
           <div class="live-tac-matchup-strip">
             <div class="live-tac-team-box is-user">
-              <div class="live-tac-team-name">Dream Team</div>
+              <div class="live-tac-team-name">${escapeHtml(typeof getActiveTeamName === "function" ? getActiveTeamName() : "Dream Team")}</div>
               <div class="live-tac-team-meta" id="live-tac-user-meta">Nv. ${stats.avgLevel || 1} • Poder <strong>${stats.power.toLocaleString("pt-BR")}</strong> • Quím ${stats.chem}%</div>
             </div>
             <div class="live-tac-vs-sep">VS</div>

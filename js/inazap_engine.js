@@ -474,6 +474,187 @@
     return banks[voice] || banks.HEART_TEAM;
   }
 
+  function getCategoryCoherentPool(kind, category, voice, quality, ctx = {}) {
+    const opp = ctx.oppName || "o adversário";
+    const tac = ctx.tacText || "";
+    const coop = ctx.coopMove || "";
+
+    // Resenha / vestiário leve: NUNCA mistura tática séria ou contra-ataque fora de contexto
+    if (category === "RESENHA") {
+      if (kind === "CHIME") {
+        const chimeResenha = {
+          CAPTAIN_FIRE: [
+            { key: "cr_cf1", text: `Haha esse grupo não tem jeito mesmo! Só não vale perder a hora do treino depois.` },
+            { key: "cr_cf2", text: `Kkk bom demais ver todo mundo leve antes de encarar ${opp}.` }
+          ],
+          COLD_ACE: [
+            { key: "cr_ca1", text: `Vocês não param um minuto no grupo.` },
+            { key: "cr_ca2", text: `Só guardem metade desse gás pro campo.` }
+          ],
+          TACTICIAN: [
+            { key: "cr_tc1", text: `Pelo menos o astral do vestiário tá lá em cima hoje kkk` },
+            { key: "cr_tc2", text: `Vocês distraem até a comissão técnica antes de ${opp} haha` }
+          ],
+          HOTHEAD: [
+            { key: "cr_hh1", text: `Quero só ver quem vai aguentar correr amanhã depois dessa resenha kkk` },
+            { key: "cr_hh2", text: `Haha deixa o treino começar que eu quero ver a disposição de vocês!` }
+          ],
+          REBEL_TROLL: [
+            { key: "cr_rt1", text: `kkkkk alguém salva o print disso aqui pro técnico ver depois` },
+            { key: "cr_rt2", text: `Se perder bola amanhã eu já sei o motivo hein kkk` }
+          ],
+          DIVINE_PRIDE: [
+            { key: "cr_dp1", text: `Curioso o senso de humor desse elenco às vésperas do jogo.` },
+            { key: "cr_dp2", text: `Ao menos a confiança do vestiário está intacta antes de ${opp}.` }
+          ],
+          CHILL_JOKER: [
+            { key: "cr_cj1", text: `Kkkk já cheguei no grupo rindo! Tem mais história boa aí?` },
+            { key: "cr_cj2", text: `Olha, eu não julgo não kkk depois do treino eu também capricho no lanche!` }
+          ],
+          STOIC_WALL: [
+            { key: "cr_sw1", text: `Haha só cuidado pra não pesar no aquecimento amanhã cedo.` },
+            { key: "cr_sw2", text: `Tudo bem dar uma relaxada, só não deixem cair o ritmo depois.` }
+          ],
+          SPEED_SPARK: [
+            { key: "cr_ss1", text: `kkkk ainda bem que eu queimo tudo no primeiro pique do treino!` },
+            { key: "cr_ss2", text: `Esse chat rende demais todo dia antes dos jogos!` }
+          ],
+          HEART_TEAM: [
+            { key: "cr_ht1", text: `Haha adoro quando o grupo fica leve assim antes de entrar em campo!` },
+            { key: "cr_ht2", text: `Faz bem dar uma risada junto pra quebrar a pressão antes de ${opp}.` }
+          ]
+        };
+        return chimeResenha[voice] || chimeResenha.HEART_TEAM;
+      }
+
+      const wrapResenha = {
+        GREAT: {
+          CAPTAIN_FIRE: [
+            { key: "wr_g_cf1", text: `Haha boa, professor!! Vestiário leve desse jeito joga muito mais solto!` },
+            { key: "wr_g_cf2", text: `Aeee! Amanhã contra ${opp} a gente entrega o dobro dentro de campo!` }
+          ],
+          COLD_ACE: [
+            { key: "wr_g_ca1", text: `Se render em campo amanhã, tá valendo.` },
+            { key: "wr_g_ca2", text: `Só não relaxem demais antes de ${opp}.` }
+          ],
+          REBEL_TROLL: [
+            { key: "wr_g_rt1", text: `Aí sim professor kkk sabia que ia entrar na resenha!` },
+            { key: "wr_g_rt2", text: `Fechado, agora tá devendo uma assistência pra turma hein kkk` }
+          ],
+          CHILL_JOKER: [
+            { key: "wr_g_cj1", text: `Aeee!! Melhor técnico possível kkk vou dormir feliz hoje!` },
+            { key: "wr_g_cj2", text: `Isso sim levanta a moral do grupo inteiro!!` }
+          ],
+          DEFAULT: [
+            { key: "wr_g_df1", text: `Combinado, professor! O clima no grupo ficou leve demais agora!` },
+            { key: "wr_g_df2", text: `Haha fechou! Amanhã contra ${opp} todo mundo entra voando.` },
+            { key: "wr_g_df3", text: `Merecido depois dos treinos dessa semana!` }
+          ]
+        },
+        GOOD: {
+          COLD_ACE: [
+            { key: "wr_ok_ca1", text: `Justo. Hora de descansar pro jogo.` },
+            { key: "wr_ok_ca2", text: `Certo. Foco amanhã.` }
+          ],
+          REBEL_TROLL: [
+            { key: "wr_ok_rt1", text: `Beleza professor, tá bom até demais kkk` },
+            { key: "wr_ok_rt2", text: `Recado dado hein galera, sem exagero hoje!` }
+          ],
+          CHILL_JOKER: [
+            { key: "wr_ok_cj1", text: `Tranquilo! Já tá de bom tamanho pro nosso grupo kkk` },
+            { key: "wr_ok_cj2", text: `Fechado chefia! Agora sim partiu descanso.` }
+          ],
+          DEFAULT: [
+            { key: "wr_ok_df1", text: `Tudo certo então! Deu pra dar boas risadas e manter a cabeça no jogo.` },
+            { key: "wr_ok_df2", text: `Combinado! Amanhã cedo estamos inteiros pro aquecimento.` },
+            { key: "wr_ok_df3", text: `Boa, professor! Equilíbrio certinho no vestiário.` }
+          ]
+        },
+        TRADEOFF: {
+          DEFAULT: [
+            { key: "wr_tr_df1", text: `Justo, professor! Deu uma segurada boa sem perder o foco contra ${opp}.` },
+            { key: "wr_tr_df2", text: `Anotado! Cada um sabe o limite antes de decisão.` },
+            { key: "wr_tr_df3", text: `Combinado, bora fechar a noite tranquilos!` }
+          ]
+        },
+        POOR: {
+          CHILL_JOKER: [
+            { key: "wr_bd_cj1", text: `Poxa, achei que ia levar mais na esportiva kkk bora dormir logo então.` },
+            { key: "wr_bd_cj2", text: `Eita, clima fechou do nada kkk vou até desligar o celular.` }
+          ],
+          REBEL_TROLL: [
+            { key: "wr_bd_rt1", text: `Vish, zero humor hoje hein professor kkk fui!` },
+            { key: "wr_bd_rt2", text: `Ok ok, clima de quartel ativado.` }
+          ],
+          DEFAULT: [
+            { key: "wr_bd_df1", text: `Entendido... acabou a resenha por hoje então, galera.` },
+            { key: "wr_bd_df2", text: `Ficou meio pesado o papo, mas amanhã a gente responde em campo.` },
+            { key: "wr_bd_df3", text: `Certo, técnico. Todo mundo focado amanhã.` }
+          ]
+        }
+      };
+      const qKey = quality === "GREAT" || quality === "GOOD" || quality === "TRADEOFF" ? quality : "POOR";
+      return wrapResenha[qKey][voice] || wrapResenha[qKey].DEFAULT;
+    }
+
+    // Estudo do Rival: chime-ins táticos coerentes
+    if (category === "TATICA_RIVAL" && kind === "CHIME") {
+      const chimeTat = {
+        TACTICIAN: [
+          { key: "ct_tc1", text: `Concordo com a leitura. Contra ${opp}, quem dominar o meio controla o placar.` },
+          { key: "ct_tc2", text: `Se a transição deles aperta pelos lados, ajustar o tempo do passe já resolve metade.` }
+        ],
+        COLD_ACE: [
+          { key: "ct_ca1", text: `Só me digam onde querem que eu ataque contra ${opp}.` },
+          { key: "ct_ca2", text: `Se abrir espaço na área deles eu resolvo.` }
+        ],
+        CAPTAIN_FIRE: [
+          { key: "ct_cf1", text: `Boa visão! Se o time todo se ajudar na recomposição, ${opp} não passa!` },
+          { key: "ct_cf2", text: `Tamo ligado nesse detalhe! Só dar o comando que a gente aplica.` }
+        ],
+        STOIC_WALL: [
+          { key: "ct_sw1", text: `Do meu setor também dá pra fechar esse corredor de ${opp}.` },
+          { key: "ct_sw2", text: `Se combinarmos a cobertura atrás, ninguém entra livre.` }
+        ],
+        SPEED_SPARK: [
+          { key: "ct_ss1", text: `Se der brecha nas costas da linha de ${opp}, eu chego primeiro nessa bola!` },
+          { key: "ct_ss2", text: `Só me acionarem rápido quando roubarmos no meio.` }
+        ],
+        DEFAULT: [
+          { key: "ct_df1", text: `Faz sentido olhar esse ponto de ${opp} agora antes do aquecimento.` },
+          { key: "ct_df2", text: `Tô acompanhando aqui! O que o técnico definir a gente executa certinho.` }
+        ]
+      };
+      return chimeTat[voice] || chimeTat.DEFAULT;
+    }
+
+    // Wrap-up específico por categoria quando há ajuste tático ou técnica combinada
+    if (kind === "WRAP" && coop && (quality === "GREAT" || quality === "GOOD")) {
+      const coopLines = {
+        CAPTAIN_FIRE: [{ key: "wc_cf", text: `A ${coop} encaixou bonito demais!! Quero soltar ela logo contra ${opp}!` }],
+        COLD_ACE: [{ key: "wc_ca", text: `A ${coop} ficou limpa. Só chamar na hora certa.` }],
+        TACTICIAN: [{ key: "wc_tc", text: `O timing da ${coop} ficou perfeito pra surpreender ${opp}.` }],
+        HOTHEAD: [{ key: "wc_hh", text: `A ${coop} tá braba demais!! O goleiro de ${opp} não segura isso nunca!` }],
+        REBEL_TROLL: [{ key: "wc_rt", text: `Imagina a cara do time de ${opp} levando uma ${coop} do nada kkk` }],
+        DEFAULT: [{ key: "wc_df", text: `Incrível termos fechado a ${coop}! Vai ser arma pesada contra ${opp}!` }]
+      };
+      return coopLines[voice] || coopLines.DEFAULT;
+    }
+
+    if (kind === "WRAP" && tac && (quality === "GREAT" || quality === "GOOD" || quality === "TRADEOFF")) {
+      const tacLines = {
+        TACTICIAN: [{ key: "wt_tc", text: `Anotado (${tac}). Isso encaixa certinho pra enfrentar ${opp}.` }],
+        STOIC_WALL: [{ key: "wt_sw", text: `Beleza, ajustado (${tac}). Já me preparo com o setor todo.` }],
+        COLD_ACE: [{ key: "wt_ca", text: `Entendido (${tac}). Foco em campo.` }],
+        CAPTAIN_FIRE: [{ key: "wt_cf", text: `Fechou no ${tac}!! Agora é executar com garra contra ${opp}!` }],
+        DEFAULT: [{ key: "wt_df", text: `Registrado (${tac})! Todo mundo na mesma página pro próximo jogo.` }]
+      };
+      return tacLines[voice] || tacLines.DEFAULT;
+    }
+
+    return null;
+  }
+
   function buildDynamicGroupChimeIns(participants, coreCount, category, interactionMode, ctx = {}, t = (typeof state !== "undefined" ? state.tournament : null)) {
     const out = [];
     if (!Array.isArray(participants) || participants.length <= coreCount) return out;
@@ -482,7 +663,7 @@
     const a1 = participants[1] || a0;
 
     for (let idx = coreCount; idx < participants.length; idx++) {
-      if (idx === coreCount + 1 && interactionMode !== "AUTO_COMPLETE" && Math.random() > 0.76) continue;
+      if (idx === coreCount + 1 && interactionMode !== "AUTO_COMPLETE" && Math.random() > 0.72) continue;
       if (idx >= coreCount + 2 && interactionMode !== "AUTO_COMPLETE") continue;
 
       const actor = participants[idx];
@@ -495,7 +676,7 @@
         otherName: shortFirstName(otherActor)
       });
 
-      let chosenPool = null;
+      let chosenPool = getCategoryCoherentPool("CHIME", category, persona.voice, "GOOD", { oppName: opp });
       let tone = "normal";
       if (category === "RAIVA") {
         chosenPool = bank.CHIME_RAGE || bank.TRADEOFF;
@@ -507,14 +688,12 @@
         chosenPool = bank.GREAT;
         tone = "hype";
       } else if (category === "TATICA_RIVAL") {
-        chosenPool = bank.GOOD;
         tone = persona.voice === "TACTICIAN" ? "idea" : "normal";
-      } else {
-        chosenPool = Math.random() < 0.5 ? bank.GREAT : bank.GOOD;
-        tone = persona.voice === "CHILL_JOKER" ? "hype" : "normal";
+      } else if (category === "RESENHA") {
+        tone = persona.voice === "CHILL_JOKER" || persona.voice === "REBEL_TROLL" ? "hype" : "normal";
       }
 
-      const picked = pickFreshWeighted(t, chosenPool);
+      const picked = pickFreshWeighted(t, chosenPool || bank.GOOD);
       const rawLine = picked?.text || `Tamo junto nessa contra ${opp}!`;
       if (typeof mkSpontaneousMsg === "function") {
         out.push(mkSpontaneousMsg(participants, idx, rawLine, tone));
@@ -629,8 +808,9 @@
     const opp = ctx.oppName || "o adversário";
     const tacText = Array.isArray(configChanges) && configChanges.length > 0 ? configChanges[0] : "";
     const coopMove = learnedCoop?.learned ? learnedCoop.move : "";
-    const totalWanted = Math.random() < 0.56 ? 4 : 3;
-    const needed = Math.max(0, totalWanted - existingCount);
+    // Máximo 3 mensagens pós-técnico somando baseReactions + wrap-up dinâmico (coeso e sem encher linguiça)
+    const totalWanted = existingCount >= 2 ? existingCount + 1 : 3;
+    const needed = Math.max(0, Math.min(2, totalWanted - existingCount));
     if (needed === 0) return out;
 
     const extraStart = participants.length > coreCount ? coreCount : 0;
@@ -638,7 +818,6 @@
       if (participants.length <= 2) return stepIdx % participants.length;
       if (stepIdx === 0 && extraStart > 0) return extraStart;
       if (stepIdx === 1) return Math.min(1, participants.length - 1);
-      if (stepIdx === 2 && participants.length > extraStart + 1) return extraStart + 1;
       return (stepIdx + 1) % participants.length;
     };
 
@@ -649,27 +828,32 @@
     for (let i = 0; i < needed; i++) {
       const spIdx = pickSpeaker(i);
       const actor = participants[spIdx] || participants[0];
-      const partner = participants[(spIdx + 1) % participants.length] || actor;
+      const partner = participants[0] && participants[0].id !== actor.id ? participants[0] : (participants[1] || actor);
       const persona = resolveInazumaPersona(actor);
+
+      // Prioriza fala 100% coerente com o assunto (RESENHA / técnica aprendida / ajuste tático) antes do banco geral da voz
+      let catPool = getCategoryCoherentPool("WRAP", category, persona.voice, qBucket, {
+        oppName: opp,
+        tacText: i === 0 ? tacText : "",
+        coopMove: i === 0 || i === needed - 1 ? coopMove : ""
+      });
+
       const bank = getPersonaReplyBank(persona.voice, {
         oppName: opp,
         sigMove: actor.sigMove || actor.shMove || "minha técnica",
         otherName: shortFirstName(partner),
         tacText: i === 0 ? tacText : "",
-        coopMove: i === 0 || i === 1 ? coopMove : ""
+        coopMove: i === 0 ? coopMove : ""
       });
 
-      const pool = (bank[qBucket] || bank.GOOD || []).filter((item) => !usedLineTexts.has(item.text));
-      const picked = pickFreshWeighted(t, pool.length > 0 ? pool : (bank[qBucket] || bank.GOOD));
-      let msgText = picked?.text || `Fechado então, professor! Bora encarar ${opp}!`;
-      if (coopMove && i === needed - 1 && !msgText.includes(coopMove) && (quality === "GREAT" || quality === "GOOD") && Math.random() < 0.65) {
-        msgText = `${msgText} E quero ver sair a ${coopMove} no jogo!!`;
-      }
+      const rawPool = catPool || (bank[qBucket] || bank.GOOD || []);
+      const pool = rawPool.filter((item) => !usedLineTexts.has(item.text));
+      const picked = pickFreshWeighted(t, pool.length > 0 ? pool : rawPool);
+      const msgText = picked?.text || `Fechado então, professor! Bora encarar ${opp}!`;
       usedLineTexts.add(msgText);
       out.push(mkSpontaneousMsg(participants, spIdx, msgText, tone));
 
-      // Double-text natural (mensagem curtinha em sequência do mesmo jogador!)
-      if (picked?.extra && out.length < needed + 1 && Math.random() < 0.45 && persona.voice !== "COLD_ACE") {
+      if (picked?.extra && i === needed - 1 && Math.random() < 0.35 && persona.voice !== "COLD_ACE") {
         out.push(mkSpontaneousMsg(participants, spIdx, picked.extra, tone));
       }
     }
