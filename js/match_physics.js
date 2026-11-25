@@ -160,7 +160,11 @@ function buildLivePitchBoxHTML(st, oppTeam, stats = calcSquadStats(), oppStats =
           <div id="live-pitch-ball-shadow" class="pitch-ball-shadow" style="left:${pitch.ballX}%; top:${pitch.ballY}%;"></div>
           <div id="live-pitch-ball" class="pitch-ball-dot" style="left:${pitch.ballX}%; top:${pitch.ballY}%;">
             <span class="pitch-ball-flame" aria-hidden="true"></span>
-            <span class="pitch-ball-spin-ring" aria-hidden="true"></span>
+            <svg class="pitch-ball-spin-svg" viewBox="0 0 48 48" aria-hidden="true">
+              <path d="M24 12 C32 9, 41 13, 44 21 C41 17, 34 15, 27 17" fill="none" stroke="rgba(224,242,254,0.92)" stroke-width="2.1" stroke-linecap="round"/>
+              <path d="M24 12 C32 9, 41 13, 44 21 C41 17, 34 15, 27 17" fill="none" stroke="rgba(56,189,248,0.95)" stroke-width="2.1" stroke-linecap="round" transform="rotate(120 24 24)"/>
+              <path d="M24 12 C32 9, 41 13, 44 21 C41 17, 34 15, 27 17" fill="none" stroke="rgba(250,204,21,0.88)" stroke-width="2.0" stroke-linecap="round" transform="rotate(240 24 24)"/>
+            </svg>
             ${buildMiniBallSVG("pitch-ball-svg")}
           </div>
           <div id="pitch-coop-banner" class="pitch-coop-banner" style="display:none;"></div>
@@ -1727,43 +1731,27 @@ function launchContinuousShot(st, pitch, shooterNode, defNodes, attSupport, defS
   pitch.ballZ = 0;
   pitch.ballVz = 0;
 
-  // TESTE BETA: Salto aéreo em voleios/técnicas aéreas e convergência sincronizada em Dupla/Trio!
   const betaShotFx = typeof isBetaMode === "function" && isBetaMode();
-  if (betaShotFx) {
-    const isAerialMove =
-      isCrossVolley ||
-      (shotInfo.isHissatsu &&
-        /Furacão|Fênix|Dragão|Pássaro|Estrela|Meteoro|Trovão|Aéreo|Celestial|Tempestade/i.test(shotInfo.label || ""));
-    if (isAerialMove || coopShot.partners.length >= 1) {
-      triggerNodeJump(shooterNode, 0.92, 0.56);
-    }
-    if (shotInfo.isHissatsu && coopShot.partners.length >= 1 && !pitch.is5v5) {
-      const partnerOffsets = [
-        { dx: -2.4, dy: -3.4 },
-        { dx: -2.4, dy: 3.4 }
-      ];
-      coopShot.partners.forEach((pt, idx) => {
-        if (!pt?.node) return;
-        const off = partnerOffsets[idx] || { dx: -2.8, dy: 0 };
-        const tx = Math.max(6, Math.min(94, shotOriginX + (origAttIsUser ? off.dx : -off.dx)));
-        const ty = Math.max(8, Math.min(92, shotOriginY + off.dy));
-        startNodeInterceptTween(pitch, pt.node, tx, ty, 380, state.simSpeed !== 1);
-        triggerNodeJump(pt.node, 0.92, 0.58);
-      });
-      if (state.simSpeed === 1) {
-        pitch.coopFreeze = {
-          start: performance.now(),
-          duration: 520,
-          shooterUid: shooterNode.uid,
-          partnerUids: coopShot.partners.map((p) => p.node?.uid).filter(Boolean),
-          targetX: shotOriginX,
-          targetY: shotOriginY,
-          moveName: shotInfo.label,
-          tier: coopShot.partners.length >= 2 ? "TRIO" : "DUPLA",
-          elem: shooterNode.player?.element || "Fogo"
-        };
-      }
-    }
+  const isAerialMove =
+    isCrossVolley ||
+    (shotInfo.isHissatsu &&
+      /Furacão|Fênix|Dragão|Pássaro|Estrela|Meteoro|Trovão|Aéreo|Celestial|Tempestade/i.test(shotInfo.label || ""));
+  const hasCoopGather = Boolean(betaShotFx && shotInfo.isHissatsu && coopShot.partners.length >= 1 && !pitch.is5v5);
+  const partnerTargets = [];
+  if (hasCoopGather) {
+    const partnerOffsets = [
+      { dx: -2.4, dy: -3.4 },
+      { dx: -2.4, dy: 3.4 }
+    ];
+    coopShot.partners.forEach((pt, idx) => {
+      if (!pt?.node) return;
+      const off = partnerOffsets[idx] || { dx: -2.8, dy: 0 };
+      const tx = Math.max(6, Math.min(94, shotOriginX + (origAttIsUser ? off.dx : -off.dx)));
+      const ty = Math.max(8, Math.min(92, shotOriginY + off.dy));
+      partnerTargets.push({ node: pt.node, tx, ty });
+    });
+  } else if (betaShotFx && isAerialMove) {
+    triggerNodeJump(shooterNode, 0.92, 0.56);
   }
 
   const shotAssistCandidate =
@@ -2452,6 +2440,7 @@ function launchContinuousShot(st, pitch, shooterNode, defNodes, attSupport, defS
     );
   };
 
+  const executeShotPhase = (forceGatherInstant = false) => {
   // Verifica interceptadores na linha do chute: 1) Counter Shot, 2) Bloqueio de zaga
   const pathEnemies = origDefNodes
     .filter((n) => n.role !== "GK" && (n.staggerTimer || 0) <= 0)
@@ -2507,7 +2496,9 @@ function launchContinuousShot(st, pitch, shooterNode, defNodes, attSupport, defS
     startBallFlight(pitch, shotOriginX, shotOriginY, duelX, duelY, cFlightMs, 0, "SHOT", "#38bdf8", {
       trailOriginX: shotOriginX,
       trailOriginY: shotOriginY,
-      linear: false
+      linear: false,
+      isSpecial: Boolean(shotInfo.isHissatsu),
+      elem: shooterNode.player?.element || "Fogo"
     });
     startNodeInterceptTween(pitch, counterNode, duelX, duelY, Math.round(cFlightMs * 0.88), state.simSpeed !== 1);
     showNodeBadge(pitch, counterNode.uid, `🔄 Contra-Chute!`, "badge-counter", 1400, cPick.isShCounter ? "SH" : "DF");
@@ -2643,7 +2634,7 @@ function launchContinuousShot(st, pitch, shooterNode, defNodes, attSupport, defS
       );
     };
 
-    if (state.simSpeed !== 1) {
+    if (forceGatherInstant || state.simSpeed !== 1) {
       launchCounterModal(true);
       return;
     }
@@ -2677,7 +2668,7 @@ function launchContinuousShot(st, pitch, shooterNode, defNodes, attSupport, defS
       origGoalY,
       false,
       null,
-      false,
+      Boolean(forceGatherInstant),
       origTrailOrigin,
       false
     );
@@ -2718,7 +2709,9 @@ function launchContinuousShot(st, pitch, shooterNode, defNodes, attSupport, defS
   startBallFlight(pitch, shotOriginX, shotOriginY, duelX, duelY, blockFlightMs, 0, "SHOT", "#f97316", {
     trailOriginX: shotOriginX,
     trailOriginY: shotOriginY,
-    linear: false
+    linear: false,
+    isSpecial: Boolean(shotInfo.isHissatsu),
+    elem: shooterNode.player?.element || "Fogo"
   });
   startNodeInterceptTween(pitch, blockerNode, duelX, duelY, Math.round(blockFlightMs * 0.88), state.simSpeed !== 1);
   showPitchBadge(pitch, shotOriginX, shotOriginY, shotInfo.label, "badge-shot", state.simSpeed === 1 ? 1600 : 600, "SH");
@@ -2856,7 +2849,7 @@ function launchContinuousShot(st, pitch, shooterNode, defNodes, attSupport, defS
     );
   };
 
-  if (state.simSpeed !== 1) {
+  if (forceGatherInstant || state.simSpeed !== 1) {
     launchBlockerModal(true);
     return;
   }
@@ -2868,6 +2861,81 @@ function launchContinuousShot(st, pitch, shooterNode, defNodes, attSupport, defS
   state.tournament.shotFlightTimer = setTimeout(() => {
     launchBlockerModal(false);
   }, Math.max(50, blockFlightMs - 30));
+  };
+
+  if (hasCoopGather && state.simSpeed === 1) {
+    const gatherMs = 540;
+    pitch.ballMode = "HOLD";
+    pitch.carrierUid = shooterNode.uid;
+    pitch.challengerUid = null;
+    pitch.ballX = shotOriginX;
+    pitch.ballY = shotOriginY;
+    pitch.holdBallPos = { x: shotOriginX, y: shotOriginY };
+    pitch.ballFlight = null;
+    pitch.passTrail = null;
+    pitch.lastClashMinute = st.minute;
+
+    partnerTargets.forEach((pt) => {
+      startNodeInterceptTween(pitch, pt.node, pt.tx, pt.ty, 380, false);
+    });
+    const partnerNames = coopShot.partners.map((p) => p.node?.player?.name).filter(Boolean).join(" & ");
+    pitch.coopFreeze = {
+      start: performance.now(),
+      duration: gatherMs,
+      shooterUid: shooterNode.uid,
+      partnerUids: coopShot.partners.map((p) => p.node?.uid).filter(Boolean),
+      targetX: shotOriginX,
+      targetY: shotOriginY,
+      moveName: shotInfo.label,
+      tier: coopShot.partners.length >= 2 ? "TRIO" : "DUPLA",
+      elem: shooterNode.player?.element || "Fogo"
+    };
+    pitch.ticker = `${st.minute}' ⚡ ${shooterNode.player.name} & ${partnerNames} se juntam para 【${shotInfo.label}】!`;
+    if (state.tournament.timerId) {
+      clearInterval(state.tournament.timerId);
+      state.tournament.timerId = null;
+    }
+    syncLivePitchDOM(st);
+    startPitchRafLoop(st);
+
+    let gatherFired = false;
+    const finishCoopGather = (skipDelay = false) => {
+      if (gatherFired) return;
+      gatherFired = true;
+      state.tournament.pendingShotFlightFinish = null;
+      if (state.tournament.shotFlightTimer) {
+        clearTimeout(state.tournament.shotFlightTimer);
+        state.tournament.shotFlightTimer = null;
+      }
+      pitch.coopFreeze = null;
+      if (st.finished) return;
+      if (skipDelay) {
+        pitch.interceptTweens = [];
+        partnerTargets.forEach((pt) => {
+          pt.node.x = pt.tx;
+          pt.node.y = pt.ty;
+        });
+      }
+      triggerNodeJump(shooterNode, 0.92, 0.56);
+      partnerTargets.forEach((pt) => triggerNodeJump(pt.node, 0.92, 0.58));
+      executeShotPhase(Boolean(skipDelay));
+    };
+    state.tournament.pendingShotFlightFinish = finishCoopGather;
+    state.tournament.shotFlightTimer = setTimeout(() => {
+      finishCoopGather(false);
+    }, gatherMs);
+    return;
+  }
+
+  if (hasCoopGather) {
+    partnerTargets.forEach((pt) => {
+      pt.node.x = pt.tx;
+      pt.node.y = pt.ty;
+    });
+    triggerNodeJump(shooterNode, 0.92, 0.56);
+    partnerTargets.forEach((pt) => triggerNodeJump(pt.node, 0.92, 0.58));
+  }
+  executeShotPhase(false);
 }
 
 function stepContinuousPhysics(st, pitch, dt) {

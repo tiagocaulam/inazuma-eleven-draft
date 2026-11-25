@@ -2163,7 +2163,7 @@ function renderPitchDOMFrame(pitch, st, now) {
   const coopStarSet = activeCoopFreeze
     ? new Set([activeCoopFreeze.shooterUid, ...(activeCoopFreeze.partnerUids || [])])
     : null;
-  const pitchFieldEl = document.querySelector(".live-pitch-field");
+  const pitchFieldEl = document.getElementById("live-pitch-world") || document.querySelector(".pitch-world");
   if (pitchFieldEl) {
     pitchFieldEl.classList.toggle("is-coop-freeze", Boolean(activeCoopFreeze));
   }
