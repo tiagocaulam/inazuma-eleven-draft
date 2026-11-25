@@ -296,6 +296,43 @@
     });
   }
 
+  // Metais de estádio filtrados e quentes para comemoração de gol e carga especial
+  function playBrassNote(ctx, dest, opts = {}) {
+    const t0 = ctx.currentTime + (opts.delay || 0);
+    const dur = Math.max(0.05, opts.dur || 0.22);
+    const freq = Math.max(55, opts.freq || 523.25);
+    const endFreq = opts.freqEnd ? Math.max(55, opts.freqEnd) : freq;
+    const peak = Math.max(0.005, opts.gain || 0.16);
+
+    const filter = ctx.createBiquadFilter();
+    filter.type = "lowpass";
+    filter.frequency.setValueAtTime(opts.cutoff || 1450, t0);
+    filter.frequency.exponentialRampToValueAtTime(Math.max(380, (opts.cutoff || 1450) * 0.65), t0 + dur);
+    filter.Q.value = 0.8;
+
+    const gain = ctx.createGain();
+    const atk = Math.min(dur * 0.3, opts.attack || 0.016);
+    gain.gain.setValueAtTime(0.0001, t0);
+    gain.gain.linearRampToValueAtTime(peak, t0 + atk);
+    gain.gain.setValueAtTime(peak * 0.85, Math.max(t0 + atk + 0.01, t0 + dur * 0.72));
+    gain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+
+    filter.connect(gain);
+    gain.connect(dest);
+
+    [0.996, 1.004].forEach((detuneMul) => {
+      const osc = ctx.createOscillator();
+      osc.type = "sawtooth";
+      osc.frequency.setValueAtTime(freq * detuneMul, t0);
+      if (endFreq !== freq) {
+        osc.frequency.exponentialRampToValueAtTime(endFreq * detuneMul, t0 + dur);
+      }
+      osc.connect(filter);
+      osc.start(t0);
+      osc.stop(t0 + dur + 0.025);
+    });
+  }
+
   // Apito realista de árbitro com bolinha interna vibrando a ~38 Hz + sopro de ar
   function playPeaWhistle(ctx, dest, opts = {}) {
     const t0 = ctx.currentTime + (opts.delay || 0);
@@ -567,232 +604,117 @@
         break;
 
       case "shot":
-        // Chute cheio pesado + deslocamento de ar rápido
+        // Chute básico encorpado e limpo (zero chiado estridente)
         playKickTransient(ctx, dest, {
-          subStart: 158,
-          subEnd: 34,
+          subStart: 162,
+          subEnd: 42,
           subDur: 0.088,
-          slapFreq: 1850,
-          slapDur: 0.028,
-          slapGain: 0.40,
+          slapFreq: 960,
+          slapDur: 0.016,
+          slapGain: 0.16,
           punchGain: 0.56,
           saturate: true
         });
-        playNoiseSweep(ctx, dest, {
-          noiseType: "pink",
-          filterType: "bandpass",
-          freqStart: 1380,
-          freqEnd: 340,
-          q: 1.3,
-          dur: 0.17,
-          attack: 0.010,
-          gain: 0.20,
-          delay: 0.015
+        playTone(ctx, dest, {
+          type: "triangle",
+          freq: 210,
+          freqEnd: 74,
+          dur: 0.095,
+          attack: 0.004,
+          gain: 0.18
         });
         break;
 
       case "hissatsu": {
         const el = String(opts.elem || "Fogo").toLowerCase();
-        // Impacto inicial pesado do chute especial
+        // Carga e disparo especial cinematográfico sem estática longa
         playKickTransient(ctx, dest, {
-          subStart: 170,
-          subEnd: 32,
-          subDur: 0.105,
-          slapFreq: 1950,
-          slapDur: 0.030,
-          slapGain: 0.42,
-          punchGain: 0.62,
+          subStart: 175,
+          subEnd: 36,
+          subDur: 0.10,
+          slapFreq: 1050,
+          slapDur: 0.018,
+          slapGain: 0.20,
+          punchGain: 0.60,
           saturate: true
         });
         if (el.includes("vent")) {
-          // Vento / Furacão: rajada cortante dupla de tornado
+          playBrassNote(ctx, dest, { freq: 340, freqEnd: 780, dur: 0.24, cutoff: 1750, gain: 0.14 });
           playNoiseSweep(ctx, dest, {
             noiseType: "pink",
             filterType: "bandpass",
-            freqStart: 320,
-            freqMid: 2650,
-            freqEnd: 620,
-            q: 3.8,
-            dur: 0.34,
-            attack: 0.028,
-            gain: 0.34,
-            delay: 0.02
-          });
-          playNoiseSweep(ctx, dest, {
-            noiseType: "white",
-            filterType: "bandpass",
-            freqStart: 540,
-            freqMid: 3250,
-            freqEnd: 820,
-            q: 3.2,
-            dur: 0.31,
-            attack: 0.035,
+            freqStart: 420,
+            freqMid: 1550,
+            freqEnd: 520,
+            q: 3.4,
+            dur: 0.24,
+            attack: 0.025,
             gain: 0.18,
-            delay: 0.04
+            delay: 0.02
           });
         } else if (el.includes("flor")) {
-          // Floresta: vendaval orgânico nas folhas + estalo firme
-          playNoiseSweep(ctx, dest, {
-            noiseType: "pink",
-            filterType: "bandpass",
-            freqStart: 480,
-            freqMid: 2100,
-            freqEnd: 440,
-            q: 2.0,
-            dur: 0.33,
-            attack: 0.025,
-            gain: 0.30,
-            delay: 0.02
-          });
-          playNoiseSweep(ctx, dest, {
-            noiseType: "white",
-            filterType: "highpass",
-            freqStart: 1900,
-            freqEnd: 950,
-            q: 1.0,
-            dur: 0.24,
-            attack: 0.03,
-            gain: 0.14,
-            delay: 0.03
-          });
+          playBrassNote(ctx, dest, { freq: 392, freqEnd: 587.33, dur: 0.22, cutoff: 1450, gain: 0.14 });
+          playTone(ctx, dest, { type: "sine", freq: 587.33, dur: 0.20, delay: 0.04, gain: 0.14 });
         } else if (el.includes("mont")) {
-          // Montanha: impacto sísmico grave + estilhaço de rocha
-          playNoiseSweep(ctx, satCurveNode || dest, {
-            noiseType: "brown",
-            filterType: "lowpass",
-            freqStart: 280,
-            freqEnd: 58,
-            q: 1.4,
-            dur: 0.38,
-            attack: 0.012,
-            gain: 0.45
-          });
-          playNoiseSweep(ctx, dest, {
-            noiseType: "white",
-            filterType: "bandpass",
-            freqStart: 1700,
-            freqEnd: 420,
-            q: 1.4,
-            dur: 0.13,
-            attack: 0.005,
-            gain: 0.24,
-            delay: 0.015
-          });
-        } else {
-          // Fogo: labareda intensa (brown+pink) + estalos rápidos de brasa
+          playBrassNote(ctx, dest, { freq: 146.83, freqEnd: 98, dur: 0.28, cutoff: 540, gain: 0.22 });
           playNoiseSweep(ctx, satCurveNode || dest, {
             noiseType: "brown",
             filterType: "lowpass",
             freqStart: 220,
-            freqMid: 1450,
-            freqEnd: 340,
-            q: 1.6,
-            dur: 0.38,
-            attack: 0.020,
-            gain: 0.44,
+            freqEnd: 55,
+            q: 1.1,
+            dur: 0.26,
+            attack: 0.01,
+            gain: 0.34
+          });
+        } else {
+          // Fogo: subida quente de energia + labareda grave limpa (sem chiado agudo)
+          playBrassNote(ctx, dest, { freq: 246.94, freqEnd: 523.25, dur: 0.24, cutoff: 1300, gain: 0.16 });
+          playNoiseSweep(ctx, satCurveNode || dest, {
+            noiseType: "brown",
+            filterType: "lowpass",
+            freqStart: 240,
+            freqMid: 820,
+            freqEnd: 220,
+            q: 1.3,
+            dur: 0.26,
+            attack: 0.018,
+            gain: 0.30,
             delay: 0.015
-          });
-          playNoiseSweep(ctx, dest, {
-            noiseType: "pink",
-            filterType: "bandpass",
-            freqStart: 680,
-            freqMid: 2250,
-            freqEnd: 640,
-            q: 1.4,
-            dur: 0.34,
-            attack: 0.025,
-            gain: 0.26,
-            delay: 0.02
-          });
-          // Crepitação rápida de fogo
-          [0.05, 0.12, 0.19].forEach((dOff, i) => {
-            playNoiseSweep(ctx, dest, {
-              noiseType: "white",
-              filterType: "bandpass",
-              freqStart: 2400 + i * 350,
-              freqEnd: 1500,
-              q: 2.4,
-              dur: 0.032,
-              attack: 0.002,
-              gain: 0.16,
-              delay: dOff
-            });
           });
         }
         break;
       }
 
       case "goal":
-        // 1) Impacto na malha da rede (nylon snap + ripple, sem acordes 8-bit)
+        // Impacto seco de gol seguido por fanfarra/comemoração de estádio limpa (zero chiado longo)
         playKickTransient(ctx, dest, {
-          subStart: 112,
-          subEnd: 36,
-          subDur: 0.075,
-          slapFreq: 760,
-          slapDur: 0.028,
-          slapGain: 0.26,
+          subStart: 120,
+          subEnd: 38,
+          subDur: 0.055,
+          slapFreq: 860,
+          slapDur: 0.016,
+          slapGain: 0.18,
           punchGain: 0.44,
           saturate: true
         });
-        playNoiseSweep(ctx, dest, {
-          noiseType: "white",
-          filterType: "bandpass",
-          freqStart: 1650,
-          freqEnd: 920,
-          q: 1.7,
-          dur: 0.11,
-          attack: 0.006,
-          gain: 0.30,
-          delay: 0.012
-        });
-        playNoiseSweep(ctx, dest, {
-          noiseType: "pink",
-          filterType: "bandpass",
-          freqStart: 2450,
-          freqEnd: 1150,
-          q: 1.5,
-          dur: 0.15,
-          attack: 0.010,
-          gain: 0.22,
-          delay: 0.055
-        });
-
-        // 2) Explosão da torcida no estádio (3 camadas de ruído rosa/marrom)
+        playBrassNote(ctx, dest, { freq: 523.25, dur: 0.12, delay: 0.03, cutoff: 1550, gain: 0.14 });
+        playBrassNote(ctx, dest, { freq: 659.25, dur: 0.12, delay: 0.14, cutoff: 1650, gain: 0.15 });
+        playBrassNote(ctx, dest, { freq: 783.99, dur: 0.13, delay: 0.25, cutoff: 1750, gain: 0.16 });
+        playBrassNote(ctx, dest, { freq: 1046.50, dur: 0.46, delay: 0.37, cutoff: 1850, gain: 0.19 });
+        playBrassNote(ctx, dest, { freq: 523.25, dur: 0.44, delay: 0.37, cutoff: 1100, gain: 0.13 });
+        playBrassNote(ctx, dest, { freq: 392.00, dur: 0.44, delay: 0.37, cutoff: 900, gain: 0.11 });
+        // Base grave de vibração da arquibancada (sem frequências agudas de chiado)
         playNoiseSweep(ctx, dest, {
           noiseType: "brown",
           filterType: "lowpass",
-          freqStart: 320,
-          freqEnd: 190,
-          q: 0.8,
-          dur: 1.25,
-          attack: 0.11,
-          sustainHold: true,
-          gain: 0.34,
-          delay: 0.045
-        });
-        playNoiseSweep(ctx, dest, {
-          noiseType: "pink",
-          filterType: "bandpass",
-          freqStart: 860,
-          freqEnd: 680,
-          q: 0.85,
-          dur: 1.20,
-          attack: 0.10,
-          sustainHold: true,
-          gain: 0.30,
-          delay: 0.055
-        });
-        playNoiseSweep(ctx, dest, {
-          noiseType: "white",
-          filterType: "bandpass",
-          freqStart: 1950,
-          freqEnd: 1380,
+          freqStart: 210,
+          freqEnd: 110,
           q: 0.7,
-          dur: 1.05,
-          attack: 0.13,
-          sustainHold: true,
+          dur: 0.65,
+          attack: 0.08,
           gain: 0.16,
-          delay: 0.07
+          delay: 0.05
         });
         break;
 

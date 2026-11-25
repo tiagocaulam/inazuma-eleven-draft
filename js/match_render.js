@@ -169,8 +169,8 @@ function resetPitchForKickoff(pitch, kickoffSide, snapNodes = false, isGoalReset
   pitch.coopFreeze = null;
   [...(pitch.userNodes || []), ...(pitch.oppNodes || [])].forEach((n) => {
     n.jumpZ = 0;
-    n.jumpElapsed = 0;
-    n.jumpDuration = 0;
+    n.jumpStartMs = 0;
+    n.jumpDurationMs = 0;
     n.jumpPeak = 0;
   });
   pitch.camX = 50;
@@ -2193,13 +2193,27 @@ function renderPitchDOMFrame(pitch, st, now) {
   const stepDomNode = (node) => {
     const el = document.getElementById(`pnode-${node.uid}`);
     if (el) {
-      const jZ = betaOn ? Math.max(0, Math.min(1.2, Number(node.jumpZ) || 0)) : 0;
-      const liftedNodeY = Math.max(2, node.y - jZ * 3.8);
+      let jZ = 0;
+      if (betaOn && (node.jumpDurationMs || 0) > 0 && (node.jumpStartMs || 0) > 0) {
+        const jp = (now - node.jumpStartMs) / node.jumpDurationMs;
+        if (jp >= 1 || jp < 0) {
+          node.jumpZ = 0;
+          node.jumpStartMs = 0;
+          node.jumpDurationMs = 0;
+          node.jumpPeak = 0;
+        } else {
+          jZ = Math.max(0, Math.min(0.9, 4 * jp * (1 - jp) * (node.jumpPeak || 0.78)));
+          node.jumpZ = jZ;
+        }
+      } else {
+        node.jumpZ = 0;
+      }
+      const liftedNodeY = Math.max(2, node.y - jZ * 3.0);
       el.style.left = `${node.x.toFixed(2)}%`;
       el.style.top = `${liftedNodeY.toFixed(2)}%`;
-      el.classList.toggle("is-jumping", jZ > 0.03);
-      if (jZ > 0.03) {
-        if (typeof el.style.setProperty === "function") el.style.setProperty("--jump-scale", (1 + jZ * 0.24).toFixed(2));
+      el.classList.toggle("is-jumping", jZ > 0.04);
+      if (jZ > 0.04) {
+        if (typeof el.style.setProperty === "function") el.style.setProperty("--jump-scale", (1 + jZ * 0.16).toFixed(2));
         el.style.zIndex = "15";
       } else {
         if (typeof el.style.removeProperty === "function") el.style.removeProperty("--jump-scale");

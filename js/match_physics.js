@@ -1684,12 +1684,12 @@ function selectShotBlockerEntry(pathEnemies) {
   };
 }
 
-function triggerNodeJump(node, peak = 0.85, duration = 0.50) {
+function triggerNodeJump(node, peak = 0.78, duration = 0.44) {
   if (!node || typeof isBetaMode !== "function" || !isBetaMode()) return;
-  node.jumpPeak = Math.max(0.25, Math.min(1.15, Number(peak) || 0.85));
-  node.jumpDuration = Math.max(0.22, Number(duration) || 0.50);
-  node.jumpElapsed = 0;
-  node.jumpZ = 0.08;
+  node.jumpPeak = Math.max(0.25, Math.min(0.85, Number(peak) || 0.78));
+  node.jumpDurationMs = Math.max(220, Math.min(540, Math.round((Number(duration) || 0.44) * 1000)));
+  node.jumpStartMs = performance.now();
+  node.jumpZ = 0;
 }
 
 function launchContinuousShot(st, pitch, shooterNode, defNodes, attSupport, defSupport, ovrDiff, attNodesArg = null, opts = {}) {
@@ -3055,19 +3055,6 @@ function stepContinuousPhysics(st, pitch, dt) {
   });
 
   if (typeof isBetaMode === "function" && isBetaMode()) {
-    allNodes.forEach((n) => {
-      if ((n.jumpDuration || 0) > 0) {
-        n.jumpElapsed = (n.jumpElapsed || 0) + dt;
-        const jp = Math.min(1, n.jumpElapsed / n.jumpDuration);
-        n.jumpZ = jp >= 1 ? 0 : Math.sin(jp * Math.PI) * (n.jumpPeak || 0.85);
-        if (jp >= 1) {
-          n.jumpElapsed = 0;
-          n.jumpDuration = 0;
-          n.jumpPeak = 0;
-          n.jumpZ = 0;
-        }
-      }
-    });
     if (pitch.coopFreeze) {
       const nowCf = performance.now();
       if (nowCf < pitch.coopFreeze.start + pitch.coopFreeze.duration) {
