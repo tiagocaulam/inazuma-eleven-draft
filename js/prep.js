@@ -2431,14 +2431,14 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
       { pred: (a) => a.role === "DF" || a.role === "MF", role: "DF" }
     ],
     (actors, ctx) => [
-      mkSpontaneousMsg(actors, 0, `Já deu! Eu fico me esticando inteiro na ${actors[0].gkMove} e vocês continuam abrindo o corredor pro chute livre!`, "toxic"),
+      mkSpontaneousMsg(actors, 0, `Já deu! Eu fico me esticando inteiro na ${actors[0].gkMove} e vocês continuam abrindo o corredor para o chute livre!`, "toxic"),
       mkSpontaneousMsg(actors, 1, `Não vem jogar a culpa só na defesa, ${actors[0].name}! Contra ${ctx.oppName}, o meio não acompanha a segunda bola e sobra tudo nas nossas costas!`, "toxic"),
-      mkSpontaneousMsg(actors, 2, `Eu até tento dar cobertura com ${actors[2].dfMove}, mas ninguém avisa quando o ponta corta pro meio...`, "tense"),
+      mkSpontaneousMsg(actors, 2, `Eu até tento dar cobertura com ${actors[2].dfMove}, mas ninguém avisa quando o ponta corta para o meio...`, "tense"),
       mkSpontaneousMsg(actors, 0, `Pois ou a linha conversa antes da área ou eu não respondo pelos chutes de ${ctx.oppName}!`, "toxic")
     ],
     (actors, ctx) => buildShuffledChatChoices(actors, {
       great: {
-        label: "Definir gatilho de grito entre Goleiro e Zaga pra fechar o centro",
+        label: "Definir gatilho de grito entre Goleiro e Zaga para fechar o centro",
         approachTag: "Ajuste Defensivo",
         coachLine: `${actors[0].name}, você enxerga o campo inteiro. Comande a linha e ${actors[1].name}, feche o corredor antes da área!`,
         reactions: [
@@ -2457,7 +2457,7 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
         ]
       },
       poor: {
-        label: "Cobrar só o Goleiro pra defender qualquer chute",
+        label: "Cobrar só o Goleiro para defender qualquer chute",
         approachTag: "Pulso Firme",
         coachLine: `${actors[0].name}, goleiro decisivo garante mesmo se a zaga falhar — para de reclamar e segura tudo!`,
         reactions: [
@@ -2478,22 +2478,22 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
     ],
     (actors, ctx) => [
       mkSpontaneousMsg(actors, 0, `Você segura a bola demais no meio, ${actors[1].name}! Eu faço o facão com minha ${actors[0].shMove} pronta e o passe nunca chega!`, "toxic"),
-      mkSpontaneousMsg(actors, 1, `Claro que não chega! Você corre em linha reta pro meio de três marcadores e acha que eu tenho telepatia!`, "toxic"),
+      mkSpontaneousMsg(actors, 1, `Claro que não chega! Você corre em linha reta para o meio de três marcadores e acha que eu tenho telepatia!`, "toxic"),
       mkSpontaneousMsg(actors, 0, `Sou ${actors[0].archetypeLabel}, minha função é definir! Contra ${ctx.oppName} precisa ser mais direto!`, "toxic"),
       mkSpontaneousMsg(actors, 1, `E eu organizo o time! Sem ângulo decente sua corrida só entrega contra-ataque!`, "tense")
     ],
     (actors, ctx) => buildShuffledChatChoices(actors, {
       great: {
-        label: "Marcar sinal visual: meia segura 1 tempo pro atacante abrir em diagonal",
-        approachTag: "Sincronia Tática",
+        label: "Marcar sinal visual: meia segura 1 tempo para o atacante abrir em diagonal",
+        approachTag: "Sincronia Estática",
         coachLine: `${actors[1].name} dita o segundo do passe; ${actors[0].name}, espere o ombro girar e ataque a diagonal livre.`,
         reactions: [
           { idx: 1, text: `Se ele cortar na diagonal assim, eu coloco na medida com ${actors[1].ofMove}!`, tone: "idea" },
-          { idx: 0, text: `Demorou! Manda no espaço que eu chego destruindo contra ${ctx.oppName}!`, tone: "hype" }
+          { idx: 0, text: `Fechado! Manda no espaço que eu chego destruindo contra ${ctx.oppName}!`, tone: "hype" }
         ]
       },
       good: {
-        label: "Pedir pra respeitarem a função de cada um em campo",
+        label: "Pedir para respeitarem a função de cada um em campo",
         approachTag: "Mediação",
         coachLine: `Precisamos do instinto de gol e da cabeça fria juntos. Sem brigas no treino.`,
         reactions: [
@@ -2524,23 +2524,23 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
     ],
     (actors, ctx) => [
       mkSpontaneousMsg(actors, 0, `Quando eu disparo pela ponta, a bola tem que viajar na minha frente, não no meu calcanhar!`, "toxic"),
-      mkSpontaneousMsg(actors, 1, `Pera lá, ${actors[0].name}! Você arranca a mil sem olhar se eu tô cercado!`, "toxic"),
-      mkSpontaneousMsg(actors, 2, `A verdade é que vocês tão fora de sintonia no tempo do lançamento. ${ctx.oppName} vai cortar todas assim.`, "tense")
+      mkSpontaneousMsg(actors, 1, `Espere aí, ${actors[0].name}! Você arranca a mil sem olhar se eu estou cercado!`, "toxic"),
+      mkSpontaneousMsg(actors, 2, `A verdade é que vocês estão fora de sintonia no tempo do lançamento. ${ctx.oppName} vai cortar todas assim.`, "tense")
     ],
     (actors) => buildShuffledChatChoices(actors, {
       great: {
-        label: "Instruir passe adiantado no espaço vazio pro velocista atacar na passada",
+        label: "Instruir passe adiantado no espaço vazio para o velocista atacar na passada",
         approachTag: "Bola no Espaço",
-        coachLine: `${actors[1].name}, não mire no pé dele — jogue 5 metros à frente no espaço vivo pro ${actors[0].name} usar a velocidade!`,
+        coachLine: `${actors[1].name}, não mire no pé dele — jogue 5 metros à frente no espaço vivo para o ${actors[0].name} usar a velocidade!`,
         reactions: [
-          { idx: 0, text: `ISSO! Bola solta na frente é tudo que eu preciso pra sumir na corrida!`, tone: "hype" },
+          { idx: 0, text: `ISSO! Bola solta na frente é tudo que eu preciso para sumir na corrida!`, tone: "hype" },
           { idx: 1, text: `Beleza, agora fica muito mais fácil lançar sabendo onde você vai buscar.`, tone: "calm" }
         ]
       },
       good: {
-        label: "Pedir pro ponta reduzir um pouco a arrancada pra facilitar o passe",
+        label: "Pedir para o ponta reduzir um pouco a arrancada para facilitar o passe",
         approachTag: "Pausa",
-        coachLine: `${actors[0].name}, segure meio passo antes da linha pra dar janela limpa ao passador.`,
+        coachLine: `${actors[0].name}, segure meio passo antes da linha para dar janela limpa ao passador.`,
         reactions: [
           { idx: 0, text: `Aham... não gosto de frear, mas vou tentar sincronizar.`, tone: "normal" },
           { idx: 1, text: `Ajuda bem na hora de achar o ângulo.`, tone: "calm" }
@@ -2568,19 +2568,19 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
       { pred: (a) => a.role === "FW", role: "FW" }
     ],
     (actors, ctx) => [
-      mkSpontaneousMsg(actors, 0, `Quando eu roubo com ${actors[0].dfMove}, olho pro meio e não tem ninguém pra receber!`, "toxic"),
+      mkSpontaneousMsg(actors, 0, `Quando eu roubo com ${actors[0].dfMove}, olho para o meio e não tem ninguém para receber!`, "toxic"),
       mkSpontaneousMsg(actors, 1, `Porque o ataque deita lá na frente e eu fico sozinho contra três volantes de ${ctx.oppName}!`, "toxic"),
-      mkSpontaneousMsg(actors, 2, `Se eu voltar toda hora pra buscar no círculo central, quem fica lá na frente pra assustar a zaga deles?!`, "toxic")
+      mkSpontaneousMsg(actors, 2, `Se eu voltar toda hora para buscar no círculo central, quem fica lá na frente para assustar a zaga deles?!`, "toxic")
     ],
     (actors) => buildShuffledChatChoices(actors, {
       great: {
-        label: "Montar triângulo curto: DF entrega no MF que gira de primeira pro FW",
+        label: "Montar triângulo curto: DF entrega no MF que gira de primeira para o FW",
         approachTag: "Estrutura 3 Setores",
-        coachLine: `${actors[1].name} se aproxima como pivô de tabela, e ${actors[2].name} recua só 4 passos pra puxar o zagueiro e abrir o espaço!`,
+        coachLine: `${actors[1].name} se aproxima como pivô de tabela, e ${actors[2].name} recua só 4 passos para puxar o zagueiro e abrir o espaço!`,
         reactions: [
-          { idx: 1, text: `Genial! Recebo de costas já sabendo onde o ${actors[2].name} tá livre!`, tone: "idea" },
-          { idx: 0, text: `Aí sim! Saída limpa e sem desespero.`, tone: "calm" },
-          { idx: 2, text: `E quando girar pra frente, sobra espaço pra minha arrancada!`, tone: "hype" }
+          { idx: 1, text: `Genial! Recebo de costas já sabendo onde o ${actors[2].name} está livre!`, tone: "idea" },
+          { idx: 0, text: `É isso aí! Saída limpa e sem desespero.`, tone: "calm" },
+          { idx: 2, text: `E quando girar para frente, sobra espaço para a minha arrancada!`, tone: "hype" }
         ]
       },
       good: {
@@ -2593,9 +2593,9 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
         ]
       },
       poor: {
-        label: "Mandar o zagueiro só dar chutão pra frente e ignorar o meio",
+        label: "Mandar o zagueiro só dar chutão para frente e ignorar o meio",
         approachTag: "Bola Longa Forçada",
-        coachLine: `${actors[0].name}, esmaga a bola pro alto lá na frente e acabou a discussão!`,
+        coachLine: `${actors[0].name}, esmaga a bola para o alto lá na frente e acabou a discussão!`,
         reactions: [
           { idx: 1, text: `E eu virei enfeite no meio-campo agora?!`, tone: "toxic" },
           { idx: 2, text: `Chutão cego contra três zagueiros não funciona, treinador!`, tone: "toxic" }
@@ -2614,34 +2614,34 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
       { pred: (a) => a.role === "DF", role: "DF" }
     ],
     (actors, ctx) => [
-      mkSpontaneousMsg(actors, 1, `Com a energia do time em ${ctx.teamEnergy}%, todo mundo tá chegando atrasado nas divididas e se xingando no treino!`, "tense"),
-      mkSpontaneousMsg(actors, 2, `Não aguenta a pressão vai descansar no banco! Aqui ninguém dá moleza pra ${ctx.oppName}!`, "toxic"),
+      mkSpontaneousMsg(actors, 1, `Com a energia do time em ${ctx.teamEnergy}%, todo mundo está chegando atrasado nas divididas e se xingando no treino!`, "tense"),
+      mkSpontaneousMsg(actors, 2, `Não aguenta a pressão vai descansar no banco! Aqui ninguém dá moleza para ${ctx.oppName}!`, "toxic"),
       mkSpontaneousMsg(actors, 0, `Chega de grosseria! Descontar o cansaço nos colegas não faz ninguém correr mais rápido!`, "tense")
     ],
     (actors) => buildShuffledChatChoices(actors, {
       great: {
         label: "Transformar a irritação em foco competitivo e economia inteligente de fôlego",
         approachTag: "Canalizar Raiva",
-        coachLine: `Guardem essa raiva pros adversários! Dosando corridas inúteis e soltando a bola rápido, vocês transformam tensão em força pura nos duelos!`,
+        coachLine: `Guardem essa raiva para os adversários! Dosando corridas inúteis e soltando a bola rápido, vocês transformam tensão em força pura nos duelos!`,
         reactions: [
           { idx: 2, text: `Tem razão... descontar em ${actors[1].name} não resolve. Quero é passar por cima dos rivais!`, tone: "hype" },
           { idx: 0, text: `Boa, treinador. Cabeça no lugar e sangue nos olhos no apito!`, tone: "calm" },
-          { idx: 1, text: `Fechado! Toda essa adrenalina agora vai pro jogo.`, tone: "hype" }
+          { idx: 1, text: `Fechado! Toda essa adrenalina agora vai para o jogo.`, tone: "hype" }
         ]
       },
       good: {
-        label: "Pedir pra encerrarem o bate-boca e hidratarem juntos",
+        label: "Pedir para encerrarem o bate-boca e hidratarem juntos",
         approachTag: "Paz no Grupo",
-        coachLine: `Pausa pra água agora. Esfriem a cabeça antes de entrar em campo.`,
+        coachLine: `Pausa para a água agora. Esfriem a cabeça antes de entrar em campo.`,
         reactions: [
           { idx: 1, text: `Beleza... precisava mesmo respirar.`, tone: "calm" },
           { idx: 2, text: `Tudo certo então.`, tone: "normal" }
         ]
       },
       poor: {
-        label: "Dobrar a intensidade do atrito colocando os dois pra se marcar duro",
+        label: "Dobrar a intensidade do atrito colocando os dois para se marcar duro",
         approachTag: "Incendiar Clima",
-        coachLine: `Vão pro 1x1 agora e mostrem quem tem mais pulmão aqui!`,
+        coachLine: `Vão para o 1x1 agora e mostrem quem tem mais pulmão aqui!`,
         reactions: [
           { idx: 1, text: `Nessa altura você quer estourar todo mundo antes da partida?!`, tone: "toxic" },
           { idx: 2, text: `Se a gente se lesionar aqui a culpa é sua!`, tone: "toxic" }
@@ -2660,17 +2660,17 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
     ],
     (actors) => [
       mkSpontaneousMsg(actors, 0, `Minha afinidade de ${actors[0].element} pede explosão e corte seco, mas o seu ritmo de ${actors[1].element} quebra minha passada!`, "toxic"),
-      mkSpontaneousMsg(actors, 1, `Engraçado! Pra mim quem atropela tudo sem pensar é justamente o seu estilo de ${actors[0].element}!`, "toxic"),
+      mkSpontaneousMsg(actors, 1, `Engraçado! Para mim quem atropela tudo sem pensar é justamente o seu estilo de ${actors[0].element}!`, "toxic"),
       mkSpontaneousMsg(actors, 0, `Desse jeito nossas jogadas nunca vão somar força nenhuma!`, "tense")
     ],
     (actors) => buildShuffledChatChoices(actors, {
       great: {
-        label: "Usar o contraste dos elementos pra confundir a marcação em dois tempos",
+        label: "Usar o contraste dos elementos para confundir a marcação em dois tempos",
         approachTag: "Contraste Elemental",
-        coachLine: `Vocês não precisam ser iguais! Use ${actors[1].element} pra atrair o marcador e solte pro corte de ${actors[0].element} pegar o rival no contrapé!`,
+        coachLine: `Vocês não precisam ser iguais! Use ${actors[1].element} para atrair o marcador e solte para o corte de ${actors[0].element} pegar o rival no contrapé!`,
         reactions: [
           { idx: 1, text: `Peraí... contraste de ritmo quebra o zagueiro na hora! Boa leitura!`, tone: "idea" },
-          { idx: 0, text: `Gostei disso! Fica até mais imprevisível pro goleiro deles!`, tone: "hype" }
+          { idx: 0, text: `Gostei disso! Fica até mais imprevisível para o goleiro deles!`, tone: "hype" }
         ]
       },
       good: {
@@ -2685,7 +2685,7 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
       poor: {
         label: "Mandar evitarem trocar passes entre si durante a partida",
         approachTag: "Isolar Setor",
-        coachLine: `Se ${actors[0].element} e ${actors[1].element} não batem, joguem em lados opostos e nem passem um pro outro.`,
+        coachLine: `Se ${actors[0].element} e ${actors[1].element} não batem, joguem em lados opostos e nem passem um para o outro.`,
         reactions: [
           { idx: 0, text: `Isolar o próprio time? Isso só deixa a gente mais previsível!`, tone: "toxic" },
           { idx: 1, text: `Terrível decisão...`, tone: "toxic" }
@@ -2704,13 +2704,13 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
       { pred: (a) => a.role === "MF", role: "MF" }
     ],
     (actors, ctx) => [
-      mkSpontaneousMsg(actors, 0, `Duas vezes na cara da área eu tava livre de frente e você preferiu forçar a ${actors[1].shMove} na muralha deles!`, "toxic"),
+      mkSpontaneousMsg(actors, 0, `Duas vezes na cara da área eu estava livre de frente e você preferiu forçar a ${actors[1].shMove} na muralha deles!`, "toxic"),
       mkSpontaneousMsg(actors, 1, `Se eu chegar com espaço eu chuto mesmo! Eu não sou garçom de ninguém, ${actors[0].name}!`, "toxic"),
       mkSpontaneousMsg(actors, 2, `Enquanto os dois disputam quem aparece na foto do gol, ${ctx.oppName} agradece os chutes bloqueados...`, "tense")
     ],
     (actors) => buildShuffledChatChoices(actors, {
       great: {
-        label: "Regra clara: quem estiver com ângulo limpo finaliza; marcado, rola pro lado!",
+        label: "Regra clara: quem estiver com ângulo limpo finaliza; marcado, rola para o lado!",
         approachTag: "Hierarquia de Área",
         coachLine: `Gosto da fome de gol dos dois! Mas quem estiver sem bloqueio direto finaliza; se tiver dois marcadores na frente, rola que o colega empurra!`,
         reactions: [
@@ -2724,16 +2724,16 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
         approachTag: "Dividir Bolas",
         coachLine: `Vamos alternar os ataques entre os dois lados para ambos terem chances reais.`,
         reactions: [
-          { idx: 1, text: `Justo pra todo mundo.`, tone: "normal" },
+          { idx: 1, text: `Justo para todo mundo.`, tone: "normal" },
           { idx: 0, text: `Certo, contanto que a bola chegue.`, tone: "calm" }
         ]
       },
       poor: {
-        label: "Dizer que o time inteiro deve jogar exclusivamente pra um único atacante",
+        label: "Dizer que o time inteiro deve jogar exclusivamente para um único atacante",
         approachTag: "Privilégio",
-        coachLine: `A partir de hoje só ${actors[1].name} finaliza; o resto só toca pra ele.`,
+        coachLine: `A partir de hoje só ${actors[1].name} finaliza; o resto só toca para ele.`,
         reactions: [
-          { idx: 0, text: `Tá de brincadeira comigo?! E minha ${actors[0].shMove} serve pra quê?!`, tone: "toxic" },
+          { idx: 0, text: `Está de brincadeira comigo?! E minha ${actors[0].shMove} serve para quê?!`, tone: "toxic" },
           { idx: 2, text: `A zaga rival vai dobrar a marcação nele em dois minutos...`, tone: "tense" }
         ]
       }
@@ -2755,12 +2755,12 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
     ],
     (actors) => buildShuffledChatChoices(actors, {
       great: {
-        label: "Elogiar a garra do zagueiro e canalizá-la pra antecipar a bola antes do contato",
+        label: "Elogiar a garra do zagueiro e canalizá-la para antecipar a bola antes do contato",
         approachTag: "Intensidade Limpa",
-        coachLine: `Admiro essa entrega, ${actors[0].name}! Mas use essa explosão pra cortar a linha de passe ANTES do choque — assim protege nosso time e apavora o rival!`,
+        coachLine: `Admiro essa entrega, ${actors[0].name}! Mas use essa explosão para cortar a linha de passe ANTES do choque — assim protege nosso time e apavora o rival!`,
         reactions: [
           { idx: 0, text: `Antecipar o corte sem dar mole... beleza! ${actors[1].name}, valeu por aguentar a pressão, vai nos deixar casca-grossa.`, tone: "calm" },
-          { idx: 1, text: `Aí sim! Se antecipar desse jeito atrás, eu jogo muito mais solto na frente.`, tone: "hype" }
+          { idx: 1, text: `É isso aí! Se antecipar desse jeito atrás, eu jogo muito mais solto na frente.`, tone: "hype" }
         ]
       },
       good: {
@@ -2769,7 +2769,7 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
         coachLine: `Vamos baixar o contato direto hoje e treinar posicionamento sem carrinho.`,
         reactions: [
           { idx: 0, text: `Certo, sem contato excessivo por hoje.`, tone: "normal" },
-          { idx: 1, text: `Melhor pros tornozelos do elenco...`, tone: "calm" }
+          { idx: 1, text: `Melhor para os tornozelos do elenco...`, tone: "calm" }
         ]
       },
       poor: {
@@ -2778,7 +2778,7 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
         coachLine: `${actors[1].name}, para de chorar! Se não aguenta um toque no treino não entra no campeonato.`,
         reactions: [
           { idx: 1, text: `Beleza então... quando eu ficar travado no jogo não pergunte o motivo.`, tone: "toxic" },
-          { idx: 0, text: `Tsc... até eu percebi que peguei pesado e você piorou tudo.`, tone: "tense" }
+          { idx: 0, text: `Hmph... até eu percebi que peguei pesado e você piorou tudo.`, tone: "tense" }
         ]
       }
     })
@@ -2794,26 +2794,26 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
       { pred: (a) => a.role === "FW" || a.role === "MF", role: "FW" }
     ],
     (actors, ctx) => [
-      mkSpontaneousMsg(actors, 0, `Ei, ${actors[1].name}, tô pensando numa técnica nova absurda pra quebrar o goleiro de ${ctx.oppName}!`, "idea"),
+      mkSpontaneousMsg(actors, 0, `Ei, ${actors[1].name}, estou pensando numa técnica nova absurda para quebrar o goleiro de ${ctx.oppName}!`, "idea"),
       mkSpontaneousMsg(actors, 1, `Manda! Se misturar a velocidade da minha ${actors[1].shMove} com a pressão da sua ${actors[0].shMove}...`, "idea"),
       mkSpontaneousMsg(actors, 0, `Exato! Eu ergo a bola girando e nós dois batemos juntos no exato segundo do impacto! Eles não têm chance contra nós!`, "hype")
     ],
     (actors) => buildShuffledChatChoices(actors, {
       great: {
-        label: "Ajustar o ângulo dos pés pro impacto simultâneo sem perder força",
+        label: "Ajustar o ângulo dos pés para o impacto simultâneo sem perder força",
         approachTag: "Sincronia Técnica",
         coachLine: `Façam um passo curto sincronizado: o toque de ${actors[0].name} cria o spin e ${actors[1].name} fecha o ângulo no segundo toque!`,
         reactions: [
           { idx: 0, text: `BATEU PERFEITO!! Senti o ar rasgar quando nossos pés encostaram juntos!`, tone: "hype" },
-          { idx: 1, text: `Isso ficou INSANO! O goleiro nem vai ver da onde veio a curva!`, tone: "hype" }
+          { idx: 1, text: `Isso ficou INSANO! O goleiro nem vai ver de onde veio a curva!`, tone: "hype" }
         ]
       },
       good: {
         label: "Treinar primeiro com chute alternado antes de baterem juntos",
         approachTag: "Passo a Passo",
-        coachLine: `Comecem num passe-chute rápido pra garantir a direção primeiro.`,
+        coachLine: `Comecem num passe-chute rápido para garantir a direção primeiro.`,
         reactions: [
-          { idx: 0, text: `Boa ideia, tá pegando forma aos poucos.`, tone: "idea" },
+          { idx: 0, text: `Boa ideia, está pegando forma aos poucos.`, tone: "idea" },
           { idx: 1, text: `Logo a gente encaixa o tempo completo!`, tone: "normal" }
         ]
       },
@@ -2823,7 +2823,7 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
         coachLine: `Só corram e chutem o mais forte que puderem ao mesmo tempo, sem perder tempo ajustando passo!`,
         reactions: [
           { idx: 0, text: `A gente quase trombou no ar e gastou fôlego à toa!`, tone: "tense" },
-          { idx: 1, text: `Minha perna tá pesada e a bola saiu torta... precisa de mais treino antes.`, tone: "tense" }
+          { idx: 1, text: `Minha perna está pesada e a bola saiu torta... precisa de mais treino antes.`, tone: "tense" }
         ]
       }
     })
@@ -2839,8 +2839,8 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
       { pred: (a) => a.role === "FW" || a.role === "MF", role: "MF" }
     ],
     (actors, ctx) => [
-      mkSpontaneousMsg(actors, 0, `Galera, tive uma visão pro jogo contra ${ctx.oppName}: se desenharmos um triângulo em alta velocidade...`, "idea"),
-      mkSpontaneousMsg(actors, 1, `Tipo eu atraio o zagueiro, você limpa com ${actors[0].ofMove} e joga pro alto no terceiro vértice?`, "idea"),
+      mkSpontaneousMsg(actors, 0, `Galera, tive uma visão para o jogo contra ${ctx.oppName}: se desenharmos um triângulo em alta velocidade...`, "idea"),
+      mkSpontaneousMsg(actors, 1, `Tipo eu atraio o zagueiro, você limpa com ${actors[0].ofMove} e joga para o alto no terceiro vértice?`, "idea"),
       mkSpontaneousMsg(actors, 2, `Aí eu entro fechando com tudo! Uma técnica em Trio dessa varre a defesa inteira!`, "hype")
     ],
     (actors) => buildShuffledChatChoices(actors, {
@@ -2851,13 +2851,13 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
         reactions: [
           { idx: 0, text: `Um... dois... AGORA!! Que sincronia absurda nós três pegamos!`, tone: "hype" },
           { idx: 1, text: `Parece até coreografia de seleção mundial!!`, tone: "hype" },
-          { idx: 2, text: `Tô arrepiado! Essa técnica vai entrar pra história do time!`, tone: "hype" }
+          { idx: 2, text: `Estou arrepiado! Essa técnica vai entrar para a história do time!`, tone: "hype" }
         ]
       },
       good: {
         label: "Focar primeiro na ligação entre os dois meias e o atacante finalizador",
         approachTag: "Base Segura",
-        coachLine: `Vamos consolidar os dois primeiros passes pra não perder a bola no meio.`,
+        coachLine: `Vamos consolidar os dois primeiros passes para não perder a bola no meio.`,
         reactions: [
           { idx: 0, text: `Ficou bem sólido assim!`, tone: "calm" },
           { idx: 2, text: `Bom treino de triangulação.`, tone: "normal" }
@@ -2892,14 +2892,14 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
       great: {
         label: "Treinar ponto de queda no segundo pau com curva fechada no pé dominante",
         approachTag: "Mira Aérea",
-        coachLine: `${actors[0].name}, coloque rotação externa na bola pra ela descer já morrendo na entrada da pequena área pro ${actors[1].name} bater de primeira!`,
+        coachLine: `${actors[0].name}, coloque rotação externa na bola para ela descer já morrendo na entrada da pequena área para o ${actors[1].name} bater de primeira!`,
         reactions: [
           { idx: 0, text: `Olha essa curva desenhada no ar!! Caiu na medida exata!`, tone: "hype" },
           { idx: 1, text: `QUE VOLEIO!! Parecia um foguete guiado!`, tone: "hype" }
         ]
       },
       good: {
-        label: "Treinar cruzamento rasteiro rápido pra garantir o domínio antes do chute",
+        label: "Treinar cruzamento rasteiro rápido para garantir o domínio antes do chute",
         approachTag: "Cruzamento Baixo",
         coachLine: `Bola rápida na meia altura também facilita muito o controle na área.`,
         reactions: [
@@ -2908,11 +2908,11 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
         ]
       },
       poor: {
-        label: "Proibir cruzamentos aéreos e mandar voltar sempre a bola pro meio",
+        label: "Proibir cruzamentos aéreos e mandar voltar sempre a bola para o meio",
         approachTag: "Bloquear Ala",
-        coachLine: `Cruzamento é loteria. Chegou na linha de fundo, breca e toca pra trás.`,
+        coachLine: `Cruzamento é loteria. Chegou na linha de fundo, breca e toca para trás.`,
         reactions: [
-          { idx: 0, text: `Sério?! Todo meu trabalho de ultrapassagem pelas pontas pra recuar...`, tone: "tense" },
+          { idx: 0, text: `Sério?! Todo meu trabalho de ultrapassagem pelas pontas para recuar...`, tone: "tense" },
           { idx: 1, text: `Desanimei legal agora.`, tone: "tense" }
         ]
       }
@@ -2936,19 +2936,19 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
       great: {
         label: "Sincronizar a dobra: primeiro tira o ângulo, segundo trava e sai jogando",
         approachTag: "Engenharia Defensiva",
-        coachLine: `${actors[0].name} induz pro corredor e ${actors[1].name} fecha o cadeado no timing certo — e já sai com posse limpa!`,
+        coachLine: `${actors[0].name} induz para o corredor e ${actors[1].name} fecha o cadeado no timing certo — e já sai com posse limpa!`,
         reactions: [
           { idx: 0, text: `Ninguém passa por essa muralha! Ficou sólido demais!`, tone: "hype" },
-          { idx: 1, text: `E a bola ainda sobra limpa no nosso pé pra ligar o contra-ataque!`, tone: "hype" }
+          { idx: 1, text: `E a bola ainda sobra limpa no nosso pé para ligar o contra-ataque!`, tone: "hype" }
         ]
       },
       good: {
         label: "Treinar só a posição de bloqueio de chute sem avançar muito",
         approachTag: "Bloco Baixo",
-        coachLine: `Mantenham o passo firme perto da meia-lua pra bloquear chutes diretos.`,
+        coachLine: `Mantenham o passo firme perto da meia-lua para bloquear chutes diretos.`,
         reactions: [
-          { idx: 0, text: `Tá bem firme assim atrás.`, tone: "calm" },
-          { idx: 1, text: `Dá bastante segurança pro gol.`, tone: "calm" }
+          { idx: 0, text: `Está bem firme assim atrás.`, tone: "calm" },
+          { idx: 1, text: `Dá bastante segurança para o gol.`, tone: "calm" }
         ]
       },
       poor: {
@@ -2956,8 +2956,8 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
         approachTag: "Bote Duplo Cego",
         coachLine: `Cheguem os dois juntos no portador com tudo ao mesmo tempo!`,
         reactions: [
-          { idx: 0, text: `Se ele der um toque pro lado a gente bate cabeça e deixa o gol vazio!`, tone: "tense" },
-          { idx: 1, text: `Bote duplo aberto assim é pedir pra tomar tabela...`, tone: "tense" }
+          { idx: 0, text: `Se ele der um toque para o lado a gente bate cabeça e deixa o gol vazio!`, tone: "tense" },
+          { idx: 1, text: `Bote duplo aberto assim é pedir para tomar tabela...`, tone: "tense" }
         ]
       }
     })
@@ -2973,15 +2973,15 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
       { pred: (a) => a.role === "FW", role: "FW" }
     ],
     (actors, ctx) => [
-      mkSpontaneousMsg(actors, 0, `Toda vez que eu paro o ataque com ${actors[0].dfMove}, olho pra frente já querendo ligar vocês dois em 2 toques!`, "idea"),
-      mkSpontaneousMsg(actors, 1, `Se eu nem dominar — já devolver de primeira por cima pro ${actors[2].name} correr no espaço...`, "idea"),
-      mkSpontaneousMsg(actors, 2, `Em 3 segundos a gente sai da nossa área e já tá chutando contra ${ctx.oppName}! Vamos criar essa sequência!`, "hype")
+      mkSpontaneousMsg(actors, 0, `Toda vez que eu paro o ataque com ${actors[0].dfMove}, olho para frente já querendo ligar vocês dois em 2 toques!`, "idea"),
+      mkSpontaneousMsg(actors, 1, `Se eu nem dominar — já devolver de primeira por cima para o ${actors[2].name} correr no espaço...`, "idea"),
+      mkSpontaneousMsg(actors, 2, `Em 3 segundos a gente sai da nossa área e já está chutando contra ${ctx.oppName}! Vamos criar essa sequência!`, "hype")
     ],
     (actors) => buildShuffledChatChoices(actors, {
       great: {
-        label: "Ensaiar passe de primeira do zagueiro e giro cego do meia pro atacante disparar",
+        label: "Ensaiar passe de primeira do zagueiro e giro cego do meia para o atacante disparar",
         approachTag: "Transição Relâmpago",
-        coachLine: `Recuperou atrás, olho no ${actors[1].name} antes mesmo da bola chegar — toque único de primeira rasgando o campo pro ${actors[2].name}!`,
+        coachLine: `Recuperou atrás, olho no ${actors[1].name} antes mesmo da bola chegar — toque único de primeira rasgando o campo para o ${actors[2].name}!`,
         reactions: [
           { idx: 0, text: `Bola na saída perfeita!`, tone: "hype" },
           { idx: 1, text: `De primeira no ponto futuro — sem dar chance de voltarem!`, tone: "hype" },
@@ -2998,7 +2998,7 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
         ]
       },
       poor: {
-        label: "Pedir pro zagueiro segurar a bola por 5 segundos esperando todo mundo subir andando",
+        label: "Pedir para o zagueiro segurar a bola por 5 segundos esperando todo mundo subir andando",
         approachTag: "Esfriar Ritmo",
         coachLine: `Freiem tudo quando roubar a bola. Não acelerem nada.`,
         reactions: [
@@ -3019,7 +3019,7 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
     ],
     (actors) => [
       mkSpontaneousMsg(actors, 0, `${actors[1].name}, quando eles fecham o meio com dois volantes, e se a gente cruzar as linhas usando ${actors[0].ofMove} e ${actors[1].ofMove} em sequência?`, "idea"),
-      mkSpontaneousMsg(actors, 1, `Um drible duplo em espelho?! O marcador não vai saber quem tá com a bola nem pra que lado girar!`, "hype")
+      mkSpontaneousMsg(actors, 1, `Um drible duplo em espelho?! O marcador não vai saber quem está com a bola nem para que lado girar!`, "hype")
     ],
     (actors) => buildShuffledChatChoices(actors, {
       great: {
@@ -3066,18 +3066,18 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
     ],
     (actors) => buildShuffledChatChoices(actors, {
       great: {
-        label: "Alinhar o ritmo respiratório pra dispararem a energia elemental juntos",
+        label: "Alinhar o ritmo respiratório para dispararem a energia elemental juntos",
         approachTag: "Fusão Elemental",
         coachLine: `Deixem a mesma energia elemental correr no passe antes do golpe final — a bola vai ganhar rotação dupla!`,
         reactions: [
           { idx: 0, text: `A aura de ${actors[0].element} duplicou de brilho na hora!!`, tone: "hype" },
-          { idx: 1, text: `Nossa conexão tá num nível surreal agora!`, tone: "hype" }
+          { idx: 1, text: `Nossa conexão está num nível surreal agora!`, tone: "hype" }
         ]
       },
       good: {
         label: "Usar o elemento só nos duelos individuais perto um do outro",
         approachTag: "Cobertura Próxima",
-        coachLine: `Joguem próximos no campo pra multiplicar a vantagem do elemento.`,
+        coachLine: `Joguem próximos no campo para multiplicar a vantagem do elemento.`,
         reactions: [
           { idx: 0, text: `Boa, já fortalece bastante nosso setor.`, tone: "calm" },
           { idx: 1, text: `Fechado!`, tone: "normal" }
@@ -3089,7 +3089,7 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
         coachLine: `Não forcem aura nenhuma — joguem morno e sem arriscar técnica.`,
         reactions: [
           { idx: 0, text: `Que desperdício de sintonia natural...`, tone: "tense" },
-          { idx: 1, text: `Logo hoje que a gente tava voando juntos!`, tone: "tense" }
+          { idx: 1, text: `Logo hoje que a gente estava voando juntos!`, tone: "tense" }
         ]
       }
     })
@@ -3108,25 +3108,25 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
       const auraRef = actors[0].keshinName ? `minha Keshin 【${actors[0].keshinName}】` : `minha ${actors[0].shMove}`;
       return [
         mkSpontaneousMsg(actors, 0, `Quando eu chamo atenção puxando ${auraRef}, ${ctx.oppName} manda dois marcadores em cima de mim na hora!`, "idea"),
-        mkSpontaneousMsg(actors, 1, `E é justamente nessa hora que eu entro nas costas! Enquanto eles travam em você, a bola sobra limpa pra nossa jogada combinada!`, "hype"),
+        mkSpontaneousMsg(actors, 1, `E é justamente nessa hora que eu entro nas costas! Enquanto eles travam em você, a bola sobra limpa para a nossa jogada combinada!`, "hype"),
         mkSpontaneousMsg(actors, 2, `Se a gente ensaiar esse movimento como uma Hissatsu combinada, não sobra defensor em pé!`, "idea")
       ];
     },
     (actors) => buildShuffledChatChoices(actors, {
       great: {
-        label: "Desenhar a finta: astro atrai a dobra e solta pro ataque conjunto no ponto cego",
+        label: "Desenhar a finta: astro atrai a dobra e solta para o ataque conjunto no ponto cego",
         approachTag: "Isca & Golpe Final",
-        coachLine: `${actors[0].name} puxa os holofotes e segura meio segundo — na hora da dobra, aciona ${actors[1].name} e ${actors[2].name} pro ataque combinado!`,
+        coachLine: `${actors[0].name} puxa os holofotes e segura meio segundo — na hora da dobra, aciona ${actors[1].name} e ${actors[2].name} para o ataque combinado!`,
         reactions: [
           { idx: 0, text: `Eles vão cair na armadilha toda santa vez!!`, tone: "hype" },
           { idx: 1, text: `Técnica de seleção campeã isso aqui!!`, tone: "hype" },
-          { idx: 2, text: `Pronto pra explodir na hora do passe!`, tone: "hype" }
+          { idx: 2, text: `Pronto para explodir na hora do passe!`, tone: "hype" }
         ]
       },
       good: {
         label: "Focar em apoiar o craque caso ele fique cercado",
         approachTag: "Apoio Seguro",
-        coachLine: `Fiquem sempre perto pra dar opção de passe de saída caso dobrem a marcação.`,
+        coachLine: `Fiquem sempre perto para dar opção de passe de saída caso dobrem a marcação.`,
         reactions: [
           { idx: 0, text: `Ter apoio perto tira muito peso das minhas costas.`, tone: "calm" },
           { idx: 1, text: `Estaremos sempre na linha de passe!`, tone: "calm" }
@@ -3138,7 +3138,7 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
         coachLine: `${actors[0].name} que se vire com os dois marcadores sozinho, os outros ficam parados olhando.`,
         reactions: [
           { idx: 0, text: `Vou acabar tomando falta e perdendo todo o fôlego assim...`, tone: "tense" },
-          { idx: 1, text: `Não faz sentido ter um time unido pra jogar isolado.`, tone: "tense" }
+          { idx: 1, text: `Não faz sentido ter um time unido para jogar isolado.`, tone: "tense" }
         ]
       }
     })
@@ -3161,13 +3161,13 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
     ],
     (actors) => buildShuffledChatChoices(actors, {
       great: {
-        label: "Celebrar a confiança mútua e estender essa garra pro vestiário inteiro",
+        label: "Celebrar a confiança mútua e estender essa garra para o vestiário inteiro",
         approachTag: "Inspirar Elenco",
-        coachLine: `Essa confiança entre linha de frente, zaga e gol é o que constrói campeões. Levem essa leveza e fome de vitória pra todo o time!`,
+        coachLine: `Essa confiança entre linha de frente, zaga e gol é o que constrói campeões. Levem essa leveza e fome de vitória para todo o time!`,
         reactions: [
-          { idx: 1, text: `Podem ir pro ataque sem medo — o gol tá trancado hoje!!`, tone: "hype" },
+          { idx: 1, text: `Podem ir para o ataque sem medo — o gol está trancado hoje!!`, tone: "hype" },
           { idx: 0, text: `O astral do grupo subiu nas alturas agora!`, tone: "hype" },
-          { idx: 2, text: `Tô até sentindo as pernas mais leves pra voar em campo!`, tone: "hype" }
+          { idx: 2, text: `Estou até sentindo as pernas mais leves para voar em campo!`, tone: "hype" }
         ]
       },
       good: {
@@ -3176,16 +3176,16 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
         coachLine: `Parabéns pela dedicação atrás. Mantenham o mesmo nível de foco na partida.`,
         reactions: [
           { idx: 1, text: `Valeu, professor! Vamos continuar firme.`, tone: "calm" },
-          { idx: 0, text: `Tamo fechado!`, tone: "normal" }
+          { idx: 0, text: `Estamos fechados!`, tone: "normal" }
         ]
       },
       poor: {
         label: "Cortar o elogio dizendo que defender é apenas obrigação básica",
         approachTag: "Frieza",
-        coachLine: `Goleiro tá lá pra defender mesmo, não tem nada demais pra comemorar.`,
+        coachLine: `Goleiro está lá para defender mesmo, não tem nada demais para comemorar.`,
         reactions: [
           { idx: 0, text: `Nossa... custava reconhecer o esforço do cara?!`, tone: "tense" },
-          { idx: 1, text: `Tá bom então... vamos voltar pro treino.`, tone: "tense" }
+          { idx: 1, text: `Tudo bem, então... vamos voltar para o treino.`, tone: "tense" }
         ]
       }
     })
@@ -3207,17 +3207,17 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
     ],
     (actors) => buildShuffledChatChoices(actors, {
       great: {
-        label: "Dar voz ao Capitão pra fechar o discurso motivacional pro time",
+        label: "Dar voz ao Capitão para fechar o discurso motivacional para o time",
         approachTag: "Moral Máxima",
         coachLine: `Você representa a nossa identidade dentro das quatro linhas, ${actors[0].name}. Guiem o elenco com essa energia hoje!`,
         reactions: [
           { idx: 0, text: `TIME! Ninguém larga a mão de ninguém hoje — eles não têm chance contra nós!!`, tone: "hype" },
-          { idx: 1, text: `BORA!! Tô pilhado pra deixar tudo no gramado!`, tone: "hype" },
-          { idx: 2, text: `Esse vestiário tá imparável!!`, tone: "hype" }
+          { idx: 1, text: `BORA!! Estou pilhado para deixar tudo no gramado!`, tone: "hype" },
+          { idx: 2, text: `Esse vestiário está imparável!!`, tone: "hype" }
         ]
       },
       good: {
-        label: "Agradecer ao grupo e pedir serenidade tática durante os 90 minutos",
+        label: "Agradecer ao grupo e pedir serenidade estática durante os 90 minutos",
         approachTag: "Equilíbrio",
         coachLine: `Excelente postura de grupo. Mantenham a calma quando a bola rolar.`,
         reactions: [
@@ -3228,7 +3228,7 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
       poor: {
         label: "Desvalorizar a liderança falando que só importa quem faz o gol",
         approachTag: "Desprezo",
-        coachLine: `Discurso não ganha jogo, só importa quem empurra a bola pra rede.`,
+        coachLine: `Discurso não ganha jogo, só importa quem empurra a bola para a rede.`,
         reactions: [
           { idx: 0, text: `Caramba... espírito de equipe também ganha jogo, treinador.`, tone: "tense" },
           { idx: 2, text: `Que balde de água fria no vestiário...`, tone: "tense" }
@@ -3251,7 +3251,7 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
     ],
     (actors) => buildShuffledChatChoices(actors, {
       great: {
-        label: "Valorizar a dupla criador-finalizador e inflamar a confiança pra vitória",
+        label: "Valorizar a dupla criador-finalizador e inflamar a confiança para a vitória",
         approachTag: "Conexão Decisiva",
         coachLine: `Vocês dois juntos decidem qualquer torneio: passe genial com frieza mortal na conclusão!`,
         reactions: [
@@ -3273,7 +3273,7 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
         approachTag: "Minimizar Mérito",
         coachLine: `Não se empolguem demais — várias bolas entraram por sorte ou desvio.`,
         reactions: [
-          { idx: 1, text: `Treinei horas todo dia pra ouvir que foi sorte?!`, tone: "tense" },
+          { idx: 1, text: `Treinei horas todo dia para ouvir que foi sorte?!`, tone: "tense" },
           { idx: 0, text: `Poxa, treinador... reconhecimento zero hoje.`, tone: "tense" }
         ]
       }
@@ -3290,16 +3290,16 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
     ],
     (actors) => [
       mkSpontaneousMsg(actors, 0, `A gente lá na frente leva os aplausos pelos gols, mas quem carrega o plano pesado é você travando tudo com ${actors[1].dfMove}, ${actors[1].name}!`, "praise"),
-      mkSpontaneousMsg(actors, 1, `Valeu demais ouvir isso, ${actors[0].name}! Quando vejo você correndo pra pressionar também, dá gosto de dar a vida lá atrás!`, "praise")
+      mkSpontaneousMsg(actors, 1, `Valeu demais ouvir isso, ${actors[0].name}! Quando vejo você correndo para pressionar também, dá gosto de dar a vida lá atrás!`, "praise")
     ],
     (actors) => buildShuffledChatChoices(actors, {
       great: {
-        label: "Destacar pro time inteiro que ataque e defesa vencem juntos",
+        label: "Destacar para o time inteiro que ataque e defesa vencem juntos",
         approachTag: "Espírito de Sacrifício",
         coachLine: `Reconhecimento gera entrega em dobro! Com essa humildade entre frente e zaga, o time recupera energia e força moral juntos!`,
         reactions: [
           { idx: 1, text: `Energia renovada 100%! Hoje ninguém passa por mim!`, tone: "hype" },
-          { idx: 0, text: `E eu vou ajudar a abafar lá na frente pra aliviar você!`, tone: "hype" }
+          { idx: 0, text: `E eu vou ajudar a abafar lá na frente para aliviar você!`, tone: "hype" }
         ]
       },
       good: {
@@ -3337,7 +3337,7 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
     ],
     (actors) => buildShuffledChatChoices(actors, {
       great: {
-        label: "Incentivar essa sintonia refinada pra acelerar a conexão nos jogos grandes",
+        label: "Incentivar essa sintonia refinada para acelerar a conexão nos jogos grandes",
         approachTag: "Refinar Conexão",
         coachLine: `Mantenham esse olhar conectado desde o aquecimento — a confiança entre vocês eleva o nível técnico de todo ataque!`,
         reactions: [
@@ -3376,8 +3376,8 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
       { pred: (a) => a.role === "FW", role: "FW" }
     ],
     (actors, ctx) => [
-      mkSpontaneousMsg(actors, 1, `Olhando pra trás desde o começo do torneio... cada um aqui evoluiu demais! Até os treinos pesados estão fluindo melhor.`, "praise"),
-      mkSpontaneousMsg(actors, 0, `Verdade! Nossa defesa tá mais firme e a bola sai mais limpa pro ataque.`, "praise"),
+      mkSpontaneousMsg(actors, 1, `Olhando para trás desde o começo do torneio... cada um aqui evoluiu demais! Até os treinos pesados estão fluindo melhor.`, "praise"),
+      mkSpontaneousMsg(actors, 0, `Verdade! Nossa defesa está mais firme e a bola sai mais limpa para o ataque.`, "praise"),
       mkSpontaneousMsg(actors, 2, `Com essa união, ${ctx.oppName} vai enfrentar a melhor versão do nosso Dream Team!`, "hype")
     ],
     (actors) => buildShuffledChatChoices(actors, {
@@ -3387,7 +3387,7 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
         coachLine: `Vocês construíram esse entrosamento na base do suor e respeito. Entrem em campo orgulhosos e com fome de jogo!`,
         reactions: [
           { idx: 2, text: `Ninguém para um elenco unido desse jeito!!`, tone: "hype" },
-          { idx: 1, text: `Fôlego lá em cima e cabeça fria! Vamos pra cima!`, tone: "hype" },
+          { idx: 1, text: `Fôlego lá em cima e cabeça fria! Vamos para cima!`, tone: "hype" },
           { idx: 0, text: `Fechados até o fim!`, tone: "hype" }
         ]
       },
@@ -3403,7 +3403,7 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
       poor: {
         label: "Dizer que ainda falta muito para serem um time bom de verdade",
         approachTag: "Pessimismo",
-        coachLine: `Não vejo motivo pra comemorar — comparando com os favoritos ainda estamos bem atrás.`,
+        coachLine: `Não vejo motivo para comemorar — comparando com os favoritos ainda estamos bem atrás.`,
         reactions: [
           { idx: 2, text: `Nossa... a gente tentando levantar a moral e você derruba assim.`, tone: "tense" },
           { idx: 1, text: `Difícil manter a confiança desse jeito.`, tone: "tense" }
@@ -3426,7 +3426,7 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
     ],
     (actors) => buildShuffledChatChoices(actors, {
       great: {
-        label: "Potencializar essa confiança positiva pra animar o vestiário inteiro",
+        label: "Potencializar essa confiança positiva para animar o vestiário inteiro",
         approachTag: "Aura Positiva",
         coachLine: `Essa sintonia natural de vocês contagia os onze titulares. Aproveitem esse embalo em campo!`,
         reactions: [
@@ -3444,7 +3444,7 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
         ]
       },
       poor: {
-        label: "Dizer que elemento não serve pra nada em partida disputada",
+        label: "Dizer que elemento não serve para nada em partida disputada",
         approachTag: "Desinteresse",
         coachLine: `Bobagem ficar reparando nisso. Corram e acabou.`,
         reactions: [
@@ -3467,22 +3467,22 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
     ],
     (actors, ctx) => [
       mkSpontaneousMsg(actors, 0, `Estive analisando os últimos lances de ${ctx.oppName}: os zagueiros deles perseguem muito o portador e deixam buraco atrás!`, "idea"),
-      mkSpontaneousMsg(actors, 1, `Se eu puxar o beque pro lado fingindo receber curto, abre uma avenida no centro!`, "idea"),
-      mkSpontaneousMsg(actors, 2, `Aí quem vem de trás usando ${actors[2].ofMove} invade livre pra bater pro gol!`, "hype")
+      mkSpontaneousMsg(actors, 1, `Se eu puxar o beque para o lado fingindo receber curto, abre uma avenida no centro!`, "idea"),
+      mkSpontaneousMsg(actors, 2, `Aí quem vem de trás usando ${actors[2].ofMove} invade livre para bater para o gol!`, "hype")
     ],
     (actors, ctx) => buildShuffledChatChoices(actors, {
       great: {
         label: "Confirmar a isca: atrair o zagueiro e explorar as costas com passe cirúrgico",
-        approachTag: "Leitura Tática",
+        approachTag: "Leitura Estática",
         coachLine: `Leitura brilhante de ${ctx.oppName}! Atraiam o primeiro marcador e rasguem a linha nas costas sem hesitar!`,
         reactions: [
           { idx: 0, text: `Já mapeamos o ponto fraco inteiro deles! Vai entrar passe limpo toda hora!`, tone: "hype" },
-          { idx: 1, text: `Tô pronto pra arrastar a zaga deles pro espaço errado!`, tone: "idea" },
+          { idx: 1, text: `Estou pronto para arrastar a zaga deles para o espaço errado!`, tone: "idea" },
           { idx: 2, text: `Com essa leitura, interceptar nossos passes vai ficar quase impossível!`, tone: "hype" }
         ]
       },
       good: {
-        label: "Pedir cautela nos passes verticais pra não perder posse cedo",
+        label: "Pedir cautela nos passes verticais para não perder posse cedo",
         approachTag: "Controle",
         coachLine: `Usem essa movimentação, mas só soltem a bola se tiverem certeza do espaço.`,
         reactions: [
@@ -3491,11 +3491,11 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
         ]
       },
       poor: {
-        label: "Ignorar a análise e pedir pro time chutar de qualquer distância desde o meio",
+        label: "Ignorar a análise e pedir para o time chutar de qualquer distância desde o meio",
         approachTag: "Forçar Chutes",
         coachLine: `Não precisa ler defesa nenhuma — recebeu no meio, manda chutar direto de longe!`,
         reactions: [
-          { idx: 0, text: `Chutar cego no bloco fechado só entrega a bola pra ${ctx.oppName}...`, tone: "tense" },
+          { idx: 0, text: `Chutar cego no bloco fechado só entrega a bola para ${ctx.oppName}...`, tone: "tense" },
           { idx: 2, text: `Desperdiçamos o estudo inteiro do rival.`, tone: "tense" }
         ]
       }
@@ -3512,15 +3512,15 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
       { pred: (a) => a.role === "DF" || a.role === "MF", role: "DF" }
     ],
     (actors, ctx) => [
-      mkSpontaneousMsg(actors, 1, `O ataque de ${ctx.oppName} joga quase todas as bolas pro camisa principal deles armar técnica!`, "normal"),
+      mkSpontaneousMsg(actors, 1, `O ataque de ${ctx.oppName} joga quase todas as bolas para o camisa principal deles armar técnica!`, "normal"),
       mkSpontaneousMsg(actors, 0, `Se deixarem ele girar de frente na entrada da área, até com ${actors[0].gkMove} vai ser duelo duro!`, "tense"),
       mkSpontaneousMsg(actors, 2, `A gente precisa cercar a linha do passe ANTES da bola chegar nele!`, "idea")
     ],
     (actors, ctx) => buildShuffledChatChoices(actors, {
       great: {
-        label: "Antecipar o passe no craque rival e forçá-lo a tocar pra trás",
+        label: "Antecipar o passe no craque rival e forçá-lo a tocar para trás",
         approachTag: "Fechar Linha",
-        coachLine: `Isso! Cortem o oxigênio do passe antes que chegue no artilheiro de ${ctx.oppName} e não deem espaço pra giro!`,
+        coachLine: `Isso! Cortem o oxigênio do passe antes que chegue no artilheiro de ${ctx.oppName} e não deem espaço para giro!`,
         reactions: [
           { idx: 2, text: `Vou colar na linha de passe desde o meio-campo!`, tone: "hype" },
           { idx: 1, text: `E se sobrar aqui atrás, trava na hora com ${actors[1].dfMove}!`, tone: "hype" },
@@ -3530,19 +3530,19 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
       good: {
         label: "Manter marcação em zona tradicional perto da grande área",
         approachTag: "Zona Padrão",
-        coachLine: `Fiquem bem posicionados em linha na frente da área pra bloquear finalizações.`,
+        coachLine: `Fiquem bem posicionados em linha na frente da área para bloquear finalizações.`,
         reactions: [
           { idx: 1, text: `Certo, defesa fechada.`, tone: "calm" },
           { idx: 0, text: `Fica sólido assim.`, tone: "normal" }
         ]
       },
       poor: {
-        label: "Mandar todo o setor defensivo avançar pro ataque sem preocupação",
+        label: "Mandar todo o setor defensivo avançar para o ataque sem preocupação",
         approachTag: "Expor Defesa",
-        coachLine: `Esqueçam o ataque de ${ctx.oppName}, avancem todos pro meio e deixem o gol por conta do goleiro.`,
+        coachLine: `Esqueçam o ataque de ${ctx.oppName}, avancem todos para o meio e deixem o gol por conta do goleiro.`,
         reactions: [
           { idx: 0, text: `Vão me deixar no 3 contra 1 o jogo inteiro?!`, tone: "toxic" },
-          { idx: 1, text: `Loucura tática...`, tone: "tense" }
+          { idx: 1, text: `Loucura estática...`, tone: "tense" }
         ]
       }
     })
@@ -3558,20 +3558,20 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
     ],
     (actors, ctx) => [
       mkSpontaneousMsg(actors, 0, `${actors[1].name}, a zaga de ${ctx.oppName} intercepta muito passe curto no chão quando aperta o meio.`, "normal"),
-      mkSpontaneousMsg(actors, 1, `Então varia! Se fecharem o corredor rasteiro, manda cavadinha ou virada alta pro meu domínio — eu mato no peito e acelero!`, "idea")
+      mkSpontaneousMsg(actors, 1, `Então varia! Se fecharem o corredor rasteiro, manda cavadinha ou virada alta para o meu domínio — eu mato no peito e acelero!`, "idea")
     ],
     (actors) => buildShuffledChatChoices(actors, {
       great: {
         label: "Liberar cavadinhas e lançamentos altos sempre que houver bloqueio no corredor",
         approachTag: "Variação Aérea",
-        coachLine: `Quando o zagueiro fechar sua linha de passe rasteira, erga a bola por cima pro ${actors[1].name} matar na corrida — leitura pura!`,
+        coachLine: `Quando o zagueiro fechar sua linha de passe rasteira, erga a bola por cima para o ${actors[1].name} matar na corrida — leitura pura!`,
         reactions: [
           { idx: 0, text: `Perfeito! Com passe rasteiro e cavadinha alternados eles não leem nada!`, tone: "hype" },
           { idx: 1, text: `Adoro matar lançamento longo na passada!`, tone: "hype" }
         ]
       },
       good: {
-        label: "Priorizar toque curto pelas pontas pra contornar o meio congestionado",
+        label: "Priorizar toque curto pelas pontas para contornar o meio congestionado",
         approachTag: "Pelas Alas",
         coachLine: `Abram o jogo pelos flancos com toques simples antes de entrar.`,
         reactions: [
@@ -3601,7 +3601,7 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
     ],
     (actors, ctx) => [
       mkSpontaneousMsg(actors, 1, `Se eu perder uma dividida na frente contra ${ctx.oppName}, consigo abafar o zagueiro deles nos primeiros 3 segundos!`, "idea"),
-      mkSpontaneousMsg(actors, 0, `Boa! Se você fechar a saída pro meio, eu já avanço pra roubar o passe forçado pro lado!`, "hype")
+      mkSpontaneousMsg(actors, 0, `Boa! Se você fechar a saída para o meio, eu já avanço para roubar o passe forçado para o lado!`, "hype")
     ],
     (actors) => buildShuffledChatChoices(actors, {
       great: {
@@ -3610,7 +3610,7 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
         coachLine: `Pressão coordenada em dois tempos! Cercam o passe de saída que nós mesmos vamos interceptar já na intermediária!`,
         reactions: [
           { idx: 1, text: `Vou sufocar a saída de bola deles desde o primeiro segundo!`, tone: "hype" },
-          { idx: 0, text: `E eu já fico pronto pro bote limpo atrás!`, tone: "hype" }
+          { idx: 0, text: `E eu já fico pronto para o bote limpo atrás!`, tone: "hype" }
         ]
       },
       good: {
@@ -3625,7 +3625,7 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
       poor: {
         label: "Correr desordenado atrás do goleiro rival sozinho",
         approachTag: "Corrida Inútil",
-        coachLine: `Sai correndo sozinho atrás de quem tiver com a bola, sem olhar pros colegas.`,
+        coachLine: `Sai correndo sozinho atrás de quem tiver com a bola, sem olhar para os colegas.`,
         reactions: [
           { idx: 1, text: `Vou correr em círculo feito bobo e cansar em 10 minutos...`, tone: "tense" },
           { idx: 0, text: `Vai abrir um buraco enorme no meio assim.`, tone: "tense" }
@@ -3645,31 +3645,31 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
     ],
     (actors, ctx) => [
       mkSpontaneousMsg(actors, 2, `Atenção time: ${ctx.oppName} costuma acelerar muito no segundo tempo. Não vale queimar toda técnica no começo.`, "normal"),
-      mkSpontaneousMsg(actors, 0, `Verdade! Quando eu estiver em ${ctx.teamEnergy}% ou abaixo, precisamos trocar passes simples pra recuperar fôlego sem perder a bola!`, "idea"),
-      mkSpontaneousMsg(actors, 1, `E guardar explosão pra quando a defesa deles abrir no fim do jogo!`, "hype")
+      mkSpontaneousMsg(actors, 0, `Verdade! Quando eu estiver em ${ctx.teamEnergy}% ou abaixo, precisamos trocar passes simples para recuperar fôlego sem perder a bola!`, "idea"),
+      mkSpontaneousMsg(actors, 1, `E guardar explosão para quando a defesa deles abrir no fim do jogo!`, "hype")
     ],
     (actors) => buildShuffledChatChoices(actors, {
       great: {
-        label: "Definir pausas com passe seguro pra recuperar fôlego e atacar com inteligência",
+        label: "Definir pausas com passe seguro para recuperar fôlego e atacar com inteligência",
         approachTag: "Ritmo Inteligente",
-        coachLine: `Time maduro controla o relógio com a bola! Circulam com calma pra respirar e leiam cada brecha pra não entregar posse boba!`,
+        coachLine: `Time maduro controla o relógio com a bola! Circulam com calma para respirar e leiam cada brecha para não entregar posse boba!`,
         reactions: [
           { idx: 0, text: `Cabeça pensante do começo aos 90'!`, tone: "hype" },
-          { idx: 1, text: `Aí chego inteiro na reta final pra decidir!`, tone: "hype" },
+          { idx: 1, text: `Aí chego inteiro na reta final para decidir!`, tone: "hype" },
           { idx: 2, text: `Dá gosto ver o elenco jogando com inteligência!`, tone: "calm" }
         ]
       },
       good: {
-        label: "Pedir pra dosarem Hissatsu pesada só nos momentos decisivos",
+        label: "Pedir para dosarem Hissatsu pesada só nos momentos decisivos",
         approachTag: "Economia",
         coachLine: `Evitem gastar Super Técnicas em duelos pouco perigosos no meio.`,
         reactions: [
-          { idx: 1, text: `Certo, guardar pro chute claro.`, tone: "calm" },
+          { idx: 1, text: `Certo, guardar para o chute claro.`, tone: "calm" },
           { idx: 0, text: `Faz muita diferença no fim.`, tone: "calm" }
         ]
       },
       poor: {
-        label: "Ordenar sprint máximo o jogo todo mesmo sem energia",
+        label: "Ordenar arrancada máxima o jogo todo mesmo sem energia",
         approachTag: "Exaustão",
         coachLine: `Não existe administrar nada — corram no máximo até as pernas travarem!`,
         reactions: [
@@ -3690,9 +3690,9 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
       { pred: (a) => a.role === "FW", role: "FW" }
     ],
     (actors, ctx) => [
-      mkSpontaneousMsg(actors, 0, `Se o nosso meio subir forte pra apoiar o ataque contra ${ctx.oppName}, quem fica cobrindo o contra-ataque na intermediária?`, "normal"),
+      mkSpontaneousMsg(actors, 0, `Se o nosso meio subir forte para apoiar o ataque contra ${ctx.oppName}, quem fica cobrindo o contra-ataque na intermediária?`, "normal"),
       mkSpontaneousMsg(actors, 1, `Eu seguro um passo atrás sempre que o ataque entrar na área — leio fácil onde eles tentam sair jogando!`, "idea"),
-      mkSpontaneousMsg(actors, 2, `Sabendo que tá coberto atrás, eu parto pra cima com muito mais ousadia!`, "hype")
+      mkSpontaneousMsg(actors, 2, `Sabendo que está coberto atrás, eu parto para cima com muito mais ousadia!`, "hype")
     ],
     (actors) => buildShuffledChatChoices(actors, {
       great: {
@@ -3706,7 +3706,7 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
         ]
       },
       good: {
-        label: "Pedir pra não subirem dois meias ao mesmo tempo",
+        label: "Pedir para não subirem dois meias ao mesmo tempo",
         approachTag: "Prudência",
         coachLine: `Subam um de cada vez para manter sempre equilíbrio no centro.`,
         reactions: [
@@ -3715,12 +3715,12 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
         ]
       },
       poor: {
-        label: "Mandar todos ficarem presos atrás pra não correr nenhum risco",
+        label: "Mandar todos ficarem presos atrás para não correr nenhum risco",
         approachTag: "Retranca Total",
         coachLine: `Ninguém passa da linha do meio-campo! Defendam o empate o jogo todo.`,
         reactions: [
           { idx: 2, text: `E como vamos fazer gol sem subir ninguém?!`, tone: "tense" },
-          { idx: 1, text: `Assim vamos só chamar o rival pra nossa área.`, tone: "tense" }
+          { idx: 1, text: `Assim vamos só chamar o rival para a nossa área.`, tone: "tense" }
         ]
       }
     })
@@ -3739,15 +3739,15 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
     (actors, ctx) => [
       mkSpontaneousMsg(actors, 0, `Bora fazer valer a pena contra ${ctx.oppName}: quem errar mais passes fáceis hoje paga o lámen da galera depois!`, "banter"),
       mkSpontaneousMsg(actors, 1, `Haha! Já vai separando o dinheiro, ${actors[0].name}, porque você chuta tudo e quase não toca!`, "banter"),
-      mkSpontaneousMsg(actors, 2, `Eu vou é roubar três bolas e só dar toquinho seguro pro lado — refeição grátis garantida kkk!`, "banter")
+      mkSpontaneousMsg(actors, 2, `Eu vou é roubar três bolas e só dar toquinho seguro para o lado — refeição grátis garantida!`, "banter")
     ],
     (actors) => buildShuffledChatChoices(actors, {
       great: {
-        label: "Entrar na zoeira e dobrar a aposta pro elenco jogar leve e confiante",
+        label: "Entrar na zoeira e dobrar a aposta para o elenco jogar leve e confiante",
         approachTag: "Clima Leve",
-        coachLine: `Fechado! Se o time vencer dando show de passes fáceis, eu mesmo pago a primeira rodada pra todo mundo!`,
+        coachLine: `Fechado! Se o time vencer dando show de passes fáceis, eu mesmo pago a primeira rodada para todo mundo!`,
         reactions: [
-          { idx: 0, text: `OLHA O TREINADOR!! Agora ninguém cansa nem com 120 minutos kkk!`, tone: "hype" },
+          { idx: 0, text: `OLHA O TREINADOR!! Agora ninguém cansa nem com 120 minutos!`, tone: "hype" },
           { idx: 1, text: `Vestiário leve desse jeito joga o dobro!`, tone: "banter" },
           { idx: 2, text: `Melhor clima do campeonato inteiro!!`, tone: "hype" }
         ]
@@ -3766,7 +3766,7 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
         approachTag: "Clima Rígido",
         coachLine: `Acabou a palhaçada! Quero cara fechada e silêncio total até entrar no ônibus!`,
         reactions: [
-          { idx: 0, text: `Nossa... a gente só tava tentando relaxar antes da decisão.`, tone: "tense" },
+          { idx: 0, text: `Nossa... a gente só estava tentando relaxar antes da decisão.`, tone: "tense" },
           { idx: 2, text: `Tensão subiu do nada...`, tone: "tense" }
         ]
       }
@@ -3783,11 +3783,11 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
     ],
     (actors) => [
       mkSpontaneousMsg(actors, 0, `Falando sério: o nome "${actors[0].sigMove}" impõe muito mais respeito do que "${actors[1].sigMove}", admite vai!`, "banter"),
-      mkSpontaneousMsg(actors, 1, `Para de viajar!! A minha "${actors[1].sigMove}" tem muito mais estilo! Pergunta pro treinador qual assusta mais!`, "banter")
+      mkSpontaneousMsg(actors, 1, `Para de viajar!! A minha "${actors[1].sigMove}" tem muito mais estilo! Pergunta para o treinador qual assusta mais!`, "banter")
     ],
     (actors) => buildShuffledChatChoices(actors, {
       great: {
-        label: "Brincar que o combo das duas juntas teria o nome mais temido do torneio",
+        label: "Brincar que a jogada combinada das duas juntas teria o nome mais temido do torneio",
         approachTag: "Resenha Criativa",
         coachLine: `As duas são incríveis — imagina só o terror da torcida quando vocês usarem "${actors[0].sigMove}" e "${actors[1].sigMove}" na mesma jogada!`,
         reactions: [
@@ -3809,7 +3809,7 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
         approachTag: "Secura",
         coachLine: `Que papo infantil... fiquem quietos e parem com essa bobeira.`,
         reactions: [
-          { idx: 0, text: `Tá bom, desculpa aí...`, tone: "tense" },
+          { idx: 0, text: `Tudo bem, desculpe...`, tone: "tense" },
           { idx: 1, text: `Clima secou rapidinho.`, tone: "normal" }
         ]
       }
@@ -3827,24 +3827,24 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
     ],
     (actors) => [
       mkSpontaneousMsg(actors, 0, `Nem usando ${actors[1].shMove} dez vezes seguidas você fura minha ${actors[0].gkMove} hoje, ${actors[1].name}!`, "banter"),
-      mkSpontaneousMsg(actors, 1, `Apostado! Três cobranças depois do aquecimento — se eu fizer duas você limpa as chuteiras de todo mundo kkk!`, "banter"),
-      mkSpontaneousMsg(actors, 2, `Eu sirvo as bolas só pra assistir de camarote!`, "banter")
+      mkSpontaneousMsg(actors, 1, `Apostado! Três cobranças depois do aquecimento — se eu fizer duas você limpa as chuteiras de todo mundo!`, "banter"),
+      mkSpontaneousMsg(actors, 2, `Eu sirvo as bolas só para assistir de camarote!`, "banter")
     ],
     (actors) => buildShuffledChatChoices(actors, {
       great: {
-        label: "Autorizar só 2 minutinhos de desafio pra afiar reflexos e soltar o grupo",
+        label: "Autorizar só 2 minutinhos de desafio para afiar reflexos e soltar o grupo",
         approachTag: "Aquecimento Divertido",
         coachLine: `Dou 2 minutos valendo — aquece a luva do ${actors[0].name}, afia o pé do ${actors[1].name} e ainda deixa todo mundo leve!`,
         reactions: [
-          { idx: 0, text: `PEGUEI!! Pode ir separando a escova de chuteira aí kkk!`, tone: "hype" },
-          { idx: 1, text: `Na gaveta no segundo chute!! Tá equilibrado demais, que ótimo clima!`, tone: "banter" },
-          { idx: 2, text: `Todo mundo solto, leve e pronto pro jogo!`, tone: "hype" }
+          { idx: 0, text: `PEGUEI!! Pode ir separando a escova de chuteira aí, haha!`, tone: "hype" },
+          { idx: 1, text: `Na gaveta no segundo chute!! Está equilibrado demais, que ótimo clima!`, tone: "banter" },
+          { idx: 2, text: `Todo mundo solto, leve e pronto para o jogo!`, tone: "hype" }
         ]
       },
       good: {
-        label: "Deixar pra depois da partida pra preservar energia agora",
+        label: "Deixar para depois da partida para preservar energia agora",
         approachTag: "Poupar Energia",
-        coachLine: `Boa energia! Façam esse desafio na volta da vitória pra não gastar perna agora.`,
+        coachLine: `Boa energia! Façam esse desafio na volta da vitória para não gastar perna agora.`,
         reactions: [
           { idx: 0, text: `Justo! Depois do jogo eu ganho mesmo.`, tone: "banter" },
           { idx: 1, text: `Anota aí que eu não esqueci não!`, tone: "normal" }
@@ -3872,13 +3872,13 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
       { pred: (a) => a.role === "FW", role: "FW" }
     ],
     (actors, ctx) => [
-      mkSpontaneousMsg(actors, 0, `Coloquei aquela playlist agitada no vestiário pra tirar o peso antes de enfrentar ${ctx.oppName}!`, "banter"),
+      mkSpontaneousMsg(actors, 0, `Coloquei aquela música agitada no vestiário para tirar o peso antes de enfrentar ${ctx.oppName}!`, "banter"),
       mkSpontaneousMsg(actors, 2, `Aprovada demais! Tira a tensão das pernas antes de entrar no estádio!`, "banter"),
-      mkSpontaneousMsg(actors, 1, `Só faltava o técnico escolher a música tema de entrada kkk!`, "banter")
+      mkSpontaneousMsg(actors, 1, `Só faltava o técnico escolher a música tema de entrada!`, "banter")
     ],
     (actors) => buildShuffledChatChoices(actors, {
       great: {
-        label: "Apoiar o som e usar o ritmo pra soltar o corpo pro jogo",
+        label: "Apoiar o som e usar o ritmo para soltar o corpo para o jogo",
         approachTag: "Leveza & Fôlego",
         coachLine: `Mantenham o som ligado! Atleta relaxado respira melhor, cansa menos e confia no próprio instinto!`,
         reactions: [
@@ -3917,17 +3917,17 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
       { pred: (a) => a.role === "MF" || a.role === "DF", role: "MF" }
     ],
     (actors, ctx) => [
-      mkSpontaneousMsg(actors, 0, `Todo mundo na cidade falando que ${ctx.oppName} tá forte... ótimo! Adoro estragar festa de favorito!`, "banter"),
+      mkSpontaneousMsg(actors, 0, `Todo mundo na cidade falando que ${ctx.oppName} está forte... ótimo! Adoro estragar festa de favorito!`, "banter"),
       mkSpontaneousMsg(actors, 1, `Haha! Eles ainda não conhecem nossa ${actors[0].sigMove} funcionando juntos — vão levar um susto logo aos 10 minutos!`, "hype")
     ],
     (actors) => buildShuffledChatChoices(actors, {
       great: {
-        label: "Canalizar essa confiança leve pro jogo sem pressão excessiva",
+        label: "Canalizar essa confiança leve para o jogo sem pressão excessiva",
         approachTag: "Confiança Leve",
         coachLine: `Deixem o peso da obrigação nos ombros deles — vocês entram livres, rápidos e curtindo cada jogada!`,
         reactions: [
           { idx: 0, text: `Sem peso nenhum nas costas — eles que se cuidem!!`, tone: "hype" },
-          { idx: 1, text: `Melhor espírito possível pra jogar solto!`, tone: "hype" }
+          { idx: 1, text: `Melhor espírito possível para jogar solto!`, tone: "hype" }
         ]
       },
       good: {
@@ -3940,7 +3940,7 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
         ]
       },
       poor: {
-        label: "Falar pro grupo ficar assustado e jogar esperando o rival mandar",
+        label: "Falar para o grupo ficar assustado e jogar esperando o rival mandar",
         approachTag: "Submissão",
         coachLine: `Temos que respeitar muito eles mesmo — provavelmente são bem melhores que a gente.`,
         reactions: [
@@ -3962,7 +3962,7 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
     ],
     (actors, ctx) => [
       mkSpontaneousMsg(actors, 0, pickChatVariant([
-        `Se é pra decidir contra ${ctx.oppName}, a bola final tem que passar por mim! Minha ${actors[0].shMove} tá afiada!`,
+        `Se é para decidir contra ${ctx.oppName}, a bola final tem que passar por mim! Minha ${actors[0].shMove} está afiada!`,
         `Todo ataque trava porque ninguém sabe quem é a referência oficial na frente!`
       ]), "toxic"),
       mkSpontaneousMsg(actors, 1, `Quem arma e pensa o jogo aqui sou eu com ${actors[1].ofMove}! Referência não é só ficar parado na área esperando!`, "toxic", {
@@ -3974,7 +3974,7 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
         label: `Definir ${actors[0].name} como Camisa 10 com estilo Vertical para acioná-lo rápido`,
         approachTag: "Hierarquia Ofensiva",
         tacticsPatch: { aceActorIdx: 0, style: "vertical" },
-        coachLine: `${actors[0].name} assume a Camisa 10 nas finalizações e o time acelera no estilo Vertical pra servi-lo limpo!`,
+        coachLine: `${actors[0].name} assume a Camisa 10 nas finalizações e o time acelera no estilo Vertical para servi-lo limpo!`,
         reactions: [
           { idx: 0, text: `Pode jogar nas minhas costas que eu resolvo!`, tone: "hype" },
           { idx: 1, text: `Beleza! Sabendo que você é a referência, minhas enfiadas ficam ainda mais fáceis.`, tone: "calm" }
@@ -3986,7 +3986,7 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
         tacticsPatch: { aceActorIdx: "CLEAR" },
         coachLine: `Ninguém tem passe exclusivo — toca em quem estiver melhor livre contra ${ctx.oppName}.`,
         reactions: [
-          { idx: 1, text: `Mais justo pro coletivo mesmo.`, tone: "calm" },
+          { idx: 1, text: `Mais justo para o coletivo mesmo.`, tone: "calm" },
           { idx: 0, text: `Só me deixem livre então!`, tone: "normal" }
         ]
       },
@@ -4019,10 +4019,10 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
     ],
     (actors, ctx) => buildShuffledChatChoices(actors, {
       great: {
-        label: `Confirmar a liderança de ${actors[0].name} com Harmonia da Raimon pro time unir`,
+        label: `Confirmar a liderança de ${actors[0].name} com Harmonia da Raimon para o time unir`,
         approachTag: "Unir Liderança",
         tacticsPatch: { captainActorIdx: 0, hissatsuTactic: "raimon_harmony" },
-        coachLine: `${actors[0].name} é meu Capitão de confiança e vamos com Harmonia da Raimon pra todo mundo falar a mesma língua!`,
+        coachLine: `${actors[0].name} é meu Capitão de confiança e vamos com Harmonia da Raimon para todo mundo falar a mesma língua!`,
         reactions: [
           { idx: 0, text: `Obrigado pela confiança, professor. Vou liderar ouvindo vocês dois!`, tone: "calm" },
           { idx: 1, text: `Justo... desculpa estourar. Fechado contigo, Capitão!`, tone: "calm" }
@@ -4032,17 +4032,17 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
         label: `Testar ${actors[1].name} com a braçadeira para aliviar a pressão sobre ${actors[0].name}`,
         approachTag: "Rodízio de Faixa",
         tacticsPatch: { captainActorIdx: 1 },
-        coachLine: `${actors[1].name}, assume a faixa neste jogo para puxar a zaga e liberar o ${actors[0].name} pra pensar o jogo.`,
+        coachLine: `${actors[1].name}, assume a faixa neste jogo para puxar a zaga e liberar o ${actors[0].name} para pensar o jogo.`,
         reactions: [
           { idx: 1, text: `Beleza! Responsabilidade aceita!`, tone: "normal" },
-          { idx: 0, text: `Menos peso pra mim realmente ajuda.`, tone: "calm" }
+          { idx: 0, text: `Menos peso para mim realmente ajuda.`, tone: "calm" }
         ]
       },
       poor: {
         label: "Deixar os dois se xingando e trocar para intensidade máxima sem organização",
         approachTag: "Caos Total",
         tacticsPatch: { intensity: "high", style: "free" },
-        coachLine: `Resolvam na porrada em campo! Todo mundo no máximo sem tática.`,
+        coachLine: `Resolvam na porrada em campo! Todo mundo no máximo sem estática.`,
         reactions: [
           { idx: 2, text: `Assim o vestiário explode aos 10 minutos...`, tone: "toxic" }
         ]
@@ -4060,7 +4060,7 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
     ],
     (actors, ctx) => [
       mkSpontaneousMsg(actors, 0, `Eu me mato correndo pela lateral aberta contra ${ctx.oppName} e vocês só afunilam pelo meio entupido!`, "toxic"),
-      mkSpontaneousMsg(actors, 1, `Pelo meio é o caminho mais curto pro gol com ${actors[1].ofMove}! Na ponta você se isola na bandeirinha!`, "toxic")
+      mkSpontaneousMsg(actors, 1, `Pelo meio é o caminho mais curto para o gol com ${actors[1].ofMove}! Na ponta você se isola na bandeirinha!`, "toxic")
     ],
     (actors, ctx) => buildShuffledChatChoices(actors, {
       great: {
@@ -4069,7 +4069,7 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
         tacticsPatch: { lane: "wings", hissatsuTactic: "route_of_sky" },
         coachLine: `Vamos atacar pelas Pontas com Rota do Céu! ${actors[1].name} vira o jogo por cima e ${actors[0].name} atropela livre!`,
         reactions: [
-          { idx: 0, text: `AGORA SIM! Vai ter bola pra minha corrida o jogo todo!`, tone: "hype" },
+          { idx: 0, text: `AGORA SIM! Vai ter bola para a minha corrida o jogo todo!`, tone: "hype" },
           { idx: 1, text: `Com Rota do Céu atravessando os marcadores, fica fácil te achar na ala!`, tone: "idea" }
         ]
       },
@@ -4080,7 +4080,7 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
         coachLine: `Vamos pelo Meio com toque curto — ${actors[0].name} fecha por dentro junto com o meia.`,
         reactions: [
           { idx: 1, text: `Por dentro o gol fica logo ali!`, tone: "calm" },
-          { idx: 0, text: `Vou cortar da ponta pro centro então.`, tone: "normal" }
+          { idx: 0, text: `Vou cortar da ponta para o centro então.`, tone: "normal" }
         ]
       },
       poor: {
@@ -4104,17 +4104,17 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
       { pred: (a) => a.role === "MF" || a.role === "FW", role: "MF" }
     ],
     (actors, ctx) => [
-      mkSpontaneousMsg(actors, 0, `🎤 Áudio (0:14): "Olha o replay do gol que levamos no treino!! Eu dando carrinho com ${actors[0].dfMove} e ninguém fecha a sobra da entrada da área!"`, "toxic"),
-      mkSpontaneousMsg(actors, 1, `Escutei o áudio no volume mínimo e já deu pra sentir o chilique daqui... contra ${ctx.oppName} eu volto sim!`, "tense")
+      mkSpontaneousMsg(actors, 0, `🎤 Áudio (0:14): "Olha o vídeo do gol que levamos no treino!! Eu dando carrinho com ${actors[0].dfMove} e ninguém fecha a sobra da entrada da área!"`, "toxic"),
+      mkSpontaneousMsg(actors, 1, `Escutei o áudio no volume mínimo e já deu para sentir a bronca daqui... contra ${ctx.oppName} eu volto sim!`, "tense")
     ],
     (actors, ctx) => buildShuffledChatChoices(actors, {
       great: {
         label: "Reconhecer a falha e ajustar Postura Recuada + Contra-Ataque Catenaccio",
         approachTag: "Fechar Sobras",
         tacticsPatch: { posture: "defensive", hissatsuTactic: "catenaccio" },
-        coachLine: `${actors[0].name} tem ponto — contra ${ctx.oppName} ajustamos Postura Recuada e Catenaccio pra transformar cada rebote em contra-ataque!`,
+        coachLine: `${actors[0].name} tem ponto — contra ${ctx.oppName} ajustamos Postura Recuada e Catenaccio para transformar cada rebote em contra-ataque!`,
         reactions: [
-          { idx: 0, text: `Aí sim professor! Catenaccio trava tudo e ainda devolve rápido!`, tone: "hype" },
+          { idx: 0, text: `Isso mesmo, professor! Catenaccio trava tudo e ainda devolve rápido!`, tone: "hype" },
           { idx: 1, text: `E eu saio voando na transição assim que você roubar!`, tone: "hype" }
         ]
       },
@@ -4131,7 +4131,7 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
         label: "Rir do áudio e mandar linha alta mesmo sem cobertura",
         approachTag: "Expor Zaga",
         tacticsPatch: { posture: "offensive", style: "vertical" },
-        coachLine: `Deixa o áudio pra lá e sobe a defesa toda sem cobertura mesmo.`,
+        coachLine: `Deixa o áudio para lá e sobe a defesa toda sem cobertura mesmo.`,
         reactions: [
           { idx: 0, text: `Depois não reclama quando tomarmos bola nas costas!`, tone: "toxic" }
         ]
@@ -4203,9 +4203,9 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
         label: "Dosar para Esforço Médio + estilo Posse para economizar fôlego",
         approachTag: "Ritmo Inteligente",
         tacticsPatch: { intensity: "medium", style: "possession" },
-        coachLine: `Esforço Médio com estilo Posse! Circulando a bola recuperamos fôlego sem entregar campo pra ${ctx.oppName}!`,
+        coachLine: `Esforço Médio com estilo Posse! Circulando a bola recuperamos fôlego sem entregar campo para ${ctx.oppName}!`,
         reactions: [
-          { idx: 0, text: `Perfeito! Fico inteiro pra arrancar no 2º tempo!`, tone: "hype" },
+          { idx: 0, text: `Perfeito! Fico inteiro para arrancar no 2º tempo!`, tone: "hype" },
           { idx: 1, text: `Posse controlada resolve os dois problemas.`, tone: "calm" }
         ]
       },
@@ -4213,7 +4213,7 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
         label: "Baixar para Esforço Baixo e priorizar conservação de fôlego",
         approachTag: "Poupar Elenco",
         tacticsPatch: { intensity: "low" },
-        coachLine: `Esforço Baixo desde já pra garantir fôlego no fim.`,
+        coachLine: `Esforço Baixo desde já para garantir fôlego no fim.`,
         reactions: [
           { idx: 0, text: `Pelo menos não morremos cedo.`, tone: "calm" }
         ]
@@ -4288,7 +4288,7 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
       { pred: (a) => a.role === "DF", role: "DF" }
     ],
     (actors) => [
-      mkSpontaneousMsg(actors, 1, `Kkkkk alguém viu o vídeo do ${actors[0].name} furando a bola tentando mandar ${actors[0].shMove} no treino?!`, "banter"),
+      mkSpontaneousMsg(actors, 1, `! alguém viu o vídeo do ${actors[0].name} furando a bola tentando mandar ${actors[0].shMove} no treino?!`, "banter"),
       mkSpontaneousMsg(actors, 0, `APAGA ESSA PORCARIA AGORA!! A bola molhada quicou errado e vocês ficam rindo igual bobos?!`, "toxic"),
       mkSpontaneousMsg(actors, 2, `Ih, pesou o clima... melhor nem mandar figurinha agora.`, "tense")
     ],
@@ -4298,12 +4298,12 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
         approachTag: "Foco Técnico",
         coachLine: `Até bola difícil exige concentração total no domínio! Canalizem essa energia para acertar tudo contra o adversário!`,
         reactions: [
-          { idx: 0, text: `Certo... foco 100% agora. No jogo eu guardo duas só pra responder!`, tone: "hype" },
-          { idx: 1, text: `Desculpa aí fera, tô contigo pro passe perfeito hoje.`, tone: "calm" }
+          { idx: 0, text: `Certo... foco 100% agora. No jogo eu guardo duas só para responder!`, tone: "hype" },
+          { idx: 1, text: `Desculpa aí fera, estou contigo para o passe perfeito hoje.`, tone: "calm" }
         ]
       },
       good: {
-        label: "Pedir pra apagarem o vídeo e seguirem o treino",
+        label: "Pedir para apagarem o vídeo e seguirem o treino",
         approachTag: "Encerrar Zoeira",
         coachLine: `Chega de zoação no grupo. Foco total na partida agora.`,
         reactions: [
@@ -4314,7 +4314,7 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
       poor: {
         label: "Compartilhar mais memes da furada no grupo",
         approachTag: "Botar Lenha",
-        coachLine: `Tem que rir mesmo, foi feio demais kkk!`,
+        coachLine: `Tem que rir mesmo, foi feio demais, haha!`,
         reactions: [
           { idx: 0, text: `Até o técnico tirando onda... valeu mesmo hein.`, tone: "toxic" }
         ]
@@ -4331,25 +4331,25 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
       { pred: (a) => a.role === "MF", role: "MF" }
     ],
     (actors, ctx) => [
-      mkSpontaneousMsg(actors, 0, `Não dá pra inventar drible na frente da área com ${ctx.oppName} pressionando! Solta a bola!!`, "toxic"),
-      mkSpontaneousMsg(actors, 1, `Se eu não usar ${actors[1].ofMove} pra limpar o volante, o passe morre no pé do rival!`, "toxic")
+      mkSpontaneousMsg(actors, 0, `Não dá para inventar drible na frente da área com ${ctx.oppName} pressionando! Solta a bola!!`, "toxic"),
+      mkSpontaneousMsg(actors, 1, `Se eu não usar ${actors[1].ofMove} para limpar o volante, o passe morre no pé do rival!`, "toxic")
     ],
     (actors, ctx) => buildShuffledChatChoices(actors, {
       great: {
-        label: "Ajustar estilo Posse pra dar opção curta segura antes do drible",
+        label: "Ajustar estilo Posse para dar opção curta segura antes do drible",
         approachTag: "Apoio Curto",
         tacticsPatch: { style: "possession", lane: "center" },
-        coachLine: `Com estilo Posse todo mundo se aproxima pra dar passe curto — só use ${actors[1].ofMove} quando estiver no 1x1 limpo!`,
+        coachLine: `Com estilo Posse todo mundo se aproxima para dar passe curto — só use ${actors[1].ofMove} quando estiver no 1x1 limpo!`,
         reactions: [
           { idx: 1, text: `Tendo opção próxima eu solto muito mais fácil!`, tone: "calm" },
-          { idx: 0, text: `E eu fico atrás pronto pra cobertura!`, tone: "hype" }
+          { idx: 0, text: `E eu fico atrás pronto para cobertura!`, tone: "hype" }
         ]
       },
       good: {
-        label: "Pedir pro meia soltar mais vertical ao recuperar a posse",
+        label: "Pedir para o meia soltar mais vertical ao recuperar a posse",
         approachTag: "Saída Rápida",
         tacticsPatch: { style: "vertical" },
-        coachLine: `Pensou dois segundos, joga vertical pros atacantes brigarem.`,
+        coachLine: `Pensou dois segundos, joga vertical para os atacantes brigarem.`,
         reactions: [
           { idx: 1, text: `Menos risco na frente da zaga mesmo.`, tone: "calm" }
         ]
@@ -4358,7 +4358,7 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
         label: "Proibir qualquer tentativa de drible do meia no jogo",
         approachTag: "Engessar Criador",
         tacticsPatch: { style: "free" },
-        coachLine: `Se tentar um drible sequer vai pro banco na hora.`,
+        coachLine: `Se tentar um drible sequer vai para o banco na hora.`,
         reactions: [
           { idx: 1, text: `Cortou meu melhor recurso em campo...`, tone: "toxic" }
         ]
@@ -4377,13 +4377,13 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
       { pred: (a) => a.role === "FW" || a.role === "MF", role: "FW" }
     ],
     (actors, ctx) => [
-      mkSpontaneousMsg(actors, 0, `Tô testando um passe rasante girando pra ligar direto ${actors[1].shMove} e ${actors[2].shMove} contra ${ctx.oppName}!`, "idea"),
+      mkSpontaneousMsg(actors, 0, `Estou testando um passe rasante girando para ligar direto ${actors[1].shMove} e ${actors[2].shMove} contra ${ctx.oppName}!`, "idea"),
       mkSpontaneousMsg(actors, 1, `Se o time jogar no estilo Vertical, a gente rasga a defesa antes deles piscarem!`, "hype"),
       mkSpontaneousMsg(actors, 2, `Bora transformar essa tabela relâmpago numa Hissatsu combinada AGORA!`, "hype")
     ],
     (actors, ctx) => buildShuffledChatChoices(actors, {
       great: {
-        label: "Ajustar estilo Vertical + Postura Avançada pro trio testar a jogada!",
+        label: "Ajustar estilo Vertical + Postura Avançada para o trio testar a jogada!",
         approachTag: "Ataque Vertical",
         tacticsPatch: { style: "vertical", posture: "offensive" },
         coachLine: `Estilo Vertical e Postura Avançada ligados! Disparem o trio em velocidade máxima até cravar a técnica!`,
@@ -4403,7 +4403,7 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
         ]
       },
       poor: {
-        label: "Pedir passe devagar pro lado pra não perder fôlego",
+        label: "Pedir passe devagar para o lado para não perder fôlego",
         approachTag: "Frear Ataque",
         tacticsPatch: { posture: "defensive", intensity: "low" },
         coachLine: `Esqueçam ataque rápido, segurem lá atrás.`,
@@ -4425,7 +4425,7 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
     ],
     (actors, ctx) => [
       mkSpontaneousMsg(actors, 0, `Imagina nós três fechando em tridente na cara do goleiro de ${ctx.oppName}... ninguém segura!`, "idea"),
-      mkSpontaneousMsg(actors, 1, `Mas precisamos do esquema com 3 atacantes pra ficarmos próximos na área!`, "idea"),
+      mkSpontaneousMsg(actors, 1, `Mas precisamos do esquema com 3 atacantes para ficarmos próximos na área!`, "idea"),
       mkSpontaneousMsg(actors, 2, `Aí sai jogada combinada de primeira direto na rede!!`, "hype")
     ],
     (actors, ctx) => buildShuffledChatChoices(actors, {
@@ -4433,7 +4433,7 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
         label: "Mudar formação para 4-3-3 Ofensiva e sincronizar o Tridente!",
         approachTag: "Formação 4-3-3",
         tacticsPatch: { formation: "4-3-3", posture: "offensive" },
-        coachLine: `Vai ser 4-3-3 Ofensiva! Três atacantes pressionando a zaga pra inventar uma técnica mortal em trio!`,
+        coachLine: `Vai ser 4-3-3 Ofensiva! Três atacantes pressionando a zaga para inventar uma técnica mortal em trio!`,
         reactions: [
           { idx: 0, text: `TRIDENTE ATIVADO!! Vai ser chuva de gols!!`, tone: "hype" },
           { idx: 1, text: `Agora ninguém segura nós três perto da área!`, tone: "hype" }
@@ -4443,13 +4443,13 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
         label: "Aproximar os atacantes usando corredor das Pontas",
         approachTag: "Apoio Pelas Alas",
         tacticsPatch: { lane: "wings" },
-        coachLine: `Atacamos pelas pontas pra juntar vocês na finalização.`,
+        coachLine: `Atacamos pelas pontas para juntar vocês na finalização.`,
         reactions: [
           { idx: 2, text: `Chego fechando fácil assim!`, tone: "calm" }
         ]
       },
       poor: {
-        label: "Recuar todo mundo pro 3-5-2 deixando só um isolado na frente",
+        label: "Recuar todo mundo para o 3-5-2 deixando só um isolado na frente",
         approachTag: "Quebrar Tridente",
         tacticsPatch: { posture: "defensive" },
         coachLine: `Melhor isolar só um atacante e fechar atrás.`,
@@ -4469,18 +4469,18 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
       { pred: (a) => a.role === "FW", role: "FW" }
     ],
     (actors) => [
-      mkSpontaneousMsg(actors, 0, `Tô treinando bater com efeito por fora na bola pra ela contornar o zagueiro e cair no seu pé!`, "idea"),
+      mkSpontaneousMsg(actors, 0, `Estou treinando bater com efeito por fora na bola para ela contornar o zagueiro e cair no seu pé!`, "idea"),
       mkSpontaneousMsg(actors, 1, `Sério?! Quando a bola faz essa curva girando no ar, consigo emendar de primeira com ${actors[1].shMove}!`, "hype")
     ],
     (actors) => buildShuffledChatChoices(actors, {
       great: {
-        label: "Ativar Rota do Céu pro elenco abusar de lançamentos curvos!",
+        label: "Ativar Rota do Céu para o elenco abusar de lançamentos curvos!",
         approachTag: "Passes Curvos",
         tacticsPatch: { hissatsuTactic: "route_of_sky", lane: "wings" },
-        coachLine: `Rota do Céu configurada! Usem essa curva pro passe voar sobre os marcadores direto pro ataque!`,
+        coachLine: `Rota do Céu configurada! Usem essa curva para o passe voar sobre os marcadores direto para o ataque!`,
         reactions: [
           { idx: 0, text: `QUE EFEITO ABSURDO A BOLA FEZ!!`, tone: "hype" },
-          { idx: 1, text: `Impossível pra zaga ler a trajetória!`, tone: "hype" }
+          { idx: 1, text: `Impossível para a zaga ler a trajetória!`, tone: "hype" }
         ]
       },
       good: {
@@ -4514,18 +4514,18 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
     ],
     (actors, ctx) => [
       mkSpontaneousMsg(actors, 0, `Se encaixarmos ${actors[0].dfMove} com um passe cego no instante do desarme, viramos o jogo em cima de ${ctx.oppName}!`, "idea"),
-      mkSpontaneousMsg(actors, 2, `Quando a defesa sincroniza desse jeito, dá pra sentir a aura subindo até debaixo das traves!`, "hype"),
+      mkSpontaneousMsg(actors, 2, `Quando a defesa sincroniza desse jeito, dá para sentir a aura subindo até debaixo das traves!`, "hype"),
       mkSpontaneousMsg(actors, 1, `Bora testar essa técnica defensiva combinada no esquema Catenaccio!`, "idea")
     ],
     (actors) => buildShuffledChatChoices(actors, {
       great: {
-        label: "Configurar Contra-Ataque Catenaccio + Postura Recuada pra engatilhar o golpe!",
+        label: "Configurar Contra-Ataque Catenaccio + Postura Recuada para engatilhar o golpe!",
         approachTag: "Catenaccio Letal",
         tacticsPatch: { hissatsuTactic: "catenaccio", posture: "defensive" },
         coachLine: `Catenaccio ativo! Roubem em dupla e disparem o contra-ataque sincronizado na hora!`,
         reactions: [
           { idx: 0, text: `Ninguém fura esse bloqueio combinado!!`, tone: "hype" },
-          { idx: 2, text: `Defesa de ferro pro torneio inteiro!`, tone: "hype" }
+          { idx: 2, text: `Defesa de ferro para o torneio inteiro!`, tone: "hype" }
         ]
       },
       good: {
@@ -4541,7 +4541,7 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
         label: "Abrir toda a defesa no 3-4-3 sem zagueiros extras",
         approachTag: "Expor Retaguarda",
         tacticsPatch: { posture: "offensive" },
-        coachLine: `Esquece defesa, manda zagueiro pro ataque também.`,
+        coachLine: `Esquece defesa, manda zagueiro para o ataque também.`,
         reactions: [
           { idx: 2, text: `Aí desmontou toda a muralha que estávamos montando...`, tone: "tense" }
         ]
@@ -4560,14 +4560,14 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
     (actors) => {
       const eq = actors[0].equipTitle || "as chuteiras novas";
       return [
-        mkSpontaneousMsg(actors, 0, `Cara, usando ${eq} eu senti minha arrancada e força subirem absurdo! Quer testar uma tabela rápida pra ver o estrago?!`, "idea"),
+        mkSpontaneousMsg(actors, 0, `Cara, usando ${eq} eu senti minha arrancada e força subirem absurdo! Quer testar uma tabela rápida para ver o estrago?!`, "idea"),
         mkSpontaneousMsg(actors, 1, `Bora! Se eu acompanhar sua velocidade com ${actors[1].ofMove}, sai técnica nova na hora!`, "hype")
       ];
     },
     (actors) => buildShuffledChatChoices(actors, {
       great: {
         label: "Acelerar no corredor e consolidar a técnica da dupla em velocidade!",
-        approachTag: "Acelerar Combo",
+        approachTag: "Acelerar Jogada Combinada",
         tacticsPatch: { style: "vertical" },
         coachLine: `Aproveitem o boost do equipamento no estilo Vertical — quero vocês rasgando a marcação em dupla!`,
         reactions: [
@@ -4580,7 +4580,7 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
         approachTag: "Precisão",
         coachLine: `Ajustem a passada devagar até pegar confiança no toque.`,
         reactions: [
-          { idx: 0, text: `Tá ótimo, pegando o jeito rápido.`, tone: "calm" }
+          { idx: 0, text: `Está ótimo, pegando o jeito rápido.`, tone: "calm" }
         ]
       },
       poor: {
@@ -4606,7 +4606,7 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
     ],
     (actors) => [
       mkSpontaneousMsg(actors, 0, `Acordei 02:14 pensando nisso!! Se eu der um toque picado com efeito e você já bater no giro, nasce uma técnica nova!`, "idea", { time: "02:14" }),
-      mkSpontaneousMsg(actors, 1, `Cê não dorme não?! kkk Mas espera... pior que faz MUITO sentido! Amanhã no aquecimento nós três testamos isso!`, "hype", { time: "02:16" }),
+      mkSpontaneousMsg(actors, 1, `Cê não dorme não?!! Mas espera... pior que faz MUITO sentido! Amanhã no aquecimento nós três testamos isso!`, "hype", { time: "02:16" }),
       mkSpontaneousMsg(actors, 2, `Contem comigo fechando a triangulação!!`, "hype", { time: "02:17" })
     ],
     (actors) => buildShuffledChatChoices(actors, {
@@ -4616,11 +4616,11 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
         coachLine: `Mentes brilhantes não desligam! No primeiro toque do treino hoje nós montamos essa sequência no campo!`,
         reactions: [
           { idx: 0, text: `DEUS DO FUTEBOL!! Saiu exatamente igual eu sonhei!!`, tone: "hype" },
-          { idx: 1, text: `Insônia abençoada essa hein kkk!`, tone: "hype" }
+          { idx: 1, text: `Insônia abençoada essa, hein!`, tone: "hype" }
         ]
       },
       good: {
-        label: "Anotar no quadro tático pra testar com calma depois",
+        label: "Anotar no quadro estático para testar com calma depois",
         approachTag: "Anotar Plano",
         coachLine: `Boa visão! Desenha na prancheta depois que todo mundo acordar.`,
         reactions: [
@@ -4652,7 +4652,7 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
     ],
     (actors) => buildShuffledChatChoices(actors, {
       great: {
-        label: "Ativar Pressão Relâmpago pro time engolir a saída adversária!",
+        label: "Ativar Pressão Relâmpago para o time engolir a saída adversária!",
         approachTag: "Pressão Relâmpago",
         tacticsPatch: { hissatsuTactic: "lightning_press", intensity: "high" },
         coachLine: `Pressão Relâmpago ativada! Quando fecharem em pinça, ninguém sai jogando limpo contra nós!`,
@@ -4665,7 +4665,7 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
         label: "Manter pressão moderada sem gastar tanta energia",
         approachTag: "Pressão Média",
         tacticsPatch: { intensity: "medium" },
-        coachLine: `Fechem os espaços em ritmo médio pra não estourar cedo.`,
+        coachLine: `Fechem os espaços em ritmo médio para não estourar cedo.`,
         reactions: [
           { idx: 0, text: `Equilibrado e eficiente!`, tone: "calm" }
         ]
@@ -4693,18 +4693,18 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
     ],
     (actors, ctx) => [
       mkSpontaneousMsg(actors, 0, `Quando eu seguro com ${actors[0].gkMove}, já levanto a cabeça na hora! Se você arrancar no segundo zero, ${actors[1].name}, mando na tua passada!`, "idea"),
-      mkSpontaneousMsg(actors, 1, `Bola longa do goleiro direto pra minha ${actors[1].shMove}?! ${ctx.oppName} nem volta a tempo!`, "hype"),
-      mkSpontaneousMsg(actors, 2, `Eu corro logo atrás pra emendar de primeira se precisar do terceiro toque!`, "idea")
+      mkSpontaneousMsg(actors, 1, `Bola longa do goleiro direto para a minha ${actors[1].shMove}?! ${ctx.oppName} nem volta a tempo!`, "hype"),
+      mkSpontaneousMsg(actors, 2, `Eu corro logo atrás para emendar de primeira se precisar do terceiro toque!`, "idea")
     ],
     (actors) => buildShuffledChatChoices(actors, {
       great: {
-        label: "Ligar Estilo Vertical + Rota do Céu pro contra-ataque direto do goleiro!",
+        label: "Ligar Estilo Vertical + Rota do Céu para o contra-ataque direto do goleiro!",
         approachTag: "Ligação Direta",
         tacticsPatch: { style: "vertical", hissatsuTactic: "route_of_sky" },
-        coachLine: `Estilo Vertical! Saiu da mão do ${actors[0].name}, vocês dois já partem na diagonal pra cravar a técnica!`,
+        coachLine: `Estilo Vertical! Saiu da mão do ${actors[0].name}, vocês dois já partem na diagonal para cravar a técnica!`,
         reactions: [
           { idx: 0, text: `Lançamento teleguiado de 70 metros!!`, tone: "hype" },
-          { idx: 1, text: `No peito e direto pro gol!! Técnica perfeita!`, tone: "hype" }
+          { idx: 1, text: `No peito e direto para o gol!! Técnica perfeita!`, tone: "hype" }
         ]
       },
       good: {
@@ -4716,7 +4716,7 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
         ]
       },
       poor: {
-        label: "Proibir o goleiro de repor rápido pedindo pra segurar o relógio",
+        label: "Proibir o goleiro de repor rápido pedindo para segurar o relógio",
         approachTag: "Lento Demais",
         tacticsPatch: { intensity: "low" },
         coachLine: `Segura a bola na mão 5 segundos sempre que defender.`,
@@ -4743,13 +4743,13 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
     ],
     (actors) => buildShuffledChatChoices(actors, {
       great: {
-        label: "Configurar estilo Posse + Corredor pelo Meio pro carrossel rodar liso!",
+        label: "Configurar estilo Posse + Corredor pelo Meio para o carrossel rodar liso!",
         approachTag: "Tiki-Taka Centro",
         tacticsPatch: { style: "possession", lane: "center" },
-        coachLine: `Posse pelo Meio ativada! Toque de primeira até abrir o clarão final pro golpe combinado!`,
+        coachLine: `Posse pelo Meio ativada! Toque de primeira até abrir o clarão final para o golpe combinado!`,
         reactions: [
           { idx: 0, text: `Os marcadores ficaram tontos tentando acompanhar!!`, tone: "hype" },
-          { idx: 1, text: `Nossa tabela tá imparável!!`, tone: "hype" },
+          { idx: 1, text: `Nossa tabela está imparável!!`, tone: "hype" },
           { idx: 2, text: `Bola redondinha na marca do pênalti!`, tone: "hype" }
         ]
       },
@@ -4757,7 +4757,7 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
         label: "Praticar o carrossel mantendo o corredor livre",
         approachTag: "Tabela Livre",
         tacticsPatch: { style: "possession" },
-        coachLine: `Estilo Posse com liberdade de movimento pros lados também.`,
+        coachLine: `Estilo Posse com liberdade de movimento para os lados também.`,
         reactions: [
           { idx: 0, text: `Flui muito bem!`, tone: "calm" }
         ]
@@ -4766,7 +4766,7 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
         label: "Mandar chutar balão de longe antes de completar 2 passes",
         approachTag: "Forçar Balão",
         tacticsPatch: { style: "vertical", lane: "wings" },
-        coachLine: `Sem passe curto hoje, só chutão alto pros cantos.`,
+        coachLine: `Sem passe curto hoje, só chutão alto para os cantos.`,
         reactions: [
           { idx: 0, text: `Acabou com toda a beleza do meio-campo...`, tone: "tense" }
         ]
@@ -4785,19 +4785,19 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
       { pred: (a) => a.role === "DF", role: "DF" }
     ],
     (actors, ctx) => [
-      mkSpontaneousMsg(actors, 0, `Pessoal, esse grupo tem algo especial. Mesmo contra ${ctx.oppName}, dá pra sentir todo mundo jogando um pelo outro!`, "praise"),
-      mkSpontaneousMsg(actors, 1, `Real! Hoje eu entrei em campo sem medo porque confio cegamente em quem tá atrás e do meu lado!`, "hype"),
+      mkSpontaneousMsg(actors, 0, `Pessoal, esse grupo tem algo especial. Mesmo contra ${ctx.oppName}, dá para sentir todo mundo jogando um pelo outro!`, "praise"),
+      mkSpontaneousMsg(actors, 1, `Real! Hoje eu entrei em campo sem medo porque confio cegamente em quem está atrás e do meu lado!`, "hype"),
       mkSpontaneousMsg(actors, 2, `Essa união multiplica nosso fôlego!!`, "praise")
     ],
     (actors) => buildShuffledChatChoices(actors, {
       great: {
-        label: "Ativar Harmonia da Raimon como Tática Especial e exaltar a união!",
+        label: "Ativar Harmonia da Raimon como Estática Especial e exaltar a união!",
         approachTag: "Harmonia Total",
         tacticsPatch: { hissatsuTactic: "raimon_harmony" },
-        coachLine: `Harmonia da Raimon selecionada pro jogo! Quando a química brilha assim, nenhum adversário segura o nosso time!`,
+        coachLine: `Harmonia da Raimon selecionada para o jogo! Quando a química brilha assim, nenhum adversário segura o nosso time!`,
         reactions: [
           { idx: 0, text: `É isso!! Energia renovada e elenco 100% fechado!`, tone: "hype" },
-          { idx: 1, text: `Vamo buscar esse título juntos!!`, tone: "hype" }
+          { idx: 1, text: `Vamos buscar esse título juntos!!`, tone: "hype" }
         ]
       },
       good: {
@@ -4805,7 +4805,7 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
         approachTag: "Foco Positivo",
         coachLine: `Orgulho de comandar um time unido assim. Sigam concentrados!`,
         reactions: [
-          { idx: 0, text: `Tamo junto sempre, professor!`, tone: "calm" }
+          { idx: 0, text: `Estamos sempre juntos, professor!`, tone: "calm" }
         ]
       },
       poor: {
@@ -4829,11 +4829,11 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
     ],
     (actors, ctx) => [
       mkSpontaneousMsg(actors, 1, `${actors[0].name}, vi o treino de reflexos hoje — até bola desviada você foi buscar com ${actors[0].gkMove}!`, "praise"),
-      mkSpontaneousMsg(actors, 0, `Tô no melhor momento do torneio! Podem ir buscar gols em cima de ${ctx.oppName} que eu seguro as pontas aqui atrás!`, "hype")
+      mkSpontaneousMsg(actors, 0, `Estou no melhor momento do torneio! Podem ir buscar gols em cima de ${ctx.oppName} que eu seguro as pontas aqui atrás!`, "hype")
     ],
     (actors) => buildShuffledChatChoices(actors, {
       great: {
-        label: "Dar liberdade ofensiva pro time sabendo que o gol está blindado!",
+        label: "Dar liberdade ofensiva para o time sabendo que o gol está blindado!",
         approachTag: "Avançar Linhas",
         tacticsPatch: { posture: "offensive" },
         coachLine: `Com ${actors[0].name} nesse nível no gol, vamos em Postura Avançada sufocar o adversário no ataque!`,
@@ -4845,15 +4845,15 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
       good: {
         label: "Elogiar o goleiro mantendo postura equilibrada",
         approachTag: "Equilíbrio",
-        coachLine: `Nosso paredão dá calma pro time todo jogar leve!`,
+        coachLine: `Nosso paredão dá calma para o time todo jogar leve!`,
         reactions: [
           { idx: 0, text: `Valeu, treinador!`, tone: "calm" }
         ]
       },
       poor: {
-        label: "Lembrar de uma falha antiga só pra mantê-lo nervoso",
+        label: "Lembrar de uma falha antiga só para mantê-lo nervoso",
         approachTag: "Abalar Confiança",
-        coachLine: `Cuidado pra não engolir frango igual no começo da temporada hein.`,
+        coachLine: `Cuidado para não engolir frango igual no começo da temporada hein.`,
         reactions: [
           { idx: 0, text: `Valeu pela força... ajudou bastante a confiança agora...`, tone: "toxic" }
         ]
@@ -4871,15 +4871,15 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
       { pred: (a) => a.role === "FW", role: "FW" }
     ],
     (actors) => [
-      mkSpontaneousMsg(actors, 1, `Ontem fui pegar minha garrafa depois do treino e o ${actors[0].name} ainda tava aperfeiçoando ${actors[0].dfMove} sozinho no escuro!`, "praise"),
+      mkSpontaneousMsg(actors, 1, `Ontem fui pegar minha garrafa depois do treino e o ${actors[0].name} ainda estava aperfeiçoando ${actors[0].dfMove} sozinho no escuro!`, "praise"),
       mkSpontaneousMsg(actors, 2, `Dedicação surreal!! É por isso que você não perde dividida nenhuma!`, "praise"),
       mkSpontaneousMsg(actors, 0, `Quero estar 100% pronto quando o time precisar!`, "calm")
     ],
     (actors) => buildShuffledChatChoices(actors, {
       great: {
-        label: "Usar o exemplo dele pro time inteiro recuperar o ânimo e elevar a entrega!",
+        label: "Usar o exemplo dele para o time inteiro recuperar o ânimo e elevar a entrega!",
         approachTag: "Exemplo de Raça",
-        coachLine: `Olhem pro esforço do ${actors[0].name}! Essa fome de vencer renova a energia de qualquer vestiário!`,
+        coachLine: `Olhem para o esforço do ${actors[0].name}! Essa fome de vencer renova a energia de qualquer vestiário!`,
         reactions: [
           { idx: 1, text: `Inspirou todo mundo! Hoje ninguém para de correr!`, tone: "hype" },
           { idx: 2, text: `Moral lá no teto!!`, tone: "hype" }
@@ -4888,7 +4888,7 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
       good: {
         label: "Parabenizar mas lembrar de descansar antes do jogo",
         approachTag: "Cuidar do Corpo",
-        coachLine: `Orgulho do seu empenho, mas descansa o corpo agora pro jogo.`,
+        coachLine: `Orgulho do seu empenho, mas descansa o corpo agora para o jogo.`,
         reactions: [
           { idx: 0, text: `Pode deixar, professor!`, tone: "calm" }
         ]
@@ -4898,7 +4898,7 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
         approachTag: "Repreender",
         coachLine: `Ninguém pediu hora extra, só vai se machucar à toa.`,
         reactions: [
-          { idx: 0, text: `Só queria melhorar pro time...`, tone: "tense" }
+          { idx: 0, text: `Só queria melhorar para o time...`, tone: "tense" }
         ]
       }
     })
@@ -4913,8 +4913,8 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
       { pred: (a) => a.archetype === "PACE_LEADER" || a.role === "MF", role: "MF" }
     ],
     (actors) => [
-      mkSpontaneousMsg(actors, 0, `Cara, cada cruzamento ou toque teu pelas pontas chega tão limpo que metade dos meus gols são teus, ${actors[1].name}!`, "praise"),
-      mkSpontaneousMsg(actors, 1, `E eu só cruzo tranquilo porque sei que você tá sempre no lugar exato pra matar o goleiro!`, "hype")
+      mkSpontaneousMsg(actors, 0, `Cara, cada cruzamento ou passe seu pelas pontas chega tão limpo que metade dos meus gols são seus, ${actors[1].name}!`, "praise"),
+      mkSpontaneousMsg(actors, 1, `E eu só cruzo tranquilo porque sei que você está sempre no lugar exato para matar o goleiro!`, "hype")
     ],
     (actors) => buildShuffledChatChoices(actors, {
       great: {
@@ -4924,7 +4924,7 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
         coachLine: `Corredor pelas Pontas liberado! Continuem alimentando essa conexão mortal na área!`,
         reactions: [
           { idx: 1, text: `Vão chover assistências hoje!!`, tone: "hype" },
-          { idx: 0, text: `Tô faminto por gol, só manda!`, tone: "hype" }
+          { idx: 0, text: `Estou faminto por gol, só manda!`, tone: "hype" }
         ]
       },
       good: {
@@ -4937,11 +4937,11 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
         ]
       },
       poor: {
-        label: "Dizer pro ponta parar de cruzar e só recuar pro goleiro",
+        label: "Dizer para o ponta parar de cruzar e só recuar para o goleiro",
         approachTag: "Matar Jogada",
         coachLine: `Chega de cruzar, recuem tudo.`,
         reactions: [
-          { idx: 0, text: `Estranho cortar justo o que tá dando mais certo...`, tone: "tense" }
+          { idx: 0, text: `Estranho cortar justo o que está dando mais certo...`, tone: "tense" }
         ]
       }
     })
@@ -4961,7 +4961,7 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
     ],
     (actors) => buildShuffledChatChoices(actors, {
       great: {
-        label: `Nomear ${actors[0].name} referência de confiança no time pro próximo duelo!`,
+        label: `Nomear ${actors[0].name} referência de confiança no time para o próximo duelo!`,
         approachTag: "Elevar Líder",
         coachLine: `Inteligência e humildade assim carregam um campeão! Entrem confiantes e com espírito renovado!`,
         reactions: [
@@ -4970,7 +4970,7 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
         ]
       },
       good: {
-        label: "Confirmar que a leitura coletiva tá afiada",
+        label: "Confirmar que a leitura coletiva está afiada",
         approachTag: "Apoio",
         coachLine: `Continuem se comunicando em voz alta durante os 90 minutos.`,
         reactions: [
@@ -5007,11 +5007,11 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
         coachLine: `Zaga e goleiro nessa sintonia tiram o sono de qualquer ataque!`,
         reactions: [
           { idx: 0, text: `Energia no talo e zero medo!`, tone: "hype" },
-          { idx: 1, text: `Vamo sair sem sofrer gol!`, tone: "hype" }
+          { idx: 1, text: `Vamos sair sem sofrer gols!`, tone: "hype" }
         ]
       },
       good: {
-        label: "Pedir pra manterem a calma na saída de bola",
+        label: "Pedir para manterem a calma na saída de bola",
         approachTag: "Serenidade",
         coachLine: `Mantenham a tranquilidade sempre que pressionados.`,
         reactions: [
@@ -5039,22 +5039,22 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
       { pred: (a) => a.role === "GK", role: "GK" }
     ],
     (actors, ctx) => [
-      mkSpontaneousMsg(actors, 1, `Lembram quando a gente parecia travado e bastou uma tabela pra virar o jogo inteiro? Esse elenco nunca desiste!`, "praise"),
-      mkSpontaneousMsg(actors, 0, `Quando a bola chega em ${actors[0].shMove} nos minutos finais, parece até cena de anime kkk!`, "hype"),
+      mkSpontaneousMsg(actors, 1, `Lembram quando a gente parecia travado e bastou uma tabela para virar o jogo inteiro? Esse elenco nunca desiste!`, "praise"),
+      mkSpontaneousMsg(actors, 0, `Quando a bola chega em ${actors[0].shMove} nos minutos finais, parece até cena de anime!`, "hype"),
       mkSpontaneousMsg(actors, 2, `Hoje contra ${ctx.oppName}, se precisarmos decidir no fim, todo mundo já sabe quem cresce!`, "hype")
     ],
     (actors) => buildShuffledChatChoices(actors, {
       great: {
-        label: "Transformar essa confiança em energia extra imediata pro grupo!",
+        label: "Transformar essa confiança em energia extra imediata para o grupo!",
         approachTag: "Garra Inazuma",
         coachLine: `Esse é o verdadeiro Futebol Inazuma — coragem até o último segundo do relógio!`,
         reactions: [
-          { idx: 0, text: `ARREPIEI!! Bora entrar pra vencer desde já!`, tone: "hype" },
+          { idx: 0, text: `ARREPIEI!! Bora entrar para vencer desde já!`, tone: "hype" },
           { idx: 1, text: `Energia renovada de verdade!`, tone: "hype" }
         ]
       },
       good: {
-        label: "Pedir pro time decidir cedo pra não precisar sofrer no fim",
+        label: "Pedir para o time decidir cedo para não precisar sofrer no fim",
         approachTag: "Decidir Cedo",
         coachLine: `Ótima mentalidade, mas melhor construir o placar já no 1º tempo!`,
         reactions: [
@@ -5064,7 +5064,7 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
       poor: {
         label: "Falar que virar jogos foi sorte pura e não volta a acontecer",
         approachTag: "Descrença",
-        coachLine: `Se sairmos atrás de novo hoje, já era — não temos força pra virar sempre.`,
+        coachLine: `Se sairmos atrás de novo hoje, já era — não temos força para virar sempre.`,
         reactions: [
           { idx: 2, text: `Caramba, que falta de fé no próprio elenco...`, tone: "tense" }
         ]
@@ -5082,7 +5082,7 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
     ],
     (actors) => [
       mkSpontaneousMsg(actors, 0, `Valeu por cobrir minhas subidas o tempo inteiro sem reclamar uma vez sequer, ${actors[1].name}. Você faz eu jogar muito melhor!`, "praise"),
-      mkSpontaneousMsg(actors, 1, `Tamo aqui pra isso! Quando vejo você distribuindo passe lindo na frente, vale cada corrida atrás!`, "praise")
+      mkSpontaneousMsg(actors, 1, `Estamos aqui para isso! Quando vejo você distribuindo passe lindo na frente, vale cada corrida atrás!`, "praise")
     ],
     (actors) => buildShuffledChatChoices(actors, {
       great: {
@@ -5090,7 +5090,7 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
         approachTag: "Dupla de Confiança",
         coachLine: `Essa entrega sem vaidade faz a equipe inteira crescer e poupa fôlego de todo mundo!`,
         reactions: [
-          { idx: 0, text: `Energia mil pra próxima partida!!`, tone: "hype" },
+          { idx: 0, text: `Energia mil para a próxima partida!!`, tone: "hype" },
           { idx: 1, text: `Conte comigo em cada lance!`, tone: "hype" }
         ]
       },
@@ -5103,11 +5103,11 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
         ]
       },
       poor: {
-        label: "Dizer pro zagueiro parar de ajudar o meia e só olhar pro próprio lado",
+        label: "Dizer para o zagueiro parar de ajudar o meia e só olhar para o próprio lado",
         approachTag: "Desconectar Setor",
         coachLine: `Cada um cuida só do seu metro quadrado e pronto.`,
         reactions: [
-          { idx: 0, text: `Justo quando a parceria tava voando...`, tone: "tense" }
+          { idx: 0, text: `Justo quando a parceria estava voando...`, tone: "tense" }
         ]
       }
     })
@@ -5138,20 +5138,20 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
         coachLine: `Excelente scout! Marcação Especial ativada nele — cortem a linha do passe e não deem meio metro!`,
         reactions: [
           { idx: 0, text: `Ele vai achar que tem minha sombra colada nas costas hoje!!`, tone: "hype" },
-          { idx: 1, text: `E o passe pro resto do time deles vai cair todo errado!`, tone: "idea" }
+          { idx: 1, text: `E o passe para o resto do time deles vai cair todo errado!`, tone: "idea" }
         ]
       },
       good: {
         label: "Focar em interceptar em zona sem prender um marcador fixo",
         approachTag: "Marcação em Zona",
         tacticsPatch: { markRival: "CLEAR", style: "possession" },
-        coachLine: `Fechamos em zona compacta sem deixar espaço pra outros atacantes entrarem.`,
+        coachLine: `Fechamos em zona compacta sem deixar espaço para outros atacantes entrarem.`,
         reactions: [
-          { idx: 1, text: `Mais equilibrado pro bloco todo.`, tone: "calm" }
+          { idx: 1, text: `Mais equilibrado para o bloco todo.`, tone: "calm" }
         ]
       },
       poor: {
-        label: "Deixar o craque livre e mandar o time todo pro ataque",
+        label: "Deixar o craque livre e mandar o time todo para o ataque",
         approachTag: "Ignorar Scout",
         tacticsPatch: { markRival: "CLEAR", posture: "offensive" },
         coachLine: `Nem esquentem com quem tem a bola — deixem ele solto.`,
@@ -5178,10 +5178,10 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
     ],
     (actors) => buildShuffledChatChoices(actors, {
       great: {
-        label: "Mudar para 3-4-3 Relâmpago + Estilo Vertical pra atropelar desde o início!",
+        label: "Mudar para 3-4-3 Relâmpago + Estilo Vertical para atropelar desde o início!",
         approachTag: "Blitz 3-4-3",
         tacticsPatch: { formation: "3-4-3", style: "vertical", posture: "offensive" },
-        coachLine: `Formação 3-4-3 Relâmpago + Estilo Vertical! Entramos pra massacrar o campo adversário!`,
+        coachLine: `Formação 3-4-3 Relâmpago + Estilo Vertical! Entramos para massacrar o campo adversário!`,
         reactions: [
           { idx: 0, text: `FORMAÇÃO RELÂMPAGO ATIVADA!!`, tone: "hype" },
           { idx: 1, text: `Ataque em massa e posse rápida!`, tone: "hype" }
@@ -5217,22 +5217,22 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
       { pred: (a) => a.role === "FW", role: "FW" }
     ],
     (actors, ctx) => [
-      mkSpontaneousMsg(actors, 0, `Os laterais de ${ctx.oppName} sobem demais pro ataque e deixam uma avenida vazia nos cantos!`, "idea"),
+      mkSpontaneousMsg(actors, 0, `Os laterais de ${ctx.oppName} sobem demais para o ataque e deixam uma avenida vazia nos cantos!`, "idea"),
       mkSpontaneousMsg(actors, 1, `Se concentrarmos os passes pelas Pontas assim que roubarmos a bola, fico mano a mano com o goleiro!`, "hype")
     ],
     (actors) => buildShuffledChatChoices(actors, {
       great: {
-        label: "Ajustar Corredor: Pontas + Estilo Vertical pra explorar as alas abertas!",
+        label: "Ajustar Corredor: Pontas + Estilo Vertical para explorar as alas abertas!",
         approachTag: "Explorar Alas",
         tacticsPatch: { lane: "wings", style: "vertical" },
-        coachLine: `Leitura cirúrgica! Ataque pelas Pontas + Vertical pra castigar os corredores vazios!`,
+        coachLine: `Leitura cirúrgica! Ataque pelas Pontas + Vertical para castigar os corredores vazios!`,
         reactions: [
-          { idx: 0, text: `Cada roubada já vira inversão longa pro canto!`, tone: "hype" },
+          { idx: 0, text: `Cada roubada já vira inversão longa para o canto!`, tone: "hype" },
           { idx: 1, text: `Eles vão correr atrás de poeira na linha lateral!`, tone: "hype" }
         ]
       },
       good: {
-        label: "Deixar corredor Livre pra alternar entre centro e pontas",
+        label: "Deixar corredor Livre para alternar entre centro e pontas",
         approachTag: "Corredor Livre",
         tacticsPatch: { lane: "balanced" },
         coachLine: `Sem forçar só a ponta — escolham o lado que tiver mais espaço.`,
@@ -5244,7 +5244,7 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
         label: "Afunilar pelo Meio onde eles colocam três marcadores",
         approachTag: "Ir no Muro",
         tacticsPatch: { lane: "center" },
-        coachLine: `Não interessa se a ponta tá livre, só passem pelo meio congestionado.`,
+        coachLine: `Não interessa se a ponta está livre, só passem pelo meio congestionado.`,
         reactions: [
           { idx: 1, text: `Vamos bater direto na parede deles...`, tone: "tense" }
         ]
@@ -5262,26 +5262,26 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
       { pred: (a) => a.role === "DF", role: "DF" }
     ],
     (actors, ctx) => [
-      mkSpontaneousMsg(actors, 0, `Notei que o goleiro de ${ctx.oppName} demora pra decidir quando aperta a marcação na entrada da área!`, "idea"),
+      mkSpontaneousMsg(actors, 0, `Notei que o goleiro de ${ctx.oppName} demora para decidir quando aperta a marcação na entrada da área!`, "idea"),
       mkSpontaneousMsg(actors, 1, `Se subirmos o bloco na Pressão Relâmpago, roubamos a bola já perto do gol deles!`, "hype"),
       mkSpontaneousMsg(actors, 2, `Aí eu só fico vigiando o lançamento longo caso tentem escapar pelo alto.`, "calm")
     ],
     (actors) => buildShuffledChatChoices(actors, {
       great: {
-        label: "Armar Pressão Relâmpago com Postura Avançada pra sufocar na área deles!",
+        label: "Armar Pressão Relâmpago com Postura Avançada para sufocar na área deles!",
         approachTag: "Pressão Alta",
         tacticsPatch: { hissatsuTactic: "lightning_press", posture: "offensive" },
         coachLine: `Pressão Relâmpago + Postura Avançada! Sufocam a saída curta deles até forçar erro na cara do gol!`,
         reactions: [
           { idx: 0, text: `Vou morar na frente da área deles roubando saída!!`, tone: "hype" },
-          { idx: 1, text: `Nenhuma saída limpa pro adversário hoje!`, tone: "hype" }
+          { idx: 1, text: `Nenhuma saída limpa para o adversário hoje!`, tone: "hype" }
         ]
       },
       good: {
         label: "Pressionar só no meio-campo com postura equilibrada",
         approachTag: "Bloco Médio",
         tacticsPatch: { posture: "balanced" },
-        coachLine: `Esperem passar do círculo central pra fechar os passes com mais segurança.`,
+        coachLine: `Esperem passar do círculo central para fechar os passes com mais segurança.`,
         reactions: [
           { idx: 2, text: `Protege melhor nossas costas assim.`, tone: "calm" }
         ]
@@ -5312,17 +5312,17 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
     ],
     (actors) => buildShuffledChatChoices(actors, {
       great: {
-        label: `Dar a Camisa 10 pro ${actors[0].name} e focar estilo Posse pelo Meio!`,
+        label: `Dar a Camisa 10 para o ${actors[0].name} e focar estilo Posse pelo Meio!`,
         approachTag: "Camisa 10 Maestro",
         tacticsPatch: { aceActorIdx: 0, style: "possession", lane: "center" },
         coachLine: `${actors[0].name} vira nossa Referência Camisa 10 com Posse pelo Meio! Todo mundo gira em torno da visão dele!`,
         reactions: [
           { idx: 0, text: `Deixa comigo! Vou desmontar a retranca deles passe por passe!`, tone: "hype" },
-          { idx: 1, text: `E eu só espero o espaço abrir pra fuzilar!`, tone: "hype" }
+          { idx: 1, text: `E eu só espero o espaço abrir para fuzilar!`, tone: "hype" }
         ]
       },
       good: {
-        label: "Manter Camisa 10 automático pro time decidir em campo",
+        label: "Manter Camisa 10 automático para o time decidir em campo",
         approachTag: "Sem Fixar 10",
         tacticsPatch: { aceActorIdx: "CLEAR" },
         coachLine: `Cada lance pede um protagonista — mantemos o Camisa 10 aberto.`,
@@ -5334,7 +5334,7 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
         label: "Mudar para Vertical cego sem armação pelo meio",
         approachTag: "Sem Armação",
         tacticsPatch: { style: "vertical", aceActorIdx: "CLEAR" },
-        coachLine: `Não precisa de armador contra retranca, só chuta pra frente.`,
+        coachLine: `Não precisa de armador contra retranca, só chuta para frente.`,
         reactions: [
           { idx: 0, text: `Contra defesa fechada chutão cego nunca passa...`, tone: "tense" }
         ]
@@ -5351,25 +5351,25 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
       { pred: (a) => a.role === "MF", role: "MF" }
     ],
     (actors, ctx) => [
-      mkSpontaneousMsg(actors, 0, `Olhei a escalação de ${ctx.oppName}: o goleiro deles tem elemento chato pro meu chute individual!`, "normal"),
-      mkSpontaneousMsg(actors, 1, `Fácil! Se você bater de frente em desvantagem, rola a bola pro companheiro com elemento favorável empurrar!`, "idea")
+      mkSpontaneousMsg(actors, 0, `Olhei a escalação de ${ctx.oppName}: o goleiro deles tem elemento chato para o meu chute individual!`, "normal"),
+      mkSpontaneousMsg(actors, 1, `Fácil! Se você bater de frente em desvantagem, rola a bola para o companheiro com elemento favorável empurrar!`, "idea")
     ],
     (actors) => buildShuffledChatChoices(actors, {
       great: {
-        label: "Instruir estilo Posse pra rodar a bola até achar o melhor ângulo/elemento!",
+        label: "Instruir estilo Posse para rodar a bola até achar o melhor ângulo/elemento!",
         approachTag: "Escolha Inteligente",
         tacticsPatch: { style: "possession" },
-        coachLine: `Estilo Posse ativo! Não forcem duelo desfavorável — toquem pro lado que tiver vantagem elemental!`,
+        coachLine: `Estilo Posse ativo! Não forcem duelo desfavorável — toquem para o lado que tiver vantagem elemental!`,
         reactions: [
           { idx: 0, text: `Inteligente demais! Se fecharem com vantagem elemental em mim, eu assisto o colega!`, tone: "hype" },
           { idx: 1, text: `Chance de gol sobe absurdo assim!`, tone: "calm" }
         ]
       },
       good: {
-        label: "Usar estilo Instinto pra cada um ler na hora do lance",
+        label: "Usar estilo Instinto para cada um ler na hora do lance",
         approachTag: "Leitura Livre",
         tacticsPatch: { style: "free" },
-        coachLine: `Confio no instinto de vocês pra decidir entre chutar ou tocar.`,
+        coachLine: `Confio no instinto de vocês para decidir entre chutar ou tocar.`,
         reactions: [
           { idx: 0, text: `Certo, olho aberto na área.`, tone: "calm" }
         ]
@@ -5405,7 +5405,7 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
         tacticsPatch: { captainActorIdx: 0, hissatsuTactic: "raimon_harmony" },
         coachLine: `${actors[0].name} comanda com a cabeça fria e Harmonia da Raimon segura a calma nos momentos quentes!`,
         reactions: [
-          { idx: 0, text: `Cada passe meu vai sair com precisão e confiança pro elenco!`, tone: "hype" },
+          { idx: 0, text: `Cada passe meu vai sair com precisão e confiança para o elenco!`, tone: "hype" },
           { idx: 1, text: `Com o maestro com a faixa, ninguém perde a cabeça!`, tone: "calm" }
         ]
       },
@@ -5413,7 +5413,7 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
         label: `Dar a faixa ao Guerreiro ${actors[1].name} pela força defensiva`,
         approachTag: "Capitão Guerreiro",
         tacticsPatch: { captainActorIdx: 1 },
-        coachLine: `${actors[1].name} assume a braçadeira pra blindar nossa zaga nos minutos finais.`,
+        coachLine: `${actors[1].name} assume a braçadeira para blindar nossa zaga nos minutos finais.`,
         reactions: [
           { idx: 1, text: `Não passará nada na reta final!`, tone: "hype" }
         ]
@@ -5421,7 +5421,7 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
       poor: {
         label: "Dizer que Capitão não faz diferença nenhuma na partida",
         approachTag: "Descartar Aura",
-        coachLine: `Qualquer um veste a faixa, não serve pra nada mesmo.`,
+        coachLine: `Qualquer um veste a faixa, não serve para nada mesmo.`,
         reactions: [
           { idx: 0, text: `Aura do Capitão literalmente puxa o time nos momentos críticos, professor...`, tone: "tense" }
         ]
@@ -5462,7 +5462,7 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
         ]
       },
       poor: {
-        label: "Recuar todos pra defender 90 minutos",
+        label: "Recuar todos para defender 90 minutos",
         approachTag: "Medo de Atacar",
         tacticsPatch: { posture: "defensive", lane: "balanced" },
         coachLine: `Fiquem longe da área deles.`,
@@ -5483,23 +5483,23 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
       { pred: (a) => a.role === "FW", role: "FW" }
     ],
     (actors, ctx) => [
-      mkSpontaneousMsg(actors, 0, `Pessoal, nossa energia tá em ${ctx.teamEnergy}% antes de enfrentar ${ctx.oppName}. Se queimarmos tudo no 1º tempo, o 2º vira pesadelo.`, "normal"),
+      mkSpontaneousMsg(actors, 0, `Pessoal, nossa energia está em ${ctx.teamEnergy}% antes de enfrentar ${ctx.oppName}. Se queimarmos tudo no 1º tempo, o 2º vira pesadelo.`, "normal"),
       mkSpontaneousMsg(actors, 1, `Com Esforço Médio + estilo Posse, a gente cansa bem menos e usa técnica só na hora certa!`, "idea"),
-      mkSpontaneousMsg(actors, 2, `Apoio! Quero perna inteira no fim do jogo pra decidir!`, "calm")
+      mkSpontaneousMsg(actors, 2, `Apoio! Quero perna inteira no fim do jogo para decidir!`, "calm")
     ],
     (actors) => buildShuffledChatChoices(actors, {
       great: {
         label: "Configurar Esforço Médio + Estilo Posse para administrar o fôlego e passes!",
         approachTag: "Controle + Posse",
         tacticsPatch: { intensity: "medium", style: "possession" },
-        coachLine: `Perfeito! Esforço Médio com Posse — o time controla a bola e guarda fôlego pros momentos agudos!`,
+        coachLine: `Perfeito! Esforço Médio com Posse — o time controla a bola e guarda fôlego para os momentos agudos!`,
         reactions: [
           { idx: 0, text: `Leitura madura de elenco campeão!`, tone: "hype" },
           { idx: 2, text: `Com perna inteira aos 80' ninguém me segura!`, tone: "hype" }
         ]
       },
       good: {
-        label: "Colocar Esforço Baixo só pra poupar no começo",
+        label: "Colocar Esforço Baixo só para poupar no começo",
         approachTag: "Esforço Baixo",
         tacticsPatch: { intensity: "low" },
         coachLine: `Vamos com Esforço Baixo e subir depois se precisar.`,
@@ -5508,7 +5508,7 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
         ]
       },
       poor: {
-        label: "Mandar Esforço Alto sem posse pra gastar toda bateria rápido",
+        label: "Mandar Esforço Alto sem posse para gastar toda bateria rápido",
         approachTag: "Queimar Fôlego",
         tacticsPatch: { intensity: "high", style: "vertical" },
         coachLine: `Gasta tudo em 20 minutos mesmo se estiver cansado!`,
@@ -5529,18 +5529,18 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
       { pred: (a) => a.role === "FW", role: "FW" }
     ],
     (actors, ctx) => [
-      mkSpontaneousMsg(actors, 1, `Os volantes de ${ctx.oppName} fecham muito bem o meio no chão. Passe curto ali tá perigoso.`, "normal"),
-      mkSpontaneousMsg(actors, 0, `Quando eu roubar com ${actors[0].dfMove}, posso pular o meio-campo lançando por cima pro ${actors[2].name}!`, "idea"),
+      mkSpontaneousMsg(actors, 1, `Os volantes de ${ctx.oppName} fecham muito bem o meio no chão. Passe curto ali está perigoso.`, "normal"),
+      mkSpontaneousMsg(actors, 0, `Quando eu roubar com ${actors[0].dfMove}, posso pular o meio-campo lançando por cima para o ${actors[2].name}!`, "idea"),
       mkSpontaneousMsg(actors, 2, `Se ligarmos Rota do Céu, esses lançamentos por cima chegam limpinhos!!`, "hype")
     ],
     (actors) => buildShuffledChatChoices(actors, {
       great: {
-        label: "Ativar Tática Especial Rota do Céu + estilo Vertical pra furar por cima!",
+        label: "Ativar Estática Especial Rota do Céu + estilo Vertical para furar por cima!",
         approachTag: "Rota do Céu",
         tacticsPatch: { hissatsuTactic: "route_of_sky", style: "vertical" },
-        coachLine: `Rota do Céu na agulha! Pula a pressão do meio com bolas aéreas girando direto pro ataque!`,
+        coachLine: `Rota do Céu na agulha! Pula a pressão do meio com bolas aéreas girando direto para o ataque!`,
         reactions: [
-          { idx: 1, text: `Que atalho inteligente pro gol!`, tone: "hype" },
+          { idx: 1, text: `Que atalho inteligente para o gol!`, tone: "hype" },
           { idx: 2, text: `Vou voar atrás desses lançamentos!!`, tone: "hype" }
         ]
       },
@@ -5576,9 +5576,9 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
       { pred: (a) => a.role === "DF", role: "DF" }
     ],
     (actors, ctx) => [
-      mkSpontaneousMsg(actors, 0, `Se eu marcar gol hoje contra ${ctx.oppName}, qual comemoração mando na câmera: giro relâmpago ou corrida abraçando o banco? kkk`, "banter"),
+      mkSpontaneousMsg(actors, 0, `Se eu marcar gol hoje contra ${ctx.oppName}, qual comemoração mando na câmera: giro relâmpago ou corrida abraçando o banco?!`, "banter"),
       mkSpontaneousMsg(actors, 1, `Giro relâmpago!! Mas só se você me der créditos pela assistência depois na entrevista!`, "banter"),
-      mkSpontaneousMsg(actors, 2, `Se ganharmos sem sofrer gol eu até faço o mortal lá atrás junto kkk!`, "banter")
+      mkSpontaneousMsg(actors, 2, `Se ganharmos sem sofrer gol eu até faço o mortal lá atrás junto!`, "banter")
     ],
     (actors) => buildShuffledChatChoices(actors, {
       great: {
@@ -5595,13 +5595,13 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
         approachTag: "Pé no Chão",
         coachLine: `Faz o que quiser quando abrirmos 2 gols de vantagem!`,
         reactions: [
-          { idx: 0, text: `Combinado professor — foco em fazer dois rápido kkk!`, tone: "banter" }
+          { idx: 0, text: `Combinado, professor — foco em marcar dois gols rápido!`, tone: "banter" }
         ]
       },
       poor: {
         label: "Proibir comemoração em gol por achar perda de postura",
         approachTag: "Sem Graça",
-        coachLine: `Ninguém comemora nada, fez gol volta sério pro meio.`,
+        coachLine: `Ninguém comemora nada, fez gol volta sério para o meio.`,
         reactions: [
           { idx: 0, text: `Ué, tirou a alegria do futebol...`, tone: "tense" }
         ]
@@ -5619,24 +5619,24 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
       { pred: (a) => a.role === "FW", role: "FW" }
     ],
     (actors) => [
-      mkSpontaneousMsg(actors, 0, `Invicto na mesa do clube há 5 jogos!! Reflexo de goleiro até na raquete é outro nível kkk!`, "banter"),
+      mkSpontaneousMsg(actors, 0, `Invicto na mesa do clube há 5 jogos!! Reflexo de goleiro até na raquete é outro nível!`, "banter"),
       mkSpontaneousMsg(actors, 2, `Só ganhou porque eu ainda não entrei na chave! Daqui a pouco eu te amasso igual na finalização!`, "banter"),
-      mkSpontaneousMsg(actors, 1, `🎤 Áudio (0:06): "Tô organizando a tabela — técnico, entra no desafio também?"`, "banter")
+      mkSpontaneousMsg(actors, 1, `🎤 Áudio (0:06): "Estou organizando a tabela — técnico, entra no desafio também?"`, "banter")
     ],
     (actors) => buildShuffledChatChoices(actors, {
       great: {
-        label: "Entrar numa partida relâmpago pra soltar os reflexos e descansar a mente!",
+        label: "Entrar numa partida relâmpago para soltar os reflexos e descansar a mente!",
         approachTag: "Descontrair",
         coachLine: `Bora uma melhor de 3 rápida! Tira toda a tensão pré-jogo e ainda afia o tempo de reação!`,
         reactions: [
-          { idx: 0, text: `TREINADOR AMASSANDO NO SMASH KKKKK!!`, tone: "banter" },
-          { idx: 2, text: `Vestiário leve e sem estresse nenhum pro jogo!`, tone: "hype" }
+          { idx: 0, text: `TREINADOR DANDO SHOW NO VIDEOGAME!! HAHAHA!`, tone: "banter" },
+          { idx: 2, text: `Vestiário leve e sem estresse nenhum para o jogo!`, tone: "hype" }
         ]
       },
       good: {
         label: "Assistir 5 minutinhos e mandar irem descansar",
         approachTag: "Moderação",
-        coachLine: `Só mais um set e depois descanso total pro jogo.`,
+        coachLine: `Só mais um set e depois descanso total para o jogo.`,
         reactions: [
           { idx: 1, text: `Fechado, chefe!`, tone: "calm" }
         ]
@@ -5644,9 +5644,9 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
       poor: {
         label: "Confiscar a mesa e dar sermão na frente de todo mundo",
         approachTag: "Severidade",
-        coachLine: `Proibido jogos recreativos no clube! Vão encarar a parede e pensar tática.`,
+        coachLine: `Proibido jogos recreativos no clube! Vão encarar a parede e pensar estática.`,
         reactions: [
-          { idx: 0, text: `Poxa... a gente tava super leve...`, tone: "tense" }
+          { idx: 0, text: `Poxa... a gente estava super leve...`, tone: "tense" }
         ]
       }
     })
@@ -5661,14 +5661,14 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
       { pred: (a) => a.role === "MF", role: "MF" }
     ],
     (actors, ctx) => [
-      mkSpontaneousMsg(actors, 0, `Juro pra você: toda vez que eu coloco primeiro a chuteira direita antes de pegar ${ctx.oppName}, eu guardo gol!`, "banter"),
-      mkSpontaneousMsg(actors, 1, `Kkkkk superstição boba... mas olha que semana passada funcionou mesmo!`, "banter")
+      mkSpontaneousMsg(actors, 0, `Juro para você: toda vez que eu coloco primeiro a chuteira direita antes de pegar ${ctx.oppName}, eu guardo gol!`, "banter"),
+      mkSpontaneousMsg(actors, 1, `! superstição boba... mas olha que semana passada funcionou mesmo!`, "banter")
     ],
     (actors) => buildShuffledChatChoices(actors, {
       great: {
         label: "Entrar na brincadeira e reforçar que a maior sorte é o entrosamento deles!",
         approachTag: "Bom Humor",
-        coachLine: `Calça a direita, respira fundo e entra sorrindo — com a química de vocês a sorte sempre cai pro nosso lado!`,
+        coachLine: `Calça a direita, respira fundo e entra sorrindo — com a química de vocês a sorte sempre cai para o nosso lado!`,
         reactions: [
           { idx: 0, text: `Haha! Confiança no máximo agora!!`, tone: "hype" },
           { idx: 1, text: `Vestiário feliz joga muito melhor!`, tone: "banter" }
@@ -5687,7 +5687,7 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
         approachTag: "Sarcasmo",
         coachLine: `Coisa de atleta inseguro acreditar nessas baboseiras.`,
         reactions: [
-          { idx: 0, text: `Ei... era só brincadeira pra descontrair...`, tone: "tense" }
+          { idx: 0, text: `Ei... era só brincadeira para descontrair...`, tone: "tense" }
         ]
       }
     })
@@ -5705,16 +5705,16 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
     (actors) => [
       mkSpontaneousMsg(actors, 1, `Bate do meio-campo e acerta o travessão, ${actors[0].name} — duvido acertar de primeira!`, "banter"),
       mkSpontaneousMsg(actors, 0, `Olha a curva que a ${actors[0].shMove} vai fazer no ar... só assiste!!`, "hype"),
-      mkSpontaneousMsg(actors, 2, `Se acertar a trave eu pago o isotônico do grupo inteiro kkk!`, "banter")
+      mkSpontaneousMsg(actors, 2, `Se acertar a trave eu pago o isotônico do grupo inteiro!`, "banter")
     ],
     (actors) => buildShuffledChatChoices(actors, {
       great: {
-        label: "Autorizar 1 chute caprichado pra calibrar o pé e animar o grupo!",
+        label: "Autorizar 1 chute caprichado para calibrar o pé e animar o grupo!",
         approachTag: "Mira Afiada",
-        coachLine: `Um chute só valendo! Calibra essa curva aí e diverte a rapaziada!`,
+        coachLine: `Um chute só valendo! Calibra essa curva aí e anima o time inteiro!`,
         reactions: [
           { idx: 0, text: `*CLANG!!* NO ÂNGULO DO TRAVESSÃO!! VAI SEPARANDO O ISOTÔNICO!!`, tone: "hype" },
-          { idx: 2, text: `NÃO ACREDITO QUE ACERTOU!! KKKK CLIMA PERFEITO!!`, tone: "banter" }
+          { idx: 2, text: `NÃO ACREDITO QUE ACERTOU!! HAHAHA! CLIMA PERFEITO!!`, tone: "banter" }
         ]
       },
       good: {
@@ -5745,7 +5745,7 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
       { pred: (a) => a.role === "FW", role: "FW" }
     ],
     (actors, ctx) => [
-      mkSpontaneousMsg(actors, 0, `Espiei a arquibancada agora: tá lotado pro duelo contra ${ctx.oppName}! Dá um frio bom na barriga!`, "banter"),
+      mkSpontaneousMsg(actors, 0, `Espiei a arquibancada agora: está lotado para o duelo contra ${ctx.oppName}! Dá um frio bom na barriga!`, "banter"),
       mkSpontaneousMsg(actors, 1, `Adoro estádio cheio!! Quanto maior o barulho, mais bonito fica quando eu mando ${actors[1].shMove}!`, "hype")
     ],
     (actors) => buildShuffledChatChoices(actors, {
@@ -5787,7 +5787,7 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
     ],
     (actors) => [
       mkSpontaneousMsg(actors, 0, `Na corrida limpa de 30 metros não tem ninguém nesse elenco que me pegue! Nem tente apostar!`, "banter"),
-      mkSpontaneousMsg(actors, 1, `Você corre muito sem bola, mas quando tenta passar por mim com ${actors[1].dfMove} eu fecho na antecipação kkk!`, "banter")
+      mkSpontaneousMsg(actors, 1, `Você corre muito sem bola, mas quando tenta passar por mim com ${actors[1].dfMove} eu fecho na antecipação!`, "banter")
     ],
     (actors) => buildShuffledChatChoices(actors, {
       great: {
@@ -5800,17 +5800,17 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
         ]
       },
       good: {
-        label: "Deixar o pique guardado só pros lances do jogo",
+        label: "Deixar o pique guardado só para os lances do jogo",
         approachTag: "Poupar Perna",
-        coachLine: `Deixem pra medir velocidade dando sprint nos lances reais da partida.`,
+        coachLine: `Deixem para medir velocidade em arrancada nos lances reais da partida.`,
         reactions: [
-          { idx: 0, text: `Economizando pro 1º contra-ataque!`, tone: "calm" }
+          { idx: 0, text: `Economizando para o 1º contra-ataque!`, tone: "calm" }
         ]
       },
       poor: {
-        label: "Mandar correrem 10 voltas no campo pra provar agora",
+        label: "Mandar correrem 10 voltas no campo para provar agora",
         approachTag: "Cansar Elenco",
-        coachLine: `Deem 10 voltas correndo ao redor do estádio agora pra eu ver quem ganha.`,
+        coachLine: `Deem 10 voltas correndo ao redor do estádio agora para eu ver quem ganha.`,
         reactions: [
           { idx: 1, text: `Morremos antes do apito inicial...`, tone: "tense" }
         ]
@@ -5828,13 +5828,13 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
       { pred: (a) => a.role === "FW", role: "FW" }
     ],
     (actors) => [
-      mkSpontaneousMsg(actors, 0, `As gerentes mandaram bandeja dupla de onigiri recheado agora! Quem chegou primeiro já garantiu os melhores kkk!`, "banter"),
-      mkSpontaneousMsg(actors, 2, `SEGURA DOIS PRA MIM AÍ!! Depois desse treino eu comia quatro fácil!!`, "banter"),
+      mkSpontaneousMsg(actors, 0, `As gerentes mandaram bandeja dupla de onigiri recheado agora! Quem chegou primeiro já garantiu os melhores!`, "banter"),
+      mkSpontaneousMsg(actors, 2, `GUARDA DOIS PARA MIM AÍ!! Depois desse treino eu comeria quatro fácil!!`, "banter"),
       mkSpontaneousMsg(actors, 1, `Nada recupera a vibe do grupo melhor que comida boa depois de ralar no campo!`, "praise")
     ],
     (actors) => buildShuffledChatChoices(actors, {
       great: {
-        label: "Liberar pausa rápida pro lanche pra todo mundo entrar leve e bem disposto!",
+        label: "Liberar pausa rápida para o lanche para todo mundo entrar leve e bem disposto!",
         approachTag: "Vibe Leve",
         coachLine: `Comam tranquilo e conversem — time bem alimentado e unido cansa metade em campo!`,
         reactions: [
@@ -5843,17 +5843,17 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
         ]
       },
       good: {
-        label: "Pedir pra comerem leve pra não pesar no estômago antes do jogo",
+        label: "Pedir para comerem leve para não pesar no estômago antes do jogo",
         approachTag: "Comer Leve",
-        coachLine: `Um ou dois só agora, deixem a bandeja cheia pro pós-jogo!`,
+        coachLine: `Um ou dois só agora, deixem a bandeja cheia para o pós-jogo!`,
         reactions: [
-          { idx: 0, text: `Justo kkk guardei pro pós-vitória!`, tone: "banter" }
+          { idx: 0, text: `Justo, haha! Guardei para depois da vitória!`, tone: "banter" }
         ]
       },
       poor: {
         label: "Tirar a bandeja e dizer que ninguém mereceu lanche",
         approachTag: "Cortar Pausa",
-        coachLine: `Sem lanche antes da partida, voltem já pro banco!`,
+        coachLine: `Sem lanche antes da partida, voltem já para o banco!`,
         reactions: [
           { idx: 2, text: `Poxa... até o onigiri foi bloqueado hoje.`, tone: "tense" }
         ]
@@ -5870,8 +5870,8 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
       { pred: (a) => a.role === "FW", role: "FW" }
     ],
     (actors, ctx) => [
-      mkSpontaneousMsg(actors, 0, `Se o técnico desenhar mais uma seta na prancheta contra ${ctx.oppName}, vai parecer um mapa do tesouro kkk!`, "banter"),
-      mkSpontaneousMsg(actors, 1, `O importante é a última seta apontar pro fundo da rede de ${ctx.oppName}!`, "hype")
+      mkSpontaneousMsg(actors, 0, `Se o técnico desenhar mais uma seta na prancheta contra ${ctx.oppName}, vai parecer um mapa do tesouro!`, "banter"),
+      mkSpontaneousMsg(actors, 1, `O importante é a última seta apontar para o fundo da rede de ${ctx.oppName}!`, "hype")
     ],
     (actors) => buildShuffledChatChoices(actors, {
       great: {
@@ -5894,9 +5894,9 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
       poor: {
         label: "Ficar ofendido com a brincadeira e passar 20 slides extras",
         approachTag: "Levar a Mal",
-        coachLine: `Acham engraçado? Agora vão ver mais vinte diagramas táticos!`,
+        coachLine: `Acham engraçado? Agora vão ver mais vinte diagramas estáticos!`,
         reactions: [
-          { idx: 0, text: `Vish... zoeira saiu caro hoje kkk.`, tone: "tense" }
+          { idx: 0, text: `Opa... a brincadeira saiu caro hoje, haha.`, tone: "tense" }
         ]
       }
     })
@@ -5932,7 +5932,7 @@ function mkDilemmaChatTemplate(cfg) {
     RAIVA: { label: "Desentendimento", icon: "💢", badge: "is-tense" },
     CRIAR_TECNICA: { label: "Debate Técnico", icon: "⚡", badge: "is-idea" },
     ELOGIO: { label: "Liderança", icon: "⚖️", badge: "is-warm" },
-    TATICA_RIVAL: { label: "Dilema Tático", icon: "📋", badge: "is-neutral" },
+    TATICA_RIVAL: { label: "Dilema Estático", icon: "📋", badge: "is-neutral" },
     RESENHA: { label: "Vestiário", icon: "⚖️", badge: "is-neutral" }
   }[cfg.category] || { label: "Dilema", icon: "⚖️", badge: "is-neutral" };
   return {
@@ -5978,8 +5978,8 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
     title: "Achado na Margem do Rio",
     actorSpecs: [{ role: "FW" }, { role: "MF" }],
     dialogue: (a) => [
-      { idx: 0, text: `Ei ${a[1].name}, olha o que tava numa caixa esquecida perto da arquibancada do campinho!` },
-      { idx: 1, text: `Mentira... isso é um par de Chuteiras do Relâmpago novinho?! Perguntei pro zelador e ele disse que deixaram de doação pro clube!`, tone: "hype" },
+      { idx: 0, text: `Ei ${a[1].name}, olha o que estava numa caixa esquecida perto da arquibancada do campinho!` },
+      { idx: 1, text: `Mentira... isso é um par de Chuteiras do Relâmpago novinho?! Perguntei para o zelador e ele disse que deixaram de doação para o clube!`, tone: "hype" },
       { idx: 0, text: `Ficou do meu tamanho certinho! Sente só a leveza disso no arranque.`, tone: "hype" },
       { idx: 1, text: `Agora ninguém te alcança na corrida. Bora estrear no próximo jogo!`, quote: { speakerName: a[0].name, text: "Ficou do meu tamanho certinho!" } }
     ],
@@ -6023,9 +6023,9 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
     actorSpecs: [{ role: "MF" }, { role: "DF" }, { role: "FW" }],
     dialogue: (a) => [
       { idx: 0, text: `Gente, quem colocou uma pulseira trançada com as cores do time dentro da minha chuteira?` },
-      { idx: 1, text: `Fui eu e o ${a[2].name}! A gente viu que você tava puxando o ritmo todo dia e quis dar um amuleto de sorte.` },
+      { idx: 1, text: `Fui eu e o ${a[2].name}! A gente viu que você estava puxando o ritmo todo dia e quis dar um amuleto de sorte.` },
       { idx: 2, text: `Usa no próximo jogo que o passe vai sair teleguiado, confia!`, tone: "hype" },
-      { idx: 0, text: `Pô, que massa... valeu mesmo, rapaziada! Agora eu corro o dobro por vocês!`, tone: "hype" }
+      { idx: 0, text: `Nossa, que incrível... valeu mesmo, pessoal! Agora eu corro o dobro por vocês!`, tone: "hype" }
     ],
     outcome: (a) => ({
       kind: "FOUND_ITEM",
@@ -6046,8 +6046,8 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
     dialogue: (a) => [
       { idx: 0, text: `Achei um par de caneleiras de bloqueio pesadas lá no depósito do ginásio.` },
       { idx: 1, text: `Sério? Essas travam qualquer dividida dura! Testa aí no treino.` },
-      { idx: 0, text: `Testei agora num bote — nem senti o impacto. Vou levar pro jogo!`, tone: "hype" },
-      { idx: 1, text: `Boa! Vai sobrar menos trabalho pro nosso goleiro.` }
+      { idx: 0, text: `Testei agora num bote — nem senti o impacto. Vou levar para o jogo!`, tone: "hype" },
+      { idx: 1, text: `Boa! Vai sobrar menos trabalho para o nosso goleiro.` }
     ],
     outcome: (a) => ({
       kind: "FOUND_ITEM",
@@ -6066,8 +6066,8 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
     title: "Herança de Capitão",
     actorSpecs: [{ role: "MF" }, { role: "GK" }],
     dialogue: (a) => [
-      { idx: 1, text: `${a[0].name}, o ex-treinador da escola passou aqui mais cedo e deixou essa braçadeira pra alguém que organiza o time.` },
-      { idx: 0, text: `Pra mim? Mas tem tanta gente boa no elenco...` },
+      { idx: 1, text: `${a[0].name}, o ex-treinador da escola passou aqui mais cedo e deixou essa braçadeira para alguém que organiza o time.` },
+      { idx: 0, text: `Para mim? Mas tem tanta gente boa no elenco...` },
       { idx: 1, text: `Todo mundo te escuta quando o jogo aperta. Coloca no braço e puxa a fila!`, tone: "hype" },
       { idx: 0, text: `Fechado. Não vou decepcionar ninguém aqui.` }
     ],
@@ -6088,9 +6088,9 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
     title: "Encomenda Misteriosa",
     actorSpecs: [{ role: "FW" }, { role: "DF" }],
     dialogue: (a) => [
-      { idx: 1, text: `Chegou uma caixa na portaria com o nome do nosso time e um bilhete: "Pro artilheiro que não desiste".` },
+      { idx: 1, text: `Chegou uma caixa na portaria com o nome do nosso time e um bilhete: "Para o artilheiro que não desiste".` },
       { idx: 0, text: `Olha o acabamento dessas travas... é edição lendária! Quem mandou isso?`, tone: "hype" },
-      { idx: 1, text: `Sem remetente, só um raio desenhado no papel. Bota no pé e faz gol pra agradecer!`, tone: "hype" },
+      { idx: 1, text: `Sem remetente, só um raio desenhado no papel. Bota no pé e faz gol para agradecer!`, tone: "hype" },
       { idx: 0, text: `Pode deixar comigo!`, tone: "hype" }
     ],
     outcome: (a) => ({
@@ -6112,7 +6112,7 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
     dialogue: (a) => [
       { idx: 0, text: `Ficamos até escurecer repetindo aquele passe com giro e... CARA, finalmente encaixou!` },
       { idx: 1, text: `Quando você girou no ar depois do meu toque por cima, a bola rasgou a rede de treino!`, tone: "hype" },
-      { idx: 0, text: `A gente nem precisou pedir pro técnico — nasceu no instinto puro!`, tone: "hype" },
+      { idx: 0, text: `A gente nem precisou pedir para o técnico — nasceu no instinto puro!`, tone: "hype" },
       { idx: 1, text: `Só guarda segredo até entrar em campo contra ${a[0].name ? "o próximo rival" : "eles"}!` }
     ],
     outcome: () => ({
@@ -6173,8 +6173,8 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
     title: "Clima Pesado no Corredor",
     actorSpecs: [{ role: "FW" }, { role: "MF" }],
     dialogue: (a) => [
-      { idx: 0, text: `Na moral ${a[1].name}, no último treino você segurou a bola 3 vezes comigo livre. Tá de sacanagem?`, tone: "toxic" },
-      { idx: 1, text: `Eu não toco pra quem fica parado reclamando em vez de dar opção. Quer bola? Corre.`, tone: "toxic", quote: { speakerName: a[0].name, text: "você segurou a bola 3 vezes comigo livre" } },
+      { idx: 0, text: `Fala sério, ${a[1].name}, no último treino você segurou a bola 3 vezes comigo livre. Está de brincadeira?`, tone: "toxic" },
+      { idx: 1, text: `Eu não toco para quem fica parado reclamando em vez de dar opção. Quer bola? Corre.`, tone: "toxic", quote: { speakerName: a[0].name, text: "você segurou a bola 3 vezes comigo livre" } },
       { idx: 0, text: `Beleza então. No jogo eu resolvo sozinho e você vê de longe.`, tone: "toxic" },
       { idx: 1, text: `Quero só ver.` }
     ],
@@ -6198,7 +6198,7 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
       { idx: 1, text: `Vi o jornal da escola hoje... você falou que "decidiu o jogo sozinho", ${a[0].name}. E a gente lá atrás se matando?`, tone: "toxic" },
       { idx: 0, text: `Ué, o repórter perguntou do gol! Não tenho culpa se ninguém pergunta de carrinho.`, tone: "toxic" },
       { idx: 1, text: `Tranquilo. Da próxima vez vamos ver se você faz gol sem a gente recuperar a bola.`, tone: "toxic" },
-      { idx: 0, text: `Relaxa, vou fazer dois pra ninguém ter dúvida.` }
+      { idx: 0, text: `Relaxa, vou fazer dois para ninguém ter dúvida.` }
     ],
     outcome: () => ({
       kind: "TENSION_FALLOUT",
@@ -6219,14 +6219,14 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
     dialogue: (a) => [
       { idx: 0, text: `${a[1].name}, se você abrir a barreira daquele jeito de novo no jogo real, a gente vai tomar goleada!`, tone: "toxic" },
       { idx: 1, text: `E se você gritasse antes em vez de reclamar depois que a bola entra, ajudava também!`, tone: "toxic" },
-      { idx: 0, text: `Tsc... vou treinar reflexo sozinho então.`, tone: "toxic" },
-      { idx: 1, text: `E eu vou rever o posicionamento. Mas para de dar chilique no grupo.` }
+      { idx: 0, text: `Hmph... vou treinar reflexos sozinho então.`, tone: "toxic" },
+      { idx: 1, text: `E eu vou rever o posicionamento. Mas pare de perder a calma no grupo.` }
     ],
     outcome: () => ({
       kind: "TENSION_FALLOUT",
       tone: "POOR",
       headline: `🔥 Cobrança áspera no setor defensivo`,
-      note: "Sairam emburrados, mas revisaram os próprios erros no treino",
+      note: "Saíram emburrados, mas revisaram os próprios erros no treino",
       affPts: -7,
       chemDelta: -2,
       xpAmt: 30
@@ -6240,9 +6240,9 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
     actorSpecs: [{ role: "DF" }, { role: "MF" }, { role: "GK" }],
     dialogue: (a) => [
       { idx: 0, text: `Quem topa passar na barraca de lámen da estação antes de ir dormir? Eu pago o caldo extra!` },
-      { idx: 2, text: `Tô dentro! Depois daquele treino puxado eu como duas tigelas fácil kkk`, tone: "hype" },
-      { idx: 1, text: `Partiu! Só não deixa o ${a[2].name} pedir pimenta nível máximo igual semana passada.`, quote: { speakerName: a[2].name, text: "eu como duas tigelas fácil kkk" } },
-      { idx: 2, text: `Aquela vez foi acidente tático!! 😂` }
+      { idx: 2, text: `Estou dentro! Depois daquele treino puxado eu como duas tigelas fácil!`, tone: "hype" },
+      { idx: 1, text: `Partiu! Só não deixa o ${a[2].name} pedir pimenta nível máximo igual semana passada.`, quote: { speakerName: a[2].name, text: "eu como duas tigelas fácil!" } },
+      { idx: 2, text: `Aquela vez foi acidente estático!! 😂` }
     ],
     outcome: () => ({
       kind: "CHEMISTRY_BOND",
@@ -6261,10 +6261,10 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
     title: "Vídeo do Escorregão",
     actorSpecs: [{ role: "FW" }, { role: "GK" }],
     dialogue: (a) => [
-      { idx: 1, text: `Gente, eu salvei o replay do ${a[0].name} tentando dar bicicleta e caindo sentado na lama kkkk` },
+      { idx: 1, text: `Pessoal, eu salvei o vídeo do ${a[0].name} tentando dar bicicleta e caindo sentado na lama!` },
       { idx: 0, text: `APAGA ISSO AGORA!! 😂 Pelo menos eu levantei e fiz o gol no rebote!`, tone: "hype" },
       { idx: 1, text: `Pior que foi! Esse teu espírito de nunca desistir contagia todo mundo aqui, sério mesmo.` },
-      { idx: 0, text: `Valeu ${a[1].name}! Mas se vazar esse vídeo eu chuto 50 bombas no teu treino amanhã kkk` }
+      { idx: 0, text: `Valeu ${a[1].name}! Mas se vazar esse vídeo eu chuto 50 bombas no seu treino amanhã!` }
     ],
     outcome: () => ({
       kind: "CHEMISTRY_BOND",
@@ -6283,7 +6283,7 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
     actorSpecs: [{ role: "DF" }, { role: "MF" }],
     dialogue: (a, ctx) => [
       { idx: 1, text: `${a[0].name}, assisti dois jogos do ${ctx.oppName}. Quase todas as jogadas passam pelo ${ctx.rivalStar?.name || "camisa 10 deles"}.` },
-      { idx: 0, text: `Reparei nisso também! Ele sempre corta pra perna boa antes de puxar a técnica.` },
+      { idx: 0, text: `Reparei nisso também! Ele sempre corta para a perna boa antes de puxar a técnica.` },
       { idx: 1, text: `Se a gente grudar nele desde o apito inicial, o time deles trava inteiro.`, tone: "hype" },
       { idx: 0, text: `Fechado! Já anotei aqui: vou fazer sombra nele o jogo todo.` }
     ],
@@ -6305,7 +6305,7 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
     dialogue: (a) => [
       { idx: 0, text: `Achei que só eu era doido de aparecer no campo antes do sol nascer, ${a[1].name}.` },
       { idx: 1, text: `Não consegui dormir pensando no próximo jogo. Já que estamos aqui, bora fazer 30 finalizações?` },
-      { idx: 0, text: `Bora! A perna tá pesando um pouco, mas o chute tá saindo um canhão!`, tone: "hype" },
+      { idx: 0, text: `Bora! A perna está pesando um pouco, mas o chute está saindo um canhão!`, tone: "hype" },
       { idx: 1, text: `Esse esforço extra vai fazer diferença nos minutos finais.` }
     ],
     outcome: () => ({
@@ -6326,9 +6326,9 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
     title: "Briga: Fominha ou Lento?",
     actorSpecs: [{ role: "FW" }, { role: "MF" }],
     dialogue: (a) => [
-      { idx: 0, text: `Técnico, na boa: o ${a[1].name} demora uma eternidade pra soltar a bola! Quando chega em mim já tem dois zagueiros.`, tone: "toxic" },
-      { idx: 1, text: `Você que sai correndo de cabeça baixa sem olhar o espaço! Se eu chutar de qualquer jeito vira contra-ataque deles.`, tone: "toxic", quote: { speakerName: a[0].name, text: "demora uma eternidade pra soltar a bola!" } },
-      { idx: 0, text: `Então decide aí, professor: a gente joga rápido pra decidir ou fica tocando de lado?` }
+      { idx: 0, text: `Técnico, na boa: o ${a[1].name} demora uma eternidade para soltar a bola! Quando chega em mim já tem dois zagueiros.`, tone: "toxic" },
+      { idx: 1, text: `Você que sai correndo de cabeça baixa sem olhar o espaço! Se eu chutar de qualquer jeito vira contra-ataque deles.`, tone: "toxic", quote: { speakerName: a[0].name, text: "demora uma eternidade para soltar a bola!" } },
+      { idx: 0, text: `Então decide aí, professor: a gente joga rápido para decidir ou fica tocando de lado?` }
     ],
     options: (a) => [
       {
@@ -6338,7 +6338,7 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
         effects: { pwrDelta: 12, affPts: -6, chemDelta: -1, buffType: "BLOOD_FOCUS", note: `${a[0].name} assume o protagonismo` },
         coachLine: `Quero bola rápida no ${a[0].name}. ${a[1].name}, acelera esse passe!`,
         reactions: [
-          { idx: 0, text: `É disso que eu tô falando! Pode deixar que eu resolvo!`, tone: "hype" },
+          { idx: 0, text: `É disso que eu estou falando! Pode deixar que eu resolvo!`, tone: "hype" },
           { idx: 1, text: `Certo... vou soltar mais rápido, mesmo que arrisque perder a posse.`, tone: "tense" }
         ]
       },
@@ -6350,7 +6350,7 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
         coachLine: `${a[1].name} tem razão: sem pressa boba. ${a[0].name}, melhora sua movimentação!`,
         reactions: [
           { idx: 1, text: `Obrigado, professor. Assim a bola chega limpa.`, tone: "hype" },
-          { idx: 0, text: `Tsc... beleza, mas se não chegar bola eu vou cobrar de novo.`, tone: "tense" }
+          { idx: 0, text: `Hmph... tudo bem, mas se não chegar bola eu vou cobrar de novo.`, tone: "tense" }
         ]
       },
       {
@@ -6372,8 +6372,8 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
     title: "Bronca do Goleiro na Zaga",
     actorSpecs: [{ role: "GK" }, { role: "DF" }, { role: "DF" }],
     dialogue: (a) => [
-      { idx: 0, text: `Vocês dois precisam acordar! Tô levando chute cara a cara todo treino porque sobem demais!`, tone: "toxic" },
-      { idx: 1, text: `A gente sobe pra pressionar! Se ficar colado na área vamos jogar sufocados o tempo todo.`, tone: "toxic" },
+      { idx: 0, text: `Vocês dois precisam acordar! Estou levando chute cara a cara todo treino porque sobem demais!`, tone: "toxic" },
+      { idx: 1, text: `A gente sobe para pressionar! Se ficar colado na área vamos jogar sufocados o tempo todo.`, tone: "toxic" },
       { idx: 2, text: `Professor, ou a gente fecha a casinha ou assume o risco lá na frente. Qual vai ser?` }
     ],
     options: (a) => [
@@ -6393,7 +6393,7 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
         approachTag: "Avançado / +Poder",
         tacticsPatch: { posture: "offensive" },
         effects: { pwrDelta: 14, affPts: -4, xpAmt: 25, buffType: "BLOOD_FOCUS", note: "Time mais agressivo, goleiro exigido" },
-        coachLine: `Prefiro errar atacando! ${a[0].name}, confia na sua defesa e esteja pronto pro mano a mano!`,
+        coachLine: `Prefiro errar atacando! ${a[0].name}, confia na sua defesa e esteja pronto para o mano a mano!`,
         reactions: [
           { idx: 1, text: `Boa, professor! Vamos sufocar eles no campo deles!`, tone: "hype" },
           { idx: 0, text: `Beleza... então vou ter que fazer milagre mesmo.`, tone: "tense" }
@@ -6418,7 +6418,7 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
     title: "Dois Estilos de Liderança",
     actorSpecs: [{ role: "MF" }, { role: "DF" }],
     dialogue: (a) => [
-      { idx: 0, text: `Acho que a gente tá leve demais antes dos jogos. Precisamos de alguém cobrando forte no vestiário.` },
+      { idx: 0, text: `Acho que a gente está leve demais antes dos jogos. Precisamos de alguém cobrando forte no vestiário.` },
       { idx: 1, text: `Discordo, ${a[0].name}. Se ficar dando bronca antes do apito o pessoal entra travado. Liderança é dar confiança.` },
       { idx: 0, text: `Técnico, quem você quer puxando a braçadeira e ditando o clima no próximo jogo?` }
     ],
@@ -6452,7 +6452,7 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
         coachLine: `Um cobra e o outro acolhe — o time precisa das duas vozes juntas.`,
         reactions: [
           { idx: 0, text: `Justo. Eu aperto, ele acalma.` },
-          { idx: 1, text: `Dupla de polícia boa e polícia má kkk fechado!` }
+          { idx: 1, text: `Um cobra firme e o outro dá confiança — combinado!` }
         ]
       }
     ]
@@ -6464,8 +6464,8 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
     actorSpecs: [{ role: "FW" }, { role: "MF" }, { role: "DF" }],
     dialogue: (a, ctx) => [
       { idx: 0, text: `O ${ctx.oppName} vem forte. Quero puxar mais uma hora de treino físico hoje à noite!` },
-      { idx: 2, text: `Tá maluco?! Minha perna já tá gritando. Se a gente forçar agora vamos chegar mortos no jogo.`, tone: "tense" },
-      { idx: 1, text: `Professor, a gente puxa no limite ou segura o fôlego pro jogo?` }
+      { idx: 2, text: `Você ficou louco?! Minha perna já está gritando. Se a gente forçar agora vamos chegar mortos no jogo.`, tone: "tense" },
+      { idx: 1, text: `Professor, a gente puxa no limite ou segura o fôlego para o jogo?` }
     ],
     options: () => [
       {
@@ -6476,7 +6476,7 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
         coachLine: `Quem quer título aguenta o tranco! Mais 40 minutos de treino intenso agora!`,
         reactions: [
           { idx: 0, text: `Isso!! Vamos ficar monstros!`, tone: "hype" },
-          { idx: 2, text: `Ai minhas pernas... tá bom, bora lá.`, tone: "tense" }
+          { idx: 2, text: `Ai minhas pernas... tudo bem, vamos lá.`, tone: "tense" }
         ]
       },
       {
@@ -6484,18 +6484,18 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
         approachTag: "+Energia / +Leveza",
         tacticsPatch: { intensity: "low" },
         effects: { energyDelta: 10, chemDelta: 2, affPts: 10, buffType: "LIGHT_LOCKER", note: "Fôlego renovado, menos ritmo" },
-        coachLine: `Todo mundo pro descanso! Quero perna fresca na hora que a bola rolar.`,
+        coachLine: `Todo mundo para o descanso! Quero perna fresca na hora que a bola rolar.`,
         reactions: [
           { idx: 2, text: `Obrigado, professor!! Vou dormir igual pedra.`, tone: "hype" },
-          { idx: 0, text: `Hm... tá bom, guardo essa energia pro jogo.` }
+          { idx: 0, text: `Hm... tudo bem, guardo essa energia para o jogo.` }
         ]
       },
       {
         label: `Sessão leve só de vídeo e passe curto`,
         approachTag: "+Leitura / Equilibrado",
         tacticsPatch: { style: "possession", intensity: "medium" },
-        effects: { xpAmt: 25, affPts: 12, buffType: "RIVAL_READ", note: "Meio-termo tático sem desgaste" },
-        coachLine: `Nada de corrida: só toque curto e leitura tática do rival.`,
+        effects: { xpAmt: 25, affPts: 12, buffType: "RIVAL_READ", note: "Meio-termo estático sem desgaste" },
+        coachLine: `Nada de corrida: só toque curto e leitura estática do rival.`,
         reactions: [
           { idx: 1, text: `Solução perfeita. Todo mundo sai ganhando.` }
         ]
@@ -6509,7 +6509,7 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
     actorSpecs: [{ role: "MF" }, { role: "FW" }],
     dialogue: (a, ctx) => [
       { idx: 0, text: `A lateral do ${ctx.oppName} deixa uma avenida aberta! Temos que forçar tudo pelas pontas.` },
-      { idx: 1, text: `E eu fico olhando?! Pelo meio a gente tabela mais rápido e chega de frente pro gol!` },
+      { idx: 1, text: `E eu fico olhando?! Pelo meio a gente tabela mais rápido e chega de frente para o gol!` },
       { idx: 0, text: `Técnico, por onde o time vai construir o ataque?` }
     ],
     options: () => [
@@ -6521,7 +6521,7 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
         coachLine: `Vamos castigar os lados do campo! Abre o jogo nas pontas!`,
         reactions: [
           { idx: 0, text: `Vai chover cruzamento na área!`, tone: "hype" },
-          { idx: 1, text: `Beleza, vou me posicionar pra cabecear e pegar sobra.` }
+          { idx: 1, text: `Beleza, vou me posicionar para cabecear e pegar sobra.` }
         ]
       },
       {
@@ -6531,8 +6531,8 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
         effects: { pwrDelta: 10, chemDelta: 2, buffType: "RIVAL_READ", note: "Ataque central objetivo" },
         coachLine: `Quero triangulação rápida por dentro, furando o miolo da zaga!`,
         reactions: [
-          { idx: 1, text: `Aí sim! É gol na certa pelo meio!`, tone: "hype" },
-          { idx: 0, text: `Entendido, vou fechar por dentro pra dar apoio.` }
+          { idx: 1, text: `É isso aí! É gol na certa pelo meio!`, tone: "hype" },
+          { idx: 0, text: `Entendido, vou fechar por dentro para dar apoio.` }
         ]
       },
       {
@@ -6555,7 +6555,7 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
     dialogue: (a) => [
       { idx: 0, text: `Se a gente for com 3 zagueiros vamos sofrer nos contra-ataques. Prefiro linha de 4 firme!` },
       { idx: 1, text: `Mas com 3 atacantes a gente amassa eles no primeiro tempo!` },
-      { idx: 2, text: `E se a gente encher o meio-campo no 3-5-2 pra dominar a posse? Você manda, professor.` }
+      { idx: 2, text: `E se a gente encher o meio-campo no 3-5-2 para dominar a posse? Você manda, professor.` }
     ],
     options: () => [
       {
@@ -6571,7 +6571,7 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
         approachTag: "Formação 3-4-3",
         tacticsPatch: { formation: "3-4-3", posture: "offensive" },
         effects: { pwrDelta: 12, energyDelta: -4, buffType: "BLOOD_FOCUS", note: "Pressão máxima com 3 na frente" },
-        coachLine: `Vamos pra cima no 3-4-3! Três atacantes sufocando a saída deles!`,
+        coachLine: `Vamos para cima no 3-4-3! Três atacantes sufocando a saída deles!`,
         reactions: [{ idx: 1, text: `Bora massacrar no ataque!!`, tone: "hype" }]
       },
       {
@@ -6590,9 +6590,9 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
     title: "Panelinha no Vestiário",
     actorSpecs: [{ role: "DF" }, { role: "MF" }, { role: "FW" }],
     dialogue: (a) => [
-      { idx: 0, text: `Tá ficando chato isso: vocês só conversam entre si e deixam metade do banco de lado.`, tone: "toxic" },
+      { idx: 0, text: `Está ficando chato isso: vocês só conversam entre si e deixam metade do banco de lado.`, tone: "toxic" },
       { idx: 2, text: `Não é panelinha! A gente só tem mais afinidade porque joga junto lá na frente.`, tone: "tense" },
-      { idx: 1, text: `Professor, tá começando a dividir o grupo. Como a gente lida com isso?` }
+      { idx: 1, text: `Professor, está começando a dividir o grupo. Como a gente lida com isso?` }
     ],
     options: () => [
       {
@@ -6607,21 +6607,21 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
       },
       {
         label: `Respeitar as afinidades naturais desde que entreguem em campo`,
-        approachTag: "+Poder Co-op / -Química",
+        approachTag: "+Poder Combinado / -Química",
         effects: { pwrDelta: 10, chemDelta: -1, buffType: "COOP_SYNC", note: "Conexões fortes mantidas, vestiário menos homogêneo" },
         coachLine: `Não precisam ser melhores amigos fora de campo — só respeitem e passem a bola lá dentro.`,
         reactions: [
           { idx: 2, text: `Justo. Em campo eu jogo por todo mundo.` },
-          { idx: 0, text: `Tá bom, desde que não falte respeito.` }
+          { idx: 0, text: `Tudo bem, desde que não falte respeito.` }
         ]
       },
       {
-        label: `Fazer um jantar coletivo pra quebrar o gelo`,
+        label: `Fazer um jantar coletivo para quebrar o gelo`,
         approachTag: "+Sintonia / +Leveza",
         effects: { affPts: 16, energyDelta: 4, buffType: "LIGHT_LOCKER", note: "Clima relaxado antes do jogo" },
         coachLine: `Hoje ninguém sai separado: todo mundo vai comer junto depois do treino!`,
         reactions: [
-          { idx: 1, text: `Aí sim, comida resolve metade das brigas kkk`, tone: "hype" }
+          { idx: 1, text: `Isso mesmo, comida resolve metade das brigas!`, tone: "hype" }
         ]
       }
     ]
@@ -6629,7 +6629,7 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
   mkDilemmaChatTemplate({
     id: "dilemma_risky_tactic_vs_safe",
     category: "TATICA_RIVAL",
-    title: "Qual Tática Especial Preparar?",
+    title: "Qual Estática Especial Preparar?",
     actorSpecs: [{ role: "MF" }, { role: "DF" }],
     dialogue: (a, ctx) => [
       { idx: 0, text: `Contra o ${ctx.oppName}, podemos surpreender com Pressão Relâmpago logo de cara!` },
@@ -6639,7 +6639,7 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
     options: () => [
       {
         label: `Preparar Pressão Relâmpago (roubos altos, mais desgaste)`,
-        approachTag: "Tática: Pressão",
+        approachTag: "Estática: Pressão",
         tacticsPatch: { hissatsuTactic: "lightning_press", intensity: "high" },
         effects: { pwrDelta: 12, energyDelta: -5, buffType: "BLOOD_FOCUS", note: "Marcação sufocante" },
         coachLine: `Vamos de Pressão Relâmpago! Não deixem eles respirarem!`,
@@ -6647,15 +6647,15 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
       },
       {
         label: `Preparar Contra-Ataque Catenaccio (muralha segura)`,
-        approachTag: "Tática: Catenaccio",
+        approachTag: "Estática: Catenaccio",
         tacticsPatch: { hissatsuTactic: "catenaccio", posture: "defensive" },
-        effects: { chemDelta: 2, affPts: 10, buffType: "RIVAL_READ", note: "Defesa sólida pronta pro bote" },
+        effects: { chemDelta: 2, affPts: 10, buffType: "RIVAL_READ", note: "Defesa sólida pronta para o bote" },
         coachLine: `Catenaccio armado! Primeiro fecha a porta, depois mata no contra-ataque.`,
-        reactions: [{ idx: 1, text: `Sabia decisão. Vai ser difícil passar da gente.`, tone: "hype" }]
+        reactions: [{ idx: 1, text: `Sábia decisão. Vai ser difícil passar da gente.`, tone: "hype" }]
       },
       {
         label: `Preparar Rota do Céu (passes que rasgam a zaga)`,
-        approachTag: "Tática: Rota do Céu",
+        approachTag: "Estática: Rota do Céu",
         tacticsPatch: { hissatsuTactic: "route_of_sky", posture: "offensive" },
         effects: { pwrDelta: 8, affPts: 10, buffType: "COOP_SYNC", note: "Ataque fluido e aéreo" },
         coachLine: `Rota do Céu! Vamos passar por cima da marcação deles com classe!`,
@@ -6669,7 +6669,7 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
     title: "Peso da Camisa 10",
     actorSpecs: [{ role: "FW" }, { role: "MF" }],
     dialogue: (a) => [
-      { idx: 0, text: `Professor, tô numa fase absurda. Se o jogo travar, manda todas as bolas em mim que eu assumo a bronca.` },
+      { idx: 0, text: `Professor, estou numa fase absurda. Se o jogo travar, manda todas as bolas em mim que eu assumo a bronca.` },
       { idx: 1, text: `Confiança é ótimo, ${a[0].name}, mas se ficar previsível eles vão botar dois marcadores em cima de você.` },
       { idx: 0, text: `Deixo com o técnico: foco em mim ou distribuído?` }
     ],
@@ -6706,31 +6706,31 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
     title: "Provocação Antes do Jogo",
     actorSpecs: [{ role: "FW" }, { role: "GK" }],
     dialogue: (a, ctx) => [
-      { idx: 1, text: `${a[0].name}, você postou mesmo que a defesa do ${ctx.oppName} parece cone de treino?! Os caras tão furiosos!`, tone: "tense" },
+      { idx: 1, text: `${a[0].name}, você postou mesmo que a defesa do ${ctx.oppName} parece cone de treino?! Os rivais estão furiosos!`, tone: "tense" },
       { idx: 0, text: `Falei só a verdade! É bom que eles venham pilhados e deixem espaço atrás.`, tone: "hype" },
       { idx: 1, text: `Técnico, manda ele apagar isso ou a gente banca a marra?` }
     ],
     options: () => [
       {
-        label: `Bancar a provocação: entrar mordido pra cima deles`,
+        label: `Bancar a provocação: entrar mordido para cima deles`,
         approachTag: "+Duelo / -Química",
         tacticsPatch: { posture: "offensive" },
         effects: { pwrDelta: 12, chemDelta: -2, buffType: "BLOOD_FOCUS", note: "Clima quente em campo" },
         coachLine: `Agora que falou, sustenta dentro de campo! Quero personalidade e coragem!`,
-        reactions: [{ idx: 0, text: `É isso! Vou brocar pra calar a arquibancada!`, tone: "hype" }]
+        reactions: [{ idx: 0, text: `É isso! Vou balançar as redes para calar a arquibancada!`, tone: "hype" }]
       },
       {
-        label: `Mandar baixar a bola e focar no estudo tático`,
+        label: `Mandar baixar a bola e focar no estudo estático`,
         approachTag: "+Leitura / +Química",
         effects: { chemDelta: 3, affPts: 10, buffType: "RIVAL_READ", note: "Cabeça fria contra rival irritado" },
         coachLine: `Futebol se ganha na bola, não na rede social. Baixa a bola e estuda o jogo.`,
         reactions: [{ idx: 1, text: `Bem melhor. Cabeça fria vence jogo grande.` }]
       },
       {
-        label: `Levar na esportiva pra tirar o peso do grupo`,
+        label: `Levar na esportiva para tirar o peso do grupo`,
         approachTag: "+Leveza / +XP",
         effects: { xpAmt: 30, affPts: 10, buffType: "LIGHT_LOCKER", note: "Sem estresse interno" },
-        coachLine: `Já tá postado — só não deixa subir à cabeça. Riam disso e joguem leve.`,
+        coachLine: `Já está postado — só não deixa subir à cabeça. Riam disso e joguem leve.`,
         reactions: [{ idx: 0, text: `Haha combinado, professor!` }]
       }
     ]
@@ -6770,7 +6770,7 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
         approachTag: "+Moral / +Energia",
         effects: { affPts: 14, energyDelta: 4, buffType: "MORALE_BOOST", note: "Reconhecimento equilibrado" },
         coachLine: `O desarme do ${a[0].name} é metade do gol do ${a[1].name}. Quando um brilha, os dois brilham!`,
-        reactions: [{ idx: 1, text: `Se eu marcar hoje, vou correr pra abraçar você, ${a[0].name}!`, tone: "hype" }]
+        reactions: [{ idx: 1, text: `Se eu marcar hoje, vou correr para abraçar você, ${a[0].name}!`, tone: "hype" }]
       }
     ]
   }),
@@ -6824,7 +6824,7 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
     dialogue: (a, ctx) => [
       { idx: 0, text: pickChatVariant([`Cara, que vitória insana no 5x5!!${ctx.scorerName ? ` Aquele gol de ouro do ${ctx.scorerName} foi absurdo!` : ""}`, `O 5x5 na Margem do Rio ligou um turbo na gente hoje!`]), tone: "hype" },
       { idx: 1, text: `Na hora da tabela curta no espaço apertado, eu senti que nossa jogada combinada encaixou no automático!`, tone: "hype" },
-      { idx: 0, text: `Se a gente levar esse mesmo tempo de passe pro campo oficial, ninguém segura a gente!` },
+      { idx: 0, text: `Se a gente levar esse mesmo tempo de passe para o campo oficial, ninguém segura a gente!` },
       { idx: 1, text: `Bora registrar essa jogada agora mesmo enquanto o corpo ainda lembra!`, tone: "hype" }
     ],
     outcome: () => ({
@@ -6846,9 +6846,9 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
     title: "Resenha da Vitória no 5x5",
     actorSpecs: [{ role: "MF" }, { role: "DF" }, { role: "FW" }],
     dialogue: (a, ctx) => [
-      { idx: 2, text: `Ainda tô rindo da cara dos desafiantes quando saiu o Gol de Ouro${ctx.scorerName ? ` do ${ctx.scorerName}` : ""} kkk`, tone: "hype" },
+      { idx: 2, text: `Ainda estou rindo da cara dos desafiantes quando saiu o Gol de Ouro${ctx.scorerName ? ` de ${ctx.scorerName}` : ""}!`, tone: "hype" },
       { idx: 1, text: `Vocês jogaram muito leve! Quando o time se diverte assim, o futebol flui sozinho.` },
-      { idx: 0, text: `Aquele 5x5 deu moral pro elenco inteiro. Estamos prontos pro próximo desafio!`, tone: "hype" }
+      { idx: 0, text: `Aquele 5x5 deu moral para o elenco inteiro. Estamos prontos para o próximo desafio!`, tone: "hype" }
     ],
     outcome: () => ({
       kind: "CHEMISTRY_BOND",
@@ -6865,7 +6865,7 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
     id: "ctx_5v5_win_tactic",
     contextTrigger: "POST_5V5_WIN",
     category: "TATICA_RIVAL",
-    title: "Levar o Ritmo do 5x5 pro Jogo?",
+    title: "Levar o Ritmo do 5x5 para o Jogo?",
     actorSpecs: [{ role: "FW" }, { role: "DF" }],
     dialogue: (a) => [
       { idx: 0, text: `Professor, viu como nossa pressão alta funcionou no 5x5? Vamos entrar assim no jogo oficial!` },
@@ -6879,7 +6879,7 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
         tacticsPatch: { posture: "offensive", intensity: "high" },
         effects: { pwrDelta: 12, energyDelta: -4, respectDelta: 2, buffType: "BLOOD_FOCUS", note: "Embalados pelo 5x5" },
         coachLine: `Vamos surfar essa onda! Pressão alta desde o apito inicial!`,
-        reactions: [{ idx: 0, text: `Vamo pra cima deles!!`, tone: "hype" }]
+        reactions: [{ idx: 0, text: `Vamos para cima deles!!`, tone: "hype" }]
       },
       {
         label: `Transformar a sintonia do 5x5 em posse de bola inteligente`,
@@ -6887,7 +6887,7 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
         tacticsPatch: { style: "possession", posture: "balanced" },
         effects: { chemDelta: 3, affPts: 12, respectDelta: 2, buffType: "COOP_SYNC", note: "Tabelas curtas sem desgaste" },
         coachLine: `Quero a mesma tabela rápida do 5x5, mas com inteligência e posse de bola.`,
-        reactions: [{ idx: 1, text: `Aí sim, sem deixar a zaga vendida.`, tone: "hype" }]
+        reactions: [{ idx: 1, text: `Isso mesmo, sem deixar a zaga vendida.`, tone: "hype" }]
       },
       {
         label: `👀 Visualizar e deixar eles decidirem o ritmo em campo`,
@@ -6903,8 +6903,8 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
     title: "Cobrança Pós-Derrota no 5x5",
     actorSpecs: [{ role: "DF" }, { role: "FW" }],
     dialogue: (a) => [
-      { idx: 0, text: `Perder aquele Gol de Ouro foi ridículo! ${a[1].name}, você perdeu a bola na frente e nem voltou pra marcar!`, tone: "toxic" },
-      { idx: 1, text: `E você deu espaço pro cara chutar limpo! Não joga tudo nas minhas costas não.`, tone: "toxic", quote: { speakerName: a[0].name, text: "você perdeu a bola na frente e nem voltou pra marcar!" } },
+      { idx: 0, text: `Perder aquele Gol de Ouro foi ridículo! ${a[1].name}, você perdeu a bola na frente e nem voltou para marcar!`, tone: "toxic" },
+      { idx: 1, text: `E você deu espaço para o cara chutar limpo! Não joga tudo nas minhas costas não.`, tone: "toxic", quote: { speakerName: a[0].name, text: "você perdeu a bola na frente e nem voltou para marcar!" } },
       { idx: 0, text: `Se jogar com essa moleza no torneio vamos rodar cedo, professor!` }
     ],
     options: (a) => [
@@ -6912,7 +6912,7 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
         label: `Assumir a responsabilidade como técnico e proteger os dois`,
         approachTag: "+Respeito / +Química",
         effects: { respectDelta: 5, indivRespectDelta: 4, chemDelta: 2, affPts: 10, note: "Elenco valoriza técnico que segura a bronca" },
-        coachLine: `A derrota no 5x5 é minha conta. Esqueçam a culpa e transformem isso em foco pro torneio.`,
+        coachLine: `A derrota no 5x5 é minha conta. Esqueçam a culpa e transformem isso em foco para o torneio.`,
         reactions: [{ idx: 0, text: `Valeu, professor... foi mal pelo estouro, ${a[1].name}.` }]
       },
       {
@@ -6938,7 +6938,7 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
     title: "Sangue nos Olhos Após o 5x5",
     actorSpecs: [{ role: "MF" }, { role: "GK" }],
     dialogue: (a) => [
-      { idx: 0, text: `Ainda tá entalado aquele Gol de Ouro que tomamos na Margem do Rio...` },
+      { idx: 0, text: `Ainda está entalado aquele Gol de Ouro que tomamos na Margem do Rio...` },
       { idx: 1, text: `Bom! Deixa arder mesmo. Prefiro levar esse susto agora do que no torneio oficial.` },
       { idx: 0, text: `Verdade. Próximo adversário vai pagar a conta desse 5x5!`, tone: "hype" },
       { idx: 1, text: `Fechado. Hoje ninguém tira a bola da nossa área.` }
@@ -6988,7 +6988,7 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
       const lm = ctx.lastMatch || {};
       const hero = lm.topScorerName || a[0].name;
       return [
-        { idx: 1, text: `Rapaziada, o que o ${hero} jogou contra o ${lm.oppName || "último rival"} foi covardia!! ${lm.topScorerGoals || 2} gols decisivos!`, tone: "hype" },
+        { idx: 1, text: `Pessoal, o que o ${hero} jogou contra o ${lm.oppName || "último rival"} foi absurdo!! ${lm.topScorerGoals || 2} gols decisivos!`, tone: "hype" },
         { idx: 2, text: `Da zaga eu só via a bola morrendo no ângulo. Que fase absurda!`, tone: "hype" },
         { idx: 0, text: `Sem os passes de vocês eu não fazia metade! Bora manter esse nível até a final!`, tone: "hype" }
       ];
@@ -7013,9 +7013,9 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
     dialogue: (a, ctx) => {
       const lm = ctx.lastMatch || {};
       return [
-        { idx: 1, text: `Legal os ${lm.topScorerGoals || 2} gols do ${lm.topScorerName || a[0].name} contra o ${lm.oppName || "rival"}, mas eu também abri espaço o jogo inteiro e ninguém passou pra mim!`, tone: "toxic" },
-        { idx: 0, text: `Se eu tô quente na frente do gol eu vou bater mesmo! Quer gol? Pede a bola com mais fome.`, tone: "tense" },
-        { idx: 1, text: `Professor, esse time joga pra um só ou pro ataque todo?` }
+        { idx: 1, text: `Legal os ${lm.topScorerGoals || 2} gols do ${lm.topScorerName || a[0].name} contra o ${lm.oppName || "rival"}, mas eu também abri espaço o jogo inteiro e ninguém passou para mim!`, tone: "toxic" },
+        { idx: 0, text: `Se eu estou quente na frente do gol eu vou bater mesmo! Quer gol? Pede a bola com mais fome.`, tone: "tense" },
+        { idx: 1, text: `Professor, esse time joga para um só ou para o ataque todo?` }
       ];
     },
     options: (a) => [
@@ -7024,7 +7024,7 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
         approachTag: "10 Fixo / +Poder / -Sintonia",
         tacticsPatch: { aceActorIdx: 0 },
         effects: { pwrDelta: 12, affPts: -6, indivRespectDelta: -6, indivRespectIdxs: [1], setArc: "TRETA_ABERTA", note: `${a[1].name} ficou mordido` },
-        coachLine: `Quem tá decidindo tem prioridade na área. ${a[1].name}, sua hora vai chegar.`,
+        coachLine: `Quem está decidindo tem prioridade na área. ${a[1].name}, sua hora vai chegar.`,
         reactions: [{ idx: 1, text: `Entendi o recado...`, tone: "tense" }]
       },
       {
@@ -7051,9 +7051,9 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
     dialogue: (a, ctx) => {
       const lm = ctx.lastMatch || {};
       return [
-        { idx: 0, text: `A derrota por ${lm.userScore ?? 0}x${lm.oppScore ?? 1} pro ${lm.oppName || "rival"} doeu demais. A gente precisa mudar algo urgente, professor.`, tone: "tense" },
+        { idx: 0, text: `A derrota por ${lm.userScore ?? 0}x${lm.oppScore ?? 1} para o ${lm.oppName || "rival"} doeu demais. A gente precisa mudar algo urgente, professor.`, tone: "tense" },
         { idx: 1, text: `Eu senti que ficamos expostos demais no meio. Talvez fechar a casinha no próximo jogo ajude.` },
-        { idx: 2, text: `Nada disso! Perdemos porque fomos tímidos! Temos que ir pro tudo ou nada!` }
+        { idx: 2, text: `Nada disso! Perdemos porque fomos tímidos! Temos que ir para o tudo ou nada!` }
       ];
     },
     options: () => [
@@ -7091,8 +7091,8 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
     dialogue: (a, ctx) => {
       const lm = ctx.lastMatch || {};
       return [
-        { idx: 0, text: `Tomar ${lm.oppScore ?? 2} gols do ${lm.oppName || "rival"} daquele jeito não dá! Parecia que eu tava jogando sozinho na área!`, tone: "toxic" },
-        { idx: 1, text: `Ah pronto, agora a culpa é toda da zaga? A bola passou debaixo do teu braço também!`, tone: "toxic" }
+        { idx: 0, text: `Tomar ${lm.oppScore ?? 2} gols do ${lm.oppName || "rival"} daquele jeito não dá! Parecia que eu estava jogando sozinho na área!`, tone: "toxic" },
+        { idx: 1, text: `Ah pronto, agora a culpa é toda da zaga? A bola passou debaixo do seu braço também!`, tone: "toxic" }
       ];
     },
     options: () => [
@@ -7125,8 +7125,8 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
     title: "Sobreviventes dos Pênaltis",
     actorSpecs: [{ role: "GK" }, { role: "FW" }, { role: "MF" }],
     dialogue: (a, ctx) => [
-      { idx: 1, text: `Meu coração ainda tá acelerado daquela disputa de pênaltis contra o ${ctx.lastMatch?.oppName || "rival"}!!`, tone: "hype" },
-      { idx: 0, text: `Quando eu olhei pra vocês abraçados no meio-campo, tive certeza que ia pegar a cobrança!`, tone: "hype" },
+      { idx: 1, text: `Meu coração ainda está acelerado daquela disputa de pênaltis contra o ${ctx.lastMatch?.oppName || "rival"}!!`, tone: "hype" },
+      { idx: 0, text: `Quando eu olhei para vocês abraçados no meio-campo, tive certeza que ia pegar a cobrança!`, tone: "hype" },
       { idx: 2, text: `Um grupo que passa por um teste de nervos desses junto não quebra nunca mais!`, tone: "hype" }
     ],
     outcome: () => ({
@@ -7150,7 +7150,7 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
     dialogue: (a, ctx) => [
       { idx: 1, text: `Passar ileso contra o ${ctx.lastMatch?.oppName || "rival"} foi lindo demais, ${a[0].name}! Você fechou o gol!`, tone: "hype" },
       { idx: 0, text: `Mérito seu também! Toda bola que chegou já veio prensada pela sua marcação.` },
-      { idx: 1, text: `Nossa dupla defensiva tá virando fortaleza!` }
+      { idx: 1, text: `Nossa dupla defensiva está virando fortaleza!` }
     ],
     outcome: () => ({
       kind: "CHEMISTRY_BOND",
@@ -7171,7 +7171,7 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
     actorSpecs: [{ role: "FW" }, { role: "MF" }],
     dialogue: (a, ctx) => [
       { idx: 1, text: `Todo mundo viu no último jogo contra o ${ctx.lastMatch?.oppName || "rival"}: o técnico pediu calma e o pessoal saiu desobedecendo ordem em campo!`, tone: "toxic" },
-      { idx: 0, text: `Ah, me poupa! Eu vi a brecha e tentei resolver! Não dá pra jogar engessado quando a gente não concorda com o plano.`, tone: "toxic" },
+      { idx: 0, text: `Ah, me poupa! Eu vi a brecha e tentei resolver! Não dá para jogar engessado quando a gente não concorda com o plano.`, tone: "toxic" },
       { idx: 1, text: `Professor, se você não botar ordem agora, o vestiário vai virar bagunça!` }
     ],
     options: () => [
@@ -7179,19 +7179,19 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
         label: `Enquadrar firme: quem desobedecer perde espaço no esquema`,
         approachTag: "Autoridade / +Respeito",
         effects: { respectDelta: 8, indivRespectDelta: -4, chemDelta: -1, pwrDelta: 6, note: "Ordem restabelecida na firmeza" },
-        coachLine: `Aqui existe comando! Da próxima vez que ignorar uma ordem tática, vai ouvir no vestiário inteiro!`,
-        reactions: [{ idx: 0, text: `...Tá bom, professor. Entendi o recado.`, tone: "tense" }]
+        coachLine: `Aqui existe comando! Da próxima vez que ignorar uma ordem estática, vai ouvir no vestiário inteiro!`,
+        reactions: [{ idx: 0, text: `...Tudo bem, professor. Entendi o recado.`, tone: "tense" }]
       },
       {
-        label: `Ouvir por que desobedeceram e abrir espaço pro instinto`,
+        label: `Ouvir por que desobedeceram e abrir espaço para o instinto`,
         approachTag: "Estilo Livre / +Moral",
         tacticsPatch: { style: "free" },
         effects: { respectDelta: 5, indivRespectDelta: 6, affPts: 10, buffType: "MORALE_BOOST", note: "Diálogo recuperou confiança" },
         coachLine: `Se o plano travou vocês, me falem antes — não na birra. Vou dar mais liberdade no estilo Livre.`,
-        reactions: [{ idx: 0, text: `Valeu por escutar, professor. Agora tô fechado com você.`, tone: "hype" }]
+        reactions: [{ idx: 0, text: `Valeu por escutar, professor. Agora estou fechado com você.`, tone: "hype" }]
       },
       {
-        label: `Ignorar o episódio pra não criar mais atrito`,
+        label: `Ignorar o episódio para não criar mais atrito`,
         approachTag: "-Respeito / +Leveza",
         effects: { respectDelta: -6, energyDelta: 3, note: "Elenco sentiu falta de pulso" },
         coachLine: `Esqueçam isso, já passou. Vamos pensar no próximo jogo.`,
@@ -7218,7 +7218,7 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
         reactions: [{ idx: 0, text: `Fechado 100%, professor!`, tone: "hype" }]
       },
       {
-        label: `Exigir que provem em campo obedecendo a tática`,
+        label: `Exigir que provem em campo obedecendo a estática`,
         approachTag: "+Respeito / +Duelo",
         effects: { respectDelta: 6, pwrDelta: 10, buffType: "BLOOD_FOCUS", note: "Cobrança produtiva" },
         coachLine: `Desculpa se mostra correndo pelo time no próximo jogo. Quero execução perfeita!`,
@@ -7253,7 +7253,7 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
         label: `Pedir desculpas e admitir que mudou por leitura do rival`,
         approachTag: "Recupera Respeito",
         effects: { respectDelta: 7, indivRespectDelta: 6, chemDelta: 1, note: "Transparência acalmou o elenco" },
-        coachLine: `Vocês têm razão, devia ter avisado antes de ajustar a tática. Da próxima eu alinho direto com vocês.`,
+        coachLine: `Vocês têm razão, devia ter avisado antes de ajustar a estática. Da próxima eu alinho direto com vocês.`,
         reactions: [{ idx: 0, text: `Beleza, professor. Só avisa a gente antes que fica tudo certo.` }]
       },
       {
@@ -7302,9 +7302,9 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
     title: "Vestiário Questionando o Técnico",
     actorSpecs: [{ role: "MF" }, { role: "FW" }, { role: "DF" }],
     dialogue: (a, ctx) => [
-      { idx: 0, text: `Professor, sendo bem sincero: o vestiário tá rachado (Respeito ${ctx.coachRespect || 40}%). Tem gente que não tá comprando sua ideia.`, tone: "toxic" },
+      { idx: 0, text: `Professor, sendo bem sincero: o vestiário está rachado (Respeito ${ctx.coachRespect || 40}%). Tem gente que não está comprando sua ideia.`, tone: "toxic" },
       { idx: 1, text: `A gente sente que você não confia no nosso jeito de jogar!`, tone: "toxic" },
-      { idx: 2, text: `Se a gente não se acertar hoje, vai ter jogador ignorando tática todo jogo.` }
+      { idx: 2, text: `Se a gente não se acertar hoje, vai ter jogador ignorando estática todo jogo.` }
     ],
     options: () => [
       {
@@ -7313,7 +7313,7 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
         tacticsPatch: { style: "free" },
         effects: { respectDelta: 14, indivRespectDelta: 10, chemDelta: 3, affPts: 12, note: "Vestiário reconectado com o técnico" },
         coachLine: `Eu errei em algumas decisões. Quero construir esse título COM vocês, não mandando de longe.`,
-        reactions: [{ idx: 0, text: `Era isso que a gente precisava ouvir, professor! Tamo junto!`, tone: "hype" }]
+        reactions: [{ idx: 0, text: `Era isso que a gente precisava ouvir, professor! Estamos juntos!`, tone: "hype" }]
       },
       {
         label: `Reafirmar liderança com foco total no objetivo`,
@@ -7326,7 +7326,7 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
         label: `Bater de frente: quem não quiser jogar, fica fora`,
         approachTag: "-Respeito / +Fúria",
         effects: { respectDelta: -8, indivRespectDelta: -8, pwrDelta: 12, chemDelta: -3, note: "Clima explodiu no vestiário" },
-        coachLine: `Se não gostaram, o banco tá logo ali! Quem entra em campo obedece!`,
+        coachLine: `Se não gostaram, o banco está logo ali! Quem entra em campo obedece!`,
         reactions: [{ idx: 1, text: `Beleza então... vamos ver no que dá.`, tone: "toxic" }]
       }
     ]
@@ -7338,8 +7338,8 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
     title: "Ponte de Paz no Vestiário",
     actorSpecs: [{ role: "GK" }, { role: "MF" }],
     dialogue: () => [
-      { idx: 0, text: `Técnico, conversei com a rapaziada. O clima tava tenso, mas todo mundo quer vencer esse campeonato.` },
-      { idx: 1, text: `Dá um gesto de confiança pro elenco hoje — uma folga leve ou apoio no vestiário — que o grupo fecha contigo de novo.` }
+      { idx: 0, text: `Técnico, conversei com o pessoal do elenco. O clima estava tenso, mas todo mundo quer vencer esse campeonato.` },
+      { idx: 1, text: `Dá um gesto de confiança para o elenco hoje — uma folga leve ou apoio no vestiário — que o grupo fecha contigo de novo.` }
     ],
     options: () => [
       {
@@ -7347,7 +7347,7 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
         approachTag: "++Respeito / +Energia",
         effects: { respectDelta: 12, indivRespectDelta: 8, energyDelta: 6, buffType: "LIGHT_LOCKER", note: "Paz selada no vestiário" },
         coachLine: `Obrigado por puxarem essa conversa. Hoje o grupo decide o ritmo do aquecimento — confio em vocês!`,
-        reactions: [{ idx: 0, text: `Show!! O clima já mudou da água pro vinho!`, tone: "hype" }]
+        reactions: [{ idx: 0, text: `Show!! O clima já mudou da água para o vinho!`, tone: "hype" }]
       },
       {
         label: `Fechar pacto de trabalho duro lado a lado`,
@@ -7372,7 +7372,7 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
     title: "Elenco no Limite do Cansaço",
     actorSpecs: [{ role: "DF" }, { role: "MF" }],
     dialogue: (a, ctx) => [
-      { idx: 0, text: `Professor, nossa energia tá em ${ctx.teamEnergy || 40}%... tá todo mundo se arrastando no corredor!`, tone: "tense" },
+      { idx: 0, text: `Professor, nossa energia está em ${ctx.teamEnergy || 40}%... está todo mundo se arrastando no corredor!`, tone: "tense" },
       { idx: 1, text: `Se a gente entrar no jogo nesse ritmo sem aliviar a intensidade, no segundo tempo ninguém corre.` }
     ],
     options: () => [
@@ -7409,7 +7409,7 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
     title: "Indireta sobre Favoritismo",
     actorSpecs: [{ role: "FW" }, { role: "DF" }],
     dialogue: (a) => [
-      { idx: 1, text: `Só eu que reparei que todo treino especial e equipamento vai pro ${a[0].name}? A gente aqui também rala todo dia, professor.`, tone: "tense" },
+      { idx: 1, text: `Só eu que reparei que todo treino especial e equipamento vai para o ${a[0].name}? A gente aqui também rala todo dia, professor.`, tone: "tense" },
       { idx: 0, text: `Ei, eu não pedi nada! Só aproveitei as oportunidades que o técnico deu.` }
     ],
     options: (a) => [
@@ -7425,7 +7425,7 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
         approachTag: "+Poder / -Respeito Ind.",
         effects: { pwrDelta: 10, respectDelta: -2, indivRespectDelta: -6, indivRespectIdxs: [1], note: `${a[1].name} não engoliu bem` },
         coachLine: `Cada escolha é pelo bem do time. Quando ${a[0].name} fica mais forte, todos ganham.`,
-        reactions: [{ idx: 1, text: `Tá bom...`, tone: "tense" }]
+        reactions: [{ idx: 1, text: `Tudo bem...`, tone: "tense" }]
       },
       {
         label: `👀 Visualizar e não se meter`,
@@ -7444,12 +7444,12 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
     title: "Cap. 2: Hora de Resolver a Treta",
     actorSpecs: [{ role: "FW" }, { role: "MF" }],
     dialogue: (a) => [
-      { idx: 0, text: `Professor, desde aquela briga passada eu e o ${a[1].name} quase não nos falamos. Em campo tá atrapalhando.`, tone: "tense" },
+      { idx: 0, text: `Professor, desde aquela briga passada eu e o ${a[1].name} quase não nos falamos. Em campo está atrapalhando.`, tone: "tense" },
       { idx: 1, text: `Concordo. Ou a gente enterra o machado hoje de vez, ou assume que vai jogar cada um por si.` }
     ],
     options: (a) => [
       {
-        label: `Colocar os dois pra treinar uma jogada combinada juntos`,
+        label: `Colocar os dois para treinar uma jogada combinada juntos`,
         approachTag: "✨ Reconciliação + Técnica!",
         effects: { affPts: 32, chemDelta: 4, respectDelta: 5, setArc: "RECONCILIADOS", grantCoopAttempt: true, buffType: "COOP_SYNC", note: "A treta virou química explosiva!" },
         coachLine: `Ninguém sai do campo hoje até vocês acertarem dez tabelas seguidas. Vão se entender jogando!`,
@@ -7462,7 +7462,7 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
         label: `Transformar a treta em rivalidade saudável (quem joga mais)`,
         approachTag: "⚔️ Rivalidade / +Poder",
         effects: { pwrDelta: 16, chemDelta: -1, respectDelta: 2, setArc: "RIVALIDADE_FRIA", buffType: "BLOOD_FOCUS", note: "Rivalidade interna elevou o nível individual" },
-        coachLine: `Não precisam virar melhores amigos — disputem pra ver quem decide mais jogos pelo time!`,
+        coachLine: `Não precisam virar melhores amigos — disputem para ver quem decide mais jogos pelo time!`,
         reactions: [
           { idx: 0, text: `Desafio aceito! Vou fazer mais que ele.`, tone: "hype" },
           { idx: 1, text: `Pode apostar que não vai!`, tone: "hype" }
@@ -7483,7 +7483,7 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
     title: "Cap. 2: As Pazes no Vestiário",
     actorSpecs: [{ role: "FW" }, { role: "DF" }],
     dialogue: (a) => [
-      { idx: 0, text: `Ei ${a[1].name}... passei aqui só pra dizer que exagerei naquela discussão passada. Foi mal mesmo.` },
+      { idx: 0, text: `Ei ${a[1].name}... passei aqui só para dizer que exagerei naquela discussão passada. Foi mal mesmo.` },
       { idx: 1, text: `Que nada, eu também fui cabeça dura. A gente só quer ganhar esse torneio.` },
       { idx: 0, text: `Toca aqui então! No próximo jogo eu te cubro se precisar!`, tone: "hype" },
       { idx: 1, text: `Fechado! Clima zerado!`, tone: "hype" }
@@ -7508,7 +7508,7 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
     actorSpecs: [{ role: "MF" }, { role: "DF" }],
     dialogue: (a) => [
       { idx: 0, text: `Não dá mais, professor! O ${a[1].name} deu uma entrada dura em mim no coletivo de propósito!`, tone: "toxic" },
-      { idx: 1, text: `Se não aguenta dividida de treino, pede pra sair! Você que veio provocar primeiro!`, tone: "toxic" }
+      { idx: 1, text: `Se não aguenta dividida de treino, pede para sair! Você que veio provocar primeiro!`, tone: "toxic" }
     ],
     options: () => [
       {
@@ -7522,7 +7522,7 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
         label: `Sentar com os dois em particular e mediar na calma`,
         approachTag: "✨ Reconciliar / -Energia",
         effects: { affPts: 24, chemDelta: 3, energyDelta: -3, respectDelta: 4, setArc: "RECONCILIADOS", note: "Conversa longa zerou a mágoa" },
-        coachLine: `Venham os dois aqui fora. A gente só volta pro campo quando vocês apertarem as mãos.`,
+        coachLine: `Venham os dois aqui fora. A gente só volta para o campo quando vocês apertarem as mãos.`,
         reactions: [{ idx: 1, text: `Valeu por conversar com a gente sem gritar, professor.` }]
       },
       {
@@ -7563,22 +7563,22 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
     actorSpecs: [{ role: "FW" }, { role: "MF" }],
     dialogue: (a) => [
       { idx: 0, text: `Professor, eu e o ${a[1].name} estamos voando juntos! Que tal montar o próximo jogo girando em torno da nossa tabela?` },
-      { idx: 1, text: `Se você liberar a Rota do Céu pra gente, a gente rasga qualquer marcação!` }
+      { idx: 1, text: `Se você liberar a Rota do Céu para a gente, a gente rasga qualquer marcação!` }
     ],
     options: () => [
       {
         label: `Aprovar! Ativar Rota do Céu focada na dupla`,
-        approachTag: "Rota do Céu / +Co-op",
+        approachTag: "Rota do Céu / +Combinada",
         tacticsPatch: { hissatsuTactic: "route_of_sky", aceActorIdx: 0 },
         effects: { pwrDelta: 12, affPts: 16, respectDelta: 3, buffType: "COOP_SYNC", note: "Dupla assumiu o protagonismo" },
         coachLine: `Aprovado! Vamos de Rota do Céu com vocês comandando o ritmo!`,
-        reactions: [{ idx: 0, text: `Vamo dar show!!`, tone: "hype" }]
+        reactions: [{ idx: 0, text: `Vamos dar show!!`, tone: "hype" }]
       },
       {
-        label: `Manter o equilíbrio coletivo pra não sobrecarregar os dois`,
+        label: `Manter o equilíbrio coletivo para não sobrecarregar os dois`,
         approachTag: "+Química / +Leveza",
         effects: { chemDelta: 3, affPts: 10, respectDelta: 2, buffType: "LIGHT_LOCKER", note: "Time inteiro envolvido" },
-        coachLine: `Vocês são nossa arma, mas quero o time todo participando pra não ficar previsível.`,
+        coachLine: `Vocês são nossa arma, mas quero o time todo participando para não ficar previsível.`,
         reactions: [{ idx: 1, text: `Faz sentido, professor. Vamos puxar os outros junto!` }]
       }
     ]
@@ -7614,7 +7614,7 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
     title: "Guerra pela Caixa de Som",
     actorSpecs: [{ role: "FW" }, { role: "GK" }],
     dialogue: (a) => [
-      { idx: 0, text: pickChatVariant([`Quem tirou meu rock pesado da caixa de som antes do aquecimento?! Assim não dá pra entrar pilhado!`, `De novo essa playlist lenta no vestiário, ${a[1].name}? Quero som alto pra acordar!`]) },
+      { idx: 0, text: pickChatVariant([`Quem tirou meu rock pesado da caixa de som antes do aquecimento?! Assim não dá para entrar pilhado!`, `De novo essa música calma no vestiário, ${a[1].name}? Quero som alto para acordar!`]) },
       { idx: 1, text: `Essa barulheira me dá dor de cabeça! Preciso de concentração, não de show de metal!`, tone: "tense" }
     ],
     options: () => [
@@ -7623,7 +7623,7 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
         approachTag: "+Leveza / +Sintonia",
         effects: { affPts: 12, energyDelta: 3, respectDelta: 2, buffType: "LIGHT_LOCKER", note: "Trégua musical selada" },
         coachLine: `Uma música animada, uma calma. Todo mundo feliz e focado!`,
-        reactions: [{ idx: 0, text: `Justo, aceito o acordo kkk` }]
+        reactions: [{ idx: 0, text: `Justo, aceito o acordo!` }]
       },
       {
         label: `Proibir som alto: foco total no silêncio`,
@@ -7650,7 +7650,7 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
     ],
     options: (a) => [
       {
-        label: `Aplicar voltas extras no campo como regra igual pra todos`,
+        label: `Aplicar voltas extras no campo como regra igual para todos`,
         approachTag: "+Respeito / +XP / -Energia",
         effects: { respectDelta: 4, xpAmt: 30, energyDelta: -3, note: "Disciplina justa mantida" },
         coachLine: `Regra é regra: 5 voltas extras no campo e assunto encerrado, ${a[1].name}.`,
@@ -7660,8 +7660,8 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
         label: `Relevar desta vez pelo atraso do transporte`,
         approachTag: "+Moral / -Respeito?",
         effects: { energyDelta: 3, affPts: 6, respectDelta: -2, indivRespectDelta: 5, indivRespectIdxs: [1], note: `${a[0].name} achou brando` },
-        coachLine: `Transporte falha mesmo. Só sai mais cedo amanhã, tá liberado.`,
-        reactions: [{ idx: 0, text: `Hm... tá bom né.`, tone: "tense" }]
+        coachLine: `Transporte falha mesmo. Só sai mais cedo amanhã, está liberado.`,
+        reactions: [{ idx: 0, text: `Hm... tudo bem, então.`, tone: "tense" }]
       },
       {
         label: `👀 Visualizar e não se meter`,
@@ -7682,9 +7682,9 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
     options: (a) => [
       {
         label: `Faltas de longe com ${a[1].name}, cruzamentos com ${a[0].name}`,
-        approachTag: "+Sintonia / +Co-op",
+        approachTag: "+Sintonia / +Combinada",
         effects: { affPts: 14, xpAmt: 25, respectDelta: 3, buffType: "COOP_SYNC", note: "Especialidades bem divididas" },
-        coachLine: `Bola na área é do ${a[0].name}; bomba pro gol é do ${a[1].name}. Simples!`,
+        coachLine: `Bola na área é do ${a[0].name}; bomba para o gol é do ${a[1].name}. Simples!`,
         reactions: [{ idx: 0, text: `Perfeito, faz total sentido!`, tone: "hype" }]
       },
       {
@@ -7692,7 +7692,7 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
         approachTag: "+Poder / -Energia",
         effects: { pwrDelta: 12, xpAmt: 35, energyDelta: -4, note: "Disputa acirrou a pontaria" },
         coachLine: `Resolvam na bola: quem acertar mais no ângulo assume as cobranças!`,
-        reactions: [{ idx: 1, text: `Demorou!! Separa as bolas!`, tone: "hype" }]
+        reactions: [{ idx: 1, text: `Fechado!! Separe as bolas!`, tone: "hype" }]
       },
       {
         label: `👀 Visualizar e não se meter`,
@@ -7707,15 +7707,15 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
     title: "Flagra na Lanchonete",
     actorSpecs: [{ role: "DF" }, { role: "MF" }],
     dialogue: (a) => [
-      { idx: 0, text: `Professor, flagrei o ${a[1].name} comendo dois hambúrgueres gigantes na véspera do jogo kkkk` },
-      { idx: 1, text: `X-9!! 😂 Era carboidrato estratégico pra aguentar correr 90 minutos!` }
+      { idx: 0, text: `Professor, flagrei o ${a[1].name} comendo dois hambúrgueres gigantes na véspera do jogo!` },
+      { idx: 1, text: `Dedo-duro!! 😂 Era carboidrato estratégico para aguentar correr 90 minutos!` }
     ],
     options: () => [
       {
-        label: `Entrar na zoeira e liberar um lanche leve pro grupo`,
+        label: `Entrar na zoeira e liberar um lanche leve para o grupo`,
         approachTag: "+Energia / +Leveza",
         effects: { energyDelta: 5, affPts: 14, respectDelta: 2, buffType: "LIGHT_LOCKER", note: "Vestiário riu e relaxou" },
-        coachLine: `Só perdoo se fizer assistência amanhã! Mas hoje tá liberado relaxar.`,
+        coachLine: `Só perdoo se fizer assistência amanhã! Mas hoje está liberado relaxar.`,
         reactions: [{ idx: 1, text: `Anotado, professor! Vou voar em campo!`, tone: "hype" }]
       },
       {
@@ -7723,7 +7723,7 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
         approachTag: "+Foco / +XP",
         effects: { xpAmt: 25, pwrDelta: 6, respectDelta: 2, note: "Compromisso profissional" },
         coachLine: `Sem exagero antes de decisão. Quero todo mundo leve no aquecimento!`,
-        reactions: [{ idx: 1, text: `Beleza, foi só hoje kkk` }]
+        reactions: [{ idx: 1, text: `Combinado, foi só hoje!` }]
       },
       {
         label: `👀 Visualizar e não se meter`,
@@ -7853,8 +7853,8 @@ function makeChatBuffByType(buffType, playerIds) {
   if (buffType === "COOP_SYNC") {
     return {
       type: "COOP_SYNC",
-      label: "⚡ Sincronia Combinada (+Co-op/Passe)",
-      desc: "Participantes têm +força em técnicas co-op e menos interceptações",
+      label: "⚡ Sincronia Combinada (+Dupla/Passe)",
+      desc: "Participantes têm +força em técnicas combinadas e menos interceptações",
       playerIds
     };
   }
@@ -8230,7 +8230,7 @@ function finalizeAutonomousTeamChat(chatId, skipRender = false) {
     }
     if (!learnedCoop.learned) {
       t.prepBonuses.power = (t.prepBonuses.power || 0) + 10;
-      summaryParts.push(`<span class="b-pwr">+10 Poder Co-op</span> (sintonia refinada)`);
+      summaryParts.push(`<span class="b-pwr">+10 Poder Combinado</span> (sintonia refinada)`);
     }
   }
 
@@ -8249,7 +8249,7 @@ function finalizeAutonomousTeamChat(chatId, skipRender = false) {
       speakerRole: "SYSTEM",
       speakerName: "Acordo do Elenco",
       speakerSprite: "",
-      roleTag: "Tática",
+      roleTag: "Estática",
       tone: "system",
       time: formatChatTimestamp(baseT, chat.messages.length),
       text: `⚙️ O grupo combinou para o próximo jogo: ${configChanges.join(" • ")}`
@@ -8405,7 +8405,7 @@ function resolveSpontaneousTeamChat(chatId, choiceIdx) {
       speakerRole: "SYSTEM",
       speakerName: "Configuração da Equipe",
       speakerSprite: "",
-      roleTag: "Tática",
+      roleTag: "Estática",
       tone: "system",
       time: formatChatTimestamp(baseT, chat.messages.length),
       text: `⚙️ Configuração para o próximo jogo: ${configChanges.join(" • ")}`
@@ -8586,7 +8586,7 @@ function resolveSpontaneousTeamChat(chatId, choiceIdx) {
       }
     } else if (quality === "GREAT") {
       t.prepBonuses.power = (t.prepBonuses.power || 0) + 6;
-      extraOutcomeTxt += ` • <span class="b-pwr">+6 Poder Co-op</span> (jogada lapidada)`;
+      extraOutcomeTxt += ` • <span class="b-pwr">+6 Poder Combinado</span> (jogada lapidada)`;
     }
   }
 
