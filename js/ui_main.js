@@ -323,9 +323,175 @@ function buildTournamentBracketStripHTML(t, focusStageIdx) {
   `;
 }
 
+function clearWppRevealTimers() {
+  if (typeof window === "undefined") return;
+  if (Array.isArray(window._wppRevealTimers)) {
+    window._wppRevealTimers.forEach((tid) => clearTimeout(tid));
+  }
+  window._wppRevealTimers = [];
+}
+
+function initWppChatSequence(wppFeedEl) {
+  clearWppRevealTimers();
+  if (!wppFeedEl || typeof wppFeedEl.querySelectorAll !== "function") {
+    if (wppFeedEl) wppFeedEl.scrollTop = wppFeedEl.scrollHeight;
+    return;
+  }
+
+  const animFromRaw = wppFeedEl.getAttribute("data-anim-from");
+  const animFrom = animFromRaw !== null && animFromRaw !== "" ? Number(animFromRaw) : -1;
+  const animMode = wppFeedEl.getAttribute("data-anim-mode") || "";
+
+  const scrollFeedBottom = () => {
+    wppFeedEl.scrollTop = wppFeedEl.scrollHeight;
+    if (typeof requestAnimationFrame === "function") {
+      requestAnimationFrame(() => {
+        wppFeedEl.scrollTop = wppFeedEl.scrollHeight;
+      });
+    }
+  };
+
+  if (!Number.isInteger(animFrom) || animFrom < 0) {
+    scrollFeedBottom();
+    return;
+  }
+
+  const allRows = Array.from(wppFeedEl.querySelectorAll("[data-msg-idx]"));
+  const pendingRows = allRows.filter((el) => Number(el.getAttribute("data-msg-idx")) >= animFrom);
+  const typingEl = document.getElementById("wpp-typing-indicator");
+  const typingNameEl = document.getElementById("wpp-typing-name");
+  const typingAvatarEl = document.getElementById("wpp-typing-avatar");
+  const coopEl = document.getElementById("wpp-coop-banner");
+  const resolvedBarEl = document.getElementById("wpp-resolved-bar");
+  const replyDrawerEl = document.getElementById("wpp-reply-drawer");
+
+  let finished = false;
+  const revealAllNow = () => {
+    if (finished) return;
+    finished = true;
+    clearWppRevealTimers();
+    if (typingEl) typingEl.style.display = "none";
+    pendingRows.forEach((el) => {
+      el.classList.remove("is-wpp-hidden");
+      el.classList.add("is-wpp-pop");
+    });
+    [coopEl, resolvedBarEl, replyDrawerEl].forEach((panel) => {
+      if (panel) {
+        panel.classList.remove("is-wpp-hidden");
+        panel.classList.add("is-wpp-pop");
+      }
+    });
+    if (typeof wppFeedEl.removeAttribute === "function") wppFeedEl.removeAttribute("title");
+    scrollFeedBottom();
+  };
+
+  if (pendingRows.length === 0) {
+    revealAllNow();
+    return;
+  }
+
+  const scheduleWppTimer = (fn, ms) => {
+    const tid = setTimeout(() => {
+      if (finished || (typeof document !== "undefined" && document.body && typeof document.body.contains === "function" && !document.body.contains(wppFeedEl))) {
+        return;
+      }
+      fn();
+    }, ms);
+    if (typeof window !== "undefined") {
+      if (!Array.isArray(window._wppRevealTimers)) window._wppRevealTimers = [];
+      window._wppRevealTimers.push(tid);
+    }
+  };
+
+  if (typeof wppFeedEl.setAttribute === "function") {
+    wppFeedEl.setAttribute("title", "Clique no chat para mostrar tudo de uma vez");
+  }
+  if (typeof wppFeedEl.addEventListener === "function") {
+    wppFeedEl.addEventListener("click", revealAllNow, { once: true });
+  }
+
+  const isReplyMode = animMode === "REPLY";
+  const playerMsgCount = pendingRows.filter((el) => el.getAttribute("data-msg-role") === "PLAYER").length;
+  const typingDur = isReplyMode ? 430 : playerMsgCount > 4 ? 170 : 230;
+  const betweenGap = isReplyMode ? 140 : 75;
+
+  const showTypingFor = (rowEl) => {
+    if (!typingEl) return;
+    const name = rowEl.getAttribute("data-speaker-name") || "Jogador";
+    const sprite = rowEl.getAttribute("data-speaker-sprite") || "";
+    if (typingNameEl) typingNameEl.textContent = `${name} está digitando`;
+    if (typingAvatarEl) {
+      if (sprite) {
+        typingAvatarEl.src = sprite;
+        typingAvatarEl.style.display = "";
+      } else {
+        typingAvatarEl.style.display = "none";
+      }
+    }
+    typingEl.style.display = "flex";
+    typingEl.classList.remove("is-wpp-pop");
+    void typingEl.offsetWidth;
+    typingEl.classList.add("is-wpp-pop");
+    scrollFeedBottom();
+  };
+
+  scrollFeedBottom();
+
+  const runStep = (idx) => {
+    if (finished) return;
+    if (idx >= pendingRows.length) {
+      if (typingEl) typingEl.style.display = "none";
+      if (coopEl) {
+        coopEl.classList.remove("is-wpp-hidden");
+        coopEl.classList.add("is-wpp-pop");
+      }
+      scrollFeedBottom();
+      scheduleWppTimer(() => {
+        if (finished) return;
+        finished = true;
+        if (resolvedBarEl) {
+          resolvedBarEl.classList.remove("is-wpp-hidden");
+          resolvedBarEl.classList.add("is-wpp-pop");
+        }
+        if (replyDrawerEl) {
+          replyDrawerEl.classList.remove("is-wpp-hidden");
+          replyDrawerEl.classList.add("is-wpp-pop");
+        }
+        if (typeof wppFeedEl.removeAttribute === "function") wppFeedEl.removeAttribute("title");
+        scrollFeedBottom();
+      }, isReplyMode ? 160 : 90);
+      return;
+    }
+
+    const rowEl = pendingRows[idx];
+    const role = rowEl.getAttribute("data-msg-role") || "PLAYER";
+    if (role === "COACH" || role === "SYSTEM") {
+      rowEl.classList.remove("is-wpp-hidden");
+      rowEl.classList.add("is-wpp-pop");
+      scrollFeedBottom();
+      const nextWait = role === "COACH" ? 210 : idx === 0 ? 150 : 120;
+      scheduleWppTimer(() => runStep(idx + 1), nextWait);
+      return;
+    }
+
+    showTypingFor(rowEl);
+    scheduleWppTimer(() => {
+      if (finished) return;
+      if (typingEl) typingEl.style.display = "none";
+      rowEl.classList.remove("is-wpp-hidden");
+      rowEl.classList.add("is-wpp-pop");
+      scrollFeedBottom();
+      scheduleWppTimer(() => runStep(idx + 1), betweenGap);
+    }, typingDur);
+  };
+
+  scheduleWppTimer(() => runStep(0), 60);
+}
+
 // TELA 3: TORNEIO FUTEBOL FRONTEIRA & MUNDIAL (FFI)
 function renderTournamentScreen() {
   hideBondPlayersTooltip();
+  clearWppRevealTimers();
   const container = document.getElementById("main-screen-container");
   if (!container) return;
 
@@ -672,7 +838,7 @@ function renderTournamentScreen() {
 
     const wppFeedEl = document.getElementById("wpp-chat-feed");
     if (wppFeedEl && t.prep?.phase === "TEAM_CHAT") {
-      wppFeedEl.scrollTop = wppFeedEl.scrollHeight;
+      initWppChatSequence(wppFeedEl);
     }
 
     bindTournamentBracketModalEvents(null);

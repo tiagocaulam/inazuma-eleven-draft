@@ -8566,6 +8566,11 @@ function openPrepTeamChats(returnPhase = null) {
   if (activeObj && activeObj.interactionMode === "AUTO_COMPLETE" && !activeObj.resolved) {
     finalizeAutonomousTeamChat(activeObj.id, true);
   }
+  if (activeObj && !activeObj._openedOnce) {
+    activeObj._openedOnce = true;
+    activeObj._animFromIdx = 0;
+    activeObj._animMode = "OPEN";
+  }
   if (typeof saveActiveRunProgress === "function") saveActiveRunProgress();
   renderTournamentScreen();
 }
@@ -8578,6 +8583,11 @@ function selectPrepTeamChatThread(chatId) {
   prep.activeChatId = found.id;
   if (found.interactionMode === "AUTO_COMPLETE" && !found.resolved) {
     finalizeAutonomousTeamChat(found.id, true);
+  }
+  if (!found._openedOnce) {
+    found._openedOnce = true;
+    found._animFromIdx = 0;
+    found._animMode = "OPEN";
   }
   if (typeof saveActiveRunProgress === "function") saveActiveRunProgress();
   renderTournamentScreen();
@@ -8607,6 +8617,9 @@ function resolveSpontaneousTeamChat(chatId, choiceIdx) {
 
   const baseT = chat.baseTimeMin || 920;
   const curLen = chat.messages.length;
+  chat._openedOnce = true;
+  chat._animFromIdx = curLen;
+  chat._animMode = "REPLY";
   const isSilentIgnore = choice.quality === "IGNORE_SILENT";
   const coreCount = Number.isInteger(chat.coreCount) ? chat.coreCount : Math.min(3, (chat.participants || []).length || 2);
   let silentMatured = false;
@@ -10200,15 +10213,21 @@ function buildBetweenMatchPrepHTML(t, stats) {
             .join("") +
           (ptList.length > 4 ? `<span class="wpp-topbar-more">+${ptList.length - 4}</span>` : "");
         const senderPaletteClass = ["is-c0", "is-c1", "is-c2", "is-c3", "is-c4"];
+        const animFrom = Number.isInteger(activeChat._animFromIdx) ? activeChat._animFromIdx : -1;
+        const animMode = activeChat._animMode || "";
+        activeChat._animFromIdx = null;
+        activeChat._animMode = null;
 
         const feedHTML = (activeChat.messages || [])
-          .map((m) => {
+          .map((m, mIdx) => {
+            const hideCls = animFrom >= 0 && mIdx >= animFrom ? " is-wpp-hidden" : "";
+            const msgAttrs = `data-msg-idx="${mIdx}" data-msg-role="${escapeHtmlAttr(m.speakerRole || "PLAYER")}" data-speaker-name="${escapeHtmlAttr(m.speakerName || "")}" data-speaker-sprite="${escapeHtmlAttr(m.speakerSprite || "")}"`;
             if (m.speakerRole === "SYSTEM") {
-              return `<div class="wpp-sys-row"><span class="wpp-sys-pill">${m.text}</span></div>`;
+              return `<div class="wpp-sys-row${hideCls}" ${msgAttrs}><span class="wpp-sys-pill">${m.text}</span></div>`;
             }
             if (m.speakerRole === "COACH") {
               return `
-                <div class="wpp-row is-out">
+                <div class="wpp-row is-out${hideCls}" ${msgAttrs}>
                   <div class="wpp-bubble is-out">
                     <div class="wpp-bubble-text">${m.text}</div>
                     <div class="wpp-bubble-meta">
@@ -10230,7 +10249,7 @@ function buildBetweenMatchPrepHTML(t, stats) {
               : "";
             const toneBadge = m.tone === "toxic" ? " is-toxic" : m.tone === "hype" ? " is-hype" : m.tone === "idea" ? " is-idea" : "";
             return `
-              <div class="wpp-row is-in ${toneBadge}">
+              <div class="wpp-row is-in ${toneBadge}${hideCls}" ${msgAttrs}>
                 ${m.speakerSprite ? `<img class="wpp-msg-avatar" src="${m.speakerSprite}" alt="${m.speakerName}" />` : ""}
                 <div class="wpp-bubble is-in ${senderPaletteClass[cIdx]}">
                   <div class="wpp-msg-head">
@@ -10250,7 +10269,7 @@ function buildBetweenMatchPrepHTML(t, stats) {
 
         const coopBannerHTML = activeChat.learnedCoop?.learned
           ? `
-            <div class="synergy-coop-learned-banner">
+            <div id="wpp-coop-banner" class="synergy-coop-learned-banner${animFrom >= 0 ? " is-wpp-hidden" : ""}">
               <div style="font-size:0.7rem; font-weight:900; color:#fde047; text-transform:uppercase; letter-spacing:0.4px;">
                 ⚡ Nova Técnica em ${activeChat.learnedCoop.tier === "TRIO" ? "Trio" : "Dupla"} Desbloqueada!
               </div>
@@ -10295,7 +10314,7 @@ function buildBetweenMatchPrepHTML(t, stats) {
         const composerHTML = activeChat.resolved
           ? `
             <div class="wpp-composer-zone">
-              <div class="wpp-resolved-bar">
+              <div id="wpp-resolved-bar" class="wpp-resolved-bar${animFrom >= 0 ? " is-wpp-hidden" : ""}">
                 <div class="synergy-outcome-card ${qualCls}">${activeChat.outcomeSummary || ""}</div>
                 <div class="wpp-resolved-actions">
                   ${nextUnread
@@ -10315,7 +10334,7 @@ function buildBetweenMatchPrepHTML(t, stats) {
           `
           : `
             <div class="wpp-composer-zone">
-              <div class="wpp-reply-drawer">
+              <div id="wpp-reply-drawer" class="wpp-reply-drawer${animFrom >= 0 ? " is-wpp-hidden" : ""}">
                 ${(activeChat.choices || [])
                   .map(
                     (ch, idx) => `
@@ -10377,9 +10396,16 @@ function buildBetweenMatchPrepHTML(t, stats) {
                   <span class="synergy-climate-badge ${activeChat.badgeClass || "is-neutral"}">${activeChat.categoryIcon || "💬"} ${activeChat.categoryLabel || "Resenha"}</span>
                 </div>
               </div>
-              <div class="wpp-feed" id="wpp-chat-feed">
+              <div class="wpp-feed" id="wpp-chat-feed" data-anim-from="${animFrom}" data-anim-mode="${animMode}">
                 <div class="wpp-sys-row"><span class="wpp-sys-pill is-date">HOJE • PRÉ-JOGO VS ${String(activeChat.oppName || "RIVAL").toUpperCase()}</span></div>
                 ${feedHTML}
+                <div class="wpp-typing-row" id="wpp-typing-indicator" style="display:none;">
+                  <img class="wpp-msg-avatar wpp-typing-avatar" id="wpp-typing-avatar" src="" alt="" style="display:none;" />
+                  <div class="wpp-typing-bubble">
+                    <span class="wpp-typing-name" id="wpp-typing-name">Digitando</span>
+                    <span class="wpp-typing-dots" aria-hidden="true"><span></span><span></span><span></span></span>
+                  </div>
+                </div>
                 ${coopBannerHTML}
               </div>
               ${composerHTML}
