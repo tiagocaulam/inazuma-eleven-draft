@@ -1775,7 +1775,7 @@ function applyPrepCollectiveEvent(event) {
       boosted.push(`${pair.pA.name} &amp; ${pair.pB.name}`);
     });
     if (typeof spawnSpontaneousTeamChat === "function") {
-      spawnSpontaneousTeamChat(t, "CRIAR_TECNICA");
+      spawnSpontaneousTeamChat(t, "CRIAR_TECNICA", { allowBonusCap: true });
     }
     if (boosted.length > 0) {
       synergyExtraMsg = ` • <span class="b-tech">+22 Sintonia</span> (${boosted.join(", ")})`;
@@ -2145,20 +2145,45 @@ function getSquadChatActors(t = state.tournament) {
   return out;
 }
 
-function pickChatActorsByPredicates(actors, specs = []) {
+function pickChatActorsByPredicates(actors, specs = [], t = state.tournament) {
   if (!Array.isArray(actors) || actors.length < 2) return [];
   const picked = [];
   const used = new Set();
+  const counts = t && typeof t.chatActorCounts === "object" && t.chatActorCounts ? t.chatActorCounts : {};
+  const lastSet = new Set(Array.isArray(t?.lastChatActorIds) ? t.lastChatActorIds : []);
+  const roundSet = new Set();
+  if (Array.isArray(t?.prep?.teamChats)) {
+    t.prep.teamChats.forEach((ch) => {
+      (ch.participants || []).forEach((pt) => {
+        if (pt?.id) roundSet.add(pt.id);
+      });
+    });
+  }
+
+  const pickBestFromPool = (pool) => {
+    if (!pool || pool.length === 0) return null;
+    const scored = pool.map((a) => {
+      const c = counts[a.id] || 0;
+      const penLast = lastSet.has(a.id) ? 16 : 0;
+      const penRound = roundSet.has(a.id) ? 10 : 0;
+      // Menor score = apareceu menos recentemente (com leve aleatoriedade para naturalidade)
+      return { actor: a, score: c * 11 + penLast + penRound + Math.random() * 6.5 };
+    });
+    scored.sort((x, y) => x.score - y.score);
+    return scored[0].actor;
+  };
+
   const tryPick = (predFn, roleFallback = null) => {
     const avail = actors.filter((a) => !used.has(a.slotId));
     if (avail.length === 0) return null;
-    let found = predFn ? avail.find((a) => predFn(a, picked)) : null;
-    if (!found && roleFallback) {
-      found = avail.find((a) => a.role === roleFallback);
+    let pool = predFn ? avail.filter((a) => predFn(a, picked)) : [];
+    if (pool.length === 0 && roleFallback) {
+      pool = avail.filter((a) => a.role === roleFallback);
     }
-    if (!found) {
-      found = avail[Math.floor(Math.random() * avail.length)];
+    if (pool.length === 0) {
+      pool = avail;
     }
+    const found = pickBestFromPool(pool);
     if (found) {
       used.add(found.slotId);
       picked.push(found);
@@ -5856,6 +5881,911 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
   )
 ];
 
+function mkAutoChatTemplate(cfg) {
+  const catMeta = {
+    RAIVA: { label: "Desentendimento", icon: "💢", badge: "is-tense" },
+    CRIAR_TECNICA: { label: "Inovação", icon: "⚡", badge: "is-idea" },
+    ELOGIO: { label: "Sintonia", icon: "🤝", badge: "is-warm" },
+    TATICA_RIVAL: { label: "Análise", icon: "📋", badge: "is-neutral" },
+    RESENHA: { label: "Achado / Resenha", icon: "🎁", badge: "is-warm" }
+  }[cfg.category] || { label: "Vestiário", icon: "💬", badge: "is-neutral" };
+  return {
+    id: cfg.id,
+    interactionMode: "AUTO_COMPLETE",
+    category: cfg.category,
+    categoryLabel: cfg.categoryLabel || catMeta.label,
+    categoryIcon: cfg.categoryIcon || catMeta.icon,
+    badgeClass: cfg.badgeClass || catMeta.badge,
+    title: cfg.title,
+    pickActors: (actors, t) => pickChatActorsByPredicates(actors, cfg.actorSpecs, t),
+    buildDialogue: (a, ctx) => cfg.dialogue(a, ctx).map((m) => mkSpontaneousMsg(a, m.idx, m.text, m.tone || "normal", m.quote ? { quote: m.quote } : {})),
+    buildChoices: () => [],
+    buildAutoOutcome: (a, ctx) => cfg.outcome(a, ctx)
+  };
+}
+
+function mkDilemmaChatTemplate(cfg) {
+  const catMeta = {
+    RAIVA: { label: "Desentendimento", icon: "💢", badge: "is-tense" },
+    CRIAR_TECNICA: { label: "Debate Técnico", icon: "⚡", badge: "is-idea" },
+    ELOGIO: { label: "Liderança", icon: "⚖️", badge: "is-warm" },
+    TATICA_RIVAL: { label: "Dilema Tático", icon: "📋", badge: "is-neutral" },
+    RESENHA: { label: "Vestiário", icon: "⚖️", badge: "is-neutral" }
+  }[cfg.category] || { label: "Dilema", icon: "⚖️", badge: "is-neutral" };
+  return {
+    id: cfg.id,
+    interactionMode: "DILEMMA",
+    category: cfg.category,
+    categoryLabel: cfg.categoryLabel || catMeta.label,
+    categoryIcon: cfg.categoryIcon || catMeta.icon,
+    badgeClass: cfg.badgeClass || catMeta.badge,
+    title: cfg.title,
+    pickActors: (actors, t) => pickChatActorsByPredicates(actors, cfg.actorSpecs, t),
+    buildDialogue: (a, ctx) => cfg.dialogue(a, ctx).map((m) => mkSpontaneousMsg(a, m.idx, m.text, m.tone || "normal", m.quote ? { quote: m.quote } : {})),
+    buildChoices: (a, ctx) => {
+      const list = cfg.options(a, ctx).map((opt) => ({
+        label: opt.label,
+        approachTag: opt.approachTag || "Escolha",
+        configTag: opt.tacticsPatch ? describeChatTacticsPatch(opt.tacticsPatch, a, ctx) : "",
+        tacticsPatch: opt.tacticsPatch || null,
+        quality: "TRADEOFF",
+        customEffects: opt.effects || {},
+        coachLine: opt.coachLine,
+        reactions: (opt.reactions || []).map((r) => mkSpontaneousMsg(a, r.idx, r.text, r.tone || "normal"))
+      }));
+      for (let i = list.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [list[i], list[j]] = [list[j], list[i]];
+      }
+      return list;
+    }
+  };
+}
+
+SPONTANEOUS_CHAT_TEMPLATES.push(
+  // ===== 16 CONVERSAS COMPLETAS AUTOMÁTICAS (SEM PRECISAR DE RESPOSTA) =====
+  mkAutoChatTemplate({
+    id: "auto_found_boots_river",
+    category: "RESENHA",
+    categoryIcon: "🎁",
+    title: "Achado na Margem do Rio",
+    actorSpecs: [{ role: "FW" }, { role: "MF" }],
+    dialogue: (a) => [
+      { idx: 0, text: `Ei ${a[1].name}, olha o que tava numa caixa esquecida perto da arquibancada do campinho!` },
+      { idx: 1, text: `Mentira... isso é um par de Chuteiras do Relâmpago novinho?! Perguntei pro zelador e ele disse que deixaram de doação pro clube!`, tone: "hype" },
+      { idx: 0, text: `Ficou do meu tamanho certinho! Sente só a leveza disso no arranque.`, tone: "hype" },
+      { idx: 1, text: `Agora ninguém te alcança na corrida. Bora estrear no próximo jogo!`, quote: { speakerName: a[0].name, text: "Ficou do meu tamanho certinho!" } }
+    ],
+    outcome: (a) => ({
+      kind: "FOUND_ITEM",
+      itemId: "shoes_thunder",
+      targetActorIdx: 0,
+      headline: `🎁 ${a[0].name} encontrou um equipamento!`,
+      note: "Acharam chuteiras novas na Margem do Rio",
+      affPts: 14,
+      chemDelta: 1
+    })
+  }),
+  mkAutoChatTemplate({
+    id: "auto_found_gloves_locker",
+    category: "RESENHA",
+    categoryIcon: "🧤",
+    title: "Armário Antigo do Clube",
+    actorSpecs: [{ role: "GK" }, { role: "DF" }],
+    dialogue: (a) => [
+      { idx: 1, text: `${a[0].name}, fui limpar o fundo do armário de materiais e achei uma maleta antiga da Raimon.` },
+      { idx: 0, text: `O que tinha dentro?! Não me diga que são aquelas luvas reforçadas que o pessoal comentava!`, tone: "hype" },
+      { idx: 1, text: `Exatamente! Estão intactas, só precisavam de uma limpeza. São suas, muralha.`, tone: "hype" },
+      { idx: 0, text: `Caramba, valeu demais ${a[1].name}! Com essa aderência não passa nem vento!`, tone: "hype" }
+    ],
+    outcome: (a) => ({
+      kind: "FOUND_ITEM",
+      itemId: "glove_legend",
+      targetActorIdx: 0,
+      headline: `🧤 Relíquia encontrada no vestiário!`,
+      note: `${a[1].name} encontrou luvas reforçadas para ${a[0].name}`,
+      affPts: 16,
+      chemDelta: 2
+    })
+  }),
+  mkAutoChatTemplate({
+    id: "auto_found_misanga_bag",
+    category: "ELOGIO",
+    categoryIcon: "🎁",
+    title: "Surpresa na Mochila",
+    actorSpecs: [{ role: "MF" }, { role: "DF" }, { role: "FW" }],
+    dialogue: (a) => [
+      { idx: 0, text: `Gente, quem colocou uma pulseira trançada com as cores do time dentro da minha chuteira?` },
+      { idx: 1, text: `Fui eu e o ${a[2].name}! A gente viu que você tava puxando o ritmo todo dia e quis dar um amuleto de sorte.` },
+      { idx: 2, text: `Usa no próximo jogo que o passe vai sair teleguiado, confia!`, tone: "hype" },
+      { idx: 0, text: `Pô, que massa... valeu mesmo, rapaziada! Agora eu corro o dobro por vocês!`, tone: "hype" }
+    ],
+    outcome: (a) => ({
+      kind: "FOUND_ITEM",
+      itemId: "misanga_friend",
+      targetActorIdx: 0,
+      headline: `🎁 Presente entre companheiros!`,
+      note: `${a[0].name} recebeu um amuleto especial do grupo`,
+      affPts: 20,
+      chemDelta: 2
+    })
+  }),
+  mkAutoChatTemplate({
+    id: "auto_found_spike_training",
+    category: "RESENHA",
+    categoryIcon: "🛡️",
+    title: "Equipamento Esquecido no Depósito",
+    actorSpecs: [{ role: "DF" }, { role: "MF" }],
+    dialogue: (a) => [
+      { idx: 0, text: `Achei um par de caneleiras de bloqueio pesadas lá no depósito do ginásio.` },
+      { idx: 1, text: `Sério? Essas travam qualquer dividida dura! Testa aí no treino.` },
+      { idx: 0, text: `Testei agora num bote — nem senti o impacto. Vou levar pro jogo!`, tone: "hype" },
+      { idx: 1, text: `Boa! Vai sobrar menos trabalho pro nosso goleiro.` }
+    ],
+    outcome: (a) => ({
+      kind: "FOUND_ITEM",
+      itemId: "spike_block",
+      targetActorIdx: 0,
+      headline: `🛡️ Equipamento defensivo recuperado!`,
+      note: `${a[0].name} reforçou a proteção para os duelos`,
+      affPts: 12,
+      xpAmt: 20
+    })
+  }),
+  mkAutoChatTemplate({
+    id: "auto_found_armband_field",
+    category: "ELOGIO",
+    categoryIcon: "⭐",
+    title: "Herança de Capitão",
+    actorSpecs: [{ role: "MF" }, { role: "GK" }],
+    dialogue: (a) => [
+      { idx: 1, text: `${a[0].name}, o ex-treinador da escola passou aqui mais cedo e deixou essa braçadeira pra alguém que organiza o time.` },
+      { idx: 0, text: `Pra mim? Mas tem tanta gente boa no elenco...` },
+      { idx: 1, text: `Todo mundo te escuta quando o jogo aperta. Coloca no braço e puxa a fila!`, tone: "hype" },
+      { idx: 0, text: `Fechado. Não vou decepcionar ninguém aqui.` }
+    ],
+    outcome: (a) => ({
+      kind: "FOUND_ITEM",
+      itemId: "captain_armband",
+      targetActorIdx: 0,
+      headline: `⭐ Item de liderança conquistado!`,
+      note: `${a[0].name} ganhou respeito extra no vestiário`,
+      affPts: 18,
+      chemDelta: 2
+    })
+  }),
+  mkAutoChatTemplate({
+    id: "auto_found_legend_boots",
+    category: "RESENHA",
+    categoryIcon: "👟",
+    title: "Encomenda Misteriosa",
+    actorSpecs: [{ role: "FW" }, { role: "DF" }],
+    dialogue: (a) => [
+      { idx: 1, text: `Chegou uma caixa na portaria com o nome do nosso time e um bilhete: "Pro artilheiro que não desiste".` },
+      { idx: 0, text: `Olha o acabamento dessas travas... é edição lendária! Quem mandou isso?`, tone: "hype" },
+      { idx: 1, text: `Sem remetente, só um raio desenhado no papel. Bota no pé e faz gol pra agradecer!`, tone: "hype" },
+      { idx: 0, text: `Pode deixar comigo!`, tone: "hype" }
+    ],
+    outcome: (a) => ({
+      kind: "FOUND_ITEM",
+      itemId: "shoes_legend",
+      targetActorIdx: 0,
+      headline: `👟 Presente misterioso para o ataque!`,
+      note: `${a[0].name} recebeu chuteiras de alto nível`,
+      affPts: 14,
+      pwrDelta: 6
+    })
+  }),
+  mkAutoChatTemplate({
+    id: "auto_coop_late_night",
+    category: "CRIAR_TECNICA",
+    categoryIcon: "⚡",
+    title: "Virada de Noite no Campinho",
+    actorSpecs: [{ role: "FW" }, { role: "MF" }],
+    dialogue: (a) => [
+      { idx: 0, text: `Ficamos até escurecer repetindo aquele passe com giro e... CARA, finalmente encaixou!` },
+      { idx: 1, text: `Quando você girou no ar depois do meu toque por cima, a bola rasgou a rede de treino!`, tone: "hype" },
+      { idx: 0, text: `A gente nem precisou pedir pro técnico — nasceu no instinto puro!`, tone: "hype" },
+      { idx: 1, text: `Só guarda segredo até entrar em campo contra ${a[0].name ? "o próximo rival" : "eles"}!` }
+    ],
+    outcome: () => ({
+      kind: "COOP_BREAKTHROUGH",
+      headline: `⚡ Descoberta espontânea no campinho!`,
+      note: "A dupla lapidou uma jogada combinada por conta própria",
+      affPts: 24,
+      xpAmt: 30,
+      buffType: "COOP_SYNC"
+    })
+  }),
+  mkAutoChatTemplate({
+    id: "auto_coop_improvised_trio",
+    category: "CRIAR_TECNICA",
+    categoryIcon: "⚡",
+    title: "Triangulação de Aquecimento",
+    actorSpecs: [{ role: "FW" }, { role: "MF" }, { role: "DF" }],
+    dialogue: (a) => [
+      { idx: 2, text: `Vocês viram o que saiu agora no bobinho de aquecimento?!` },
+      { idx: 1, text: `Eu dei de letra, você lançou por cima e o ${a[0].name} pegou de primeira sem deixar cair!`, tone: "hype" },
+      { idx: 0, text: `Se a gente repetir essa sequência no jogo real, o goleiro deles nem vê a cor da bola!`, tone: "hype" },
+      { idx: 2, text: `Bora batizar essa jogada de vez!` }
+    ],
+    outcome: () => ({
+      kind: "COOP_BREAKTHROUGH",
+      headline: `⚡ Trio em sintonia absurda!`,
+      note: "Uma triangulação improvisada virou arma real do time",
+      affPts: 22,
+      chemDelta: 2,
+      buffType: "COOP_SYNC"
+    })
+  }),
+  mkAutoChatTemplate({
+    id: "auto_coop_aerial_click",
+    category: "CRIAR_TECNICA",
+    categoryIcon: "✈️",
+    title: "Tempo de Bola Perfeito",
+    actorSpecs: [{ role: "MF" }, { role: "FW" }],
+    dialogue: (a) => [
+      { idx: 0, text: `Consegui pegar o tempo exato da sua passada na bola alta, ${a[1].name}.` },
+      { idx: 1, text: `Percebi! Nos últimos três cruzamentos eu nem precisei frear, só ataquei a bola no ponto mais alto.`, tone: "hype" },
+      { idx: 0, text: `Agora quando eu levantar a mão esquerda, já sabe que vai vir com efeito por cima do zagueiro.`, tone: "hype" },
+      { idx: 1, text: `Combinado! Vai ser gol certo!` }
+    ],
+    outcome: () => ({
+      kind: "COOP_BREAKTHROUGH",
+      headline: `✈️ Conexão aérea afinada!`,
+      note: "Passe por cima e finalização ficaram sincronizados",
+      affPts: 20,
+      xpAmt: 25,
+      buffType: "COOP_SYNC"
+    })
+  }),
+  mkAutoChatTemplate({
+    id: "auto_drama_cold_shoulder",
+    category: "RAIVA",
+    categoryIcon: "💢",
+    title: "Clima Pesado no Corredor",
+    actorSpecs: [{ role: "FW" }, { role: "MF" }],
+    dialogue: (a) => [
+      { idx: 0, text: `Na moral ${a[1].name}, no último treino você segurou a bola 3 vezes comigo livre. Tá de sacanagem?`, tone: "toxic" },
+      { idx: 1, text: `Eu não toco pra quem fica parado reclamando em vez de dar opção. Quer bola? Corre.`, tone: "toxic", quote: { speakerName: a[0].name, text: "você segurou a bola 3 vezes comigo livre" } },
+      { idx: 0, text: `Beleza então. No jogo eu resolvo sozinho e você vê de longe.`, tone: "toxic" },
+      { idx: 1, text: `Quero só ver.` }
+    ],
+    outcome: () => ({
+      kind: "TENSION_FALLOUT",
+      tone: "POOR",
+      headline: `💢 Discussão sem acordo no vestiário`,
+      note: "O clima esfriou, mas ambos entraram mordidos para provar valor",
+      affPts: -10,
+      chemDelta: -3,
+      buffType: "BLOOD_FOCUS"
+    })
+  }),
+  mkAutoChatTemplate({
+    id: "auto_drama_steal_spotlight",
+    category: "RAIVA",
+    categoryIcon: "😤",
+    title: "Ciúme da Entrevista",
+    actorSpecs: [{ role: "FW" }, { role: "DF" }],
+    dialogue: (a) => [
+      { idx: 1, text: `Vi o jornal da escola hoje... você falou que "decidiu o jogo sozinho", ${a[0].name}. E a gente lá atrás se matando?`, tone: "toxic" },
+      { idx: 0, text: `Ué, o repórter perguntou do gol! Não tenho culpa se ninguém pergunta de carrinho.`, tone: "toxic" },
+      { idx: 1, text: `Tranquilo. Da próxima vez vamos ver se você faz gol sem a gente recuperar a bola.`, tone: "toxic" },
+      { idx: 0, text: `Relaxa, vou fazer dois pra ninguém ter dúvida.` }
+    ],
+    outcome: () => ({
+      kind: "TENSION_FALLOUT",
+      tone: "POOR",
+      headline: `😤 Atrito de ego entre ataque e defesa`,
+      note: "A sintonia caiu um pouco, mas o orgulho elevou o foco competitivo",
+      affPts: -8,
+      chemDelta: -2,
+      pwrDelta: 10
+    })
+  }),
+  mkAutoChatTemplate({
+    id: "auto_drama_blamed_goal",
+    category: "RAIVA",
+    categoryIcon: "🔥",
+    title: "Bate-Boca Pós-Treino",
+    actorSpecs: [{ role: "GK" }, { role: "DF" }],
+    dialogue: (a) => [
+      { idx: 0, text: `${a[1].name}, se você abrir a barreira daquele jeito de novo no jogo real, a gente vai tomar goleada!`, tone: "toxic" },
+      { idx: 1, text: `E se você gritasse antes em vez de reclamar depois que a bola entra, ajudava também!`, tone: "toxic" },
+      { idx: 0, text: `Tsc... vou treinar reflexo sozinho então.`, tone: "toxic" },
+      { idx: 1, text: `E eu vou rever o posicionamento. Mas para de dar chilique no grupo.` }
+    ],
+    outcome: () => ({
+      kind: "TENSION_FALLOUT",
+      tone: "POOR",
+      headline: `🔥 Cobrança áspera no setor defensivo`,
+      note: "Sairam emburrados, mas revisaram os próprios erros no treino",
+      affPts: -7,
+      chemDelta: -2,
+      xpAmt: 30
+    })
+  }),
+  mkAutoChatTemplate({
+    id: "auto_bond_ramen_night",
+    category: "RESENHA",
+    categoryIcon: "🍜",
+    title: "Lámen Depois do Treino",
+    actorSpecs: [{ role: "DF" }, { role: "MF" }, { role: "GK" }],
+    dialogue: (a) => [
+      { idx: 0, text: `Quem topa passar na barraca de lámen da estação antes de ir dormir? Eu pago o caldo extra!` },
+      { idx: 2, text: `Tô dentro! Depois daquele treino puxado eu como duas tigelas fácil kkk`, tone: "hype" },
+      { idx: 1, text: `Partiu! Só não deixa o ${a[2].name} pedir pimenta nível máximo igual semana passada.`, quote: { speakerName: a[2].name, text: "eu como duas tigelas fácil kkk" } },
+      { idx: 2, text: `Aquela vez foi acidente tático!! 😂` }
+    ],
+    outcome: () => ({
+      kind: "CHEMISTRY_BOND",
+      headline: `🍜 Noite de lámen fortaleceu o grupo!`,
+      note: "Voltaram descansados, rindo e muito mais entrosados",
+      affPts: 24,
+      chemDelta: 3,
+      energyDelta: 5,
+      buffType: "LIGHT_LOCKER"
+    })
+  }),
+  mkAutoChatTemplate({
+    id: "auto_bond_funny_blunder",
+    category: "ELOGIO",
+    categoryIcon: "😂",
+    title: "Vídeo do Escorregão",
+    actorSpecs: [{ role: "FW" }, { role: "GK" }],
+    dialogue: (a) => [
+      { idx: 1, text: `Gente, eu salvei o replay do ${a[0].name} tentando dar bicicleta e caindo sentado na lama kkkk` },
+      { idx: 0, text: `APAGA ISSO AGORA!! 😂 Pelo menos eu levantei e fiz o gol no rebote!`, tone: "hype" },
+      { idx: 1, text: `Pior que foi! Esse teu espírito de nunca desistir contagia todo mundo aqui, sério mesmo.` },
+      { idx: 0, text: `Valeu ${a[1].name}! Mas se vazar esse vídeo eu chuto 50 bombas no teu treino amanhã kkk` }
+    ],
+    outcome: () => ({
+      kind: "CHEMISTRY_BOND",
+      headline: `😂 Zoeira virou moral lá em cima!`,
+      note: "O bom humor aliviou a pressão antes da partida",
+      affPts: 22,
+      chemDelta: 3,
+      buffType: "MORALE_BOOST"
+    })
+  }),
+  mkAutoChatTemplate({
+    id: "auto_tactic_self_mark",
+    category: "TATICA_RIVAL",
+    categoryIcon: "🎯",
+    title: "Dossiê do Craque Rival",
+    actorSpecs: [{ role: "DF" }, { role: "MF" }],
+    dialogue: (a, ctx) => [
+      { idx: 1, text: `${a[0].name}, assisti dois jogos do ${ctx.oppName}. Quase todas as jogadas passam pelo ${ctx.rivalStar?.name || "camisa 10 deles"}.` },
+      { idx: 0, text: `Reparei nisso também! Ele sempre corta pra perna boa antes de puxar a técnica.` },
+      { idx: 1, text: `Se a gente grudar nele desde o apito inicial, o time deles trava inteiro.`, tone: "hype" },
+      { idx: 0, text: `Fechado! Já anotei aqui: vou fazer sombra nele o jogo todo.` }
+    ],
+    outcome: (a, ctx) => ({
+      kind: "SELF_TACTIC",
+      headline: `🎯 Dupla fechou plano anti-${ctx.rivalStar?.name || "Rival"}!`,
+      note: "Combinaram marcação especial por iniciativa própria",
+      affPts: 16,
+      tacticsPatch: { markRival: true },
+      buffType: "RIVAL_READ"
+    })
+  }),
+  mkAutoChatTemplate({
+    id: "auto_secret_dawn_drill",
+    category: "ELOGIO",
+    categoryIcon: "🌅",
+    title: "Treino às 5 da Manhã",
+    actorSpecs: [{ role: "FW" }, { role: "MF" }],
+    dialogue: (a) => [
+      { idx: 0, text: `Achei que só eu era doido de aparecer no campo antes do sol nascer, ${a[1].name}.` },
+      { idx: 1, text: `Não consegui dormir pensando no próximo jogo. Já que estamos aqui, bora fazer 30 finalizações?` },
+      { idx: 0, text: `Bora! A perna tá pesando um pouco, mas o chute tá saindo um canhão!`, tone: "hype" },
+      { idx: 1, text: `Esse esforço extra vai fazer diferença nos minutos finais.` }
+    ],
+    outcome: () => ({
+      kind: "SECRET_TRAINING",
+      headline: `🌅 Treino secreto na madrugada!`,
+      note: "Ganharam ritmo e força extra, pagando um leve cansaço",
+      affPts: 18,
+      xpAmt: 55,
+      pwrDelta: 12,
+      energyDelta: -4
+    })
+  }),
+
+  // ===== 12 DILEMAS / DESENTENDIMENTOS SEM "RESPOSTA CERTA" (TRADE-OFFS REAIS) =====
+  mkDilemmaChatTemplate({
+    id: "dilemma_ego_striker_vs_mid",
+    category: "RAIVA",
+    title: "Briga: Fominha ou Lento?",
+    actorSpecs: [{ role: "FW" }, { role: "MF" }],
+    dialogue: (a) => [
+      { idx: 0, text: `Técnico, na boa: o ${a[1].name} demora uma eternidade pra soltar a bola! Quando chega em mim já tem dois zagueiros.`, tone: "toxic" },
+      { idx: 1, text: `Você que sai correndo de cabeça baixa sem olhar o espaço! Se eu chutar de qualquer jeito vira contra-ataque deles.`, tone: "toxic", quote: { speakerName: a[0].name, text: "demora uma eternidade pra soltar a bola!" } },
+      { idx: 0, text: `Então decide aí, professor: a gente joga rápido pra decidir ou fica tocando de lado?` }
+    ],
+    options: (a) => [
+      {
+        label: `Dar razão a ${a[0].name}: jogo direto nele como Camisa 10`,
+        approachTag: "+Ataque / -Sintonia",
+        tacticsPatch: { style: "vertical", aceActorIdx: 0 },
+        effects: { pwrDelta: 12, affPts: -6, chemDelta: -1, buffType: "BLOOD_FOCUS", note: `${a[0].name} assume o protagonismo` },
+        coachLine: `Quero bola rápida no ${a[0].name}. ${a[1].name}, acelera esse passe!`,
+        reactions: [
+          { idx: 0, text: `É disso que eu tô falando! Pode deixar que eu resolvo!`, tone: "hype" },
+          { idx: 1, text: `Certo... vou soltar mais rápido, mesmo que arrisque perder a posse.`, tone: "tense" }
+        ]
+      },
+      {
+        label: `Dar razão a ${a[1].name}: valorizar a posse e paciência`,
+        approachTag: "+Química / +Posse",
+        tacticsPatch: { style: "possession" },
+        effects: { affPts: 10, chemDelta: 3, pwrDelta: 0, buffType: "RIVAL_READ", note: "Mais controle no meio, menos explosão" },
+        coachLine: `${a[1].name} tem razão: sem pressa boba. ${a[0].name}, melhora sua movimentação!`,
+        reactions: [
+          { idx: 1, text: `Obrigado, professor. Assim a bola chega limpa.`, tone: "hype" },
+          { idx: 0, text: `Tsc... beleza, mas se não chegar bola eu vou cobrar de novo.`, tone: "tense" }
+        ]
+      },
+      {
+        label: `Cobrar os dois pesado e exigir intensidade máxima`,
+        approachTag: "+Duelo / -Energia",
+        tacticsPatch: { intensity: "high" },
+        effects: { pwrDelta: 10, xpAmt: 35, energyDelta: -5, affPts: 4, buffType: "BLOOD_FOCUS", note: "Tensão virou ritmo frenético" },
+        coachLine: `Chega de desculpa dos dois! Quero pressão alta e intensidade máxima de ambos!`,
+        reactions: [
+          { idx: 0, text: `Justo. Vou correr o dobro então.` },
+          { idx: 1, text: `Fechado. Vai cansar, mas vamos engolir o meio deles.` }
+        ]
+      }
+    ]
+  }),
+  mkDilemmaChatTemplate({
+    id: "dilemma_gk_blames_def",
+    category: "RAIVA",
+    title: "Bronca do Goleiro na Zaga",
+    actorSpecs: [{ role: "GK" }, { role: "DF" }, { role: "DF" }],
+    dialogue: (a) => [
+      { idx: 0, text: `Vocês dois precisam acordar! Tô levando chute cara a cara todo treino porque sobem demais!`, tone: "toxic" },
+      { idx: 1, text: `A gente sobe pra pressionar! Se ficar colado na área vamos jogar sufocados o tempo todo.`, tone: "toxic" },
+      { idx: 2, text: `Professor, ou a gente fecha a casinha ou assume o risco lá na frente. Qual vai ser?` }
+    ],
+    options: (a) => [
+      {
+        label: `Apoiar ${a[0].name}: recuar a linha e travar a defesa`,
+        approachTag: "Recuado / +Defesa",
+        tacticsPatch: { posture: "defensive", hissatsuTactic: "catenaccio" },
+        effects: { chemDelta: 2, affPts: 8, pwrDelta: 6, buffType: "RIVAL_READ", note: "Defesa blindada, ataque mais isolado" },
+        coachLine: `${a[0].name} está certo. Próximo jogo é linha baixa e Catenaccio fechado!`,
+        reactions: [
+          { idx: 0, text: `Agora sim! Ninguém passa da nossa área.`, tone: "hype" },
+          { idx: 1, text: `Tudo bem, vamos segurar lá atrás então.` }
+        ]
+      },
+      {
+        label: `Apoiar a zaga: manter linha alta e coragem ofensiva`,
+        approachTag: "Avançado / +Poder",
+        tacticsPatch: { posture: "offensive" },
+        effects: { pwrDelta: 14, affPts: -4, xpAmt: 25, buffType: "BLOOD_FOCUS", note: "Time mais agressivo, goleiro exigido" },
+        coachLine: `Prefiro errar atacando! ${a[0].name}, confia na sua defesa e esteja pronto pro mano a mano!`,
+        reactions: [
+          { idx: 1, text: `Boa, professor! Vamos sufocar eles no campo deles!`, tone: "hype" },
+          { idx: 0, text: `Beleza... então vou ter que fazer milagre mesmo.`, tone: "tense" }
+        ]
+      },
+      {
+        label: `Acalmar os ânimos e equilibrar a cobertura`,
+        approachTag: "Equilibrado / +Sintonia",
+        tacticsPatch: { posture: "balanced" },
+        effects: { affPts: 14, chemDelta: 2, energyDelta: 3, note: "Menos atrito, postura neutra" },
+        coachLine: `Sem apontar dedo. Um sobe, o outro faz a sobra, e ${a[0].name} orienta na calma.`,
+        reactions: [
+          { idx: 2, text: `Faz sentido, assim ninguém fica exposto.` },
+          { idx: 0, text: `Combinado. Vou avisar antes de gritar.` }
+        ]
+      }
+    ]
+  }),
+  mkDilemmaChatTemplate({
+    id: "dilemma_captain_dispute",
+    category: "ELOGIO",
+    title: "Dois Estilos de Liderança",
+    actorSpecs: [{ role: "MF" }, { role: "DF" }],
+    dialogue: (a) => [
+      { idx: 0, text: `Acho que a gente tá leve demais antes dos jogos. Precisamos de alguém cobrando forte no vestiário.` },
+      { idx: 1, text: `Discordo, ${a[0].name}. Se ficar dando bronca antes do apito o pessoal entra travado. Liderança é dar confiança.` },
+      { idx: 0, text: `Técnico, quem você quer puxando a braçadeira e ditando o clima no próximo jogo?` }
+    ],
+    options: (a) => [
+      {
+        label: `Passar a faixa para ${a[0].name} (liderança exigente)`,
+        approachTag: "Cap. Firme / +Duelo",
+        tacticsPatch: { captainActorIdx: 0, intensity: "high" },
+        effects: { pwrDelta: 12, energyDelta: -4, affPts: 4, buffType: "BLOOD_FOCUS", note: "Cobrança alta e foco total" },
+        coachLine: `${a[0].name} vai de capitão. Quero postura firme e cobrança do primeiro ao último minuto!`,
+        reactions: [
+          { idx: 0, text: `Pode deixar. Ninguém vai tirar o pé.`, tone: "hype" },
+          { idx: 1, text: `Beleza, respeito a decisão. Vou ajudar a equilibrar o grupo.` }
+        ]
+      },
+      {
+        label: `Passar a faixa para ${a[1].name} (liderança acolhedora)`,
+        approachTag: "Cap. Leve / +Energia",
+        tacticsPatch: { captainActorIdx: 1, intensity: "medium" },
+        effects: { chemDelta: 3, affPts: 12, energyDelta: 4, buffType: "LIGHT_LOCKER", note: "Vestiário unido e leve" },
+        coachLine: `${a[1].name} assume a braçadeira. Quero o elenco confiante e jogando solto!`,
+        reactions: [
+          { idx: 1, text: `Valeu, professor! Vamos jogar juntos e felizes.`, tone: "hype" },
+          { idx: 0, text: `Ok... se a intensidade cair eu dou um toque.` }
+        ]
+      },
+      {
+        label: `Manter a faixa atual e pedir que os dois se complementem`,
+        approachTag: "+Sintonia / Neutro",
+        effects: { affPts: 16, xpAmt: 25, chemDelta: 1, note: "Sem mudança de capitão, mais entrosamento" },
+        coachLine: `Um cobra e o outro acolhe — o time precisa das duas vozes juntas.`,
+        reactions: [
+          { idx: 0, text: `Justo. Eu aperto, ele acalma.` },
+          { idx: 1, text: `Dupla de polícia boa e polícia má kkk fechado!` }
+        ]
+      }
+    ]
+  }),
+  mkDilemmaChatTemplate({
+    id: "dilemma_rest_or_grind",
+    category: "RESENHA",
+    title: "Treino Extra ou Descanso?",
+    actorSpecs: [{ role: "FW" }, { role: "MF" }, { role: "DF" }],
+    dialogue: (a, ctx) => [
+      { idx: 0, text: `O ${ctx.oppName} vem forte. Quero puxar mais uma hora de treino físico hoje à noite!` },
+      { idx: 2, text: `Tá maluco?! Minha perna já tá gritando. Se a gente forçar agora vamos chegar mortos no jogo.`, tone: "tense" },
+      { idx: 1, text: `Professor, a gente puxa no limite ou segura o fôlego pro jogo?` }
+    ],
+    options: () => [
+      {
+        label: `Puxar treino pesado: ganhar força mesmo cansando`,
+        approachTag: "+XP +Poder / -Energia",
+        tacticsPatch: { intensity: "high" },
+        effects: { xpAmt: 55, pwrDelta: 14, energyDelta: -8, affPts: 6, note: "Elenco mais forte, porém mais cansado" },
+        coachLine: `Quem quer título aguenta o tranco! Mais 40 minutos de treino intenso agora!`,
+        reactions: [
+          { idx: 0, text: `Isso!! Vamos ficar monstros!`, tone: "hype" },
+          { idx: 2, text: `Ai minhas pernas... tá bom, bora lá.`, tone: "tense" }
+        ]
+      },
+      {
+        label: `Liberar descanso total: preservar fôlego para a partida`,
+        approachTag: "+Energia / +Leveza",
+        tacticsPatch: { intensity: "low" },
+        effects: { energyDelta: 10, chemDelta: 2, affPts: 10, buffType: "LIGHT_LOCKER", note: "Fôlego renovado, menos ritmo" },
+        coachLine: `Todo mundo pro descanso! Quero perna fresca na hora que a bola rolar.`,
+        reactions: [
+          { idx: 2, text: `Obrigado, professor!! Vou dormir igual pedra.`, tone: "hype" },
+          { idx: 0, text: `Hm... tá bom, guardo essa energia pro jogo.` }
+        ]
+      },
+      {
+        label: `Sessão leve só de vídeo e passe curto`,
+        approachTag: "+Leitura / Equilibrado",
+        tacticsPatch: { style: "possession", intensity: "medium" },
+        effects: { xpAmt: 25, affPts: 12, buffType: "RIVAL_READ", note: "Meio-termo tático sem desgaste" },
+        coachLine: `Nada de corrida: só toque curto e leitura tática do rival.`,
+        reactions: [
+          { idx: 1, text: `Solução perfeita. Todo mundo sai ganhando.` }
+        ]
+      }
+    ]
+  }),
+  mkDilemmaChatTemplate({
+    id: "dilemma_wing_vs_middle_fight",
+    category: "TATICA_RIVAL",
+    title: "Disputa pelo Corredor de Ataque",
+    actorSpecs: [{ role: "MF" }, { role: "FW" }],
+    dialogue: (a, ctx) => [
+      { idx: 0, text: `A lateral do ${ctx.oppName} deixa uma avenida aberta! Temos que forçar tudo pelas pontas.` },
+      { idx: 1, text: `E eu fico olhando?! Pelo meio a gente tabela mais rápido e chega de frente pro gol!` },
+      { idx: 0, text: `Técnico, por onde o time vai construir o ataque?` }
+    ],
+    options: () => [
+      {
+        label: `Forçar pelas Pontas (largura e cruzamentos)`,
+        approachTag: "Corredor: Pontas",
+        tacticsPatch: { lane: "wings" },
+        effects: { pwrDelta: 8, affPts: 8, buffType: "COOP_SYNC", note: "Mais cruzamentos e passes aéreos" },
+        coachLine: `Vamos castigar os lados do campo! Abre o jogo nas pontas!`,
+        reactions: [
+          { idx: 0, text: `Vai chover cruzamento na área!`, tone: "hype" },
+          { idx: 1, text: `Beleza, vou me posicionar pra cabecear e pegar sobra.` }
+        ]
+      },
+      {
+        label: `Infiltrar pelo Meio (tabelas curtas e rápidas)`,
+        approachTag: "Corredor: Meio",
+        tacticsPatch: { lane: "center" },
+        effects: { pwrDelta: 10, chemDelta: 2, buffType: "RIVAL_READ", note: "Ataque central objetivo" },
+        coachLine: `Quero triangulação rápida por dentro, furando o miolo da zaga!`,
+        reactions: [
+          { idx: 1, text: `Aí sim! É gol na certa pelo meio!`, tone: "hype" },
+          { idx: 0, text: `Entendido, vou fechar por dentro pra dar apoio.` }
+        ]
+      },
+      {
+        label: `Deixar livre para o instinto do momento`,
+        approachTag: "Livre / +Moral",
+        tacticsPatch: { lane: "balanced", style: "free" },
+        effects: { affPts: 14, energyDelta: 3, buffType: "MORALE_BOOST", note: "Criatividade total sem amarras" },
+        coachLine: `Não vamos engessar: leiam o espaço e ataquem por onde estiver aberto!`,
+        reactions: [
+          { idx: 0, text: `Fechado, a gente alterna durante o jogo.` }
+        ]
+      }
+    ]
+  }),
+  mkDilemmaChatTemplate({
+    id: "dilemma_formation_clash",
+    category: "TATICA_RIVAL",
+    title: "Debate de Formação",
+    actorSpecs: [{ role: "DF" }, { role: "FW" }, { role: "MF" }],
+    dialogue: (a) => [
+      { idx: 0, text: `Se a gente for com 3 zagueiros vamos sofrer nos contra-ataques. Prefiro linha de 4 firme!` },
+      { idx: 1, text: `Mas com 3 atacantes a gente amassa eles no primeiro tempo!` },
+      { idx: 2, text: `E se a gente encher o meio-campo no 3-5-2 pra dominar a posse? Você manda, professor.` }
+    ],
+    options: () => [
+      {
+        label: `Adotar 4-4-2 Clássica (equilíbrio defensivo)`,
+        approachTag: "Formação 4-4-2",
+        tacticsPatch: { formation: "4-4-2", posture: "balanced" },
+        effects: { chemDelta: 3, affPts: 10, note: "Solidez nos dois lados do campo" },
+        coachLine: `Vamos de 4-4-2 clássica: consistência atrás e dupla afinada na frente.`,
+        reactions: [{ idx: 0, text: `Excelente, assim nossa linha de 4 fecha tudo.`, tone: "hype" }]
+      },
+      {
+        label: `Adotar 3-4-3 Relâmpago (ataque total)`,
+        approachTag: "Formação 3-4-3",
+        tacticsPatch: { formation: "3-4-3", posture: "offensive" },
+        effects: { pwrDelta: 12, energyDelta: -4, buffType: "BLOOD_FOCUS", note: "Pressão máxima com 3 na frente" },
+        coachLine: `Vamos pra cima no 3-4-3! Três atacantes sufocando a saída deles!`,
+        reactions: [{ idx: 1, text: `Bora massacrar no ataque!!`, tone: "hype" }]
+      },
+      {
+        label: `Adotar 3-5-2 Imperial (domínio do meio-campo)`,
+        approachTag: "Formação 3-5-2",
+        tacticsPatch: { formation: "3-5-2", style: "possession" },
+        effects: { xpAmt: 30, affPts: 8, buffType: "RIVAL_READ", note: "Meio povoado controlando o jogo" },
+        coachLine: `3-5-2 fechado! Quem manda no meio-campo manda na partida.`,
+        reactions: [{ idx: 2, text: `A bola não vai sair do nosso pé!`, tone: "hype" }]
+      }
+    ]
+  }),
+  mkDilemmaChatTemplate({
+    id: "dilemma_clique_locker",
+    category: "RAIVA",
+    title: "Panelinha no Vestiário",
+    actorSpecs: [{ role: "DF" }, { role: "MF" }, { role: "FW" }],
+    dialogue: (a) => [
+      { idx: 0, text: `Tá ficando chato isso: vocês só conversam entre si e deixam metade do banco de lado.`, tone: "toxic" },
+      { idx: 2, text: `Não é panelinha! A gente só tem mais afinidade porque joga junto lá na frente.`, tone: "tense" },
+      { idx: 1, text: `Professor, tá começando a dividir o grupo. Como a gente lida com isso?` }
+    ],
+    options: () => [
+      {
+        label: `Misturar os grupos nos treinos e cortar panelinhas`,
+        approachTag: "+Química / -Conforto",
+        effects: { chemDelta: 4, affPts: 12, energyDelta: -3, note: "Integração geral do elenco" },
+        coachLine: `Aqui é um time só. A partir de hoje, duplas misturadas em todo aquecimento.`,
+        reactions: [
+          { idx: 0, text: `Era tudo que eu queria ouvir.`, tone: "hype" },
+          { idx: 2, text: `Beleza... vou tentar conversar mais com o pessoal da zaga.` }
+        ]
+      },
+      {
+        label: `Respeitar as afinidades naturais desde que entreguem em campo`,
+        approachTag: "+Poder Co-op / -Química",
+        effects: { pwrDelta: 10, chemDelta: -1, buffType: "COOP_SYNC", note: "Conexões fortes mantidas, vestiário menos homogêneo" },
+        coachLine: `Não precisam ser melhores amigos fora de campo — só respeitem e passem a bola lá dentro.`,
+        reactions: [
+          { idx: 2, text: `Justo. Em campo eu jogo por todo mundo.` },
+          { idx: 0, text: `Tá bom, desde que não falte respeito.` }
+        ]
+      },
+      {
+        label: `Fazer um jantar coletivo pra quebrar o gelo`,
+        approachTag: "+Sintonia / +Leveza",
+        effects: { affPts: 16, energyDelta: 4, buffType: "LIGHT_LOCKER", note: "Clima relaxado antes do jogo" },
+        coachLine: `Hoje ninguém sai separado: todo mundo vai comer junto depois do treino!`,
+        reactions: [
+          { idx: 1, text: `Aí sim, comida resolve metade das brigas kkk`, tone: "hype" }
+        ]
+      }
+    ]
+  }),
+  mkDilemmaChatTemplate({
+    id: "dilemma_risky_tactic_vs_safe",
+    category: "TATICA_RIVAL",
+    title: "Qual Tática Especial Preparar?",
+    actorSpecs: [{ role: "MF" }, { role: "DF" }],
+    dialogue: (a, ctx) => [
+      { idx: 0, text: `Contra o ${ctx.oppName}, podemos surpreender com Pressão Relâmpago logo de cara!` },
+      { idx: 1, text: `Arriscado... se errarmos o bote eles saem na cara do gol. Eu iria de Catenaccio ou Rota do Céu.` },
+      { idx: 0, text: `Você escolhe a carta na manga, técnico.` }
+    ],
+    options: () => [
+      {
+        label: `Preparar Pressão Relâmpago (roubos altos, mais desgaste)`,
+        approachTag: "Tática: Pressão",
+        tacticsPatch: { hissatsuTactic: "lightning_press", intensity: "high" },
+        effects: { pwrDelta: 12, energyDelta: -5, buffType: "BLOOD_FOCUS", note: "Marcação sufocante" },
+        coachLine: `Vamos de Pressão Relâmpago! Não deixem eles respirarem!`,
+        reactions: [{ idx: 0, text: `Vamos roubar toda bola no campo deles!`, tone: "hype" }]
+      },
+      {
+        label: `Preparar Contra-Ataque Catenaccio (muralha segura)`,
+        approachTag: "Tática: Catenaccio",
+        tacticsPatch: { hissatsuTactic: "catenaccio", posture: "defensive" },
+        effects: { chemDelta: 2, affPts: 10, buffType: "RIVAL_READ", note: "Defesa sólida pronta pro bote" },
+        coachLine: `Catenaccio armado! Primeiro fecha a porta, depois mata no contra-ataque.`,
+        reactions: [{ idx: 1, text: `Sabia decisão. Vai ser difícil passar da gente.`, tone: "hype" }]
+      },
+      {
+        label: `Preparar Rota do Céu (passes que rasgam a zaga)`,
+        approachTag: "Tática: Rota do Céu",
+        tacticsPatch: { hissatsuTactic: "route_of_sky", posture: "offensive" },
+        effects: { pwrDelta: 8, affPts: 10, buffType: "COOP_SYNC", note: "Ataque fluido e aéreo" },
+        coachLine: `Rota do Céu! Vamos passar por cima da marcação deles com classe!`,
+        reactions: [{ idx: 0, text: `Nossa arma favorita! Bora voar!`, tone: "hype" }]
+      }
+    ]
+  }),
+  mkDilemmaChatTemplate({
+    id: "dilemma_star_vs_teamplay",
+    category: "ELOGIO",
+    title: "Peso da Camisa 10",
+    actorSpecs: [{ role: "FW" }, { role: "MF" }],
+    dialogue: (a) => [
+      { idx: 0, text: `Professor, tô numa fase absurda. Se o jogo travar, manda todas as bolas em mim que eu assumo a bronca.` },
+      { idx: 1, text: `Confiança é ótimo, ${a[0].name}, mas se ficar previsível eles vão botar dois marcadores em cima de você.` },
+      { idx: 0, text: `Deixo com o técnico: foco em mim ou distribuído?` }
+    ],
+    options: (a) => [
+      {
+        label: `Entregar a Camisa 10 para ${a[0].name}`,
+        approachTag: "10 Fixo / +Poder",
+        tacticsPatch: { aceActorIdx: 0 },
+        effects: { pwrDelta: 14, affPts: 4, buffType: "MORALE_BOOST", note: `${a[0].name} vira referência central` },
+        coachLine: `A bola decisiva é sua, ${a[0].name}. Mostra por que você pediu essa responsabilidade!`,
+        reactions: [{ idx: 0, text: `Pode contar comigo! Não vou tremer!`, tone: "hype" }]
+      },
+      {
+        label: `Distribuir o protagonismo (Camisa 10 Automático)`,
+        approachTag: "Coletivo / +Química",
+        tacticsPatch: { aceActorIdx: "CLEAR" },
+        effects: { chemDelta: 3, affPts: 14, buffType: "RIVAL_READ", note: "Time mais imprevisível" },
+        coachLine: `Ninguém carrega o time sozinho. Todo mundo decide — assim eles não sabem quem marcar!`,
+        reactions: [{ idx: 1, text: `Perfeito! Vamos confundir a marcação deles.`, tone: "hype" }]
+      },
+      {
+        label: `Passar a criação da 10 para ${a[1].name} surpreender`,
+        approachTag: "10 Surpresa / +XP",
+        tacticsPatch: { aceActorIdx: 1 },
+        effects: { xpAmt: 35, pwrDelta: 8, affPts: 6, note: "Fator surpresa vindo de trás" },
+        coachLine: `Eles vão marcar ${a[0].name}, então ${a[1].name} vai comandar as ações como 10!`,
+        reactions: [{ idx: 1, text: `Opa! Deixa comigo que eu chego de surpresa!`, tone: "hype" }]
+      }
+    ]
+  }),
+  mkDilemmaChatTemplate({
+    id: "dilemma_trash_talk_rival",
+    category: "RAIVA",
+    title: "Provocação Antes do Jogo",
+    actorSpecs: [{ role: "FW" }, { role: "GK" }],
+    dialogue: (a, ctx) => [
+      { idx: 1, text: `${a[0].name}, você postou mesmo que a defesa do ${ctx.oppName} parece cone de treino?! Os caras tão furiosos!`, tone: "tense" },
+      { idx: 0, text: `Falei só a verdade! É bom que eles venham pilhados e deixem espaço atrás.`, tone: "hype" },
+      { idx: 1, text: `Técnico, manda ele apagar isso ou a gente banca a marra?` }
+    ],
+    options: () => [
+      {
+        label: `Bancar a provocação: entrar mordido pra cima deles`,
+        approachTag: "+Duelo / -Química",
+        tacticsPatch: { posture: "offensive" },
+        effects: { pwrDelta: 12, chemDelta: -2, buffType: "BLOOD_FOCUS", note: "Clima quente em campo" },
+        coachLine: `Agora que falou, sustenta dentro de campo! Quero personalidade e coragem!`,
+        reactions: [{ idx: 0, text: `É isso! Vou brocar pra calar a arquibancada!`, tone: "hype" }]
+      },
+      {
+        label: `Mandar baixar a bola e focar no estudo tático`,
+        approachTag: "+Leitura / +Química",
+        effects: { chemDelta: 3, affPts: 10, buffType: "RIVAL_READ", note: "Cabeça fria contra rival irritado" },
+        coachLine: `Futebol se ganha na bola, não na rede social. Baixa a bola e estuda o jogo.`,
+        reactions: [{ idx: 1, text: `Bem melhor. Cabeça fria vence jogo grande.` }]
+      },
+      {
+        label: `Levar na esportiva pra tirar o peso do grupo`,
+        approachTag: "+Leveza / +XP",
+        effects: { xpAmt: 30, affPts: 10, buffType: "LIGHT_LOCKER", note: "Sem estresse interno" },
+        coachLine: `Já tá postado — só não deixa subir à cabeça. Riam disso e joguem leve.`,
+        reactions: [{ idx: 0, text: `Haha combinado, professor!` }]
+      }
+    ]
+  }),
+  mkDilemmaChatTemplate({
+    id: "dilemma_bench_envy",
+    category: "RAIVA",
+    title: "Só o Ataque Ganha Fama?",
+    actorSpecs: [{ role: "DF" }, { role: "FW" }],
+    dialogue: (a) => [
+      { idx: 0, text: `Engraçado que quando a gente vence de 1 a 0, todo mundo só grita o nome do ${a[1].name}. Ninguém lembra dos cinco botes que salvei.`, tone: "tense" },
+      { idx: 1, text: `Ei, eu sempre te agradeço! Mas a torcida gosta de gol, fazer o quê?` },
+      { idx: 0, text: `Só queria sentir que o trabalho sujo lá atrás vale o mesmo aqui dentro, professor.` }
+    ],
+    options: (a) => [
+      {
+        label: `Exaltar a defesa e montar o jogo a partir dela`,
+        approachTag: "+Sintonia / Recuado",
+        tacticsPatch: { posture: "defensive" },
+        effects: { affPts: 16, chemDelta: 3, note: `${a[0].name} valorizado como pilar` },
+        coachLine: `Sem defesa não existe campeão. Hoje o time vai jogar organizado a partir de ${a[0].name}!`,
+        reactions: [{ idx: 0, text: `Obrigado por reconhecer, professor. Dou a vida lá atrás!`, tone: "hype" }]
+      },
+      {
+        label: `Lembrar que gols vencem jogos e manter o foco ofensivo`,
+        approachTag: "+Poder / Avançado",
+        tacticsPatch: { posture: "offensive" },
+        effects: { pwrDelta: 12, affPts: -4, xpAmt: 25, note: "Ataque em alta, zaga mais cobrada" },
+        coachLine: `Cada setor tem seu papel — sem gol também não ganha. Foco no que cada um faz melhor.`,
+        reactions: [
+          { idx: 1, text: `Vou continuar fazendo minha parte na frente.` },
+          { idx: 0, text: `Entendi... vou provar meu valor em campo mesmo.`, tone: "tense" }
+        ]
+      },
+      {
+        label: `Unir os dois: cada gol começa no desarme da defesa`,
+        approachTag: "+Moral / +Energia",
+        effects: { affPts: 14, energyDelta: 4, buffType: "MORALE_BOOST", note: "Reconhecimento equilibrado" },
+        coachLine: `O desarme do ${a[0].name} é metade do gol do ${a[1].name}. Quando um brilha, os dois brilham!`,
+        reactions: [{ idx: 1, text: `Se eu marcar hoje, vou correr pra abraçar você, ${a[0].name}!`, tone: "hype" }]
+      }
+    ]
+  }),
+  mkDilemmaChatTemplate({
+    id: "dilemma_aerial_vs_ground",
+    category: "CRIAR_TECNICA",
+    title: "Bola Alta ou Toque Rasteiro?",
+    actorSpecs: [{ role: "MF" }, { role: "FW" }],
+    dialogue: (a) => [
+      { idx: 0, text: `Com os passes por cima novos, a gente pode quebrar a linha deles com lançamento longo direto!` },
+      { idx: 1, text: `Mas se errar o domínio no alto a gente devolve a bola de graça! Toque rasteiro é mais seguro.` },
+      { idx: 0, text: `Qual estilo você quer priorizar, técnico?` }
+    ],
+    options: () => [
+      {
+        label: `Apostar no Jogo Vertical e bolas por cima`,
+        approachTag: "Estilo: Vertical",
+        tacticsPatch: { style: "vertical" },
+        effects: { pwrDelta: 10, xpAmt: 25, buffType: "COOP_SYNC", note: "Mais velocidade e lançamentos aéreos" },
+        coachLine: `Vamos verticalizar! Lança por cima da zaga e acelera na corrida!`,
+        reactions: [{ idx: 0, text: `Show! Vou caprichar na curva desses lançamentos!`, tone: "hype" }]
+      },
+      {
+        label: `Priorizar Posse de Bola e toque curto seguro`,
+        approachTag: "Estilo: Posse",
+        tacticsPatch: { style: "possession" },
+        effects: { chemDelta: 3, affPts: 12, buffType: "RIVAL_READ", note: "Menos erros de passe" },
+        coachLine: `Bola no chão, posse paciente e zero desperdício!`,
+        reactions: [{ idx: 1, text: `Perfeito, assim a gente desgasta eles correndo atrás.`, tone: "hype" }]
+      },
+      {
+        label: `Estilo Instinto: alternar alto e rasteiro na hora`,
+        approachTag: "Estilo: Instinto",
+        tacticsPatch: { style: "free" },
+        effects: { affPts: 10, pwrDelta: 6, buffType: "MORALE_BOOST", note: "Imprevisibilidade total" },
+        coachLine: `Misturem os dois! Quando eles fecharem o chão, sobe a bola; quando recuarem, toca curto.`,
+        reactions: [{ idx: 0, text: `Boa! Vai deixar a marcação deles perdida.` }]
+      }
+    ]
+  })
+);
+
 function pushNextMatchChatBuff(t, newBuff) {
   if (!t || !newBuff) return;
   if (!Array.isArray(t.nextMatchChatBuffs)) t.nextMatchChatBuffs = [];
@@ -5908,27 +6838,160 @@ function stampThreadTimestamps(msgs, baseMin) {
   }));
 }
 
-function spawnSpontaneousTeamChat(t = state.tournament, forcedCategory = null) {
+const CHAT_FINDABLE_ITEMS = [
+  { id: "shoes_thunder", title: "Chuteiras do Relâmpago", roles: ["FW", "MF"], bonusPower: 18, spdBoost: 4, bonusStats: { vel: 6, tec: 3 }, iconKey: "itemShoesThunder" },
+  { id: "shoes_legend", title: "Chuteiras Lendárias", roles: ["FW", "MF"], bonusPower: 20, spdBoost: 3, bonusStats: { for: 5, vel: 4 }, iconKey: "itemShoesLegend" },
+  { id: "glove_legend", title: "Luvas Lendárias", roles: ["GK", "DF"], bonusPower: 20, spdBoost: 0, bonusStats: { def: 6, fis: 3 }, iconKey: "itemGloveLegend" },
+  { id: "spike_block", title: "Caneleira de Bloqueio", roles: ["DF", "GK", "MF"], bonusPower: 18, spdBoost: 0, bonusStats: { def: 5, fis: 4 }, iconKey: "itemSpikeBlock" },
+  { id: "misanga_friend", title: "Pulseira da Amizade", roles: ["MF", "FW", "DF", "GK"], bonusPower: 16, spdBoost: 2, bonusStats: { tec: 4, for: 3, fis: 3 }, iconKey: "itemMisanga" },
+  { id: "captain_armband", title: "Braçadeira do Líder", roles: ["MF", "DF", "GK", "FW"], bonusPower: 18, spdBoost: 1, bonusStats: { tec: 4, for: 3, fis: 3 }, iconKey: "itemArmband" }
+];
+
+function grantFoundItemFromChat(t, targetSlotId, preferredItemId = null) {
+  const player = targetSlotId ? state.squad?.[targetSlotId] : null;
+  if (!player) return null;
+  const slots = typeof getSlots === "function" ? getSlots() : [];
+  const role = slots.find((s) => s.id === targetSlotId)?.role || player.pos || "MF";
+  if (!Array.isArray(player.equippedItems)) player.equippedItems = [];
+  const ownedIds = new Set(player.equippedItems.map((it) => it.id));
+
+  let itemDef = preferredItemId ? CHAT_FINDABLE_ITEMS.find((it) => it.id === preferredItemId && !ownedIds.has(it.id)) : null;
+  if (!itemDef) {
+    const roleMatches = CHAT_FINDABLE_ITEMS.filter((it) => !ownedIds.has(it.id) && it.roles.includes(role));
+    const pool = roleMatches.length > 0 ? roleMatches : CHAT_FINDABLE_ITEMS.filter((it) => !ownedIds.has(it.id));
+    if (pool.length > 0) {
+      itemDef = pool[Math.floor(Math.random() * pool.length)];
+    }
+  }
+
+  if (itemDef) {
+    player.bonusPower = (player.bonusPower || 0) + itemDef.bonusPower;
+    if (itemDef.spdBoost) player.bonusSpd = (player.bonusSpd || 0) + itemDef.spdBoost;
+    if (!player.bonusStats) player.bonusStats = { for: 0, tec: 0, def: 0, vel: 0, fis: 0 };
+    Object.keys(itemDef.bonusStats || {}).forEach((k) => {
+      player.bonusStats[k] = (player.bonusStats[k] || 0) + itemDef.bonusStats[k];
+    });
+    const icon = (typeof UI === "object" && UI && UI[itemDef.iconKey]) ? UI[itemDef.iconKey] : "";
+    player.equippedItems.push({ id: itemDef.id, title: itemDef.title, icon });
+    return { kind: "ITEM", title: itemDef.title, playerName: player.name, powerGain: itemDef.bonusPower };
+  }
+
+  // Fallback se já tiver todos os itens da lista
+  player.bonusPower = (player.bonusPower || 0) + 14;
+  if (typeof gainPlayerXp === "function") gainPlayerXp(player, 35, role);
+  return { kind: "KIT", title: "Kit de Treino Secreto", playerName: player.name, powerGain: 14 };
+}
+
+function canLearnCoopMoveFromChat(t, quality = "GREAT", opts = {}) {
+  const curStage = t?.prep?.nextStageIdx ?? t?.stageIndex ?? 0;
+  const learnedCount = t?.chatCoopLearnCount || 0;
+  const lastStage = Number.isFinite(t?.lastChatCoopLearnStage) ? t.lastChatCoopLearnStage : -99;
+  if (learnedCount >= 4) return false;
+  if (learnedCount > 0 && curStage - lastStage < 2) return false;
+  if (opts.forceAllowed) return true;
+  const prob = quality === "GREAT" ? (learnedCount === 0 ? 0.72 : 0.45) : quality === "GOOD" ? 0.14 : 0;
+  return Math.random() < prob;
+}
+
+function makeChatBuffByType(buffType, playerIds) {
+  if (buffType === "BLOOD_FOCUS") {
+    return {
+      type: "BLOOD_FOCUS",
+      label: "🔥 Sangue nos Olhos (+Duelo)",
+      desc: "Participantes recebem +Duelo na próxima partida",
+      playerIds
+    };
+  }
+  if (buffType === "COOP_SYNC") {
+    return {
+      type: "COOP_SYNC",
+      label: "⚡ Sincronia Combinada (+Co-op/Passe)",
+      desc: "Participantes têm +força em técnicas co-op e menos interceptações",
+      playerIds
+    };
+  }
+  if (buffType === "MORALE_BOOST") {
+    return {
+      type: "MORALE_BOOST",
+      label: "🌟 Moral Inspirada (+Energia & Duelo)",
+      desc: "Bônus de duelo acima de 60% de fôlego",
+      playerIds
+    };
+  }
+  if (buffType === "RIVAL_READ") {
+    return {
+      type: "RIVAL_READ",
+      label: "📋 Leitura do Rival (-12% Interceptações)",
+      desc: "Reduz em 12% as interceptações rivais na próxima partida",
+      playerIds
+    };
+  }
+  if (buffType === "LIGHT_LOCKER") {
+    return {
+      type: "LIGHT_LOCKER",
+      label: "😄 Vestiário Leve (-12% Cansaço)",
+      desc: "Participantes gastam 12% menos stamina no próximo jogo",
+      playerIds
+    };
+  }
+  return null;
+}
+
+function spawnSpontaneousTeamChat(t = state.tournament, forcedCategory = null, opts = {}) {
   if (typeof isBetaMode === "function" && !isBetaMode()) return null;
   const prep = t?.prep;
   if (!prep) return null;
   if (!Array.isArray(prep.teamChats)) prep.teamChats = [];
-  if (prep.teamChats.length >= 5) return null;
+  const maxChatsThisRound = opts.allowBonusCap ? 3 : 2;
+  if (prep.teamChats.length >= maxChatsThisRound) return null;
 
   const actors = getSquadChatActors(t);
   if (actors.length < 2) return null;
 
-  const usedIds = new Set(prep.teamChats.map((c) => c.templateId));
+  const usedThisRound = new Set(prep.teamChats.map((c) => c.templateId));
+  const recentHistory = new Set(Array.isArray(t.chatTemplateHistory) ? t.chatTemplateHistory.slice(-14) : []);
+  const filterByMode = (list) => (opts.interactionMode ? list.filter((tpl) => (tpl.interactionMode || "CLASSIC") === opts.interactionMode) : list);
+
   const category = forcedCategory || pickWeightedChatCategory(t, actors);
-  let pool = SPONTANEOUS_CHAT_TEMPLATES.filter((tpl) => tpl.category === category && !usedIds.has(tpl.id));
+  let pool = filterByMode(
+    SPONTANEOUS_CHAT_TEMPLATES.filter((tpl) => tpl.category === category && !usedThisRound.has(tpl.id) && !recentHistory.has(tpl.id))
+  );
   if (pool.length === 0) {
-    pool = SPONTANEOUS_CHAT_TEMPLATES.filter((tpl) => !usedIds.has(tpl.id));
+    pool = filterByMode(SPONTANEOUS_CHAT_TEMPLATES.filter((tpl) => tpl.category === category && !usedThisRound.has(tpl.id)));
+  }
+  if (pool.length === 0) {
+    pool = filterByMode(SPONTANEOUS_CHAT_TEMPLATES.filter((tpl) => !usedThisRound.has(tpl.id) && !recentHistory.has(tpl.id)));
+  }
+  if (pool.length === 0) {
+    pool = filterByMode(SPONTANEOUS_CHAT_TEMPLATES.filter((tpl) => !usedThisRound.has(tpl.id)));
   }
   if (pool.length === 0) return null;
+
+  // Dá leve preferência a conversas automáticas e dilemas para que o elenco pareça vivo e variado
+  if (!opts.interactionMode && !forcedCategory) {
+    const rollMode = Math.random();
+    if (rollMode < 0.34) {
+      const autoPool = pool.filter((tpl) => tpl.interactionMode === "AUTO_COMPLETE");
+      if (autoPool.length > 0) pool = autoPool;
+    } else if (rollMode < 0.62) {
+      const dilPool = pool.filter((tpl) => tpl.interactionMode === "DILEMMA");
+      if (dilPool.length > 0) pool = dilPool;
+    }
+  }
 
   const tpl = pool[Math.floor(Math.random() * pool.length)];
   const chosenActors = tpl.pickActors(actors, t);
   if (!chosenActors || chosenActors.length < 2) return null;
+
+  // Registra participação para evitar repetir sempre os mesmos jogadores
+  if (!t.chatActorCounts || typeof t.chatActorCounts !== "object") t.chatActorCounts = {};
+  chosenActors.forEach((a) => {
+    if (a?.id) t.chatActorCounts[a.id] = (t.chatActorCounts[a.id] || 0) + 1;
+  });
+  t.lastChatActorIds = chosenActors.map((a) => a.id).filter(Boolean);
+  if (!Array.isArray(t.chatTemplateHistory)) t.chatTemplateHistory = [];
+  t.chatTemplateHistory.push(tpl.id);
+  if (t.chatTemplateHistory.length > 28) t.chatTemplateHistory = t.chatTemplateHistory.slice(-28);
 
   const selectedIds = chosenActors.map((a) => a.slotId);
   const oppName = getNextOpponentDisplayName(t);
@@ -5942,11 +7005,16 @@ function spawnSpontaneousTeamChat(t = state.tournament, forcedCategory = null) {
   const climate = computeGroupChatClimate(selectedIds, t);
   const baseTimeMin = 840 + Math.floor(Math.random() * 180) + prep.teamChats.length * 14;
   const messages = stampThreadTimestamps(tpl.buildDialogue(chosenActors, ctx), baseTimeMin);
-  const choices = tpl.buildChoices(chosenActors, ctx);
+  const interactionMode = tpl.interactionMode || "CLASSIC";
+  const choices = interactionMode === "AUTO_COMPLETE" ? [] : (typeof tpl.buildChoices === "function" ? tpl.buildChoices(chosenActors, ctx) : []);
+  const autoOutcome = interactionMode === "AUTO_COMPLETE" && typeof tpl.buildAutoOutcome === "function"
+    ? tpl.buildAutoOutcome(chosenActors, ctx)
+    : null;
 
   const chatObj = {
     id: `chat_${Date.now()}_${Math.floor(Math.random() * 10000)}`,
     templateId: tpl.id,
+    interactionMode,
     category: tpl.category,
     categoryLabel: tpl.categoryLabel,
     categoryIcon: tpl.categoryIcon,
@@ -5960,12 +7028,14 @@ function spawnSpontaneousTeamChat(t = state.tournament, forcedCategory = null) {
     selectedIds,
     messages,
     choices,
+    autoOutcome,
     resolved: false,
     chosenIdx: null,
     outcomeQuality: null,
     outcomeSummary: "",
     learnedCoop: null,
     grantedBuff: null,
+    foundItem: null,
     appliedConfigChanges: []
   };
 
@@ -5975,7 +7045,15 @@ function spawnSpontaneousTeamChat(t = state.tournament, forcedCategory = null) {
 
 function generateInitialRoundTeamChats(t = state.tournament) {
   if (typeof isBetaMode === "function" && !isBetaMode()) return [];
-  const count = Math.random() < 0.42 ? 3 : 2;
+  const teamChem = typeof calcSquadStats === "function" ? (calcSquadStats()?.chem || 45) : 45;
+  const r = Math.random();
+  // Espontâneo de verdade: nem toda rodada tem conversa!
+  let count = 0;
+  if (teamChem < 42) {
+    count = r < 0.25 ? 0 : r < 0.80 ? 1 : 2;
+  } else {
+    count = r < 0.35 ? 0 : r < 0.85 ? 1 : 2;
+  }
   const created = [];
   for (let i = 0; i < count; i++) {
     const ch = spawnSpontaneousTeamChat(t);
@@ -5984,14 +7062,170 @@ function generateInitialRoundTeamChats(t = state.tournament) {
   return created;
 }
 
+function finalizeAutonomousTeamChat(chatId, skipRender = false) {
+  const t = state.tournament;
+  const prep = t?.prep;
+  if (!prep || !Array.isArray(prep.teamChats)) return;
+  const chat = prep.teamChats.find((c) => c.id === (chatId || prep.activeChatId));
+  if (!chat || chat.resolved || chat.interactionMode !== "AUTO_COMPLETE") return;
+
+  const out = chat.autoOutcome || {};
+  const selectedIds = (chat.selectedIds || []).filter((id) => state.squad?.[id]);
+  const slotsMap = {};
+  (typeof getSlots === "function" ? getSlots() : []).forEach((s) => { slotsMap[s.id] = s; });
+  const playerIds = selectedIds.map((sid) => state.squad[sid]?.id).filter(Boolean);
+  const baseT = chat.baseTimeMin || 920;
+
+  const affPts = Number(out.affPts) || 0;
+  const xpAmt = Number(out.xpAmt) || 0;
+  const chemDelta = Number(out.chemDelta) || 0;
+  const pwrDelta = Number(out.pwrDelta) || 0;
+  const energyDelta = Number(out.energyDelta) || 0;
+
+  let maxNewAffLv = 0;
+  if (affPts !== 0) {
+    for (let i = 0; i < selectedIds.length; i++) {
+      for (let j = i + 1; j < selectedIds.length; j++) {
+        const res = typeof addPairAffinityPoints === "function"
+          ? addPairAffinityPoints(state.squad[selectedIds[i]], state.squad[selectedIds[j]], affPts, null, t)
+          : null;
+        if (res) maxNewAffLv = Math.max(maxNewAffLv, res.newLevel || 0);
+      }
+    }
+  }
+  if (xpAmt > 0) {
+    selectedIds.forEach((sid) => {
+      const p = state.squad[sid];
+      if (p && typeof gainPlayerXp === "function") gainPlayerXp(p, xpAmt, slotsMap[sid]?.role || "MF");
+    });
+    t.prepBonuses.xp = (t.prepBonuses.xp || 0) + xpAmt;
+  }
+  if (chemDelta !== 0) {
+    t.prepBonuses.chem = Math.max(-10, (t.prepBonuses.chem || 0) + chemDelta);
+  }
+  if (pwrDelta !== 0) {
+    t.prepBonuses.power = (t.prepBonuses.power || 0) + pwrDelta;
+  }
+  if (energyDelta !== 0 && typeof adjustTeamEnergy === "function") {
+    adjustTeamEnergy(energyDelta);
+  }
+
+  let foundItem = null;
+  let learnedCoop = { learned: false, move: null, cat: null, tier: null, recipientNames: [], newlyAddedNames: [] };
+  let grantedBuff = null;
+  const summaryParts = [];
+
+  if (out.kind === "FOUND_ITEM") {
+    const targetIdx = Number.isInteger(out.targetActorIdx) ? out.targetActorIdx : 0;
+    const targetSlot = selectedIds[targetIdx] || selectedIds[0];
+    foundItem = grantFoundItemFromChat(t, targetSlot, out.itemId || null);
+    if (foundItem) {
+      summaryParts.push(`🎁 <strong>${foundItem.playerName}</strong> encontrou <strong>${foundItem.title}</strong> (+${foundItem.powerGain} Poder)`);
+      chat.messages.push({
+        senderIdx: -2,
+        speakerRole: "SYSTEM",
+        speakerName: "Achado do Elenco",
+        speakerSprite: "",
+        roleTag: "Item",
+        tone: "system",
+        time: formatChatTimestamp(baseT, chat.messages.length),
+        text: `🎁 ${foundItem.playerName} encontrou e equipou 【${foundItem.title}】 (+${foundItem.powerGain} Poder)!`
+      });
+    }
+  }
+
+  if (out.kind === "COOP_BREAKTHROUGH") {
+    if (canLearnCoopMoveFromChat(t, "GREAT", { forceAllowed: false }) && typeof teachCoopMoveToGroup === "function") {
+      const groupEntries = selectedIds.map((sid) => ({
+        player: state.squad[sid],
+        role: slotsMap[sid]?.role || "MF"
+      }));
+      learnedCoop = teachCoopMoveToGroup(groupEntries, Math.max(1, maxNewAffLv));
+      if (learnedCoop.learned) {
+        t.chatCoopLearnCount = (t.chatCoopLearnCount || 0) + 1;
+        t.lastChatCoopLearnStage = t?.prep?.nextStageIdx ?? t?.stageIndex ?? 0;
+        const tierTxt = learnedCoop.tier === "TRIO" ? "Trio" : "Dupla";
+        chat.messages.push({
+          senderIdx: -2,
+          speakerRole: "SYSTEM",
+          speakerName: `Nova Técnica em ${tierTxt}!`,
+          speakerSprite: "",
+          roleTag: learnedCoop.cat || "SH",
+          tone: "system",
+          time: formatChatTimestamp(baseT, chat.messages.length),
+          text: `⚡ Por conta própria, o grupo criou a técnica 【${learnedCoop.move}】 (${learnedCoop.cat})!`
+        });
+        summaryParts.push(`⚡ Nova Técnica: <strong>${learnedCoop.move}</strong>`);
+      }
+    }
+    if (!learnedCoop.learned) {
+      t.prepBonuses.power = (t.prepBonuses.power || 0) + 10;
+      summaryParts.push(`<span class="b-pwr">+10 Poder Co-op</span> (sintonia refinada)`);
+    }
+  }
+
+  if (out.buffType) {
+    grantedBuff = makeChatBuffByType(out.buffType, playerIds);
+    if (grantedBuff) {
+      pushNextMatchChatBuff(t, grantedBuff);
+      summaryParts.push(`Buff: <strong>${grantedBuff.label}</strong>`);
+    }
+  }
+
+  const configChanges = out.tacticsPatch ? applyChatTacticalPatch(t, out.tacticsPatch, chat.participants, chat.ctx || {}) : [];
+  if (configChanges.length > 0) {
+    chat.messages.push({
+      senderIdx: -2,
+      speakerRole: "SYSTEM",
+      speakerName: "Acordo do Elenco",
+      speakerSprite: "",
+      roleTag: "Tática",
+      tone: "system",
+      time: formatChatTimestamp(baseT, chat.messages.length),
+      text: `⚙️ O grupo combinou para o próximo jogo: ${configChanges.join(" • ")}`
+    });
+    summaryParts.push(`<span class="b-tech">⚙️ ${configChanges.join(" • ")}</span>`);
+  }
+
+  if (affPts > 0) summaryParts.push(`<span class="b-tech">+${affPts} Sintonia</span>`);
+  else if (affPts < 0) summaryParts.push(`<span style="color:#fca5a5;">${affPts} Sintonia</span>`);
+  if (chemDelta > 0) summaryParts.push(`<span class="b-chem">+${chemDelta}% Química</span>`);
+  else if (chemDelta < 0) summaryParts.push(`<span style="color:#fca5a5;">${chemDelta}% Química</span>`);
+  if (pwrDelta > 0) summaryParts.push(`<span class="b-pwr">+${pwrDelta} Poder</span>`);
+  if (xpAmt > 0) summaryParts.push(`<span class="b-lvl">+${xpAmt} XP</span>`);
+  if (energyDelta > 0) summaryParts.push(`<span class="b-chem">+${energyDelta}% Energia</span>`);
+  else if (energyDelta < 0) summaryParts.push(`<span style="color:#fca5a5;">${energyDelta}% Energia</span>`);
+
+  const headline = out.headline || "💬 Acontecimento do Elenco";
+  chat.messages.push({
+    senderIdx: -2,
+    speakerRole: "SYSTEM",
+    speakerName: "Desfecho",
+    speakerSprite: "",
+    roleTag: "Resumo",
+    tone: "system",
+    time: formatChatTimestamp(baseT, chat.messages.length),
+    text: `${headline}${out.note ? ` — ${out.note}` : ""}`
+  });
+
+  chat.resolved = true;
+  chat.outcomeQuality = out.tone || "AUTO";
+  chat.learnedCoop = learnedCoop;
+  chat.grantedBuff = grantedBuff;
+  chat.foundItem = foundItem;
+  chat.appliedConfigChanges = configChanges;
+  chat.outcomeSummary = `<strong>${headline}</strong>${out.note ? ` — ${out.note}` : ""}${summaryParts.length ? ` • ${summaryParts.join(" · ")}` : ""}`;
+  t.prepBonuses.log.push(`Chat Autônomo (${chat.title}): ${headline}`);
+
+  if (typeof saveActiveRunProgress === "function") saveActiveRunProgress();
+  if (!skipRender) renderAll();
+}
+
 function openPrepTeamChats(returnPhase = null) {
   if (typeof isBetaMode === "function" && !isBetaMode()) return;
   const prep = state.tournament?.prep;
   if (!prep) return;
   if (!Array.isArray(prep.teamChats)) prep.teamChats = [];
-  if (prep.teamChats.length === 0) {
-    spawnSpontaneousTeamChat(state.tournament);
-  }
   if (!returnPhase) {
     prep.chatReturnPhase = prep.phase === "TEAM_CHAT" ? (prep.chatReturnPhase || "CHOOSE_LOC") : prep.phase;
   } else {
@@ -6000,6 +7234,10 @@ function openPrepTeamChats(returnPhase = null) {
   const firstUnread = prep.teamChats.find((c) => !c.resolved);
   prep.activeChatId = (firstUnread || prep.teamChats[prep.teamChats.length - 1] || {}).id || null;
   prep.phase = "TEAM_CHAT";
+  const activeObj = prep.teamChats.find((c) => c.id === prep.activeChatId);
+  if (activeObj && activeObj.interactionMode === "AUTO_COMPLETE" && !activeObj.resolved) {
+    finalizeAutonomousTeamChat(activeObj.id, true);
+  }
   if (typeof saveActiveRunProgress === "function") saveActiveRunProgress();
   renderTournamentScreen();
 }
@@ -6010,6 +7248,9 @@ function selectPrepTeamChatThread(chatId) {
   const found = prep.teamChats.find((c) => c.id === chatId);
   if (!found) return;
   prep.activeChatId = found.id;
+  if (found.interactionMode === "AUTO_COMPLETE" && !found.resolved) {
+    finalizeAutonomousTeamChat(found.id, true);
+  }
   if (typeof saveActiveRunProgress === "function") saveActiveRunProgress();
   renderTournamentScreen();
 }
@@ -6028,6 +7269,10 @@ function resolveSpontaneousTeamChat(chatId, choiceIdx) {
   if (!prep || !Array.isArray(prep.teamChats)) return;
   const chat = prep.teamChats.find((c) => c.id === (chatId || prep.activeChatId));
   if (!chat || chat.resolved) return;
+  if (chat.interactionMode === "AUTO_COMPLETE") {
+    finalizeAutonomousTeamChat(chat.id, false);
+    return;
+  }
 
   const choice = chat.choices?.[choiceIdx] || chat.choices?.[0];
   if (!choice) return;
@@ -6073,14 +7318,43 @@ function resolveSpontaneousTeamChat(chatId, choiceIdx) {
   const playerIds = selectedIds.map((sid) => state.squad[sid]?.id).filter(Boolean);
 
   const quality = choice.quality || "GOOD";
-  let affPts = quality === "GREAT"
-    ? (chat.category === "CRIAR_TECNICA" || chat.category === "ELOGIO" ? 34 : 28)
+  const ce = choice.customEffects && typeof choice.customEffects === "object" ? choice.customEffects : null;
+
+  let affPts = ce && ce.affPts != null
+    ? Number(ce.affPts)
+    : quality === "TRADEOFF"
+    ? 6
+    : quality === "GREAT"
+    ? (chat.category === "CRIAR_TECNICA" || chat.category === "ELOGIO" ? 30 : 24)
     : quality === "GOOD"
-    ? 15
+    ? 14
     : (chat.category === "RAIVA" ? -6 : 4);
-  const xpAmt = quality === "GREAT" ? 45 : quality === "GOOD" ? 25 : 0;
-  const chemDelta = quality === "GREAT" ? 4 : quality === "GOOD" ? 2 : (chat.category === "RAIVA" ? -2 : 0);
-  const pwrDelta = quality === "GREAT" ? 8 : 0;
+  const xpAmt = ce && ce.xpAmt != null
+    ? Number(ce.xpAmt)
+    : quality === "TRADEOFF"
+    ? 20
+    : quality === "GREAT"
+    ? 40
+    : quality === "GOOD"
+    ? 22
+    : 0;
+  const chemDelta = ce && ce.chemDelta != null
+    ? Number(ce.chemDelta)
+    : quality === "TRADEOFF"
+    ? 0
+    : quality === "GREAT"
+    ? 3
+    : quality === "GOOD"
+    ? 2
+    : (chat.category === "RAIVA" ? -2 : 0);
+  const pwrDelta = ce && ce.pwrDelta != null
+    ? Number(ce.pwrDelta)
+    : quality === "TRADEOFF"
+    ? 6
+    : quality === "GREAT"
+    ? 8
+    : 0;
+  const energyDelta = ce && ce.energyDelta != null ? Number(ce.energyDelta) : 0;
 
   let maxNewAffLv = 0;
   let pairPtsTotal = 0;
@@ -6097,7 +7371,6 @@ function resolveSpontaneousTeamChat(chatId, choiceIdx) {
       }
     }
   }
-  const avgPairPts = pairCnt > 0 ? pairPtsTotal / pairCnt : 0;
 
   if (xpAmt > 0) {
     selectedIds.forEach((sid) => {
@@ -6112,8 +7385,11 @@ function resolveSpontaneousTeamChat(chatId, choiceIdx) {
   if (chemDelta !== 0) {
     t.prepBonuses.chem = Math.max(-10, (t.prepBonuses.chem || 0) + chemDelta);
   }
-  if (pwrDelta > 0) {
+  if (pwrDelta !== 0) {
     t.prepBonuses.power = (t.prepBonuses.power || 0) + pwrDelta;
+  }
+  if (energyDelta !== 0 && typeof adjustTeamEnergy === "function") {
+    adjustTeamEnergy(energyDelta);
   }
 
   let learnedCoop = { learned: false, move: null, cat: null, tier: null, recipientNames: [], newlyAddedNames: [] };
@@ -6121,15 +7397,15 @@ function resolveSpontaneousTeamChat(chatId, choiceIdx) {
   let extraOutcomeTxt = "";
 
   if (chat.category === "CRIAR_TECNICA" && (quality === "GREAT" || quality === "GOOD")) {
-    const teamChemNow = typeof calcSquadStats === "function" ? (calcSquadStats()?.chem || 40) : 40;
-    const coopProb = quality === "GREAT" ? (avgPairPts >= 18 || teamChemNow >= 35 ? 1.0 : 0.65) : 0.25;
-    if (Math.random() < coopProb && typeof teachCoopMoveToGroup === "function") {
+    if (canLearnCoopMoveFromChat(t, quality) && typeof teachCoopMoveToGroup === "function") {
       const groupEntries = selectedIds.map((sid) => ({
         player: state.squad[sid],
         role: slotsMap[sid]?.role || "MF"
       }));
       learnedCoop = teachCoopMoveToGroup(groupEntries, Math.max(1, maxNewAffLv));
       if (learnedCoop.learned) {
+        t.chatCoopLearnCount = (t.chatCoopLearnCount || 0) + 1;
+        t.lastChatCoopLearnStage = t?.prep?.nextStageIdx ?? t?.stageIndex ?? 0;
         for (let i = 0; i < selectedIds.length; i++) {
           for (let j = i + 1; j < selectedIds.length; j++) {
             addPairAffinityPoints(state.squad[selectedIds[i]], state.squad[selectedIds[j]], 6, "coopMoves", t);
@@ -6143,55 +7419,46 @@ function resolveSpontaneousTeamChat(chatId, choiceIdx) {
           speakerSprite: "",
           roleTag: learnedCoop.cat || "SH",
           tone: "system",
+          time: formatChatTimestamp(baseT, chat.messages.length),
           text: `⚡ O grupo desenvolveu e aprendeu a técnica combinada 【${learnedCoop.move}】 (${learnedCoop.cat}) para usar em campo!`
         });
         extraOutcomeTxt += ` • Nova Técnica: <strong>${learnedCoop.move}</strong>`;
       }
+    } else if (quality === "GREAT") {
+      t.prepBonuses.power = (t.prepBonuses.power || 0) + 6;
+      extraOutcomeTxt += ` • <span class="b-pwr">+6 Poder Co-op</span> (jogada lapidada)`;
     }
   }
 
-  if (quality === "GREAT") {
-    if (chat.category === "RAIVA") {
-      grantedBuff = {
-        type: "BLOOD_FOCUS",
-        label: "🔥 Sangue nos Olhos (+Duelo)",
-        desc: "Participantes recebem +Duelo na próxima partida",
-        playerIds
-      };
-    } else if (chat.category === "CRIAR_TECNICA") {
-      grantedBuff = {
-        type: "COOP_SYNC",
-        label: "⚡ Sincronia Combinada (+Co-op/Passe)",
-        desc: "Participantes têm +força em técnicas co-op e menos interceptações",
-        playerIds
-      };
-    } else if (chat.category === "ELOGIO") {
+  if (quality === "TRADEOFF") {
+    if (ce?.buffType) {
+      grantedBuff = makeChatBuffByType(ce.buffType, playerIds);
+      if (grantedBuff) {
+        pushNextMatchChatBuff(t, grantedBuff);
+        extraOutcomeTxt += ` • Buff: <strong>${grantedBuff.label}</strong>`;
+      }
+    }
+    if (ce?.note) {
+      extraOutcomeTxt += ` • ${ce.note}`;
+    }
+  } else if (quality === "GREAT") {
+    const catToBuff = {
+      RAIVA: "BLOOD_FOCUS",
+      CRIAR_TECNICA: "COOP_SYNC",
+      ELOGIO: "MORALE_BOOST",
+      TATICA_RIVAL: "RIVAL_READ",
+      RESENHA: "LIGHT_LOCKER"
+    };
+    if (chat.category === "ELOGIO") {
       const prevE = typeof getTeamEnergy === "function" ? Math.round(getTeamEnergy()) : 80;
       const nextE = typeof adjustTeamEnergy === "function" ? Math.round(adjustTeamEnergy(6)) : prevE;
       extraOutcomeTxt += ` • <span class="b-chem">+6% Energia</span> (${prevE}% ➔ ${nextE}%)`;
-      grantedBuff = {
-        type: "MORALE_BOOST",
-        label: "🌟 Moral Inspirada (+Energia & Duelo)",
-        desc: "+6% Energia imediata e bônus de duelo acima de 60% de fôlego",
-        playerIds
-      };
-    } else if (chat.category === "TATICA_RIVAL") {
-      grantedBuff = {
-        type: "RIVAL_READ",
-        label: "📋 Leitura do Rival (-12% Interceptações)",
-        desc: "Reduz em 12% as interceptações rivais na próxima partida",
-        playerIds
-      };
-    } else {
-      grantedBuff = {
-        type: "LIGHT_LOCKER",
-        label: "😄 Vestiário Leve (-12% Cansaço)",
-        desc: "Participantes gastam 12% menos stamina no próximo jogo",
-        playerIds
-      };
     }
-    pushNextMatchChatBuff(t, grantedBuff);
-    extraOutcomeTxt += ` • Buff ativo: <strong>${grantedBuff.label}</strong>`;
+    grantedBuff = makeChatBuffByType(catToBuff[chat.category] || "LIGHT_LOCKER", playerIds);
+    if (grantedBuff) {
+      pushNextMatchChatBuff(t, grantedBuff);
+      extraOutcomeTxt += ` • Buff ativo: <strong>${grantedBuff.label}</strong>`;
+    }
   } else if (quality === "POOR") {
     if (chat.category === "CRIAR_TECNICA" && typeof getTeamEnergy === "function" && typeof adjustTeamEnergy === "function") {
       if (getTeamEnergy() > 14) {
@@ -6203,16 +7470,22 @@ function resolveSpontaneousTeamChat(chatId, choiceIdx) {
     }
   }
 
-  const headerDesc = quality === "GREAT"
+  const headerDesc = quality === "TRADEOFF"
+    ? `⚖️ Escolha do Técnico`
+    : quality === "GREAT"
     ? `🌟 Administração Perfeita!`
     : quality === "GOOD"
     ? `👍 Boa Gestão`
     : `⚠️ Gestão Conturbada`;
   const baseStatParts = [];
   if (affPts > 0) baseStatParts.push(`<span class="b-tech">+${affPts} Sintonia</span>`);
+  else if (affPts < 0) baseStatParts.push(`<span style="color:#fca5a5;">${affPts} Sintonia</span>`);
   if (xpAmt > 0) baseStatParts.push(`<span class="b-lvl">+${xpAmt} XP</span>`);
   if (chemDelta > 0) baseStatParts.push(`<span class="b-chem">+${chemDelta}% Química</span>`);
+  else if (chemDelta < 0) baseStatParts.push(`<span style="color:#fca5a5;">${chemDelta}% Química</span>`);
   if (pwrDelta > 0) baseStatParts.push(`<span class="b-pwr">+${pwrDelta} Poder</span>`);
+  if (energyDelta > 0) baseStatParts.push(`<span class="b-chem">+${energyDelta}% Energia</span>`);
+  else if (energyDelta < 0) baseStatParts.push(`<span style="color:#fca5a5;">${energyDelta}% Energia</span>`);
 
   chat.resolved = true;
   chat.chosenIdx = choiceIdx;
@@ -7011,9 +8284,11 @@ function buildBetweenMatchPrepHTML(t, stats) {
       ? `${PREP_SVG_MOON}<span>Anoiteceu • Visite o Dormitório do Clube</span>`
       : `${PREP_SVG_MOON}<span>Noite encerrada • Pronto para jogar</span>`;
     const isBetaChatOn = typeof isBetaMode === "function" && isBetaMode();
+    const betaChatsList = isBetaChatOn && Array.isArray(prep.teamChats) ? prep.teamChats : [];
+    const showBetaChatFab = isBetaChatOn && betaChatsList.length > 0;
     const mapStageHTML = mapImgSrc
       ? `
-        <div class="prep-inazuma-map-stage ${isNight ? "is-night-mode" : ""} ${isBetaChatOn ? "has-beta-chat-fab" : ""}">
+        <div class="prep-inazuma-map-stage ${isNight ? "is-night-mode" : ""} ${showBetaChatFab ? "has-beta-chat-fab" : ""}">
           <img class="prep-inazuma-map-img" src="${mapImgSrc}" alt="Mapa da Cidade de Inazuma" />
           <div class="prep-inazuma-map-shade"></div>
           <div class="prep-map-header-tag">
@@ -7064,9 +8339,8 @@ function buildBetweenMatchPrepHTML(t, stats) {
             )
             .join("")}
           ${(() => {
-            if (!isBetaChatOn) return "";
-            const allChats = Array.isArray(prep.teamChats) ? prep.teamChats : [];
-            const unreadCount = allChats.filter((c) => !c.resolved).length;
+            if (!showBetaChatFab) return "";
+            const unreadCount = betaChatsList.filter((c) => !c.resolved).length;
             return `
               <button type="button" class="prep-map-chat-fab ${unreadCount > 0 ? "has-unread" : ""}" id="btn-open-map-chats" aria-label="Conversas (${unreadCount} pendentes)" title="Abrir conversas espontâneas do elenco (0 energia, 0 ações)">
                 <svg class="prep-map-chat-svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -7532,11 +8806,21 @@ function buildBetweenMatchPrepHTML(t, stats) {
           : "";
 
         const qualCls =
-          activeChat.outcomeQuality === "GREAT"
+          activeChat.interactionMode === "AUTO_COMPLETE"
+            ? (activeChat.outcomeQuality === "POOR" ? "is-poor" : "is-auto")
+            : activeChat.outcomeQuality === "TRADEOFF"
+            ? "is-tradeoff"
+            : activeChat.outcomeQuality === "GREAT"
             ? "is-great"
             : activeChat.outcomeQuality === "POOR"
             ? "is-poor"
             : "is-good";
+        const modeBadgeHTML =
+          activeChat.interactionMode === "AUTO_COMPLETE"
+            ? `<span class="wpp-mode-pill">✨ Completa</span>`
+            : activeChat.interactionMode === "DILEMMA"
+            ? `<span class="wpp-mode-pill is-dilemma">⚖️ Dilema</span>`
+            : "";
 
         const sendIconSVG = `
           <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true">
@@ -7565,7 +8849,7 @@ function buildBetweenMatchPrepHTML(t, stats) {
               </div>
               <div class="wpp-fake-bar is-sent">
                 <span class="wpp-fake-emoji">${emojiIconSVG}</span>
-                <div class="wpp-fake-input" id="wpp-fake-input-preview">Orientação enviada ao grupo ✓✓</div>
+                <div class="wpp-fake-input" id="wpp-fake-input-preview">${activeChat.interactionMode === "AUTO_COMPLETE" ? "Conversa concluída pelo elenco ✓✓" : "Orientação enviada ao grupo ✓✓"}</div>
                 <span class="wpp-fake-send-circle">${sendIconSVG}</span>
               </div>
             </div>
@@ -7604,7 +8888,7 @@ function buildBetweenMatchPrepHTML(t, stats) {
               <div class="wpp-sidebar-head">
                 <div class="wpp-sidebar-brand">
                   <span class="wpp-brand-dot"></span>
-                  <span>InaZap</span>
+                  <span>InaZap • Vestiário</span>
                   ${unreadThreads.length > 0 ? `<span class="wpp-brand-unread">${unreadThreads.length}</span>` : ""}
                 </div>
                 <button type="button" class="wpp-back-btn" id="btn-close-map-chats">← Mapa</button>
@@ -7621,7 +8905,10 @@ function buildBetweenMatchPrepHTML(t, stats) {
                     <div class="wpp-topbar-sub">${namesSubtitle} • vs ${activeChat.oppName || ""}</div>
                   </div>
                 </div>
-                <span class="synergy-climate-badge ${activeChat.badgeClass || "is-neutral"}">${activeChat.categoryIcon || "💬"} ${activeChat.categoryLabel || "Resenha"}</span>
+                <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap; justify-content:flex-end;">
+                  ${modeBadgeHTML}
+                  <span class="synergy-climate-badge ${activeChat.badgeClass || "is-neutral"}">${activeChat.categoryIcon || "💬"} ${activeChat.categoryLabel || "Resenha"}</span>
+                </div>
               </div>
               <div class="wpp-feed" id="wpp-chat-feed">
                 <div class="wpp-sys-row"><span class="wpp-sys-pill is-date">HOJE • PRÉ-JOGO VS ${String(activeChat.oppName || "RIVAL").toUpperCase()}</span></div>

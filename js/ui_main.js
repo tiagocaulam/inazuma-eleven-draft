@@ -546,7 +546,7 @@ function renderTournamentScreen() {
           typeof isBetaMode === "function" &&
           isBetaMode() &&
           typeof spawnSpontaneousTeamChat === "function" &&
-          Math.random() < 0.55
+          Math.random() < 0.24
         ) {
           spawnSpontaneousTeamChat(t);
         }
