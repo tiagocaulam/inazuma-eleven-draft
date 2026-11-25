@@ -353,7 +353,7 @@ function resolvePenaltyKick(st, isAuto = false) {
     }
     if (typeof playSfx === "function") {
       playSfx(
-        outcome === "GOAL" ? "goal" : outcome === "POST" ? "post" : outcome === "MISS" ? "miss" : "save",
+        outcome === "GOAL" ? (isUserKicking ? "goal" : "goal_concede") : outcome === "POST" ? "post" : outcome === "MISS" ? "miss" : "save",
         { force: true }
       );
     }

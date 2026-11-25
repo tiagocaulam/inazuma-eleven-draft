@@ -1201,42 +1201,37 @@ function launchContinuousPass(st, pitch, carrier, attNodes, defNodes, strictForw
     }
 
     const profPasser = typeof getNodePersonality === "function" ? getNodePersonality(carrier) : { archetype: "EQUILIBRADO" };
-    const routeSkyOn = attIsUser && !pitch?.is5v5 && (pitch?.hissatsuTacticTimer || 0) > 0 && pitch?.activeHissatsuTacticId === "route_of_sky";
     if (passOptions.forceClearance) {
       passType = "GK_CLEAR";
-      peakZ = 1.28;
-    } else if (passOptions.isCross) {
+      peakZ = 1.25;
+    } else if (passOptions.isCross && dist >= 16) {
       passType = "CROSS";
       const recFis = receiver?.attrs?.fis || 75;
       const recVel = receiver?.attrs?.vel || 75;
-      peakZ = recFis >= recVel + 4 ? 1.15 : 0.72;
-    } else if (isGkOutlet && dist >= 22) {
+      peakZ = recFis >= recVel + 4 ? 1.12 : 0.78;
+    } else if (isGkOutlet && dist >= 24) {
       passType = "GK_CLEAR";
-      peakZ = 1.30;
+      peakZ = 1.25;
     } else if (
       !isOneTwoPass &&
       !passOptions.isReturnOneTwo &&
       !safeRestart &&
-      (dist >= 26 || (isThroughBall && hasBlockerInCorridor && dist >= 16) || (Math.abs(dy) >= 24 && dist >= 20))
+      (dist >= 28 || (isThroughBall && hasBlockerInCorridor && dist >= 18) || (Math.abs(dy) >= 26 && dist >= 22))
     ) {
       passType = "LOB";
-      peakZ = Number(Math.min(1.25, 0.85 + Math.max(0, dist - 16) * 0.015).toFixed(2));
-    } else if (
-      !isOneTwoPass &&
-      !passOptions.isReturnOneTwo &&
-      !safeRestart &&
-      hasBlockerInCorridor &&
-      dist >= 9.5 &&
-      (profPasser.archetype === "ESTRATEGISTA" || profPasser.archetype === "COLETIVISTA" || routeSkyOn || Math.random() < 0.72)
-    ) {
-      passType = "CHIP";
-      peakZ = 0.65;
+      peakZ = Number(Math.min(1.22, 0.80 + Math.max(0, dist - 18) * 0.015).toFixed(2));
     }
   }
 
-  const crossWhipBonus = betaAerial && passOptions.isCross && peakZ < 0.9 ? 5 : 0;
-  const passSpeed = (peakZ >= 0.9 ? 31 : peakZ > 0 ? 36 : dist > 32 ? 50 : isThroughBall ? 46 : 44) + crossWhipBonus;
-  const duration = betaAerial ? Math.max(0.22, Math.min(1.65, dist / passSpeed)) : Math.max(0.22, Math.min(1.25, dist / passSpeed));
+  const crossWhipBonus = betaAerial && passOptions.isCross && peakZ < 0.9 ? 2 : 0;
+  const passSpeed = (peakZ >= 0.9 ? 24 : peakZ > 0 ? 28 : dist > 30 ? 35 : isThroughBall ? 33 : 31) + crossWhipBonus;
+  const duration = betaAerial
+    ? (peakZ >= 0.9
+        ? Math.max(0.65, Math.min(1.75, dist / passSpeed))
+        : peakZ > 0
+        ? Math.max(0.52, Math.min(1.45, dist / passSpeed))
+        : Math.max(0.36, Math.min(1.35, dist / passSpeed)))
+    : Math.max(0.28, Math.min(1.28, dist / passSpeed));
   pitch.ballZ = 0;
   pitch.ballVz = 0;
 
@@ -1382,23 +1377,13 @@ function launchContinuousPass(st, pitch, carrier, attNodes, defNodes, strictForw
     showNodeBadge(pitch, receiver.uid, "⚡ Avançou!", "badge-pass", 900);
   }
 
-  const hasAnimeSpin = Boolean(betaAerial && isCurvedPass);
-  const passSpinVel = betaAerial
-    ? (hasAnimeSpin
-        ? (curveSpinSign || 1) * (passOptions.isCross ? 980 : 860)
-        : peakZ >= 0.90
-        ? 260
-        : peakZ > 0
-        ? 210
-        : isThroughBall
-        ? 240
-        : 160)
-    : 0;
+  const hasAnimeSpin = false;
+  const passSpinVel = 0;
   const releaseToLooseAt =
     betaAerial && isThroughBall && !isOneTwoPass && !passOptions.isReturnOneTwo && !passOptions.isCross && dist >= 14
       ? Math.min(0.90, Math.max(0.76, 0.78 + ((carrier.effOvr || 75) - 70) * 0.0035))
       : null;
-  pitch.ballSpinVel = passSpinVel;
+  pitch.ballSpinVel = 0;
 
   pitch.ballMode = "PASS_FLIGHT";
   pitch.carrierUid = null;
@@ -1888,7 +1873,7 @@ function launchContinuousShot(st, pitch, shooterNode, defNodes, attSupport, defS
     const commitGoalOutcome = () => {
       if (impactApplied) return;
       impactApplied = true;
-      if (typeof playSfx === "function") playSfx("goal");
+      if (typeof playSfx === "function") playSfx(curAttIsUser ? "goal" : "goal_concede");
       const userTeamUpper = (typeof getActiveTeamName === "function" ? getActiveTeamName() : "Dream Team").toUpperCase();
 
       const weakNote = weakenedByBlocker ? " (mesmo após desvio da zaga)" : "";

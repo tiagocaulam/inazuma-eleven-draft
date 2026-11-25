@@ -10943,4 +10943,202 @@ body {
   letter-spacing: 0.5px;
 }
 
+/* ============================================================================
+   POLIMENTO MOBILE (MAPA DA CIDADE, CHAT INAZAP E PARTIDA <= 720px / 640px / 480px)
+   ============================================================================ */
+@media (max-width: 720px) {
+  .wpp-shell {
+    min-height: 0;
+    border-radius: 10px;
+  }
+  .wpp-sidebar-head {
+    flex-wrap: wrap;
+    padding: 8px 10px;
+    gap: 6px;
+  }
+  .wpp-topbar {
+    flex-wrap: wrap;
+    padding: 8px 10px;
+    gap: 6px;
+  }
+  .wpp-topbar-avatars img {
+    width: 28px;
+    height: 28px;
+  }
+  .wpp-topbar-title {
+    font-size: 0.78rem;
+  }
+  .wpp-respect-pill {
+    font-size: 0.6rem;
+    padding: 2px 7px;
+  }
+  .wpp-feed {
+    min-height: 240px;
+    max-height: 50dvh;
+    padding: 10px 8px;
+    gap: 7px;
+  }
+  .wpp-reply-drawer {
+    max-height: 240px;
+    padding: 8px;
+  }
+  .wpp-reply-option {
+    padding: 9px 10px;
+    gap: 8px;
+  }
+}
+
+@media (max-width: 640px) {
+  .prep-inazuma-map-stage {
+    height: 252px;
+  }
+  .prep-inazuma-map-stage.has-beta-chat-fab .prep-map-header-tag {
+    max-width: calc(100% - 148px);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .prep-map-header-tag {
+    font-size: 0.6rem;
+    padding: 3px 8px;
+  }
+  .prep-map-footer-tag {
+    font-size: 0.56rem;
+    padding: 2px 7px;
+    bottom: 5px;
+    right: 6px;
+  }
+  .prep-map-pin-orb {
+    width: 40px;
+    height: 35px;
+  }
+  .prep-map-pin-sub {
+    width: 17px;
+    height: 17px;
+    top: -5px;
+    right: -5px;
+  }
+  .prep-map-pin-sub img {
+    width: 13px;
+    height: 13px;
+  }
+  .prep-map-pin-label {
+    font-size: 0.54rem;
+    padding: 2px 6px;
+    max-width: 92px;
+    white-space: normal;
+    text-align: center;
+    line-height: 1.12;
+  }
+  .prep-locations-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .wpp-thread-row {
+    flex: 0 0 182px;
+    padding: 6px 8px;
+    gap: 7px;
+  }
+  .wpp-thread-avatar,
+  .wpp-thread-avatar-fallback {
+    width: 36px;
+    height: 36px;
+  }
+  .wpp-row {
+    gap: 6px;
+  }
+  .wpp-msg-avatar {
+    width: 26px;
+    height: 26px;
+  }
+  .wpp-bubble {
+    max-width: 88%;
+    padding: 6px 9px 5px;
+    font-size: 0.77rem;
+  }
+
+  .live-scoreboard {
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    padding: 7px 6px;
+    gap: 4px;
+  }
+  .score-team {
+    min-width: 0;
+  }
+  .score-team > div:nth-child(2) {
+    flex-wrap: wrap;
+    font-size: 0.74rem !important;
+    line-height: 1.15;
+    row-gap: 2px;
+  }
+  .score-team > div:nth-child(3) {
+    font-size: 0.58rem !important;
+    line-height: 1.2;
+  }
+  .score-digits {
+    font-size: 1.32rem;
+    gap: 4px;
+  }
+  .live-tactical-pitch {
+    height: 218px;
+  }
+  .pitch-possession-bar {
+    font-size: 0.62rem;
+    padding: 0 7px;
+    gap: 5px;
+  }
+  .poss-dir-label {
+    font-size: 0.56rem;
+  }
+  .pitch-header-strip {
+    gap: 4px;
+  }
+  .pitch-side-dir {
+    font-size: 0.54rem;
+  }
+  .pitch-side-dir img {
+    width: 13px;
+    height: 13px;
+  }
+  .pitch-action-ticker {
+    font-size: 0.62rem;
+    padding: 3px 7px;
+  }
+  .pitch-coop-banner {
+    max-width: calc(100% - 16px);
+    font-size: 0.64rem;
+    padding: 4px 10px;
+    gap: 5px;
+    white-space: normal;
+    text-align: center;
+  }
+}
+
+@media (max-width: 480px) {
+  .wpp-resolved-actions {
+    justify-content: stretch;
+  }
+  .wpp-resolved-actions .ie-cmd-btn,
+  .wpp-resolved-actions .wpp-close-btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 420px) {
+  .prep-inazuma-map-stage {
+    height: 240px;
+  }
+  .prep-locations-grid {
+    grid-template-columns: 1fr;
+  }
+  .live-tactical-pitch {
+    height: 205px;
+  }
+  .match-right-panel .goals-columns {
+    grid-template-columns: 1fr;
+  }
+}
+
 

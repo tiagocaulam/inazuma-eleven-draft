@@ -8693,6 +8693,9 @@ function finalizeAutonomousTeamChat(chatId, skipRender = false) {
   chat.outcomeSummary = `<strong>${headline}</strong>${out.note ? ` — ${out.note}` : ""}${summaryParts.length ? ` • ${summaryParts.join(" · ")}` : ""}`;
   t.prepBonuses.log.push(`Chat Autônomo (${chat.title}): ${headline}`);
 
+  if (!skipRender && out.kind === "TENSION_FALLOUT" && typeof playSfx === "function") {
+    playSfx("fail");
+  }
   if (typeof saveActiveRunProgress === "function") saveActiveRunProgress();
   if (!skipRender) renderAll();
 }
@@ -9103,6 +9106,10 @@ function resolveSpontaneousTeamChat(chatId, choiceIdx) {
   chat.outcomeSummary = `<strong>${headerDesc}</strong> ${baseStatParts.join(" · ")}${extraOutcomeTxt}${configOutcome}`;
   t.prepBonuses.log.push(`Chat (${chat.title}): ${quality}${learnedCoop.learned ? ` + ${learnedCoop.move}` : ""}${configChanges.length ? ` [${configChanges.join(", ")}]` : ""}`);
 
+  if (typeof playSfx === "function") {
+    if (quality === "POOR") playSfx("fail");
+    else if (quality === "GREAT") playSfx("prep_reward");
+  }
   if (typeof saveActiveRunProgress === "function") saveActiveRunProgress();
   renderAll();
 }

@@ -147,9 +147,107 @@
     return audioCtx;
   }
 
+  const SAMPLE_PATHS = {
+    goal: "assets/sfx/crowd_goal.mp3",
+    goal_concede: "assets/sfx/crowd_boo.mp3"
+  };
+  const sampleBuffers = {};
+  const samplePromises = {};
+
+  function decodeSampleAsync(ctx, key) {
+    const url = SAMPLE_PATHS[key];
+    if (!url || sampleBuffers[key] || samplePromises[key] || typeof fetch !== "function" || !ctx || typeof ctx.decodeAudioData !== "function") {
+      return samplePromises[key] || null;
+    }
+    samplePromises[key] = fetch(url)
+      .then((res) => (res && res.ok && typeof res.arrayBuffer === "function" ? res.arrayBuffer() : null))
+      .then((arrBuf) => (arrBuf ? ctx.decodeAudioData(arrBuf) : null))
+      .then((decoded) => {
+        if (decoded) sampleBuffers[key] = decoded;
+        return decoded;
+      })
+      .catch(() => null);
+    return samplePromises[key];
+  }
+
+  function preloadCrowdSamples(ctx) {
+    if (!ctx) return;
+    decodeSampleAsync(ctx, "goal");
+    decodeSampleAsync(ctx, "goal_concede");
+  }
+
+  function playSampleClip(ctx, dest, key, opts = {}) {
+    const url = SAMPLE_PATHS[key];
+    if (!url || !isSfxEnabled()) return false;
+    const clipDur = Math.max(0.4, opts.maxDur || 2.2);
+    const clipGain = Math.max(0.05, Math.min(1, opts.gain !== undefined ? opts.gain : 0.9));
+    const offset = Math.max(0, opts.offset || 0);
+    const decoded = sampleBuffers[key];
+
+    if (decoded && ctx && dest) {
+      try {
+        const src = ctx.createBufferSource();
+        src.buffer = decoded;
+        const g = ctx.createGain();
+        const t0 = ctx.currentTime + (opts.delay || 0);
+        const playDur = Math.min(clipDur, Math.max(0.25, decoded.duration - offset));
+        const fadeStart = t0 + Math.max(0.12, playDur - 0.42);
+        g.gain.setValueAtTime(0.0001, t0);
+        g.gain.linearRampToValueAtTime(clipGain, t0 + 0.025);
+        g.gain.setValueAtTime(clipGain, fadeStart);
+        g.gain.exponentialRampToValueAtTime(0.0001, t0 + playDur);
+        src.connect(g);
+        g.connect(dest);
+        src.start(t0, offset, playDur + 0.04);
+        src.stop(t0 + playDur + 0.06);
+        return true;
+      } catch {
+        // segue para fallback Audio
+      }
+    }
+
+    if (ctx) decodeSampleAsync(ctx, key);
+    if (typeof Audio === "function") {
+      try {
+        const audio = new Audio(url);
+        const cfg = loadSettings();
+        const targetVol = Math.max(0, Math.min(1, cfg.volume * clipGain * 0.72));
+        audio.volume = targetVol;
+        if (offset > 0) {
+          audio.addEventListener("loadedmetadata", () => {
+            try {
+              if (audio.duration > offset + 0.4) audio.currentTime = offset;
+            } catch {}
+          }, { once: true });
+        }
+        audio.play().catch(() => {});
+        const fadeTimer = setInterval(() => {
+          if (audio.paused) {
+            clearInterval(fadeTimer);
+            return;
+          }
+          if (audio.currentTime >= offset + clipDur - 0.35) {
+            audio.volume = Math.max(0, audio.volume - targetVol * 0.18);
+          }
+        }, 65);
+        setTimeout(() => {
+          clearInterval(fadeTimer);
+          try {
+            audio.pause();
+          } catch {}
+        }, Math.round(clipDur * 1000));
+        return true;
+      } catch {
+        return false;
+      }
+    }
+    return false;
+  }
+
   function unlockSfxAudio() {
     if (!isSfxEnabled()) return false;
     const ctx = ensureAudioContext();
+    if (ctx) preloadCrowdSamples(ctx);
     return Boolean(ctx);
   }
 
@@ -406,10 +504,13 @@
     steal: 145,
     shot: 170,
     hissatsu: 240,
-    goal: 340,
+    goal: 450,
+    goal_concede: 450,
     save: 190,
     post: 190,
     miss: 190,
+    fail: 210,
+    defeat: 500,
     whistle: 280,
     unlock: 260,
     level_up: 220,
@@ -420,11 +521,14 @@
 
   const SPEED_4X_ALLOWED = new Set([
     "goal",
+    "goal_concede",
     "whistle",
     "unlock",
     "post",
     "save",
     "miss",
+    "fail",
+    "defeat",
     "level_up",
     "prep_reward",
     "chat_msg",
@@ -604,118 +708,155 @@
         break;
 
       case "shot":
-        // Chute básico encorpado e limpo (zero chiado estridente)
+        // Chute limpo baseado na física realista do passe, com mais peso no impacto + corte de ar
         playKickTransient(ctx, dest, {
-          subStart: 162,
-          subEnd: 42,
-          subDur: 0.088,
-          slapFreq: 960,
-          slapDur: 0.016,
-          slapGain: 0.16,
-          punchGain: 0.56,
+          subStart: 128,
+          subEnd: 38,
+          subDur: 0.054,
+          slapFreq: 1240,
+          slapDur: 0.024,
+          slapGain: 0.34,
+          punchGain: 0.48,
           saturate: true
         });
-        playTone(ctx, dest, {
-          type: "triangle",
-          freq: 210,
-          freqEnd: 74,
-          dur: 0.095,
-          attack: 0.004,
-          gain: 0.18
+        playNoiseSweep(ctx, dest, {
+          noiseType: "pink",
+          filterType: "bandpass",
+          freqStart: 420,
+          freqMid: 1080,
+          freqEnd: 340,
+          q: 1.4,
+          dur: 0.11,
+          attack: 0.012,
+          gain: 0.12,
+          delay: 0.01
         });
         break;
 
       case "hissatsu": {
         const el = String(opts.elem || "Fogo").toLowerCase();
-        // Carga e disparo especial cinematográfico sem estática longa
+        // Chute potente no couro + deslocamento orgânico de ar/elemento (sem oscilador sintético)
         playKickTransient(ctx, dest, {
-          subStart: 175,
+          subStart: 138,
           subEnd: 36,
-          subDur: 0.10,
-          slapFreq: 1050,
-          slapDur: 0.018,
-          slapGain: 0.20,
-          punchGain: 0.60,
+          subDur: 0.062,
+          slapFreq: 1180,
+          slapDur: 0.026,
+          slapGain: 0.34,
+          punchGain: 0.54,
           saturate: true
         });
         if (el.includes("vent")) {
-          playBrassNote(ctx, dest, { freq: 340, freqEnd: 780, dur: 0.24, cutoff: 1750, gain: 0.14 });
           playNoiseSweep(ctx, dest, {
             noiseType: "pink",
             filterType: "bandpass",
-            freqStart: 420,
-            freqMid: 1550,
+            freqStart: 360,
+            freqMid: 1850,
             freqEnd: 520,
-            q: 3.4,
+            q: 2.3,
             dur: 0.24,
-            attack: 0.025,
-            gain: 0.18,
+            attack: 0.02,
+            gain: 0.24,
+            delay: 0.015
+          });
+          playNoiseSweep(ctx, dest, {
+            noiseType: "white",
+            filterType: "bandpass",
+            freqStart: 900,
+            freqMid: 2400,
+            freqEnd: 880,
+            q: 2.1,
+            dur: 0.19,
+            attack: 0.018,
+            gain: 0.12,
             delay: 0.02
           });
         } else if (el.includes("flor")) {
-          playBrassNote(ctx, dest, { freq: 392, freqEnd: 587.33, dur: 0.22, cutoff: 1450, gain: 0.14 });
-          playTone(ctx, dest, { type: "sine", freq: 587.33, dur: 0.20, delay: 0.04, gain: 0.14 });
+          playNoiseSweep(ctx, dest, {
+            noiseType: "pink",
+            filterType: "bandpass",
+            freqStart: 520,
+            freqMid: 1420,
+            freqEnd: 620,
+            q: 2.2,
+            dur: 0.22,
+            attack: 0.02,
+            gain: 0.20,
+            delay: 0.015
+          });
         } else if (el.includes("mont")) {
-          playBrassNote(ctx, dest, { freq: 146.83, freqEnd: 98, dur: 0.28, cutoff: 540, gain: 0.22 });
           playNoiseSweep(ctx, satCurveNode || dest, {
             noiseType: "brown",
             filterType: "lowpass",
-            freqStart: 220,
-            freqEnd: 55,
-            q: 1.1,
-            dur: 0.26,
-            attack: 0.01,
-            gain: 0.34
+            freqStart: 250,
+            freqMid: 420,
+            freqEnd: 70,
+            q: 1.0,
+            dur: 0.24,
+            attack: 0.008,
+            gain: 0.34,
+            delay: 0.01
           });
         } else {
-          // Fogo: subida quente de energia + labareda grave limpa (sem chiado agudo)
-          playBrassNote(ctx, dest, { freq: 246.94, freqEnd: 523.25, dur: 0.24, cutoff: 1300, gain: 0.16 });
+          // Fogo: sopro denso de chama + deslocamento rápido de ar (zero chiado agudo)
           playNoiseSweep(ctx, satCurveNode || dest, {
             noiseType: "brown",
             filterType: "lowpass",
-            freqStart: 240,
-            freqMid: 820,
-            freqEnd: 220,
-            q: 1.3,
-            dur: 0.26,
-            attack: 0.018,
+            freqStart: 260,
+            freqMid: 780,
+            freqEnd: 190,
+            q: 1.2,
+            dur: 0.24,
+            attack: 0.015,
             gain: 0.30,
-            delay: 0.015
+            delay: 0.012
+          });
+          playNoiseSweep(ctx, dest, {
+            noiseType: "pink",
+            filterType: "bandpass",
+            freqStart: 380,
+            freqMid: 1280,
+            freqEnd: 380,
+            q: 1.5,
+            dur: 0.20,
+            attack: 0.018,
+            gain: 0.16,
+            delay: 0.02
           });
         }
         break;
       }
 
       case "goal":
-        // Impacto seco de gol seguido por fanfarra/comemoração de estádio limpa (zero chiado longo)
-        playKickTransient(ctx, dest, {
-          subStart: 120,
-          subEnd: 38,
-          subDur: 0.055,
-          slapFreq: 860,
-          slapDur: 0.016,
-          slapGain: 0.18,
-          punchGain: 0.44,
-          saturate: true
-        });
-        playBrassNote(ctx, dest, { freq: 523.25, dur: 0.12, delay: 0.03, cutoff: 1550, gain: 0.14 });
-        playBrassNote(ctx, dest, { freq: 659.25, dur: 0.12, delay: 0.14, cutoff: 1650, gain: 0.15 });
-        playBrassNote(ctx, dest, { freq: 783.99, dur: 0.13, delay: 0.25, cutoff: 1750, gain: 0.16 });
-        playBrassNote(ctx, dest, { freq: 1046.50, dur: 0.46, delay: 0.37, cutoff: 1850, gain: 0.19 });
-        playBrassNote(ctx, dest, { freq: 523.25, dur: 0.44, delay: 0.37, cutoff: 1100, gain: 0.13 });
-        playBrassNote(ctx, dest, { freq: 392.00, dur: 0.44, delay: 0.37, cutoff: 900, gain: 0.11 });
-        // Base grave de vibração da arquibancada (sem frequências agudas de chiado)
+        // Som real de torcida celebrando no estádio (MP3 Mixkit com fade suave)
+        playSampleClip(ctx, masterGain, "goal", { maxDur: 2.4, gain: 0.94, offset: 0.05 });
+        break;
+
+      case "goal_concede":
+        // Som real de torcida vaiando / lamentando gol sofrido
+        playSampleClip(ctx, masterGain, "goal_concede", { maxDur: 2.1, gain: 0.88, offset: 0.08 });
+        break;
+
+      case "fail":
+        // Feedback negativo limpo (sem buzz 8-bit) para escolha ruim no chat / falha leve
         playNoiseSweep(ctx, dest, {
           noiseType: "brown",
           filterType: "lowpass",
-          freqStart: 210,
+          freqStart: 320,
           freqEnd: 110,
-          q: 0.7,
-          dur: 0.65,
-          attack: 0.08,
-          gain: 0.16,
-          delay: 0.05
+          q: 0.9,
+          dur: 0.08,
+          attack: 0.004,
+          gain: 0.14
         });
+        playTone(ctx, dest, { type: "sine", freq: 270, freqEnd: 165, dur: 0.16, attack: 0.006, gain: 0.14 });
+        break;
+
+      case "defeat":
+        // Tom descendente suave + reação contida da arquibancada na derrota
+        playTone(ctx, dest, { type: "sine", freq: 329.63, freqEnd: 246.94, dur: 0.18, attack: 0.008, gain: 0.14 });
+        playTone(ctx, dest, { type: "sine", freq: 246.94, freqEnd: 174.61, dur: 0.28, delay: 0.14, attack: 0.008, gain: 0.15 });
+        playSampleClip(ctx, masterGain, "goal_concede", { maxDur: 1.55, gain: 0.56, offset: 0.12 });
         break;
 
       case "save":
@@ -855,7 +996,10 @@
   if (typeof document !== "undefined" && typeof document.addEventListener === "function" && !unlockBound) {
     unlockBound = true;
     const onFirstGesture = () => {
-      if (isSfxEnabled()) ensureAudioContext();
+      if (isSfxEnabled()) {
+        const ctx = ensureAudioContext();
+        if (ctx) preloadCrowdSamples(ctx);
+      }
     };
     document.addEventListener("pointerdown", onFirstGesture, { passive: true });
     document.addEventListener("keydown", onFirstGesture, { passive: true });

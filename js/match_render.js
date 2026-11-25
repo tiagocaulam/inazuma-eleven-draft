@@ -209,6 +209,11 @@ function showRefereeWhistleModal(st, type, onProceed) {
 
   if (typeof playSfx === "function") {
     playSfx("whistle", { long: isFulltime || isPenalties });
+    if (isFulltime && !st.won && !st.isDraw) {
+      setTimeout(() => {
+        if (typeof playSfx === "function") playSfx("defeat", { force: true });
+      }, 240);
+    }
   }
   const activeTeamName = typeof getActiveTeamName === "function" ? getActiveTeamName() : "Dream Team";
   const activeTeamUpper = activeTeamName.toUpperCase();
@@ -2321,10 +2326,9 @@ function renderPitchDOMFrame(pitch, st, now) {
         pitch.ballZ = 0;
         pitch.ballVz = 0;
       }
-      const carrySpin = Number(pitch.ballSpinDeg) || 0;
       const carryScale = zCushion > 0.008 ? 1 + zCushion * 0.24 : 1;
       ballTransform = carryScale !== 1 ? `translate(-50%, -50%) scale(${carryScale.toFixed(2)})` : "translate(-50%, -50%)";
-      ballSvgSpinDeg = carrySpin;
+      ballSvgSpinDeg = null;
     } else {
       pitch.ballZ = 0;
       pitch.ballVz = 0;
@@ -2357,9 +2361,9 @@ function renderPitchDOMFrame(pitch, st, now) {
       ballTransform = `translate(-50%, -50%) rotate(${angleDeg.toFixed(1)}deg) scale(${stretch.toFixed(2)}, ${squash.toFixed(2)})`;
       ballSvgSpinDeg = null;
     } else {
-      ballScale = betaOn ? 1 + (pitch.ballZ || 0) * 0.26 + Math.sin(t * Math.PI) * 0.08 : 1 + Math.sin(t * Math.PI) * 0.28;
+      ballScale = betaOn ? 1 + (pitch.ballZ || 0) * 0.24 + Math.sin(t * Math.PI) * 0.06 : 1 + Math.sin(t * Math.PI) * 0.26;
       ballTransform = `translate(-50%, -50%) scale(${ballScale.toFixed(2)})`;
-      ballSvgSpinDeg = betaOn ? (Number(pitch.ballSpinDeg) || 0) : null;
+      ballSvgSpinDeg = null;
     }
     if (pitch.passTrail) {
       pitch.passTrail.curX = pitch.ballX;
@@ -2380,11 +2384,10 @@ function renderPitchDOMFrame(pitch, st, now) {
     ballScale = !betaOn
       ? 1 + Math.sin(pitch.passState.progress * Math.PI) * 0.22
       : zHeight > 0.01
-      ? 1 + zHeight * 0.26
-      : 1 + Math.sin(pitch.passState.progress * Math.PI) * 0.05;
-    const passSpin = betaOn ? (Number(pitch.ballSpinDeg) || ((pitch.passState.progress || 0) * 320)) : 0;
+      ? 1 + zHeight * 0.24
+      : 1 + Math.sin(pitch.passState.progress * Math.PI) * 0.04;
     ballTransform = `translate(-50%, -50%) scale(${ballScale.toFixed(2)})`;
-    ballSvgSpinDeg = betaOn ? passSpin : null;
+    ballSvgSpinDeg = null;
     if (pitch.passTrail) {
       pitch.passTrail.curX = pitch.ballX;
       pitch.passTrail.curY = pitch.ballY;
@@ -2393,17 +2396,14 @@ function renderPitchDOMFrame(pitch, st, now) {
       pitch.passTrail.fadeUntil = now + 320;
     }
   } else if (pitch.ballMode === "LOOSE_BALL" && pitch.looseState) {
-    const speedMag = Math.hypot(pitch.looseState.vx || 0, pitch.looseState.vy || 0);
-    const rollSpin = ((pitch.simTime || 0) * speedMag * 18) % 360;
     if (betaOn) {
       const zLoose = Math.max(0, Number(pitch.ballZ) || 0);
-      ballScale = 1 + zLoose * 0.26;
-      const liveSpin = Number.isFinite(pitch.ballSpinDeg) ? pitch.ballSpinDeg : rollSpin;
+      ballScale = 1 + zLoose * 0.24;
       ballTransform = `translate(-50%, -50%) scale(${ballScale.toFixed(2)})`;
-      ballSvgSpinDeg = liveSpin;
+      ballSvgSpinDeg = null;
     } else {
       ballTransform = "translate(-50%, -50%)";
-      ballSvgSpinDeg = rollSpin;
+      ballSvgSpinDeg = null;
     }
   } else if (pitch.holdBallPos && !pitch.carrierUid) {
     pitch.ballX = pitch.holdBallPos.x;
@@ -2436,17 +2436,13 @@ function renderPitchDOMFrame(pitch, st, now) {
     ballEl.style.zIndex = ballZVis > 0.45 ? "16" : "9";
 
     const specialShotFlame = Boolean(betaOn && isShotBall && pitch.ballFlight?.isSpecial);
-    const animeSpinActive = Boolean(betaOn && pitch.ballMode === "PASS_FLIGHT" && pitch.passState?.hasAnimeSpin);
+    const animeSpinActive = false;
     ballEl.classList.toggle("is-elem-flame", specialShotFlame);
-    ballEl.classList.toggle("is-anime-spin", animeSpinActive);
-    ballEl.classList.toggle("is-spin-ccw", Boolean(animeSpinActive && (pitch.passState?.spinVel || 0) < 0));
+    ballEl.classList.toggle("is-anime-spin", false);
+    ballEl.classList.toggle("is-spin-ccw", false);
     const ballSvgEl = typeof ballEl.querySelector === "function" ? ballEl.querySelector(".pitch-ball-svg") : null;
     if (ballSvgEl) {
-      if (animeSpinActive || isShotBall || ballSvgSpinDeg === null) {
-        ballSvgEl.style.transform = "";
-      } else {
-        ballSvgEl.style.transform = `rotate(${ballSvgSpinDeg.toFixed(0)}deg)`;
-      }
+      ballSvgEl.style.transform = "";
     }
     const elemSlug = specialShotFlame
       ? String(pitch.ballFlight?.elem || "Fogo")
