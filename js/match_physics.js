@@ -160,10 +160,12 @@ function buildLivePitchBoxHTML(st, oppTeam, stats = calcSquadStats(), oppStats =
           <div id="live-pitch-ball-shadow" class="pitch-ball-shadow" style="left:${pitch.ballX}%; top:${pitch.ballY}%;"></div>
           <div id="live-pitch-ball" class="pitch-ball-dot" style="left:${pitch.ballX}%; top:${pitch.ballY}%;">
             <span class="pitch-ball-flame" aria-hidden="true"></span>
-            <svg class="pitch-ball-spin-svg" viewBox="0 0 48 48" aria-hidden="true">
-              <path d="M24 12 C32 9, 41 13, 44 21 C41 17, 34 15, 27 17" fill="none" stroke="rgba(224,242,254,0.92)" stroke-width="2.1" stroke-linecap="round"/>
-              <path d="M24 12 C32 9, 41 13, 44 21 C41 17, 34 15, 27 17" fill="none" stroke="rgba(56,189,248,0.95)" stroke-width="2.1" stroke-linecap="round" transform="rotate(120 24 24)"/>
-              <path d="M24 12 C32 9, 41 13, 44 21 C41 17, 34 15, 27 17" fill="none" stroke="rgba(250,204,21,0.88)" stroke-width="2.0" stroke-linecap="round" transform="rotate(240 24 24)"/>
+            <svg class="pitch-ball-spin-svg" viewBox="0 0 36 36" aria-hidden="true">
+              <circle cx="18" cy="18" r="8.2" fill="none" stroke="rgba(224,242,254,0.45)" stroke-width="1.2" stroke-dasharray="6 5"/>
+              <circle cx="18" cy="18" r="5.4" fill="none" stroke="rgba(56,189,248,0.38)" stroke-width="1.0" stroke-dasharray="4 6"/>
+              <path d="M21 10.2 C27 9.6, 32.5 13.5, 33 20.2 C31.5 17.5, 29.2 15.8, 26.5 15.4" fill="none" stroke="rgba(224,242,254,0.92)" stroke-width="1.5" stroke-linecap="round"/>
+              <path d="M21 10.2 C27 9.6, 32.5 13.5, 33 20.2 C31.5 17.5, 29.2 15.8, 26.5 15.4" fill="none" stroke="rgba(56,189,248,0.92)" stroke-width="1.5" stroke-linecap="round" transform="rotate(120 18 18)"/>
+              <path d="M21 10.2 C27 9.6, 32.5 13.5, 33 20.2 C31.5 17.5, 29.2 15.8, 26.5 15.4" fill="none" stroke="rgba(250,204,21,0.88)" stroke-width="1.4" stroke-linecap="round" transform="rotate(240 18 18)"/>
             </svg>
             ${buildMiniBallSVG("pitch-ball-svg")}
           </div>
@@ -848,6 +850,7 @@ function resolvePhysicalDribbleClash(st, pitch, carrier, marker, attSupport, def
       duration: dashMs
     };
     pitch.passTrail = {
+      isDash: true,
       fromX: startX,
       fromY: startY,
       toX: dashToX,
@@ -1229,8 +1232,8 @@ function launchContinuousPass(st, pitch, carrier, attNodes, defNodes, strictForw
   }
 
   const crossWhipBonus = betaAerial && passOptions.isCross && peakZ < 0.9 ? 5 : 0;
-  const passSpeed = (peakZ >= 0.9 ? 39 : peakZ > 0 ? 42 : dist > 32 ? 50 : isThroughBall ? 46 : 44) + crossWhipBonus;
-  const duration = betaAerial ? Math.max(0.22, Math.min(1.45, dist / passSpeed)) : Math.max(0.22, Math.min(1.25, dist / passSpeed));
+  const passSpeed = (peakZ >= 0.9 ? 31 : peakZ > 0 ? 36 : dist > 32 ? 50 : isThroughBall ? 46 : 44) + crossWhipBonus;
+  const duration = betaAerial ? Math.max(0.22, Math.min(1.65, dist / passSpeed)) : Math.max(0.22, Math.min(1.25, dist / passSpeed));
   pitch.ballZ = 0;
   pitch.ballVz = 0;
 
@@ -1448,14 +1451,16 @@ function launchContinuousPass(st, pitch, carrier, attNodes, defNodes, strictForw
     toY: leadY,
     curX: fromX,
     curY: fromY,
-    pts: [{ x: fromX, y: fromY }],
+    peakZ,
+    progress: 0,
+    frozenPathD: null,
     u: 0,
     isAerial: peakZ > 0,
     hasAnimeSpin,
     color: trailColor,
     start: performance.now(),
     flightDuration: Math.round(duration * 1000),
-    fadeUntil: performance.now() + 950
+    fadeUntil: performance.now() + 750
   };
 
   const badgeTxt = isGkOutlet
@@ -2896,7 +2901,7 @@ function launchContinuousShot(st, pitch, shooterNode, defNodes, attSupport, defS
       state.tournament.timerId = null;
     }
     syncLivePitchDOM(st);
-    startPitchRafLoop(st);
+    if (!state.tournament.pitchRafId) startPitchRafLoop(st);
 
     let gatherFired = false;
     const finishCoopGather = (skipDelay = false) => {
@@ -3350,6 +3355,7 @@ function stepContinuousPhysics(st, pitch, dt) {
               duration: dashMs
             };
             pitch.passTrail = {
+              isDash: true,
               fromX: startX,
               fromY: startY,
               toX: dashToX,
@@ -4009,6 +4015,15 @@ function stepContinuousPhysics(st, pitch, dt) {
     if (isBetaCatch) {
       pitch.ballSpinVel = (pitch.ballSpinVel || 0) * 0.45;
     }
+    if (pitch.passTrail && !pitch.passTrail.isDash) {
+      const doneP = Math.max(0.05, Math.min(1, Number(playMeta.progress) || 1));
+      pitch.passTrail.progress = doneP;
+      pitch.passTrail.u = easePassProgress(doneP);
+      pitch.passTrail.curX = pitch.ballX;
+      pitch.passTrail.curY = pitch.ballY;
+      pitch.passTrail.fadeUntil = Math.min(pitch.passTrail.fadeUntil || (performance.now() + 280), performance.now() + 280);
+      pitch.passTrail.frozenPathD = null;
+    }
     if (attIsUser && !pitch.is5v5 && playMeta.passerNode) {
       if (
         isBetaCatch &&
@@ -4136,7 +4151,12 @@ function stepContinuousPhysics(st, pitch, dt) {
     pitch.ballX = pos.x;
     pitch.ballY = pos.y;
     const peakZ = typeof isBetaMode === "function" && isBetaMode() ? (Number(ps.peakZ) || 0) : 0;
-    pitch.ballZ = peakZ > 0 ? Math.sin(Math.min(1, ps.progress) * Math.PI) * peakZ : 0;
+    const pClamped = Math.max(0, Math.min(1, ps.progress));
+    pitch.ballZ = peakZ > 0 ? 4 * pClamped * (1 - pClamped) * peakZ : 0;
+    if (pitch.passTrail && !pitch.passTrail.isDash) {
+      pitch.passTrail.progress = pClamped;
+      pitch.passTrail.u = u;
+    }
 
     // 1) Goleiro sai para abafar cruzamento/lançamento alto dentro da sua área
     if (!ps.isSafeProtectedPass && peakZ >= 0.65 && ps.progress >= 0.58 && pitch.ballZ <= 0.88) {
@@ -4390,11 +4410,13 @@ function stepContinuousPhysics(st, pitch, dt) {
       const endVx = (rawVx / mag) * cappedSpeed;
       const endVy = (rawVy / mag) * cappedSpeed;
 
-      if (pitch.passTrail) {
-        pitch.passTrail.u = 1;
+      if (pitch.passTrail && !pitch.passTrail.isDash) {
+        pitch.passTrail.progress = Math.max(0.05, Math.min(1, Number(ps.progress) || 1));
+        pitch.passTrail.u = Math.min(1, u);
         pitch.passTrail.curX = pitch.ballX;
         pitch.passTrail.curY = pitch.ballY;
-        pitch.passTrail.fadeUntil = performance.now() + 420;
+        pitch.passTrail.frozenPathD = null;
+        pitch.passTrail.fadeUntil = performance.now() + 340;
       }
       pitch.ballMode = "LOOSE_BALL";
       if (isBetaFlight) {

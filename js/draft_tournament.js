@@ -1039,6 +1039,7 @@ function clearTournamentTimers(resolvePending = false) {
     cancelAnimationFrame(state.tournament.pitchRafId);
     state.tournament.pitchRafId = null;
   }
+  state.tournament._pitchRafGen = (state.tournament._pitchRafGen || 0) + 1;
   if (state.tournament.clashTimer1) {
     clearTimeout(state.tournament.clashTimer1);
     state.tournament.clashTimer1 = null;

@@ -3522,10 +3522,10 @@ body {
 .pitch-ball-shadow {
   position: absolute;
   transform: translate(-50%, -50%);
-  width: 16px;
-  height: 7px;
+  width: 15px;
+  height: 6px;
   border-radius: 50%;
-  background: radial-gradient(ellipse at center, rgba(2, 6, 23, 0.72) 0%, rgba(2, 6, 23, 0) 75%);
+  background: radial-gradient(ellipse at center, rgba(2, 6, 23, 0.82) 0%, rgba(2, 6, 23, 0) 76%);
   z-index: 6;
   pointer-events: none;
   opacity: 0;
@@ -10594,8 +10594,8 @@ body {
   position: absolute;
   left: 50%;
   top: 50%;
-  width: 38px;
-  height: 38px;
+  width: 28px;
+  height: 28px;
   transform: translate(-50%, -50%);
   pointer-events: none;
   opacity: 0;
@@ -10631,18 +10631,21 @@ body {
 }
 
 .pitch-ball-dot.is-anime-spin .pitch-ball-svg {
-  animation: betaBallCoreSpinBlur 0.10s linear infinite;
-  filter: blur(0.65px) contrast(1.22);
+  animation: betaBallCoreSpinBlur 0.11s linear infinite;
+  filter: blur(0.45px) contrast(1.15);
 }
 .pitch-ball-dot.is-anime-spin .pitch-ball-spin-svg {
-  opacity: 0.95;
-  filter: drop-shadow(0 0 5px rgba(56, 189, 248, 0.72));
-  animation: betaAnimeWindVortex 0.20s linear infinite;
+  opacity: 0.96;
+  filter: drop-shadow(0 0 4px rgba(56, 189, 248, 0.65));
+  animation: betaAnimeWindVortex 0.22s linear infinite;
+}
+.pitch-ball-dot.is-anime-spin.is-spin-ccw .pitch-ball-svg,
+.pitch-ball-dot.is-anime-spin.is-spin-ccw .pitch-ball-spin-svg {
+  animation-direction: reverse;
 }
 @keyframes betaBallCoreSpinBlur {
-  0% { transform: rotate(0deg) scale(1.04, 0.96); }
-  50% { transform: rotate(180deg) scale(0.96, 1.04); }
-  100% { transform: rotate(360deg) scale(1.04, 0.96); }
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 @keyframes betaAnimeWindVortex {
   from { transform: translate(-50%, -50%) rotate(0deg); }
