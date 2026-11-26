@@ -676,7 +676,7 @@ function renderTournamentScreen() {
         e.stopPropagation();
         const cIdx = parseInt(cardEl.getAttribute("data-prep-choice-idx"), 10);
         const chosen = t.prep.choices?.[cIdx];
-        if (chosen) handleChoosePrepOption(chosen);
+        if (chosen) handleChoosePrepOption(chosen, cIdx);
       });
     });
 

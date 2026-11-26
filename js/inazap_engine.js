@@ -1321,7 +1321,7 @@
       });
     }
 
-    // 4. Desfecho celebrando reconciliação após ação na cidade
+    // 4. Desfecho celebrando resolução após ação na cidade
     if (kind === "CITY_PLOT_RESOLVED") {
       const plot = ctx.plot;
       if (!plot) return null;
@@ -1329,30 +1329,34 @@
       const a1 = actors.find((a) => a.id === plot.bId && a.id !== a0.id) || pickOther([a0.id]);
       const cap = pickOther([a0.id, a1.id], (a) => a.isCaptain);
       const core = [a0, a1, cap].filter((v, i, arr) => v && arr.findIndex((x) => x.id === v.id) === i);
+      const pr = ctx.plotResolution || null;
+      const line0 = pr?.lineA || `Valeu por levar a gente em ${plot.locLabel}, professor! Deu pra zerar aquela treta com o ${shortFirstName(a1)}.`;
+      const line1 = pr?.lineB || `Pois é, jogamos limpo e acabou o climão. Agora contra ${opp} pode contar com nossa tabela!`;
+      const line2 = pr?.lineCap || `Aeeee!! Agora sim esse vestiário tá com cara de campeão!!`;
       const msgs = [
-        makeProcMsg(core, 0, `Valeu por levar a gente em ${plot.locLabel}, professor! Deu pra zerar aquela treta com o ${shortFirstName(a1)}.`, "hype"),
-        makeProcMsg(core, 1, `Pois é, jogamos limpo e acabou o climão. Agora contra ${opp} pode contar com nossa tabela!`, "hype"),
-        ...(core[2] ? [makeProcMsg(core, 2, `Aeeee!! Agora sim esse vestiário tá com cara de campeão!!`, "praise")] : [])
+        makeProcMsg(core, 0, line0, pr?.arcState === "RIVALIDADE_FRIA" ? "tense" : "hype"),
+        makeProcMsg(core, 1, line1, "hype"),
+        ...(core[2] ? [makeProcMsg(core, 2, line2, "praise")] : [])
       ];
       return baseResult({
         id: "proc_city_resolved",
         contextTrigger: "CITY_PLOT_RESOLVED",
         category: "ELOGIO",
-        categoryLabel: "Reconciliação",
+        categoryLabel: pr?.categoryLabel || "Reconciliação",
         categoryIcon: "🤝",
         badgeClass: "cat-chem",
         interactionMode: "AUTO_COMPLETE",
-        title: `Pazes em ${plot.locLabel}`,
+        title: pr?.chosenTitle ? `${plot.locLabel}: ${pr.chosenTitle}` : `Pazes em ${plot.locLabel}`,
         coreActors: core,
         messages: msgs,
         choices: [],
         autoOutcome: {
           kind: "CHEMISTRY_BOND",
-          headline: `✨ ${shortFirstName(a0)} e ${shortFirstName(a1)} selaram as pazes em ${plot.locLabel}!`,
-          affPts: 8,
-          chemDelta: 1,
-          setArc: "RECONCILIADOS",
-          respectDelta: 2
+          headline: pr?.headline || `✨ ${shortFirstName(a0)} e ${shortFirstName(a1)} selaram as pazes em ${plot.locLabel}!`,
+          affPts: pr?.chatAffPts ?? 8,
+          chemDelta: pr?.chatChemDelta ?? 1,
+          setArc: pr?.arcState || "RECONCILIADOS",
+          respectDelta: pr?.chatRespectDelta ?? 2
         }
       });
     }
@@ -1780,85 +1784,116 @@
     const spriteFor = (entry) =>
       typeof getPlayerFormSprite === "function" ? getPlayerFormSprite(entry.p, entry.slot.role) : (entry.p.sprite || "");
 
+    const goalNames = Array.isArray(st.goalsUser) ? st.goalsUser.map((g) => g?.name).filter(Boolean) : [];
+    const lastGoalName = goalNames.length > 0 ? goalNames[goalNames.length - 1] : null;
+    const scorerEntry = lastGoalName ? fieldPlayers.find((e) => e.p.name === lastGoalName) : null;
+    if (scorerEntry && scorerEntry.p.id !== cap.p.id) {
+      // Destaca quem marcou no 1º tempo como segunda voz se diferente do capitão
+    }
+    const lead2 = scorerEntry && scorerEntry.p.id !== cap.p.id ? scorerEntry : voice2;
+
+    const pCap = resolveInazumaPersona(cap.p);
+    const pLead2 = resolveInazumaPersona(lead2.p);
+    const pGk = resolveInazumaPersona(gk.p);
+
     const isWinning = uScore > oScore;
     const isLosing = uScore < oScore;
-
-    const bubbles = isLosing
-      ? [
-          {
-            name: cap.p.name,
-            roleLabel: "Capitão",
-            sprite: spriteFor(cap),
-            tone: "tense",
-            text: `O placar em ${uScore} x ${oScore} ainda dá pra virar fácil contra ${oppName}! Só falta a gente ajustar a pegada pro 2º tempo!`
-          },
-          {
-            name: voice2.p.name,
-            roleLabel: voice2.slot.role,
-            sprite: spriteFor(voice2),
-            tone: "normal",
-            text: `Eles deram espaço quando subimos a linha. Professor, qual a ordem pra segunda etapa?`
-          }
-        ]
+    const statusTag = isLosing
+      ? "🔥 VIRADA NO 2º TEMPO!"
       : isWinning
-      ? [
-          {
-            name: gk.p.name,
-            roleLabel: gk.slot.role,
-            sprite: spriteFor(gk),
-            tone: "hype",
-            text: `Boa vantagem nesse ${uScore} x ${oScore}! Agora é manter a cabeça no lugar porque ${oppName} vai vir com tudo no 2º tempo.`
-          },
-          {
-            name: voice2.p.name,
-            roleLabel: voice2.slot.role,
-            sprite: spriteFor(voice2),
-            tone: "hype",
-            text: `Se encaixarmos o contragolpe certo dá pra matar o jogo rápido!`
-          }
-        ]
-      : [
-          {
-            name: cap.p.name,
-            roleLabel: "Capitão",
-            sprite: spriteFor(cap),
-            tone: "normal",
-            text: `Primeiro tempo pegado nesse ${uScore} x ${oScore} contra ${oppName}! Tá na mão da gente decidir nos últimos 45 minutos.`
-          },
-          {
-            name: voice2.p.name,
-            roleLabel: voice2.slot.role,
-            sprite: spriteFor(voice2),
-            tone: "normal",
-            text: `Só diz onde a gente aperta mais agora na volta do intervalo, professor.`
-          }
-        ];
+      ? "🛡️ SEGURE A VANTAGEM!"
+      : "⚡ TUDO EM ABERTO!";
+
+    const voiceTxt = (entry, pers, mode) => {
+      const v = pers.voice;
+      if (mode === "LOSE") {
+        if (v === "COLD_ACE") return `Estar ${uScore} x ${oScore} atrás contra ${oppName} não interessa. Soltem a bola na frente no 2º tempo que eu resolvo.`;
+        if (v === "HOTHEAD") return `Não vou aceitar sair desse campo perdendo pra ${oppName}!! Manda pressionar em cima agora, professor!`;
+        if (v === "TACTICIAN") return `O meio de ${oppName} abriu espaços nos últimos dez minutos. Com um ajuste fino agora nós viramos esse ${uScore} x ${oScore}!`;
+        if (v === "CHILL_JOKER") return `Ei, levanta a cabeça galera! Já viramos jogos piores que esse, bora incendiar o vestiário!`;
+        return `Esse ${uScore} x ${oScore} não acabou!! Todo mundo confia no companheiro do lado porque contra ${oppName} nós vamos buscar a virada!`;
+      }
+      if (mode === "WIN") {
+        if (scorerEntry && scorerEntry.p.id === entry.p.id) {
+          return `Aquele gol foi só o começo contra ${oppName}! Mas ${uScore} x ${oScore} ainda pede concentração máxima na volta.`;
+        }
+        if (v === "STOIC_WALL") return `Seguramos bem nesse ${uScore} x ${oScore}, mas ${oppName} vai tentar tudo no 2º tempo. Linha fechada lá atrás!`;
+        if (v === "COLD_ACE") return `Boa vantagem, mas jogo só acaba no apito. Se der espaço pra contra-atacar nós matamos ${oppName}.`;
+        if (v === "TACTICIAN") return `Eles vão precisar avançar pra buscar o empate. Se controlarmos o ritmo do meio, a vitória não escapa.`;
+        return `Bora manter esse fogo aceso!! ${uScore} x ${oScore} tá ótimo, mas quero ver todo mundo correndo ainda mais na etapa final!`;
+      }
+      if (v === "COLD_ACE") return `${uScore} x ${oScore} tá aberto demais contra ${oppName}. Só me deem a jogada limpa uma vez.`;
+      if (v === "TACTICIAN") return `Primeiro tempo muito estudado nesse ${uScore} x ${oScore}. Qual setor vamos atacar pra quebrar o empate, treinador?`;
+      if (v === "CHILL_JOKER") return `Jogo amarrado hein ${uScore} x ${oScore}! Um ajuste certo no intervalo e a torcida explode!`;
+      return `Empate em ${uScore} x ${oScore} contra ${oppName}! Ninguém abaixa o ritmo agora, os últimos 45 minutos são nossos!`;
+    };
+
+    const modeKey = isLosing ? "LOSE" : isWinning ? "WIN" : "DRAW";
+    const lead1 = isWinning && !scorerEntry ? gk : cap;
+    const pLead1 = isWinning && !scorerEntry ? pGk : pCap;
+    const safeLead2 = lead2.p.id === lead1.p.id ? (fieldPlayers.find((e) => e.p.id !== lead1.p.id) || lead2) : lead2;
+    const pSafeLead2 = resolveInazumaPersona(safeLead2.p);
+
+    const bubbles = [
+      {
+        name: lead1.p.name,
+        roleLabel: lead1.p.id === cap.p.id ? "Capitão" : lead1.slot.role,
+        role: lead1.slot.role,
+        voiceLabel: pLead1.label || "Líder",
+        element: lead1.p.element || "Vento",
+        sprite: spriteFor(lead1),
+        tone: isLosing ? "tense" : isWinning ? "hype" : "normal",
+        text: voiceTxt(lead1, pLead1, modeKey)
+      },
+      {
+        name: safeLead2.p.name,
+        roleLabel: scorerEntry && safeLead2.p.id === scorerEntry.p.id ? "Artilheiro" : safeLead2.slot.role,
+        role: safeLead2.slot.role,
+        voiceLabel: pSafeLead2.label || "Titular",
+        element: safeLead2.p.element || "Vento",
+        sprite: spriteFor(safeLead2),
+        tone: isWinning ? "hype" : "idea",
+        text: voiceTxt(safeLead2, pSafeLead2, modeKey)
+      }
+    ];
+
+    const fwStar = fieldPlayers.find((e) => e.slot.role === "FW") || cap;
+    const mfStar = fieldPlayers.find((e) => e.slot.role === "MF") || safeLead2;
 
     const choices = [
       {
         key: "FIRE",
-        title: "🔥 Ataque Total",
-        subtitle: "+Chute/Ataque • -4% Fôlego",
-        coachText: `Quero pressão lá na frente desde o primeiro segundo do 2º tempo! Sem medo contra ${oppName}!`,
-        playerReact: `${cap.p.name}: Boraaa!! Todo mundo mordendo na área deles agora!`
+        title: "🔥 Espírito de Chama",
+        subtitle: "Pressão total no ataque",
+        buffTag: "+Ataque/Chute • -4% Fôlego",
+        reactName: fwStar.p.name,
+        reactSprite: spriteFor(fwStar),
+        coachText: `Escutem bem: não viemos assistir ${oppName} jogar! Pressionem lá em cima e chutem com alma desde o apito!`,
+        playerReact: `Pode deixar, professor!! No primeiro espaço na área a rede vai balançar!`
       },
       {
         key: "CALM",
-        title: "🧠 Cabeça Fria",
-        subtitle: "+Drible & Meio-Campo",
-        coachText: `Respirem fundo! Quero posse limpa no meio e passes conscientes até abrir a defesa de ${oppName}.`,
-        playerReact: `${voice2.p.name}: Perfeito, vamos controlar o tempo da bola e achar os espaços.`
+        title: "⚡ Ritmo Relâmpago",
+        subtitle: "Posse & drible no meio",
+        buffTag: "+Drible & Meio-Campo",
+        reactName: mfStar.p.name,
+        reactSprite: spriteFor(mfStar),
+        coachText: `Cabeça erguida e toque rápido pelo meio! Façam ${oppName} correr atrás da bola até a defesa abrir!`,
+        playerReact: `Leitura perfeita! Vamos girar a bola e desmontar a marcação deles no drible!`
       },
       {
         key: "WALL",
-        title: "🛡️ Muralha Fechada",
-        subtitle: "+Defesa & Goleiro",
-        coachText: `Linhas compactas atrás! Primeiro fechamos todos os espaços pro ${shortFirstName(gk.p.name)}, depois saímos limpos.`,
-        playerReact: `${gk.p.name}: Fechado! Da minha área não passa nem vento no 2º tempo.`
+        title: "🛡️ Paredão Inazuma",
+        subtitle: "Compactar defesa e gol",
+        buffTag: "+Defesa & Goleiro",
+        reactName: gk.p.name,
+        reactSprite: spriteFor(gk),
+        coachText: `Linha compacta na frente do ${shortFirstName(gk.p.name)}! Primeiro protegemos nossa meta, depois saímos mortais!`,
+        playerReact: `Fechado! Da minha área não passa nem sombra de bola no 2º tempo!`
       }
     ];
 
-    return { bubbles, choices };
+    return { statusTag, oppEmblem: st.oppTeam?.emblem || "", bubbles, choices };
   }
 
   const g = typeof window !== "undefined" ? window : globalThis;

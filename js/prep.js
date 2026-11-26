@@ -1087,6 +1087,29 @@ function buildStreet5v5Matchup() {
   if (starRecruit) {
     usedOppIds.add(starRecruit.player.id);
     usedFullNames.add((starRecruit.player.fullName || starRecruit.player.name || "").toLowerCase());
+    const fn = String(starRecruit.player?.fullName || starRecruit.player?.name || "").toLowerCase();
+    const canonK = typeof CHARACTER_CANONICAL_KESHINS !== "undefined"
+      ? CHARACTER_CANONICAL_KESHINS.find((c) => fn.includes(c.match))
+      : null;
+    const uiMap = typeof UI !== "undefined" ? UI : {};
+    if (canonK) {
+      starRecruit.previewKeshin = {
+        name: canonK.name,
+        iconKey: canonK.iconKey,
+        icon: uiMap[canonK.iconKey] || uiMap.keshinIcon || "",
+        move: canonK.move,
+        moveCat: canonK.moveCat,
+      };
+    } else if ((starRecruit.player?.ovr || 0) >= 91 && Math.random() < 0.28 && typeof pickCanonicalKeshinForPlayer === "function") {
+      starRecruit.previewKeshin = pickCanonicalKeshinForPlayer(
+        starRecruit.player,
+        starRecruit.role || "MF",
+        new Set(),
+        Math.floor(Math.random() * 1000)
+      );
+    } else {
+      starRecruit.previewKeshin = null;
+    }
   }
 
   let starPlaced = false;
@@ -1335,6 +1358,53 @@ function isPrepNightTime(t = state.tournament) {
   return curE < cheapestCost;
 }
 
+function buildCityPlotDebateContext(t, plot, choices = []) {
+  if (!plot || !Array.isArray(choices) || choices.length === 0) return null;
+  const aName = plot.aName || "Jogador A";
+  const bName = plot.bName || "Jogador B";
+  const findSprite = (pid, fallback = "") => {
+    const slots = typeof getSlots === "function" ? getSlots() : [];
+    for (const sl of slots) {
+      const p = state.squad?.[sl.id];
+      if (p && p.id === pid) {
+        return typeof getPlayerFormSprite === "function" ? getPlayerFormSprite(p, sl.role) : (p.sprite || fallback);
+      }
+    }
+    return fallback;
+  };
+  const optA = choices[0];
+  const optB = choices[1] || choices[0];
+  const opt3 = choices[2] || null;
+  const byChoiceIdx = {};
+  if (optA) {
+    byChoiceIdx[0] = { side: "A", playerId: plot.aId, playerName: aName, title: optA.title, badge: `📌 Pedido de ${aName}` };
+  }
+  if (optB && choices.length >= 2) {
+    byChoiceIdx[1] = { side: "B", playerId: plot.bId, playerName: bName, title: optB.title, badge: `📌 Pedido de ${bName}` };
+  }
+  if (opt3) {
+    byChoiceIdx[2] = { side: "THIRD", playerId: null, playerName: "Técnico", title: opt3.title, badge: `🧠 3ª Via (Sua Decisão)` };
+  }
+  const talkA = optA ? `Professor, eu quero fazer "${optA.title}"! É exatamente o que vai destravar meu jogo agora!` : `Confia na minha escolha, professor!`;
+  const talkB = optB ? `Nem pensar, professor! O que o time precisa de verdade é "${optB.title}"!` : `Minha ideia ajuda muito mais o grupo!`;
+  const talk3 = opt3 ? `Ou então o senhor corta pelo meio e manda "${opt3.title}" pros dois engolirem o orgulho.` : "";
+  return {
+    plotId: plot.id,
+    locId: plot.locId,
+    locLabel: plot.locLabel,
+    aId: plot.aId,
+    bId: plot.bId,
+    aName,
+    bName,
+    aSprite: findSprite(plot.aId),
+    bSprite: findSprite(plot.bId),
+    talkA,
+    talkB,
+    talk3,
+    byChoiceIdx
+  };
+}
+
 function startPrepLocationTripleSlot(locId) {
   const t = state.tournament;
   if (!t.prep) return;
@@ -1346,6 +1416,11 @@ function startPrepLocationTripleSlot(locId) {
     t.prepTimerId = null;
   }
 
+  const findOpenLocPlot = () =>
+    typeof isBetaMode === "function" && isBetaMode() && Array.isArray(t.activeCityPlots)
+      ? t.activeCityPlots.find((pl) => pl && !pl.resolved && pl.locId === locId) || null
+      : null;
+
   if (loc.isRestLocation) {
     if (t.prep.restUsedThisRound) {
       t.prep.energyNotice = "Você já descansou no Dormitório do Clube antes desta partida.";
@@ -1356,6 +1431,9 @@ function startPrepLocationTripleSlot(locId) {
     t.prep.locId = locId;
     t.prep.phase = "PICK_CHOICE";
     t.prep.choices = [...loc.events];
+    const openRestPlot = findOpenLocPlot();
+    t.prep.activePlotContext = openRestPlot ? buildCityPlotDebateContext(t, openRestPlot, t.prep.choices) : null;
+    t.prep.chosenPlotDecision = null;
     t.prep.appliedMsg = null;
     renderTournamentScreen();
     return;
@@ -1391,18 +1469,31 @@ function startPrepLocationTripleSlot(locId) {
   t.prep.locId = locId;
   t.prep.phase = "PICK_CHOICE";
   t.prep.choices = pickedThree;
+  const openLocPlot = findOpenLocPlot();
+  t.prep.activePlotContext = openLocPlot ? buildCityPlotDebateContext(t, openLocPlot, pickedThree) : null;
+  t.prep.chosenPlotDecision = null;
   t.prep.appliedMsg = null;
 
   if (typeof saveActiveRunProgress === "function") saveActiveRunProgress();
   renderTournamentScreen();
 }
 
-function handleChoosePrepOption(choiceEvent) {
+function handleChoosePrepOption(choiceEvent, choiceIdx = -1) {
   const t = state.tournament;
   const prep = t.prep;
   if (!prep || !choiceEvent || prep.phase !== "PICK_CHOICE") return;
   prep.lastActionWasFreeRest = false;
   prep.event = choiceEvent;
+  if (prep.activePlotContext && prep.activePlotContext.locId === prep.locId) {
+    const resolvedIdx = choiceIdx >= 0 ? choiceIdx : (prep.choices || []).indexOf(choiceEvent);
+    prep.chosenPlotDecision = {
+      plotId: prep.activePlotContext.plotId,
+      choiceIdx: resolvedIdx,
+      chosenTitle: choiceEvent.title || ""
+    };
+  } else {
+    prep.chosenPlotDecision = null;
+  }
   if (choiceEvent.id) {
     if (!Array.isArray(prep.usedEventIdsThisRound)) prep.usedEventIdsThisRound = [];
     if (!prep.usedEventIdsThisRound.includes(choiceEvent.id)) {
@@ -1690,6 +1781,9 @@ function handleRecruitStarPlayer(starRecruit, replaceSlotId) {
     recruitLvl
   );
   checkAndLearnLevelMoves(newP, targetRole);
+  if (starRecruit.previewKeshin) {
+    newP.keshin = { ...starRecruit.previewKeshin };
+  }
   state.squad[replaceSlotId] = newP;
   if (oldPlayer?.id && getTactics().acePlayerId === oldPlayer.id) {
     getTactics().acePlayerId = null;
@@ -8328,10 +8422,15 @@ function resolveCityPlotsForLocation(t, locId, eventTitle = "") {
   const matching = t.activeCityPlots.filter((pl) => pl && !pl.resolved && pl.locId === locId);
   if (matching.length === 0) return "";
   const slots = typeof getSlots === "function" ? getSlots() : [];
+  const decision = t.prep?.chosenPlotDecision && t.prep.chosenPlotDecision.plotId
+    ? t.prep.chosenPlotDecision
+    : null;
+  const ctxDebate = t.prep?.activePlotContext && t.prep.activePlotContext.locId === locId
+    ? t.prep.activePlotContext
+    : null;
   const notes = [];
   matching.forEach((pl) => {
     pl.resolved = true;
-    pl.resolvedEvent = eventTitle || pl.locLabel;
     const findP = (pid) => {
       for (const sl of slots) {
         const p = state.squad?.[sl.id];
@@ -8341,23 +8440,142 @@ function resolveCityPlotsForLocation(t, locId, eventTitle = "") {
     };
     const pA = findP(pl.aId) || { id: pl.aId, name: pl.aName };
     const pB = findP(pl.bId) || { id: pl.bId, name: pl.bName };
+    const isMatchedDec = Boolean(decision && decision.plotId === pl.id);
+    const pickedIdx = isMatchedDec ? Number(decision.choiceIdx) : -1;
+    const chosenTitle = (isMatchedDec && decision.chosenTitle) || eventTitle || pl.locLabel;
+    pl.resolvedEvent = chosenTitle;
+
+    const r = Math.random();
+    let arcState = "RECONCILIADOS";
+    let affPts = 22;
+    let chemDelta = 3;
+    let respectDelta = 3;
+    let indivRespectDelta = 4;
+    let powerBoostPid = null;
+    let headline = `🤝 ${pl.aName} & ${pl.bName} se acertaram em ${pl.locLabel}!`;
+    let lineA = `Valeu por fechar "${chosenTitle}" com a gente em ${pl.locLabel}! Zeramos aquela treta com o ${pl.bName}.`;
+    let lineB = `No fim o técnico enxergou certo com "${chosenTitle}". Baita clima agora!`;
+    let lineCap = `Aeeee!! Agora sim ninguém segura o vestiário!`;
+    let summaryText = "";
+
+    if (pickedIdx === 0 || pickedIdx === 1) {
+      const winnerP = pickedIdx === 0 ? pA : pB;
+      const otherP = pickedIdx === 0 ? pB : pA;
+      if (r < 0.42) {
+        arcState = "RECONCILIADOS";
+        headline = `✨ ${otherP.name} reconheceu "${chosenTitle}" e zerou a treta com ${winnerP.name}!`;
+        lineA = pickedIdx === 0
+          ? `Viu só ${pl.bName}? "${chosenTitle}" encaixou certinho pra equipe inteira.`
+          : `Beleza ${pl.bName}, confesso que "${chosenTitle}" rendeu demais hoje! Passou o climão.`;
+        lineB = pickedIdx === 1
+          ? `Tamo fechado, ${pl.aName}! O técnico sabia o que tava fazendo.`
+          : `Admito que você tinha razão em pedir "${chosenTitle}", ${pl.aName}. Bora pro jogo!`;
+        summaryText = `🤝 <strong>${escapeHtml(pl.aName)} &amp; ${escapeHtml(pl.bName)}</strong> se entenderam após "${escapeHtml(chosenTitle)}" (+22 Sintonia, +3% Química)!`;
+      } else if (r < 0.76) {
+        arcState = "PARCERIA_EM_ALTA";
+        affPts = 26;
+        chemDelta = 2;
+        respectDelta = 2;
+        headline = `🔥 ${winnerP.name} puxou ${otherP.name} em "${chosenTitle}" e virou Parceria em Alta!`;
+        lineA = `Depois daquele treino com "${chosenTitle}", a gente achou um ritmo absurdo juntos!`;
+        lineB = `Tô até assustado como encaixou fácil! Valeu por escolher isso, professor!`;
+        summaryText = `🔥 <strong>${escapeHtml(winnerP.name)} &amp; ${escapeHtml(otherP.name)}</strong> viraram Parceria em Alta em "${escapeHtml(chosenTitle)}" (+26 Sintonia, +2% Química)!`;
+      } else {
+        arcState = "RIVALIDADE_FRIA";
+        affPts = 14;
+        chemDelta = 1;
+        respectDelta = 1;
+        indivRespectDelta = 2;
+        powerBoostPid = otherP.id;
+        headline = `⚔️ ${otherP.name} aceitou a rivalidade saudável após "${chosenTitle}"!`;
+        lineA = `O técnico escolheu "${chosenTitle}" e o resultado falou por si só.`;
+        lineB = `Justo... mas no próximo jogo quero provar meu valor em campo junto contigo, ${winnerP.name}!`;
+        lineCap = `Competitividade no ponto certo!! Vai render gols no campeonato!`;
+        summaryText = `⚔️ Rivalidade saudável! <strong>${escapeHtml(otherP.name)}</strong> ganhou +10 Poder de superação e +14 Sintonia com <strong>${escapeHtml(winnerP.name)}</strong>!`;
+      }
+    } else if (pickedIdx >= 2 || ctxDebate) {
+      if (r < 0.38) {
+        arcState = "RECONCILIADOS";
+        affPts = 26;
+        chemDelta = 3;
+        respectDelta = 4;
+        headline = `🧠 3ª Via! ${pl.aName} & ${pl.bName} aprovaram "${chosenTitle}" juntos!`;
+        lineA = `Haha o técnico não escolheu nem o meu nem o seu — mandou "${chosenTitle}" e calou os dois kkk!`;
+        lineB = `Pior que deu certo demais!! Valeu por cortar a teimosia dos dois, professor!`;
+        summaryText = `🧠 <strong>3ª Via!</strong> "${escapeHtml(chosenTitle)}" uniu <strong>${escapeHtml(pl.aName)} &amp; ${escapeHtml(pl.bName)}</strong> (+26 Sintonia, +4 Respeito, +3% Química)!`;
+      } else if (r < 0.74) {
+        arcState = "PARCERIA_EM_ALTA";
+        affPts = 22;
+        chemDelta = 2;
+        respectDelta = 3;
+        headline = `🤝 Visão do Técnico! "${chosenTitle}" transformou a treta em parceria!`;
+        lineA = `Olhando agora, "${chosenTitle}" era exatamente o que faltava entre nós dois, ${pl.bName}.`;
+        lineB = `Total! Em campo a gente mostra que virou a página com o professor.`;
+        summaryText = `🤝 <strong>${escapeHtml(pl.aName)} &amp; ${escapeHtml(pl.bName)}</strong> ganharam +22 Sintonia e Parceria em Alta com "${escapeHtml(chosenTitle)}"!`;
+      } else {
+        arcState = "RECONCILIADOS";
+        affPts = 18;
+        chemDelta = 2;
+        respectDelta = 2;
+        [pA, pB].forEach((px) => {
+          if (px && px.id && typeof gainPlayerXp === "function") {
+            const slMatch = slots.find((sl) => state.squad?.[sl.id]?.id === px.id);
+            if (slMatch && state.squad[slMatch.id]) gainPlayerXp(state.squad[slMatch.id], 25, slMatch.role);
+          }
+        });
+        headline = `✨ Acerto coletivo! "${chosenTitle}" rendeu pazes e +25 XP para a dupla!`;
+        lineA = `Saímos mais fortes desse papo com "${chosenTitle}"! Valeu professor!`;
+        lineB = `Agora sim cabeça limpa e 100% no time!`;
+        summaryText = `✨ <strong>${escapeHtml(pl.aName)} &amp; ${escapeHtml(pl.bName)}</strong> se reconciliaram com "${escapeHtml(chosenTitle)}" (+18 Sintonia, +25 XP pra dupla)!`;
+      }
+    } else {
+      summaryText = `🤝 <strong>${escapeHtml(pl.aName)} &amp; ${escapeHtml(pl.bName)}</strong> fizeram as pazes em ${escapeHtml(pl.locLabel)} (+22 Sintonia, +3% Química)!`;
+    }
+
+    if (powerBoostPid) {
+      const targetSlot = slots.find((sl) => state.squad?.[sl.id]?.id === powerBoostPid);
+      if (targetSlot && state.squad[targetSlot.id]) {
+        state.squad[targetSlot.id].bonusPower = (state.squad[targetSlot.id].bonusPower || 0) + 10;
+      }
+    }
     if (typeof setBetaPairArc === "function") {
-      setBetaPairArc(pA, pB, "RECONCILIADOS", pl.topic || "cidade", t);
+      setBetaPairArc(pA, pB, arcState, chosenTitle || pl.topic || "cidade", t);
     }
     if (typeof addPairAffinityPoints === "function" && pA.id && pB.id) {
-      addPairAffinityPoints(pA, pB, 24, null, t);
+      addPairAffinityPoints(pA, pB, affPts, null, t);
     }
     if (typeof adjustCoachRespect === "function") {
-      adjustCoachRespect(3, [pA.id, pB.id].filter(Boolean), 4, t);
+      adjustCoachRespect(respectDelta, [pA.id, pB.id].filter(Boolean), indivRespectDelta, t);
     }
-    if (t.prepBonuses) {
-      t.prepBonuses.chem = (t.prepBonuses.chem || 0) + 3;
+    if (t.prepBonuses && chemDelta !== 0) {
+      t.prepBonuses.chem = (t.prepBonuses.chem || 0) + chemDelta;
     }
     if (typeof spawnProceduralBetaChat === "function") {
-      spawnProceduralBetaChat(t, "CITY_PLOT_RESOLVED", { allowBonusCap: true, extraCtx: { plot: pl } });
+      spawnProceduralBetaChat(t, "CITY_PLOT_RESOLVED", {
+        allowBonusCap: true,
+        extraCtx: {
+          plot: pl,
+          plotResolution: {
+            chosenTitle,
+            arcState,
+            lineA,
+            lineB,
+            lineCap,
+            headline,
+            categoryLabel: arcState === "RIVALIDADE_FRIA" ? "Superação" : "Acerto na Cidade",
+            chatAffPts: 6,
+            chatChemDelta: 1,
+            chatRespectDelta: 1
+          }
+        }
+      });
     }
-    notes.push(`🤝 <strong>${escapeHtml(pl.aName)} &amp; ${escapeHtml(pl.bName)}</strong> fizeram as pazes em ${escapeHtml(pl.locLabel)} (+24 Sintonia, +3% Química)!`);
+    notes.push(summaryText);
   });
+  if (t.prep) {
+    t.prep.activePlotContext = null;
+    t.prep.chosenPlotDecision = null;
+  }
   return notes.length > 0 ? `<div style="margin-top:6px;font-size:0.78rem;color:#86efac;">${notes.join(" ")}</div>` : "";
 }
 
@@ -8788,6 +9006,20 @@ function generateInitialRoundTeamChats(t = state.tournament) {
   return created;
 }
 
+function buildStructuredChatOutcomeHTML({ headline = "", subnote = "", chips = [], details = [] } = {}) {
+  const safeHead = headline || "Desfecho";
+  const chipsHTML = (chips || []).filter(Boolean).map((c) => `<span class="wpp-out-chip">${c}</span>`).join("");
+  const detailsHTML = (details || []).filter(Boolean).map((d) => `<div class="wpp-outcome-row">${d}</div>`).join("");
+  return `
+    <div class="wpp-outcome-structured">
+      <div class="wpp-outcome-head">${safeHead}</div>
+      ${subnote ? `<div class="wpp-outcome-sub">${subnote}</div>` : ""}
+      ${chipsHTML ? `<div class="wpp-outcome-chips">${chipsHTML}</div>` : ""}
+      ${detailsHTML ? `<div class="wpp-outcome-details">${detailsHTML}</div>` : ""}
+    </div>
+  `.trim();
+}
+
 function finalizeAutonomousTeamChat(chatId, skipRender = false) {
   const t = state.tournament;
   const prep = t?.prep;
@@ -8839,14 +9071,15 @@ function finalizeAutonomousTeamChat(chatId, skipRender = false) {
   let foundItem = null;
   let learnedCoop = { learned: false, move: null, cat: null, tier: null, recipientNames: [], newlyAddedNames: [] };
   let grantedBuff = null;
-  const summaryParts = [];
+  const autoChips = [];
+  const autoDetails = [];
 
   if (out.kind === "FOUND_ITEM") {
     const targetIdx = Number.isInteger(out.targetActorIdx) ? out.targetActorIdx : 0;
     const targetSlot = selectedIds[targetIdx] || selectedIds[0];
     foundItem = grantFoundItemFromChat(t, targetSlot, out.itemId || null);
     if (foundItem) {
-      summaryParts.push(`🎁 <strong>${foundItem.playerName}</strong> encontrou <strong>${foundItem.title}</strong> (+${foundItem.powerGain} Poder)`);
+      autoDetails.push(`🎁 <strong>${foundItem.playerName}</strong> equipou <strong>${foundItem.title}</strong> (+${foundItem.powerGain} Poder)`);
       chat.messages.push({
         senderIdx: -2,
         speakerRole: "SYSTEM",
@@ -8881,12 +9114,13 @@ function finalizeAutonomousTeamChat(chatId, skipRender = false) {
           time: formatChatTimestamp(baseT, chat.messages.length),
           text: `⚡ Por conta própria, o grupo criou a técnica 【${learnedCoop.move}】 (${learnedCoop.cat})!`
         });
-        summaryParts.push(`⚡ Nova Técnica: <strong>${learnedCoop.move}</strong>`);
+        autoDetails.push(`⚡ Nova Técnica (${tierTxt}): <strong>${learnedCoop.move}</strong>`);
       }
     }
     if (!learnedCoop.learned) {
       t.prepBonuses.power = (t.prepBonuses.power || 0) + 10;
-      summaryParts.push(`<span class="b-pwr">+10 Poder Combinado</span> (sintonia refinada)`);
+      autoChips.push(`<span class="b-pwr">+10 Poder Combinado</span>`);
+      autoDetails.push(`🔥 Sintonia refinada nos bastidores.`);
     }
   }
 
@@ -8894,7 +9128,7 @@ function finalizeAutonomousTeamChat(chatId, skipRender = false) {
     grantedBuff = makeChatBuffByType(out.buffType, playerIds);
     if (grantedBuff) {
       pushNextMatchChatBuff(t, grantedBuff);
-      summaryParts.push(`Buff: <strong>${grantedBuff.label}</strong>`);
+      autoDetails.push(`✨ Buff: <strong>${grantedBuff.label}</strong>`);
     }
   }
 
@@ -8910,7 +9144,7 @@ function finalizeAutonomousTeamChat(chatId, skipRender = false) {
       time: formatChatTimestamp(baseT, chat.messages.length),
       text: `⚙️ O grupo combinou para o próximo jogo: ${configChanges.join(" • ")}`
     });
-    summaryParts.push(`<span class="b-tech">⚙️ ${configChanges.join(" • ")}</span>`);
+    autoDetails.push(`<span class="b-tech">⚙️ ${configChanges.join(" • ")}</span>`);
   }
 
   // Atualiza Respeito e Micro-Arcos em conversas autônomas
@@ -8918,28 +9152,28 @@ function finalizeAutonomousTeamChat(chatId, skipRender = false) {
   const autoIndivRespect = out.indivRespectDelta != null ? Number(out.indivRespectDelta) : 0;
   if ((autoRespectDelta !== 0 || autoIndivRespect !== 0) && typeof adjustCoachRespect === "function") {
     adjustCoachRespect(autoRespectDelta, playerIds, autoIndivRespect, t);
-    if (autoRespectDelta > 0) summaryParts.push(`<span class="b-chem">+${autoRespectDelta} Respeito</span>`);
-    else if (autoRespectDelta < 0) summaryParts.push(`<span style="color:#fca5a5;">${autoRespectDelta} Respeito</span>`);
+    if (autoRespectDelta > 0) autoChips.push(`<span class="b-chem">+${autoRespectDelta} Respeito</span>`);
+    else if (autoRespectDelta < 0) autoChips.push(`<span style="color:#fca5a5;">${autoRespectDelta} Respeito</span>`);
   }
   const autoArcState = out.setArc || (out.kind === "TENSION_FALLOUT" ? "TRETA_ABERTA" : out.kind === "CHEMISTRY_BOND" ? "PARCERIA_EM_ALTA" : null);
   if (autoArcState && selectedIds.length >= 2 && typeof setBetaPairArc === "function") {
     setBetaPairArc(state.squad[selectedIds[0]], state.squad[selectedIds[1]], autoArcState, chat.title, t);
     if (autoArcState === "TRETA_ABERTA") {
       const createdPlot = ensureCityPlotForFeud(t, state.squad[selectedIds[0]], state.squad[selectedIds[1]], chat.title);
-      summaryParts.push(`<span style="color:#fca5a5;">🔥 Treta Aberta${createdPlot ? ` (Resolver em ${escapeHtml(createdPlot.locLabel)})` : ""}</span>`);
+      autoDetails.push(`<span style="color:#fca5a5;">🔥 Treta Aberta${createdPlot ? ` (Resolver em ${escapeHtml(createdPlot.locLabel)})` : ""}</span>`);
     }
-    else if (autoArcState === "PARCERIA_EM_ALTA") summaryParts.push(`<span class="b-tech">🤝 Parceria em Alta</span>`);
-    else if (autoArcState === "RECONCILIADOS") summaryParts.push(`<span class="b-chem">✨ Reconciliados</span>`);
+    else if (autoArcState === "PARCERIA_EM_ALTA") autoDetails.push(`<span class="b-tech">🤝 Parceria em Alta</span>`);
+    else if (autoArcState === "RECONCILIADOS") autoDetails.push(`<span class="b-chem">✨ Reconciliados</span>`);
   }
 
-  if (affPts > 0) summaryParts.push(`<span class="b-tech">+${affPts} Sintonia</span>`);
-  else if (affPts < 0) summaryParts.push(`<span style="color:#fca5a5;">${affPts} Sintonia</span>`);
-  if (chemDelta > 0) summaryParts.push(`<span class="b-chem">+${chemDelta}% Química</span>`);
-  else if (chemDelta < 0) summaryParts.push(`<span style="color:#fca5a5;">${chemDelta}% Química</span>`);
-  if (pwrDelta > 0) summaryParts.push(`<span class="b-pwr">+${pwrDelta} Poder</span>`);
-  if (xpAmt > 0) summaryParts.push(`<span class="b-lvl">+${xpAmt} XP</span>`);
-  if (energyDelta > 0) summaryParts.push(`<span class="b-chem">+${energyDelta}% Energia</span>`);
-  else if (energyDelta < 0) summaryParts.push(`<span style="color:#fca5a5;">${energyDelta}% Energia</span>`);
+  if (affPts > 0) autoChips.push(`<span class="b-tech">+${affPts} Sintonia</span>`);
+  else if (affPts < 0) autoChips.push(`<span style="color:#fca5a5;">${affPts} Sintonia</span>`);
+  if (chemDelta > 0) autoChips.push(`<span class="b-chem">+${chemDelta}% Química</span>`);
+  else if (chemDelta < 0) autoChips.push(`<span style="color:#fca5a5;">${chemDelta}% Química</span>`);
+  if (pwrDelta > 0) autoChips.push(`<span class="b-pwr">+${pwrDelta} Poder</span>`);
+  if (xpAmt > 0) autoChips.push(`<span class="b-lvl">+${xpAmt} XP</span>`);
+  if (energyDelta > 0) autoChips.push(`<span class="b-chem">+${energyDelta}% Energia</span>`);
+  else if (energyDelta < 0) autoChips.push(`<span style="color:#fca5a5;">${energyDelta}% Energia</span>`);
 
   const headline = out.headline || "💬 Acontecimento do Elenco";
   chat.messages.push({
@@ -8965,7 +9199,12 @@ function finalizeAutonomousTeamChat(chatId, skipRender = false) {
   chat.grantedBuff = grantedBuff;
   chat.foundItem = foundItem;
   chat.appliedConfigChanges = configChanges;
-  chat.outcomeSummary = `<strong>${headline}</strong>${out.note ? ` — ${out.note}` : ""}${summaryParts.length ? ` • ${summaryParts.join(" · ")}` : ""}`;
+  chat.outcomeSummary = buildStructuredChatOutcomeHTML({
+    headline,
+    subnote: out.note || "",
+    chips: autoChips,
+    details: autoDetails
+  });
   t.prepBonuses.log.push(`Chat Autônomo (${chat.title}): ${headline}`);
 
   if (!skipRender && out.kind === "TENSION_FALLOUT" && typeof playSfx === "function") {
@@ -9219,7 +9458,8 @@ function resolveSpontaneousTeamChat(chatId, choiceIdx) {
 
   let learnedCoop = { learned: false, move: null, cat: null, tier: null, recipientNames: [], newlyAddedNames: [] };
   let grantedBuff = null;
-  let extraOutcomeTxt = "";
+  const statChips = [];
+  const detailRows = [];
 
   // Atualiza Respeito ao Técnico & Micro-Arcos
   const respectDelta = isSilentIgnore
@@ -9239,8 +9479,8 @@ function resolveSpontaneousTeamChat(chatId, choiceIdx) {
       ? ce.indivRespectIdxs.map((idx) => chat.participants?.[idx]?.id).filter(Boolean)
       : playerIds;
     adjustCoachRespect(respectDelta, targetIds, indivRespectDelta, t);
-    if (respectDelta > 0) extraOutcomeTxt += ` • <span class="b-chem">+${respectDelta} Respeito</span>`;
-    else if (respectDelta < 0) extraOutcomeTxt += ` • <span style="color:#fca5a5;">${respectDelta} Respeito</span>`;
+    if (respectDelta > 0) statChips.push(`<span class="b-chem">+${respectDelta} Respeito</span>`);
+    else if (respectDelta < 0) statChips.push(`<span style="color:#fca5a5;">${respectDelta} Respeito</span>`);
   }
 
   const targetArc = isSilentIgnore
@@ -9250,11 +9490,11 @@ function resolveSpontaneousTeamChat(chatId, choiceIdx) {
     setBetaPairArc(state.squad[selectedIds[0]], state.squad[selectedIds[1]], targetArc, chat.title, t);
     if (targetArc === "TRETA_ABERTA") {
       const createdPlot = ensureCityPlotForFeud(t, state.squad[selectedIds[0]], state.squad[selectedIds[1]], chat.title);
-      extraOutcomeTxt += ` • <span style="color:#fca5a5;">🔥 Treta Aberta${createdPlot ? ` (Resolver em ${escapeHtml(createdPlot.locLabel)})` : ""}</span>`;
+      detailRows.push(`<span style="color:#fca5a5;">🔥 Treta Aberta${createdPlot ? ` (Resolver em ${escapeHtml(createdPlot.locLabel)})` : ""}</span>`);
     }
-    else if (targetArc === "RECONCILIADOS") extraOutcomeTxt += ` • <span class="b-chem">✨ Reconciliados</span>`;
-    else if (targetArc === "RIVALIDADE_FRIA") extraOutcomeTxt += ` • <span style="color:#fde68a;">⚔️ Rivalidade Fria</span>`;
-    else if (targetArc === "PARCERIA_EM_ALTA") extraOutcomeTxt += ` • <span class="b-tech">🤝 Parceria em Alta</span>`;
+    else if (targetArc === "RECONCILIADOS") detailRows.push(`<span class="b-chem">✨ Reconciliados</span>`);
+    else if (targetArc === "RIVALIDADE_FRIA") detailRows.push(`<span style="color:#fde68a;">⚔️ Rivalidade Fria</span>`);
+    else if (targetArc === "PARCERIA_EM_ALTA") detailRows.push(`<span class="b-tech">🤝 Parceria em Alta</span>`);
   }
 
   const allowCoopTry = (chat.category === "CRIAR_TECNICA" && (quality === "GREAT" || quality === "GOOD")) || Boolean(ce?.grantCoopAttempt);
@@ -9284,11 +9524,12 @@ function resolveSpontaneousTeamChat(chatId, choiceIdx) {
           time: formatChatTimestamp(baseT, chat.messages.length),
           text: `⚡ O grupo desenvolveu e aprendeu a técnica combinada 【${learnedCoop.move}】 (${learnedCoop.cat}) para usar em campo!`
         });
-        extraOutcomeTxt += ` • Nova Técnica: <strong>${learnedCoop.move}</strong>`;
+        detailRows.push(`⚡ Nova Técnica (${tierTxt}): <strong>${learnedCoop.move}</strong>`);
       }
     } else if (quality === "GREAT") {
       t.prepBonuses.power = (t.prepBonuses.power || 0) + 6;
-      extraOutcomeTxt += ` • <span class="b-pwr">+6 Poder Combinado</span> (jogada lapidada)`;
+      statChips.push(`<span class="b-pwr">+6 Poder Combinado</span>`);
+      detailRows.push(`🔥 Jogada lapidada nos bastidores.`);
     }
   }
 
@@ -9297,11 +9538,11 @@ function resolveSpontaneousTeamChat(chatId, choiceIdx) {
       grantedBuff = makeChatBuffByType(ce.buffType, playerIds);
       if (grantedBuff) {
         pushNextMatchChatBuff(t, grantedBuff);
-        extraOutcomeTxt += ` • Buff: <strong>${grantedBuff.label}</strong>`;
+        detailRows.push(`✨ Buff: <strong>${grantedBuff.label}</strong>`);
       }
     }
     if (ce?.note) {
-      extraOutcomeTxt += ` • ${ce.note}`;
+      detailRows.push(ce.note);
     }
   } else if (quality === "GREAT") {
     const catToBuff = {
@@ -9314,21 +9555,23 @@ function resolveSpontaneousTeamChat(chatId, choiceIdx) {
     if (chat.category === "ELOGIO") {
       const prevE = typeof getTeamEnergy === "function" ? Math.round(getTeamEnergy()) : 80;
       const nextE = typeof adjustTeamEnergy === "function" ? Math.round(adjustTeamEnergy(6)) : prevE;
-      extraOutcomeTxt += ` • <span class="b-chem">+6% Energia</span> (${prevE}% ➔ ${nextE}%)`;
+      statChips.push(`<span class="b-chem">+6% Energia</span>`);
+      detailRows.push(`🔋 Energia do time: ${prevE}% ➔ ${nextE}%`);
     }
     grantedBuff = makeChatBuffByType(catToBuff[chat.category] || "LIGHT_LOCKER", playerIds);
     if (grantedBuff) {
       pushNextMatchChatBuff(t, grantedBuff);
-      extraOutcomeTxt += ` • Buff ativo: <strong>${grantedBuff.label}</strong>`;
+      detailRows.push(`✨ Buff ativo: <strong>${grantedBuff.label}</strong>`);
     }
   } else if (quality === "POOR") {
     if (chat.category === "CRIAR_TECNICA" && typeof getTeamEnergy === "function" && typeof adjustTeamEnergy === "function") {
       if (getTeamEnergy() > 14) {
         adjustTeamEnergy(-4);
-        extraOutcomeTxt += ` • <span style="color:#fca5a5;">-4% Energia</span> pelo desgaste forçado`;
+        statChips.push(`<span style="color:#fca5a5;">-4% Energia</span>`);
+        detailRows.push(`<span style="color:#fca5a5;">😓 Desgaste forçado no treino extra.</span>`);
       }
     } else if (chat.category === "RAIVA") {
-      extraOutcomeTxt += ` • <span style="color:#fca5a5;">-6 Sintonia / -2% Química</span> pelo atrito`;
+      detailRows.push(`<span style="color:#fca5a5;">⚠️ Atrito reduziu -6 Sintonia e -2% Química.</span>`);
     }
   }
 
@@ -9339,15 +9582,15 @@ function resolveSpontaneousTeamChat(chatId, choiceIdx) {
     : quality === "GOOD"
     ? `👍 Boa Gestão`
     : `⚠️ Gestão Conturbada`;
-  const baseStatParts = [];
-  if (affPts > 0) baseStatParts.push(`<span class="b-tech">+${affPts} Sintonia</span>`);
-  else if (affPts < 0) baseStatParts.push(`<span style="color:#fca5a5;">${affPts} Sintonia</span>`);
-  if (xpAmt > 0) baseStatParts.push(`<span class="b-lvl">+${xpAmt} XP</span>`);
-  if (chemDelta > 0) baseStatParts.push(`<span class="b-chem">+${chemDelta}% Química</span>`);
-  else if (chemDelta < 0) baseStatParts.push(`<span style="color:#fca5a5;">${chemDelta}% Química</span>`);
-  if (pwrDelta > 0) baseStatParts.push(`<span class="b-pwr">+${pwrDelta} Poder</span>`);
-  if (energyDelta > 0) baseStatParts.push(`<span class="b-chem">+${energyDelta}% Energia</span>`);
-  else if (energyDelta < 0) baseStatParts.push(`<span style="color:#fca5a5;">${energyDelta}% Energia</span>`);
+  const baseStatChips = [];
+  if (affPts > 0) baseStatChips.push(`<span class="b-tech">+${affPts} Sintonia</span>`);
+  else if (affPts < 0) baseStatChips.push(`<span style="color:#fca5a5;">${affPts} Sintonia</span>`);
+  if (xpAmt > 0) baseStatChips.push(`<span class="b-lvl">+${xpAmt} XP</span>`);
+  if (chemDelta > 0) baseStatChips.push(`<span class="b-chem">+${chemDelta}% Química</span>`);
+  else if (chemDelta < 0) baseStatChips.push(`<span style="color:#fca5a5;">${chemDelta}% Química</span>`);
+  if (pwrDelta > 0) baseStatChips.push(`<span class="b-pwr">+${pwrDelta} Poder</span>`);
+  if (energyDelta > 0) baseStatChips.push(`<span class="b-chem">+${energyDelta}% Energia</span>`);
+  else if (energyDelta < 0) baseStatChips.push(`<span style="color:#fca5a5;">${energyDelta}% Energia</span>`);
 
   if (!isSilentIgnore) {
     const extraWrapUp = buildPostDecisionWrapUpMessages(
@@ -9395,8 +9638,14 @@ function resolveSpontaneousTeamChat(chatId, choiceIdx) {
       stageIdx: t.prep?.nextStageIdx ?? t.stageIndex ?? 0
     });
   }
-  const configOutcome = configChanges.length > 0 ? ` • <span class="b-tech">⚙️ ${configChanges.join(" • ")}</span>` : "";
-  chat.outcomeSummary = `<strong>${headerDesc}</strong> ${baseStatParts.join(" · ")}${extraOutcomeTxt}${configOutcome}`;
+  if (configChanges.length > 0) {
+    detailRows.push(`<span class="b-tech">⚙️ ${configChanges.join(" • ")}</span>`);
+  }
+  chat.outcomeSummary = buildStructuredChatOutcomeHTML({
+    headline: headerDesc,
+    chips: [...baseStatChips, ...statChips],
+    details: detailRows
+  });
   t.prepBonuses.log.push(`Chat (${chat.title}): ${quality}${learnedCoop.learned ? ` + ${learnedCoop.move}` : ""}${configChanges.length ? ` [${configChanges.join(", ")}]` : ""}`);
 
   if (typeof playSfx === "function") {
@@ -10337,6 +10586,11 @@ function buildBetweenMatchPrepHTML(t, stats) {
       }
       const scopeTxt = getPrepScopeLabel(chosenWinner);
       const comboHTML = getPrepChoiceComboHTML(chosenWinner);
+      const plotCtx = prep.activePlotContext && prep.activePlotContext.locId === prep.locId ? prep.activePlotContext : null;
+      const adv = plotCtx?.byChoiceIdx?.[sIdx] || null;
+      const advHTML = adv
+        ? `<div class="prep-choice-advocate ${adv.side === "A" ? "is-side-a" : adv.side === "B" ? "is-side-b" : "is-third-way"}">${escapeHtml(adv.badge)}</div>`
+        : "";
       return `
         <div class="prep-slot-col is-clickable-choice ${rarityCls}" data-prep-choice-idx="${sIdx}">
           <div class="prep-slot-col-header">
@@ -10344,6 +10598,7 @@ function buildBetweenMatchPrepHTML(t, stats) {
             ${scopeTxt ? `<span class="prep-slot-scope">${scopeTxt}</span>` : ""}
           </div>
           <div class="prep-choice-card-body is-revealed-choice">
+            ${advHTML}
             <div class="prep-choice-name">${chosenWinner.title}</div>
             <div class="prep-choice-icon-wrap">
               ${chosenWinner.icon ? `<img src="${chosenWinner.icon}" alt="" />` : ""}
@@ -10387,6 +10642,22 @@ function buildBetweenMatchPrepHTML(t, stats) {
             </div>
           </div>
         ` : ""}
+        ${prep.activePlotContext && prep.activePlotContext.locId === prep.locId ? `
+          <div class="prep-city-plot-banner">
+            <div class="prep-city-plot-head">⚡ TRAMA ABERTA EM ${escapeHtml(prep.activePlotContext.locLabel || activeLoc?.title || "CIDADE")} • ${escapeHtml(prep.activePlotContext.aName)} vs ${escapeHtml(prep.activePlotContext.bName)}</div>
+            <div class="prep-city-plot-voices">
+              <div class="prep-city-plot-voice">
+                ${prep.activePlotContext.aSprite ? `<img src="${prep.activePlotContext.aSprite}" alt="${escapeHtml(prep.activePlotContext.aName)}" />` : ""}
+                <div><strong>${escapeHtml(prep.activePlotContext.aName)}:</strong> "${escapeHtml(prep.activePlotContext.talkA)}"</div>
+              </div>
+              <div class="prep-city-plot-voice">
+                ${prep.activePlotContext.bSprite ? `<img src="${prep.activePlotContext.bSprite}" alt="${escapeHtml(prep.activePlotContext.bName)}" />` : ""}
+                <div><strong>${escapeHtml(prep.activePlotContext.bName)}:</strong> "${escapeHtml(prep.activePlotContext.talkB)}"</div>
+              </div>
+            </div>
+            ${prep.activePlotContext.talk3 ? `<div class="prep-city-plot-tip">🧠 3ª Via do Técnico: ${escapeHtml(prep.activePlotContext.talk3)}</div>` : ""}
+          </div>
+        ` : ""}
         <div class="prep-triple-cols-grid ${(prep.choices || []).length >= 4 ? "is-four-cols" : ""}">
           ${slotColsHTML}
         </div>
@@ -10395,6 +10666,16 @@ function buildBetweenMatchPrepHTML(t, stats) {
   } else if (prep.phase === "RECRUIT_OFFER" && prep.recruitCandidate) {
     const rec = prep.recruitCandidate;
     const recPlayer = rec.player;
+    const recMovesHTML = ["SH", "OF", "DF", "GK"].flatMap((cat) => {
+      const list = Array.isArray(recPlayer?.moves?.[cat]) ? recPlayer.moves[cat] : [];
+      return list.filter(Boolean).map((mv) =>
+        `<span class="prep-recruit-move-chip">${typeof moveIconHTML === "function" ? moveIconHTML(cat, "inline-ui-icon") : cat} ${escapeHtml(mv)}</span>`
+      );
+    }).join("");
+    const recKeshin = rec.previewKeshin || recPlayer.keshin || null;
+    const recKeshinHTML = recKeshin
+      ? `<div class="prep-recruit-keshin-pill">${recKeshin.icon ? `<img src="${recKeshin.icon}" alt="" />` : "⚡"} <span>Keshin: <strong>${escapeHtml(recKeshin.name)}</strong>${recKeshin.move ? ` (${escapeHtml(recKeshin.move)})` : ""}</span></div>`
+      : `<div class="prep-recruit-keshin-pill" style="opacity:0.78; border-color:rgba(148,163,184,0.35); background:rgba(15,23,42,0.55); color:#cbd5e1;"><span>Espírito Guerreiro: Nenhum (pode despertar depois)</span></div>`;
     bodyHTML = `
       <div class="prep-recruit-container">
         <div class="prep-recruit-hero">
@@ -10413,7 +10694,8 @@ function buildBetweenMatchPrepHTML(t, stats) {
           <div>
             <div style="font-size:1.05rem; font-weight:900; color:#fde047;">${recPlayer.name}</div>
             <div style="font-size:0.78rem; font-weight:800; color:#93c5fd;">${posIconHTML(recPlayer.pos, true)} OVR ${recPlayer.ovr} • ${rec.teamName}</div>
-            <div style="font-size:0.72rem; color:#cbd5e1; margin-top:2px;">Técnica: <strong>${recPlayer.hissatsu || "Super Técnica"}</strong></div>
+            <div class="prep-recruit-moves">${recMovesHTML || `<span class="prep-recruit-move-chip">${escapeHtml(recPlayer.hissatsu || "Super Técnica")}</span>`}</div>
+            ${recKeshinHTML}
           </div>
         </div>
 

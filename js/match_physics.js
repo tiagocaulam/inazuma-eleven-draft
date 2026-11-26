@@ -1224,14 +1224,36 @@ function launchContinuousPass(st, pitch, carrier, attNodes, defNodes, strictForw
     }
   }
 
-  const crossWhipBonus = betaAerial && passOptions.isCross && peakZ < 0.9 ? 2 : 0;
-  const passSpeed = (peakZ >= 0.9 ? 24 : peakZ > 0 ? 28 : dist > 30 ? 35 : isThroughBall ? 33 : 31) + crossWhipBonus;
+  const isWingSwitch = Boolean(
+    !isGkOutlet &&
+    !isOneTwoPass &&
+    !passOptions.isReturnOneTwo &&
+    !passOptions.isCross &&
+    !safeRestart &&
+    Math.abs(leadY - fromY) >= 28 &&
+    dist >= 24
+  );
+  const forwardGainPass = attIsUser ? dx : -dx;
+  const isOneTouch = Boolean(
+    !isGkOutlet &&
+    !isOneTwoPass &&
+    !passOptions.isReturnOneTwo &&
+    !passOptions.isCross &&
+    !safeRestart &&
+    !isWingSwitch &&
+    (pitch.teamConsecutivePasses || 0) >= 2 &&
+    (carrier.carryTime || 0) <= 0.46 &&
+    forwardGainPass >= 4
+  );
+
+  const crossWhipBonus = (betaAerial && passOptions.isCross && peakZ < 0.9 ? 2 : 0) + (isOneTouch ? 4 : 0);
+  const passSpeed = (peakZ >= 0.9 ? 34 : peakZ > 0 ? 35 : dist > 30 ? 35 : isThroughBall ? 33 : 31) + crossWhipBonus;
   const duration = betaAerial
     ? (peakZ >= 0.9
-        ? Math.max(0.65, Math.min(1.75, dist / passSpeed))
+        ? Math.max(0.54, Math.min(1.10, dist / passSpeed))
         : peakZ > 0
-        ? Math.max(0.52, Math.min(1.45, dist / passSpeed))
-        : Math.max(0.36, Math.min(1.35, dist / passSpeed)))
+        ? Math.max(0.52, Math.min(0.95, dist / passSpeed))
+        : Math.max(0.37, Math.min(1.22, dist / passSpeed)))
     : Math.max(0.28, Math.min(1.28, dist / passSpeed));
   pitch.ballZ = 0;
   pitch.ballVz = 0;
@@ -1298,11 +1320,14 @@ function launchContinuousPass(st, pitch, carrier, attNodes, defNodes, strictForw
     }
   }
 
-  // Recebedor reage imediatamente ao passe: avança / ativa Dash para atacar a bola!
+  // Recebedor reage imediatamente ao passe: avança em ritmo compatível (sem esperar parado em passe alto!)
   const chaseDist = Math.hypot(leadX - receiver.x, leadY - receiver.y);
   receiver.targetX = leadX;
   receiver.targetY = leadY;
-  if (isThroughBall || isOneTwoPass || chaseDist >= 4.0) {
+  if (betaAerial && peakZ >= 0.45) {
+    const pacedSpd = chaseDist / Math.max(0.28, duration * (receiver.maxSpeed || 14));
+    receiver.targetSprint = Math.max(0.62, Math.min(1.18, pacedSpd));
+  } else if (isThroughBall || isOneTwoPass || isWingSwitch || chaseDist >= 4.0) {
     receiver.targetSprint = chaseDist >= 6.0 ? 1.62 : 1.46;
     receiver.receiveDashUntil = Math.max(receiver.receiveDashUntil || 0, (pitch.simTime || 0) + Math.min(1.05, Math.max(0.38, duration * 0.9)));
     const rxDx = leadX - receiver.x;
@@ -1344,6 +1369,18 @@ function launchContinuousPass(st, pitch, carrier, attNodes, defNodes, strictForw
       { name: receiver.player.name, sprite: receiver.player.sprite, side: receiver.side },
       "BALL"
     );
+  } else if (isWingSwitch) {
+    showNodeBadge(pitch, carrier.uid, "💨 Virada de Jogo!", "badge-dribble", 1300);
+    prependNarrationLine(
+      st,
+      "nar-pass",
+      `${st.minute}' [Virada de Jogo] ${carrier.player.name} inverteu o jogo buscando ${receiver.player.name} livre no outro lado!`,
+      { name: carrier.player.name, sprite: carrier.player.sprite, side: carrier.side },
+      { name: receiver.player.name, sprite: receiver.player.sprite, side: receiver.side },
+      "BALL"
+    );
+  } else if (isOneTouch) {
+    showNodeBadge(pitch, carrier.uid, "✨ De Primeira!", "badge-pass", 1050);
   } else if (isThroughBall && !passOptions.isReturnOneTwo) {
     showNodeBadge(pitch, receiver.uid, "⚡ Dash no Espaço!", "badge-dribble", 1400);
     prependNarrationLine(
@@ -1391,7 +1428,7 @@ function launchContinuousPass(st, pitch, carrier, attNodes, defNodes, strictForw
   pitch.challengerUid = null;
   pitch.holdBallPos = null;
   pitch.looseState = null;
-  pitch.lastAction = passOptions.isCross ? "CROSS" : (isOneTwoPass || passOptions.isReturnOneTwo) ? "ONE_TWO" : isThroughBall ? "THROUGH_BALL" : "PASS";
+  pitch.lastAction = passOptions.isCross ? "CROSS" : (isOneTwoPass || passOptions.isReturnOneTwo) ? "ONE_TWO" : isWingSwitch ? "WING_SWITCH" : isThroughBall ? "THROUGH_BALL" : "PASS";
   pitch.teamConsecutivePasses = (pitch.teamConsecutivePasses || 0) + 1;
 
   pitch.passState = {
@@ -1402,6 +1439,8 @@ function launchContinuousPass(st, pitch, carrier, attNodes, defNodes, strictForw
     isGkOutlet,
     isSafeProtectedPass,
     isOneTwoPass,
+    isWingSwitch,
+    isOneTouch,
     isThroughBall,
     isCross: Boolean(passOptions.isCross),
     passType,
@@ -1425,6 +1464,10 @@ function launchContinuousPass(st, pitch, carrier, attNodes, defNodes, strictForw
     ? "#fb923c"
     : (isOneTwoPass || passOptions.isReturnOneTwo)
     ? "#facc15"
+    : isWingSwitch
+    ? "#38bdf8"
+    : isOneTouch
+    ? "#a7f3d0"
     : isThroughBall
     ? (attIsUser ? "#38bdf8" : "#f472b6")
     : peakZ > 0
@@ -1445,6 +1488,8 @@ function launchContinuousPass(st, pitch, carrier, attNodes, defNodes, strictForw
     frozenPathD: null,
     u: 0,
     isAerial: peakZ > 0,
+    isWingSwitch,
+    isOneTouch,
     hasAnimeSpin,
     color: trailColor,
     start: performance.now(),
@@ -1458,6 +1503,10 @@ function launchContinuousPass(st, pitch, carrier, attNodes, defNodes, strictForw
     ? "CRUZAMENTO"
     : (isOneTwoPass || passOptions.isReturnOneTwo)
     ? "TABELA"
+    : isWingSwitch
+    ? "VIRADA DE JOGO"
+    : isOneTouch
+    ? "DE PRIMEIRA"
     : isThroughBall
     ? (peakZ > 0 ? "ENFIADA ALTA" : "NO ESPAÇO")
     : passType === "LOB"
@@ -1473,6 +1522,8 @@ function launchContinuousPass(st, pitch, carrier, attNodes, defNodes, strictForw
     ? `${st.minute}' Cruzamento na área: ${carrier.player.name} ➔ ${receiver.player.name}!`
     : (isOneTwoPass || passOptions.isReturnOneTwo)
     ? `${st.minute}' Tabela no Espaço: ${carrier.player.name} ➔ ${receiver.player.name}!`
+    : isWingSwitch
+    ? `${st.minute}' Virada de Jogo: ${carrier.player.name} ➔ ${receiver.player.name}!`
     : isThroughBall
     ? `${st.minute}' Bola Enfiada: ${carrier.player.name} ➔ espaço vazio para ${receiver.player.name}!`
     : `${st.minute}' Passe: ${carrier.player.name} ➔ ${receiver.player.name}`;

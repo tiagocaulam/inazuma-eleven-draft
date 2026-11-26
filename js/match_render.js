@@ -295,29 +295,39 @@ function showRefereeWhistleModal(st, type, onProceed) {
     ? `
       <div class="halftime-locker-box" id="halftime-locker-box">
         <div class="halftime-locker-head">
-          <span>💬 Vestiário • Intervalo</span>
-          <span>Preleção do 2º Tempo</span>
+          <span>⚡ VESTIÁRIO • INTERVALO 45'</span>
+          <span class="ht-status-pill">${escapeHtml(halftimeData.statusTag || "2º TEMPO")}</span>
         </div>
-        ${(halftimeData.bubbles || [])
-          .map(
-            (b) => `
-          <div class="halftime-msg tone-${b.tone || "normal"}">
-            ${b.sprite ? `<img src="${b.sprite}" alt="" />` : ""}
-            <div class="halftime-msg-body">
-              <div class="halftime-msg-name">${escapeHtml(b.name)} ${b.roleLabel ? `<span style="color:#94a3b8;font-weight:700;">• ${escapeHtml(b.roleLabel)}</span>` : ""}</div>
-              <div class="halftime-msg-text">${escapeHtml(b.text)}</div>
+        <div class="ht-speeches-list">
+          ${(halftimeData.bubbles || [])
+            .map(
+              (b) => `
+            <div class="ht-speech-card tone-${b.tone || "normal"}">
+              <div class="ht-speech-avatar-wrap">
+                ${b.sprite ? `<img src="${b.sprite}" alt="" />` : ""}
+                <span class="ht-role-badge">${escapeHtml(b.role || "TIT")}</span>
+              </div>
+              <div class="ht-speech-content">
+                <div class="ht-speech-meta">
+                  <strong>${escapeHtml(b.name)}</strong>
+                  <span class="ht-voice-tag">${escapeHtml(b.voiceLabel || b.roleLabel || "")}</span>
+                </div>
+                <div class="ht-speech-text">${escapeHtml(b.text)}</div>
+              </div>
             </div>
-          </div>
-        `
-          )
-          .join("")}
-        <div class="halftime-pep-grid">
+          `
+            )
+            .join("")}
+        </div>
+        <div class="ht-cmd-prompt">Escolha a instrução do técnico (o 2º tempo só começa quando você clicar abaixo):</div>
+        <div class="ht-cmd-grid">
           ${(halftimeData.choices || [])
             .map(
               (ch) => `
-            <button type="button" class="halftime-pep-btn" data-halftime-pep="${ch.key}">
-              <strong>${escapeHtml(ch.title)}</strong>
-              <small>${escapeHtml(ch.subtitle)}</small>
+            <button type="button" class="ht-cmd-card is-${String(ch.key || "").toLowerCase()}" data-halftime-pep="${ch.key}">
+              <span class="ht-cmd-title">${escapeHtml(ch.title)}</span>
+              <span class="ht-cmd-sub">${escapeHtml(ch.subtitle)}</span>
+              <span class="ht-cmd-buff">${escapeHtml(ch.buffTag || "")}</span>
             </button>
           `
             )
@@ -328,26 +338,47 @@ function showRefereeWhistleModal(st, type, onProceed) {
     `
     : "";
 
-  // Modal do árbitro/apito limpo e direto: Ícone/PNG do Apito, Fim do 1º Tempo / Fim de Jogo, Placar e Botão abaixo
+  // Modal do árbitro/apito limpo e direto (ou Vestiário Interativo no Intervalo do Teste Beta sem auto-pular!)
   slotEl.classList.add("is-referee-overlay");
   slotEl.style.display = "flex";
   slotEl.innerHTML = `
-    <div class="referee-whistle-stage">
-      <div class="referee-hero-frame">
-        <img class="referee-sprite-img whistle-png-img" src="images/whistle.png" alt="Apito do Árbitro" onerror="this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.style.display='flex';" />
-        <div class="referee-whistle-emoji-fallback" style="display:none; width:100%; height:100%; align-items:center; justify-content:center; font-size:3.2rem; filter:drop-shadow(0 4px 10px rgba(250,204,21,0.5));">
-          📢
+    <div class="referee-whistle-stage${halftimeData ? " is-halftime-locker" : ""}">
+      ${
+        halftimeData
+          ? `
+        <div class="ht-top-strip">
+          <div class="ht-whistle-mini">
+            <img src="images/whistle.png" alt="Intervalo" onerror="this.style.display='none';" />
+            <div>
+              <div class="ht-eyebrow">INTERVALO OFICIAL • 45'</div>
+              <div class="ht-main-title">${mainTitle}</div>
+            </div>
+          </div>
+          <div class="ht-score-pill">
+            <span>${escapeHtml(st.userTeamName || activeTeamName)}</span>
+            <strong>${st.userScore} × ${st.oppScore}</strong>
+            <span>${escapeHtml(st.oppTeam?.name || "Adversário")}</span>
+          </div>
         </div>
-      </div>
+      `
+          : `
+        <div class="referee-hero-frame">
+          <img class="referee-sprite-img whistle-png-img" src="images/whistle.png" alt="Apito do Árbitro" onerror="this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.style.display='flex';" />
+          <div class="referee-whistle-emoji-fallback" style="display:none; width:100%; height:100%; align-items:center; justify-content:center; font-size:3.2rem; filter:drop-shadow(0 4px 10px rgba(250,204,21,0.5));">
+            📢
+          </div>
+        </div>
 
-      <div class="referee-title">${mainTitle}</div>
-      ${subtitleText ? `<div class="referee-subtitle">${subtitleText}</div>` : ""}
+        <div class="referee-title">${mainTitle}</div>
+        ${subtitleText ? `<div class="referee-subtitle">${subtitleText}</div>` : ""}
 
-      <div class="referee-scoreboard">
-        <span class="ref-team-name">${st.userTeamName || activeTeamName}</span>
-        <span class="ref-score-badge">${st.userScore} - ${st.oppScore}</span>
-        <span class="ref-team-name">${st.oppTeam?.name || "Adversário"}</span>
-      </div>
+        <div class="referee-scoreboard">
+          <span class="ref-team-name">${st.userTeamName || activeTeamName}</span>
+          <span class="ref-score-badge">${st.userScore} - ${st.oppScore}</span>
+          <span class="ref-team-name">${st.oppTeam?.name || "Adversário"}</span>
+        </div>
+      `
+      }
 
       ${halftimeLockerHTML}
 
@@ -460,24 +491,31 @@ function showRefereeWhistleModal(st, type, onProceed) {
         slotEl.querySelectorAll("[data-halftime-pep]").forEach((b) => {
           b.disabled = true;
           if (b === pepBtn) b.classList.add("is-chosen");
+          else b.classList.add("is-dimmed");
         });
         if (reactSlot) {
-          reactSlot.innerHTML = `<div class="halftime-react-line"><strong>Técnico:</strong> ${escapeHtml(picked.coachText)}<br/><span>${escapeHtml(picked.playerReact)}</span></div>`;
+          reactSlot.innerHTML = `
+            <div class="ht-react-card">
+              <div class="ht-react-coach"><strong>Você (Técnico):</strong> ${escapeHtml(picked.coachText)}</div>
+              <div class="ht-react-player">
+                ${picked.reactSprite ? `<img src="${picked.reactSprite}" alt="" />` : ""}
+                <div><strong>${escapeHtml(picked.reactName || "Equipe")}:</strong> ${escapeHtml(picked.playerReact)}</div>
+              </div>
+              <div class="ht-react-buff-row">✨ Bônus ativo no 2º tempo: <strong>${escapeHtml(picked.buffTag || picked.subtitle)}</strong></div>
+            </div>
+          `;
         }
+        if (btn) btn.classList.add("is-ht-ready");
         if (typeof playSfx === "function") playSfx("chat_send");
-        if (state.tournament.whistleTimerId) {
-          clearTimeout(state.tournament.whistleTimerId);
-          state.tournament.whistleTimerId = setTimeout(() => closeAndProceed("DIRECT_ACTION"), 3200);
-        }
       });
     });
+  } else {
+    // Auto-avanço apenas fora do vestiário interativo do intervalo
+    const autoAdvanceMs = state.simSpeed === 4 ? 4500 : 7500;
+    state.tournament.whistleTimerId = setTimeout(() => {
+      closeAndProceed(isFulltime ? "DIRECT_ACTION" : null);
+    }, autoAdvanceMs);
   }
-
-  // Auto-avanço com tempo generoso para leitura sem pressa
-  const autoAdvanceMs = halftimeData ? (state.simSpeed === 4 ? 5000 : 14000) : (state.simSpeed === 4 ? 4500 : 7500);
-  state.tournament.whistleTimerId = setTimeout(() => {
-    closeAndProceed(isFulltime ? "DIRECT_ACTION" : null);
-  }, autoAdvanceMs);
 }
 
 function applyIntervalStaminaRecharge(st, fieldGain, gkGain) {
@@ -1352,19 +1390,30 @@ function computeNodeRoleTarget(node, pitch, carrier, chaserUid, coverUid, deepes
   const oppNodes = isUser ? pitch.oppNodes : pitch.userNodes;
   const ownNodes = isUser ? pitch.userNodes : pitch.oppNodes;
 
-  // 1) Se está recebendo um passe em voo, avança com dash/sprint até encontrar a trajetória real da bola!
+  // 1) Se está recebendo um passe em voo, avança sincronizado com a chegada da bola!
   if (pitch.ballMode === "PASS_FLIGHT" && pitch.passState && pitch.passState.receiverUid === node.uid) {
     const ps = pitch.passState;
     const curBallX = pitch.ballX ?? ps.toX;
     const curBallY = pitch.ballY ?? ps.toY;
+    const isBetaAir = typeof isBetaMode === "function" && isBetaMode() && (Number(ps.peakZ) || 0) >= 0.45;
     const meetBlend = ps.progress >= 0.45 ? Math.min(1, (ps.progress - 0.45) / 0.55) : 0;
     const aimX = ps.toX * (1 - meetBlend) + curBallX * meetBlend;
     const aimY = ps.toY * (1 - meetBlend) + curBallY * meetBlend;
     const distToMeet = Math.hypot(aimX - node.x, aimY - node.y);
-    const isUrgent = Boolean(ps.isThroughBall || ps.isOneTwoPass || distToMeet >= 3.2);
-    const sprintMult = distToMeet >= 6.0 ? 1.62 : isUrgent ? 1.46 : 1.28;
-    if (isUrgent && distToMeet >= 4.0) {
-      node.receiveDashUntil = Math.max(node.receiveDashUntil || 0, t + 0.24);
+    let sprintMult;
+    if (isBetaAir) {
+      const remFlight = Math.max(0.16, (ps.duration || 0.8) - (ps.elapsed || 0));
+      const reqSpd = distToMeet / Math.max(0.16, remFlight * (node.maxSpeed || 14));
+      sprintMult = Math.max(0.56, Math.min(1.18, reqSpd));
+      if (ps.progress >= 0.52 && distToMeet >= 4.0) {
+        node.receiveDashUntil = Math.max(node.receiveDashUntil || 0, t + 0.22);
+      }
+    } else {
+      const isUrgent = Boolean(ps.isThroughBall || ps.isOneTwoPass || ps.isWingSwitch || distToMeet >= 3.2);
+      sprintMult = distToMeet >= 6.0 ? 1.62 : isUrgent ? 1.46 : 1.28;
+      if (isUrgent && distToMeet >= 4.0) {
+        node.receiveDashUntil = Math.max(node.receiveDashUntil || 0, t + 0.24);
+      }
     }
     return {
       tx: Math.max(8, Math.min(92, aimX)),
@@ -1566,7 +1615,7 @@ function computeNodeRoleTarget(node, pitch, carrier, chaserUid, coverUid, deepes
         };
       }
     }
-    // Antecipação em voo de passe: defensor mais próximo fecha a linha do passe no ponto futuro!
+    // Antecipação em voo de passe: defensor mais próximo fecha o lance, cobertura protege atrás no alto!
     if (
       pitch.ballMode === "PASS_FLIGHT" &&
       pitch.passState &&
@@ -1575,9 +1624,18 @@ function computeNodeRoleTarget(node, pitch, carrier, chaserUid, coverUid, deepes
       node.staggerTimer <= 0
     ) {
       const ps = pitch.passState;
-      const isBetaAir = typeof isBetaMode === "function" && isBetaMode() && (Number(ps.peakZ) || 0) >= 0.60;
+      const isBetaAir = typeof isBetaMode === "function" && isBetaMode() && (Number(ps.peakZ) || 0) >= 0.45;
+      if (isBetaAir && coverUid === node.uid && chaserUid !== node.uid) {
+        const covX = (ps.toX ?? ballX) * 0.66 + ownGoalX * 0.34;
+        const covY = (ps.toY ?? ballY) * 0.74 + 50 * 0.26;
+        return {
+          tx: Math.max(10, Math.min(90, covX)),
+          ty: Math.max(12, Math.min(88, covY)),
+          sprint: 0.94
+        };
+      }
       const predFrac = isBetaAir
-        ? (chaserUid === node.uid ? 0.88 : 0.95)
+        ? 0.94
         : (chaserUid === node.uid ? 0.65 : 0.85);
       const cutX = (ps.fromX ?? ballX) * (1 - predFrac) + (ps.toX ?? ballX) * predFrac;
       const cutY = (ps.fromY ?? ballY) * (1 - predFrac) + (ps.toY ?? ballY) * predFrac;
@@ -1585,7 +1643,9 @@ function computeNodeRoleTarget(node, pitch, carrier, chaserUid, coverUid, deepes
       return {
         tx: Math.max(8, Math.min(92, cutX)),
         ty: Math.max(10, Math.min(90, cutY)),
-        sprint: Math.min(1.44, 1.06 + prof.combativeness * 0.16 + prof.vision * 0.14 + iqBoost)
+        sprint: isBetaAir
+          ? Math.min(1.06, 0.68 + (ps.progress || 0) * 0.38)
+          : Math.min(1.44, 1.06 + prof.combativeness * 0.16 + prof.vision * 0.14 + iqBoost)
       };
     }
 
@@ -2639,6 +2699,38 @@ function renderPitchDOMFrame(pitch, st, now) {
       lineMain.style.opacity = "0";
     }
   }
+  if (typeof document !== "undefined" && typeof document.querySelector === "function") {
+    const ringHost = document.getElementById("live-pitch-world") || document.querySelector(".pitch-world");
+    if (ringHost) {
+      let passRingEl = document.getElementById("pitch-pass-target-ring");
+      if (!passRingEl && typeof document.createElement === "function" && typeof ringHost.appendChild === "function") {
+        passRingEl = document.createElement("div");
+        passRingEl.id = "pitch-pass-target-ring";
+        passRingEl.className = "pitch-pass-target-ring";
+        passRingEl.style.display = "none";
+        ringHost.appendChild(passRingEl);
+      }
+      if (passRingEl) {
+        const ps = pitch.passState;
+        const showRing =
+          pitch.ballMode === "PASS_FLIGHT" &&
+          ps &&
+          state.simSpeed === 1 &&
+          (ps.isThroughBall || ps.isOneTwoPass || ps.isWingSwitch);
+        if (showRing) {
+          const ringColor = ps.isOneTwoPass ? "#facc15" : "#38bdf8";
+          passRingEl.style.display = "block";
+          passRingEl.style.left = `${ps.toX}%`;
+          passRingEl.style.top = `${ps.toY}%`;
+          passRingEl.style.borderColor = ringColor;
+          passRingEl.classList.toggle("is-wing-switch", Boolean(ps.isWingSwitch));
+          passRingEl.classList.toggle("is-one-two", Boolean(ps.isOneTwoPass));
+        } else {
+          passRingEl.style.display = "none";
+        }
+      }
+    }
+  }
 
   const synLineEl = document.getElementById("pitch-synergy-line");
   if (synLineEl) {
@@ -2905,20 +2997,59 @@ function pickPassReceiver(nodes, defNodes, carrier, strictForward = false, pitch
 
     const laneMidX = (carrier.x + n.targetX) * 0.5;
     const laneMidY = (carrier.y + n.targetY) * 0.5;
+    const segDx = n.targetX - carrier.x;
+    const segDy = n.targetY - carrier.y;
+    const segLenSq = segDx * segDx + segDy * segDy;
     let minDefDist = 99;
     let laneDefDist = 99;
+    let segDefDist = 99;
+    let tightMarkers = 0;
+    let nearMarkers = 0;
     if (defNodes && defNodes.length) {
       defNodes.forEach((d) => {
         const dd = Math.hypot(d.x - n.targetX, d.y - n.targetY);
         const ld = Math.hypot(d.x - laneMidX, d.y - laneMidY);
+        let sd = ld;
+        if (segLenSq > 0.25) {
+          const tRaw = ((d.x - carrier.x) * segDx + (d.y - carrier.y) * segDy) / segLenSq;
+          const tClamped = Math.max(0.14, Math.min(0.88, tRaw));
+          const px = carrier.x + segDx * tClamped;
+          const py = carrier.y + segDy * tClamped;
+          sd = Math.hypot(d.x - px, d.y - py);
+        }
         if (dd < minDefDist) minDefDist = dd;
         if (ld < laneDefDist) laneDefDist = ld;
+        if (sd < segDefDist) segDefDist = sd;
+        if (dd < 6.8) tightMarkers++;
+        if (dd < 10.5) nearMarkers++;
       });
     }
+    laneDefDist = Math.min(laneDefDist, segDefDist);
+    const recX = n.x ?? n.targetX ?? 50;
+    const recTargetX = n.targetX ?? recX;
+    const advDelta = attIsUser ? (recTargetX - carrier.x) : (carrier.x - recTargetX);
+    const isBackward = advDelta < -2;
+    const inOwnDefThird = attIsUser ? recX <= 34 : recX >= 66;
     const isGkPass = carrier.role === "GK";
-    const openFactor =
-      (minDefDist >= 12 ? (isGkPass ? 3.2 : 2.4) : minDefDist >= 8 ? (isGkPass ? 2.1 : 1.75) : minDefDist >= 5.5 ? (isGkPass ? 0.85 : 1.0) : (isGkPass ? 0.18 : 0.42)) *
-      (laneDefDist >= 8 ? 1.35 : laneDefDist < 4.0 ? 0.45 : 0.95);
+    const routeOfSkyOpen =
+      attIsUser && !pitch?.is5v5 && (pitch?.hissatsuTacticTimer || 0) > 0 && pitch?.activeHissatsuTacticId === "route_of_sky";
+    const baseOpen =
+      minDefDist >= 12 ? (isGkPass ? 3.2 : 2.45) :
+      minDefDist >= 8 ? (isGkPass ? 2.15 : 1.75) :
+      minDefDist >= 5.5 ? (isGkPass ? 0.8 : 0.95) :
+      minDefDist >= 4.8 ? (isGkPass ? 0.24 : 0.42) :
+      0.12;
+    const laneOpen =
+      segDefDist < 3.5
+        ? ((minDefDist >= 6.5 && routeOfSkyOpen) ? 0.6 : 0.15)
+        : laneDefDist >= 8 ? 1.38
+        : laneDefDist < 4.0 ? 0.42
+        : 0.95;
+    let markPenalty = 1.0;
+    if (tightMarkers >= 2) markPenalty *= 0.025;
+    if (isBackward && inOwnDefThird && (tightMarkers >= 1 || nearMarkers >= 2)) markPenalty *= 0.015;
+    else if (isBackward && tightMarkers >= 1) markPenalty *= 0.08;
+    const openFactor = baseOpen * laneOpen * markPenalty;
     const staminaW = n.stamina >= 45 ? 1.15 : 0.55;
     const antiPingPongW = pitch && pitch.lastPasserUid === n.uid ? 0.40 : 1.0;
     const switchAffinity = prof.archetype === "ESTRATEGISTA" ? 2.15 : 1.55;
@@ -2996,13 +3127,20 @@ function pickPassReceiver(nodes, defNodes, carrier, strictForward = false, pitch
     return forwardFactor * distFactor * openFactor * staminaW * antiPingPongW * wingSwitchW * skillW * elemSynergyW * spaceRunBonus * tapInBonus * tacticLaneW * aceW * styleW * pairAffinityW * chipLobW;
   });
 
-  const total = weights.reduce((a, b) => a + b, 0);
-  let r = Math.random() * total;
-  for (let i = 0; i < candidates.length; i++) {
-    r -= weights[i];
-    if (r <= 0) return candidates[i];
+  const maxW = Math.max(...weights);
+  const cleanWeights = maxW > 0.2 ? weights.map((w) => (w >= maxW * 0.24 ? w : 0)) : weights;
+  const total = cleanWeights.reduce((a, b) => a + b, 0);
+  if (total > 0) {
+    let r = Math.random() * total;
+    for (let i = 0; i < candidates.length; i++) {
+      const wi = cleanWeights[i];
+      if (wi <= 0) continue;
+      r -= wi;
+      if (r <= 0) return candidates[i];
+    }
   }
-  return candidates[candidates.length - 1];
+  const bestIdx = weights.indexOf(maxW);
+  return candidates[bestIdx >= 0 ? bestIdx : candidates.length - 1];
 }
 
 function chooseTacticalAction(carrier, attNodes, defNodes, attIsUser, pitch) {

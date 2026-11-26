@@ -246,7 +246,19 @@
         g.gain.linearRampToValueAtTime(clipGain, t0 + 0.03);
         g.gain.setValueAtTime(clipGain, fadeStart);
         g.gain.exponentialRampToValueAtTime(0.0001, t0 + playDur);
-        src.connect(g);
+        src.connect(
+          (() => {
+            if (opts.lowpassFreq && typeof ctx.createBiquadFilter === "function") {
+              const lp = ctx.createBiquadFilter();
+              lp.type = "lowpass";
+              lp.frequency.setValueAtTime(opts.lowpassFreq, t0);
+              lp.Q.setValueAtTime(0.7, t0);
+              lp.connect(g);
+              return lp;
+            }
+            return g;
+          })()
+        );
         g.connect(dest);
         src.start(t0, offset, playDur + 0.05);
         src.stop(t0 + playDur + 0.08);
@@ -879,23 +891,23 @@
       }
 
       case "goal":
-        // Estilo Brasfoot: impacto na rede + torcida explodindo com fade suave no final
+        // Estilo Brasfoot: impacto limpo na rede + torcida explodindo via compressor (sem estourar)
         playKickTransient(ctx, dest, {
-          subStart: 125,
-          subEnd: 38,
-          subDur: 0.06,
-          slapFreq: 1100,
+          subStart: 120,
+          subEnd: 40,
+          subDur: 0.055,
+          slapFreq: 980,
           slapDur: 0.02,
-          slapGain: 0.22,
-          punchGain: 0.45,
-          saturate: true
+          slapGain: 0.16,
+          punchGain: 0.28,
+          saturate: false
         });
-        playSampleClip(ctx, masterGain, "goal", { maxDur: 3.1, fadeDur: 1.15, gain: 0.94 });
+        playSampleClip(ctx, dest, "goal", { maxDur: 3.1, fadeDur: 1.15, gain: 0.62, lowpassFreq: 5600 });
         break;
 
       case "goal_concede":
-        // Gol sofrido: reclamação / vaia da torcida com fade suave
-        playSampleClip(ctx, masterGain, "goal_concede", { maxDur: 2.6, fadeDur: 0.95, gain: 0.88 });
+        // Gol sofrido: lamento real ("oh / aww") da torcida decepcionada com fade suave
+        playSampleClip(ctx, dest, "goal_concede", { maxDur: 2.35, fadeDur: 0.85, gain: 0.72, lowpassFreq: 4200 });
         break;
 
       case "near_miss":
@@ -922,7 +934,7 @@
         // Tom descendente suave + lamentação da torcida com fade-out
         playTone(ctx, dest, { type: "sine", freq: 329.63, freqEnd: 246.94, dur: 0.18, attack: 0.008, gain: 0.14 });
         playTone(ctx, dest, { type: "sine", freq: 246.94, freqEnd: 174.61, dur: 0.28, delay: 0.14, attack: 0.008, gain: 0.15 });
-        playSampleClip(ctx, masterGain, "goal_concede", { maxDur: 2.0, fadeDur: 0.85, gain: 0.58, delay: 0.08 });
+        playSampleClip(ctx, dest, "goal_concede", { maxDur: 2.0, fadeDur: 0.85, gain: 0.54, lowpassFreq: 4000, delay: 0.08 });
         break;
 
       case "save":
