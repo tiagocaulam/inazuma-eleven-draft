@@ -608,6 +608,8 @@ function createFreshTournamentState() {
     prep: null,
     prepBonuses: createFreshPrepBonuses(),
     pairAffinity: {},
+    pendingMatchQuests: [],
+    activeCityPlots: [],
     teamEnergy: 100,
     tactics: {
       lane: "balanced", // "wings" | "balanced" | "center"
@@ -705,6 +707,8 @@ function ensureBetaDynamicsState(t = state.tournament) {
   if (!Array.isArray(t.chatPromises)) t.chatPromises = [];
   if (t.pendingBrokenPromise === undefined) t.pendingBrokenPromise = null;
   if (!t.chatArcs || typeof t.chatArcs !== "object") t.chatArcs = {};
+  if (!Array.isArray(t.pendingMatchQuests)) t.pendingMatchQuests = [];
+  if (!Array.isArray(t.activeCityPlots)) t.activeCityPlots = [];
   if (t.lastMatchMemory === undefined) t.lastMatchMemory = null;
   if (t.last5v5Memory === undefined) t.last5v5Memory = null;
   if (!t.prepFavoritismCounts || typeof t.prepFavoritismCounts !== "object") t.prepFavoritismCounts = {};
@@ -880,7 +884,9 @@ function recordBetaPostMatchMemory(st, t = state.tournament) {
     cleanSheet: (Number(st.oppScore) || 0) === 0,
     disobediences: Number(bStats.disobediences) || 0,
     feudSnubs: Number(bStats.feudSnubs) || 0,
-    brokenPromises: Number(bStats.brokenPromises) || 0
+    brokenPromises: Number(bStats.brokenPromises) || 0,
+    ballHogIncident: bStats.ballHogIncident || null,
+    breakthroughs: Array.isArray(bStats.breakthroughs) ? bStats.breakthroughs : []
   };
 
   // Ajusta Respeito ao Técnico conforme o resultado em campo

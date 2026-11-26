@@ -2781,6 +2781,7 @@ function launchContinuousShot(st, pitch, shooterNode, defNodes, attSupport, defS
 
   const onBlockerModalClosed = (skipRestart = false) => {
     if (!passedBlocker) {
+      if (typeof playSfx === "function") playSfx("near_miss");
       if (state.simSpeed === 1) {
         triggerSaveImplosion(pitch, pitch.ballX, pitch.ballY);
       }
@@ -3016,6 +3017,114 @@ function stepContinuousPhysics(st, pitch, dt) {
       }
     }
   });
+
+  // TESTE BETA: Despertares em Campo (Nova Técnica ou Espírito Guerreiro via InaZap)
+  if (!pitch.is5v5 && typeof isBetaMode === "function" && isBetaMode()) {
+    if (!st.betaMatchStats) {
+      st.betaMatchStats = {
+        disobediences: 0,
+        feudSnubs: 0,
+        honoredPromises: 0,
+        brokenPromises: 0,
+        ballHogIncident: null,
+        breakthroughs: []
+      };
+    }
+    if (!Array.isArray(st.betaMatchStats.breakthroughs)) st.betaMatchStats.breakthroughs = [];
+    const quests = state.tournament?.pendingMatchQuests;
+    if (Array.isArray(quests) && quests.length > 0 && !pitch.justKickedOff) {
+      quests.forEach((q) => {
+        if (!q || q.completed) return;
+        const n = (pitch.userNodes || []).find((un) => un.player?.id === q.playerId);
+        if (!n || !n.player) return;
+        const isCarrying = pitch.ballMode === "CARRIED" && pitch.carrierUid === n.uid;
+        if (q.kind === "LEARN_MOVE" && q.moveName && st.minute >= 16 && (isCarrying || st.minute >= 38)) {
+          q.completed = true;
+          const cat = ["SH", "OF", "DF", "GK"].includes(q.cat)
+            ? q.cat
+            : n.role === "GK" ? "GK" : n.role === "DF" ? "DF" : n.role === "MF" ? "OF" : "SH";
+          if (!n.player.moves) n.player.moves = {};
+          if (!Array.isArray(n.player.moves[cat])) n.player.moves[cat] = [];
+          if (!n.player.moves[cat].includes(q.moveName)) {
+            n.player.moves[cat].unshift(q.moveName);
+          }
+          n.player.bonusPower = (n.player.bonusPower || 0) + (q.boostPower || 8);
+          if (typeof calcIndividualPlayerPower === "function") {
+            n.indivPower = calcIndividualPlayerPower(n.player, n.role, n.level || getPlayerLevel(n.player));
+          }
+          const squadPlayer = Object.values(state.squad || {}).find((sp) => sp && sp.id === q.playerId);
+          if (squadPlayer) {
+            if (!squadPlayer.moves) squadPlayer.moves = {};
+            if (!Array.isArray(squadPlayer.moves[cat])) squadPlayer.moves[cat] = [];
+            if (!squadPlayer.moves[cat].includes(q.moveName)) {
+              squadPlayer.moves[cat].unshift(q.moveName);
+            }
+            squadPlayer.bonusPower = (squadPlayer.bonusPower || 0) + (q.boostPower || 8);
+          }
+          st.betaMatchStats.breakthroughs.push({
+            kind: "LEARN_MOVE",
+            playerId: n.player.id,
+            playerName: n.player.name,
+            name: q.moveName,
+            cat,
+            minute: st.minute
+          });
+          showNodeBadge(pitch, n.uid, `⚡ Despertou ${q.moveName}!`, "badge-keshin", 2200);
+          pitch.ticker = `${st.minute}' ⚡ [Despertar!] ${n.player.name} dominou e lançou 【${q.moveName}】 em campo!`;
+          prependNarrationLine(
+            st,
+            "nar-dribble",
+            `${st.minute}' ⚡ [Superação!] Depois de treinar no limite, ${n.player.name} finalmente despertou 【${q.moveName}】 no meio da partida!`,
+            { name: n.player.name, sprite: n.player.sprite, side: n.side },
+            null,
+            cat
+          );
+          syncLivePitchDOM(st);
+          if (typeof playSfx === "function") playSfx("level_up");
+        } else if (
+          q.kind === "AWAKEN_KESHIN" &&
+          q.keshin &&
+          st.minute >= 18 &&
+          !n.player.keshin &&
+          !sideHasActiveKeshin.user &&
+          (isCarrying || st.minute >= 40)
+        ) {
+          q.completed = true;
+          const kObj = { ...q.keshin };
+          if (!kObj.icon && typeof UI === "object" && UI) {
+            kObj.icon = UI[kObj.iconKey] || UI.keshinIcon || "";
+          }
+          n.player.keshin = kObj;
+          const squadPlayer = Object.values(state.squad || {}).find((sp) => sp && sp.id === q.playerId);
+          if (squadPlayer) squadPlayer.keshin = { ...kObj };
+          n.keshinUsed = true;
+          n.keshinState = "ACTIVE";
+          n.keshinTimer = 14.0;
+          sideHasActiveKeshin.user = true;
+          st.betaMatchStats.breakthroughs.push({
+            kind: "AWAKEN_KESHIN",
+            playerId: n.player.id,
+            playerName: n.player.name,
+            name: kObj.name,
+            cat: kObj.moveCat || n.role,
+            minute: st.minute
+          });
+          showNodeBadge(pitch, n.uid, `🔥 ${kObj.name}!`, "badge-keshin", 2400);
+          pitch.ticker = `${st.minute}' 🔥 [DESPERTAR KESHIN!] ${n.player.name} invocou 【${kObj.name}】!`;
+          prependNarrationLine(
+            st,
+            "nar-dribble",
+            `${st.minute}' 🔥 [Espírito Guerreiro!] Sob pressão total, ${n.player.name} rompeu seus limites e despertou 【${kObj.name}】!`,
+            { name: n.player.name, sprite: n.player.sprite, side: n.side },
+            null,
+            kObj.moveCat || (n.role === "GK" ? "GK" : n.role === "DF" ? "DF" : "SH")
+          );
+          syncLivePitchDOM(st);
+          if (typeof playSfx === "function") playSfx("level_up");
+        }
+      });
+    }
+  }
 
   // Timers da Tática Especial (Hissatsu Tactic)
   if ((pitch.hissatsuTacticTimer || 0) > 0) {
@@ -3590,7 +3699,17 @@ function stepContinuousPhysics(st, pitch, dt) {
 
       // TESTE BETA: Desobediência tática por Respeito baixo ao técnico / Insatisfação individual ou Treta Aberta!
       if (attIsUser && !pitch.is5v5 && typeof isBetaMode === "function" && isBetaMode()) {
-        if (!st.betaMatchStats) st.betaMatchStats = { disobediences: 0, feudSnubs: 0, honoredPromises: 0, brokenPromises: 0 };
+        if (!st.betaMatchStats) {
+          st.betaMatchStats = {
+            disobediences: 0,
+            feudSnubs: 0,
+            honoredPromises: 0,
+            brokenPromises: 0,
+            ballHogIncident: null,
+            breakthroughs: []
+          };
+        }
+        if (!Array.isArray(st.betaMatchStats.breakthroughs)) st.betaMatchStats.breakthroughs = [];
         const respectInfo = typeof getCoachRespectInfo === "function" ? getCoachRespectInfo() : { value: 66, tier: "MID" };
         const pMood = typeof getPlayerRespectStatus === "function" ? getPlayerRespectStatus(carrier.player?.id) : { mood: "NEUTRAL" };
         if (
@@ -3601,6 +3720,17 @@ function stepContinuousPhysics(st, pitch, dt) {
           const pairArc = getBetaPairArc(carrier.player, betterShotTeammate.player);
           if (pairArc && pairArc.state === "TRETA_ABERTA" && Math.random() < 0.34 && goalDist <= 38) {
             st.betaMatchStats.feudSnubs += 1;
+            if (!st.betaMatchStats.ballHogIncident) {
+              st.betaMatchStats.ballHogIncident = {
+                hogId: carrier.player.id,
+                hogName: carrier.player.name,
+                victimId: betterShotTeammate.player.id,
+                victimName: betterShotTeammate.player.name,
+                minute: st.minute,
+                reason: "feud"
+              };
+            }
+            showNodeBadge(pitch, carrier.uid, "💢 Ignorou passe!", "badge-lost", 1300);
             if (typeof prependNarrationLine === "function") {
               prependNarrationLine(
                 st,
@@ -3614,6 +3744,36 @@ function stepContinuousPhysics(st, pitch, dt) {
             launchContinuousShot(st, pitch, carrier, defNodes, attSupport, defSupport, ovrDiff, attNodes, { forceLongShot: goalDist > 26 });
             return;
           }
+        }
+        if (
+          !st.betaMatchStats.ballHogIncident &&
+          betterShotTeammate &&
+          goalDist <= 34 &&
+          carrier.carryTime >= 0.35 &&
+          (cProf.ego >= 0.65 || isCarrierAce) &&
+          Math.random() < 0.08
+        ) {
+          st.betaMatchStats.ballHogIncident = {
+            hogId: carrier.player.id,
+            hogName: carrier.player.name,
+            victimId: betterShotTeammate.player.id,
+            victimName: betterShotTeammate.player.name,
+            minute: st.minute,
+            reason: "ego"
+          };
+          showNodeBadge(pitch, carrier.uid, "😤 Segurou a bola!", "badge-lost", 1300);
+          if (typeof prependNarrationLine === "function") {
+            prependNarrationLine(
+              st,
+              "nar-save",
+              `${st.minute}' 😤 ${carrier.player.name} fominha! Segurou a bola e bateu sozinho com ${betterShotTeammate.player.name} livre na área!`,
+              null,
+              null,
+              null
+            );
+          }
+          launchContinuousShot(st, pitch, carrier, defNodes, attSupport, defSupport, ovrDiff, attNodes, { forceLongShot: goalDist > 26 });
+          return;
         }
         const isUnhappyOrLowRespect = respectInfo.tier === "LOW" || pMood.mood === "UNHAPPY";
         if (

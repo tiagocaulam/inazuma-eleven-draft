@@ -149,21 +149,64 @@
 
   const SAMPLE_PATHS = {
     goal: "assets/sfx/crowd_goal.mp3",
-    goal_concede: "assets/sfx/crowd_boo.mp3"
+    goal_concede: "assets/sfx/crowd_boo.mp3",
+    near_miss: "assets/sfx/crowd_ooh.mp3"
   };
+  const rawSampleData = {};
+  const rawFetchPromises = {};
   const sampleBuffers = {};
+  const sampleStartOffsets = {};
   const samplePromises = {};
+
+  function computeSampleStartOffset(decoded) {
+    if (!decoded || typeof decoded.getChannelData !== "function") return 0;
+    try {
+      const data = decoded.getChannelData(0);
+      const sr = decoded.sampleRate || 44100;
+      const step = 16;
+      for (let i = 0; i < data.length; i += step) {
+        if (Math.abs(data[i]) > 0.045) {
+          const sec = Math.max(0, i / sr - 0.025);
+          return Math.min(sec, Math.max(0, (decoded.duration || 1) - 0.5));
+        }
+      }
+    } catch {
+      return 0;
+    }
+    return 0;
+  }
+
+  function prefetchSampleBytes(key) {
+    const url = SAMPLE_PATHS[key];
+    if (!url || rawSampleData[key] || rawFetchPromises[key] || typeof fetch !== "function") {
+      return rawFetchPromises[key] || Promise.resolve(rawSampleData[key] || null);
+    }
+    rawFetchPromises[key] = fetch(url)
+      .then((res) => (res && res.ok && typeof res.arrayBuffer === "function" ? res.arrayBuffer() : null))
+      .then((arrBuf) => {
+        if (arrBuf) rawSampleData[key] = arrBuf;
+        return arrBuf || null;
+      })
+      .catch(() => null);
+    return rawFetchPromises[key];
+  }
+
+  function prefetchAllSampleBytes() {
+    Object.keys(SAMPLE_PATHS).forEach((key) => prefetchSampleBytes(key));
+  }
 
   function decodeSampleAsync(ctx, key) {
     const url = SAMPLE_PATHS[key];
-    if (!url || sampleBuffers[key] || samplePromises[key] || typeof fetch !== "function" || !ctx || typeof ctx.decodeAudioData !== "function") {
+    if (!url || sampleBuffers[key] || samplePromises[key] || !ctx || typeof ctx.decodeAudioData !== "function") {
       return samplePromises[key] || null;
     }
-    samplePromises[key] = fetch(url)
-      .then((res) => (res && res.ok && typeof res.arrayBuffer === "function" ? res.arrayBuffer() : null))
-      .then((arrBuf) => (arrBuf ? ctx.decodeAudioData(arrBuf) : null))
+    samplePromises[key] = prefetchSampleBytes(key)
+      .then((arrBuf) => (arrBuf ? ctx.decodeAudioData(arrBuf.slice(0)) : null))
       .then((decoded) => {
-        if (decoded) sampleBuffers[key] = decoded;
+        if (decoded) {
+          sampleBuffers[key] = decoded;
+          sampleStartOffsets[key] = computeSampleStartOffset(decoded);
+        }
         return decoded;
       })
       .catch(() => null);
@@ -171,17 +214,22 @@
   }
 
   function preloadCrowdSamples(ctx) {
+    prefetchAllSampleBytes();
     if (!ctx) return;
-    decodeSampleAsync(ctx, "goal");
-    decodeSampleAsync(ctx, "goal_concede");
+    Object.keys(SAMPLE_PATHS).forEach((key) => decodeSampleAsync(ctx, key));
+  }
+
+  if (typeof window !== "undefined") {
+    prefetchAllSampleBytes();
   }
 
   function playSampleClip(ctx, dest, key, opts = {}) {
     const url = SAMPLE_PATHS[key];
     if (!url || !isSfxEnabled()) return false;
-    const clipDur = Math.max(0.4, opts.maxDur || 2.2);
+    const clipDur = Math.max(0.45, opts.maxDur || 2.2);
+    const fadeDur = Math.max(0.25, opts.fadeDur || 0.75);
     const clipGain = Math.max(0.05, Math.min(1, opts.gain !== undefined ? opts.gain : 0.9));
-    const offset = Math.max(0, opts.offset || 0);
+    const offset = sampleStartOffsets[key] !== undefined ? sampleStartOffsets[key] : Math.max(0, opts.offset || 0);
     const decoded = sampleBuffers[key];
 
     if (decoded && ctx && dest) {
@@ -190,16 +238,18 @@
         src.buffer = decoded;
         const g = ctx.createGain();
         const t0 = ctx.currentTime + (opts.delay || 0);
-        const playDur = Math.min(clipDur, Math.max(0.25, decoded.duration - offset));
-        const fadeStart = t0 + Math.max(0.12, playDur - 0.42);
+        const availDur = Math.max(0.28, decoded.duration - offset);
+        const playDur = Math.min(clipDur, availDur);
+        const actualFade = Math.min(fadeDur, playDur * 0.62);
+        const fadeStart = t0 + Math.max(0.14, playDur - actualFade);
         g.gain.setValueAtTime(0.0001, t0);
-        g.gain.linearRampToValueAtTime(clipGain, t0 + 0.025);
+        g.gain.linearRampToValueAtTime(clipGain, t0 + 0.03);
         g.gain.setValueAtTime(clipGain, fadeStart);
         g.gain.exponentialRampToValueAtTime(0.0001, t0 + playDur);
         src.connect(g);
         g.connect(dest);
-        src.start(t0, offset, playDur + 0.04);
-        src.stop(t0 + playDur + 0.06);
+        src.start(t0, offset, playDur + 0.05);
+        src.stop(t0 + playDur + 0.08);
         return true;
       } catch {
         // segue para fallback Audio
@@ -220,22 +270,31 @@
             } catch {}
           }, { once: true });
         }
-        audio.play().catch(() => {});
-        const fadeTimer = setInterval(() => {
-          if (audio.paused) {
+        const startDelayMs = Math.max(0, Math.round((opts.delay || 0) * 1000));
+        const runPlayback = () => {
+          audio.play().catch(() => {});
+          const fadeWindow = Math.max(0.3, Math.min(fadeDur, clipDur * 0.55));
+          const fadeTimer = setInterval(() => {
+            if (audio.paused) {
+              clearInterval(fadeTimer);
+              return;
+            }
+            const elapsed = Math.max(0, (audio.currentTime || 0) - offset);
+            const remain = clipDur - elapsed;
+            if (remain <= fadeWindow) {
+              const frac = Math.max(0, remain / fadeWindow);
+              audio.volume = Math.max(0, targetVol * frac * frac);
+            }
+          }, 55);
+          setTimeout(() => {
             clearInterval(fadeTimer);
-            return;
-          }
-          if (audio.currentTime >= offset + clipDur - 0.35) {
-            audio.volume = Math.max(0, audio.volume - targetVol * 0.18);
-          }
-        }, 65);
-        setTimeout(() => {
-          clearInterval(fadeTimer);
-          try {
-            audio.pause();
-          } catch {}
-        }, Math.round(clipDur * 1000));
+            try {
+              audio.pause();
+            } catch {}
+          }, Math.round(clipDur * 1000));
+        };
+        if (startDelayMs > 0) setTimeout(runPlayback, startDelayMs);
+        else runPlayback();
         return true;
       } catch {
         return false;
@@ -506,6 +565,7 @@
     hissatsu: 240,
     goal: 450,
     goal_concede: 450,
+    near_miss: 300,
     save: 190,
     post: 190,
     miss: 190,
@@ -522,6 +582,7 @@
   const SPEED_4X_ALLOWED = new Set([
     "goal",
     "goal_concede",
+    "near_miss",
     "whistle",
     "unlock",
     "post",
@@ -648,38 +709,28 @@
         break;
 
       case "dribble":
-        // Vento cortando rápido ao arrancar no drible + leve atrito na grama
+        // Vento limpo e veloz cortando o ar ao driblar
         playNoiseSweep(ctx, dest, {
           noiseType: "pink",
           filterType: "bandpass",
-          freqStart: 300,
-          freqMid: 1750,
-          freqEnd: 520,
-          q: 1.6,
-          dur: 0.21,
+          freqStart: 280,
+          freqMid: 1950,
+          freqEnd: 460,
+          q: 1.8,
+          dur: 0.22,
           attack: 0.022,
-          gain: 0.23
+          gain: 0.24
         });
         playNoiseSweep(ctx, dest, {
           noiseType: "white",
           filterType: "bandpass",
-          freqStart: 850,
-          freqMid: 2650,
-          freqEnd: 920,
-          q: 1.9,
+          freqStart: 950,
+          freqMid: 2850,
+          freqEnd: 980,
+          q: 2.0,
           dur: 0.18,
-          attack: 0.020,
+          attack: 0.018,
           gain: 0.13
-        });
-        playNoiseSweep(ctx, dest, {
-          noiseType: "pink",
-          filterType: "lowpass",
-          freqStart: 780,
-          freqEnd: 260,
-          q: 0.9,
-          dur: 0.075,
-          attack: 0.005,
-          gain: 0.14
         });
         break;
 
@@ -708,42 +759,42 @@
         break;
 
       case "shot":
-        // Chute limpo baseado na física realista do passe, com mais peso no impacto + corte de ar
+        // Chute seco com impacto pesado no couro + corte rápido de ar
         playKickTransient(ctx, dest, {
-          subStart: 128,
-          subEnd: 38,
-          subDur: 0.054,
-          slapFreq: 1240,
-          slapDur: 0.024,
-          slapGain: 0.34,
-          punchGain: 0.48,
+          subStart: 142,
+          subEnd: 36,
+          subDur: 0.068,
+          slapFreq: 1300,
+          slapDur: 0.026,
+          slapGain: 0.38,
+          punchGain: 0.62,
           saturate: true
         });
         playNoiseSweep(ctx, dest, {
           noiseType: "pink",
           filterType: "bandpass",
           freqStart: 420,
-          freqMid: 1080,
-          freqEnd: 340,
+          freqMid: 1240,
+          freqEnd: 360,
           q: 1.4,
-          dur: 0.11,
-          attack: 0.012,
-          gain: 0.12,
+          dur: 0.105,
+          attack: 0.01,
+          gain: 0.13,
           delay: 0.01
         });
         break;
 
       case "hissatsu": {
         const el = String(opts.elem || "Fogo").toLowerCase();
-        // Chute potente no couro + deslocamento orgânico de ar/elemento (sem oscilador sintético)
+        // Impacto pesado + fogo / vento cortando com força pelo campo
         playKickTransient(ctx, dest, {
-          subStart: 138,
-          subEnd: 36,
-          subDur: 0.062,
-          slapFreq: 1180,
-          slapDur: 0.026,
-          slapGain: 0.34,
-          punchGain: 0.54,
+          subStart: 146,
+          subEnd: 34,
+          subDur: 0.072,
+          slapFreq: 1280,
+          slapDur: 0.028,
+          slapGain: 0.38,
+          punchGain: 0.64,
           saturate: true
         });
         if (el.includes("vent")) {
@@ -751,208 +802,105 @@
             noiseType: "pink",
             filterType: "bandpass",
             freqStart: 360,
-            freqMid: 1850,
+            freqMid: 2100,
             freqEnd: 520,
-            q: 2.3,
-            dur: 0.24,
+            q: 2.2,
+            dur: 0.26,
             attack: 0.02,
-            gain: 0.24,
-            delay: 0.015
+            gain: 0.26,
+            delay: 0.014
           });
           playNoiseSweep(ctx, dest, {
             noiseType: "white",
             filterType: "bandpass",
-            freqStart: 900,
-            freqMid: 2400,
+            freqStart: 950,
+            freqMid: 2600,
             freqEnd: 880,
-            q: 2.1,
-            dur: 0.19,
+            q: 2.0,
+            dur: 0.20,
             attack: 0.018,
-            gain: 0.12,
+            gain: 0.13,
             delay: 0.02
           });
         } else if (el.includes("flor")) {
           playNoiseSweep(ctx, dest, {
             noiseType: "pink",
             filterType: "bandpass",
-            freqStart: 520,
-            freqMid: 1420,
-            freqEnd: 620,
-            q: 2.2,
-            dur: 0.22,
+            freqStart: 500,
+            freqMid: 1580,
+            freqEnd: 580,
+            q: 2.0,
+            dur: 0.24,
             attack: 0.02,
-            gain: 0.20,
+            gain: 0.22,
             delay: 0.015
           });
         } else if (el.includes("mont")) {
           playNoiseSweep(ctx, satCurveNode || dest, {
             noiseType: "brown",
             filterType: "lowpass",
-            freqStart: 250,
-            freqMid: 420,
+            freqStart: 270,
+            freqMid: 480,
             freqEnd: 70,
             q: 1.0,
-            dur: 0.24,
+            dur: 0.28,
             attack: 0.008,
-            gain: 0.34,
+            gain: 0.38,
             delay: 0.01
           });
         } else {
-          // Fogo: sopro denso de chama + deslocamento rápido de ar (zero chiado agudo)
+          // Fogo passando rápido: rugido denso de chama + rastro quente no ar
           playNoiseSweep(ctx, satCurveNode || dest, {
             noiseType: "brown",
             filterType: "lowpass",
-            freqStart: 260,
-            freqMid: 780,
-            freqEnd: 190,
-            q: 1.2,
-            dur: 0.24,
-            attack: 0.015,
-            gain: 0.30,
-            delay: 0.012
+            freqStart: 240,
+            freqMid: 920,
+            freqEnd: 170,
+            q: 1.15,
+            dur: 0.30,
+            attack: 0.016,
+            gain: 0.34,
+            delay: 0.01
           });
           playNoiseSweep(ctx, dest, {
             noiseType: "pink",
             filterType: "bandpass",
             freqStart: 380,
-            freqMid: 1280,
-            freqEnd: 380,
-            q: 1.5,
-            dur: 0.20,
+            freqMid: 1650,
+            freqEnd: 360,
+            q: 1.4,
+            dur: 0.26,
             attack: 0.018,
-            gain: 0.16,
-            delay: 0.02
+            gain: 0.22,
+            delay: 0.016
           });
         }
         break;
       }
 
       case "goal":
-        // Rompimento da barreira do goleiro: impacto pesado + estalo de raio + estilhaços + onda de choque + rede (0ms latência)
+        // Estilo Brasfoot: impacto na rede + torcida explodindo com fade suave no final
         playKickTransient(ctx, dest, {
-          subStart: 150,
-          subEnd: 34,
-          subDur: 0.11,
-          slapFreq: 1650,
-          slapDur: 0.022,
-          slapGain: 0.36,
-          punchGain: 0.58,
+          subStart: 125,
+          subEnd: 38,
+          subDur: 0.06,
+          slapFreq: 1100,
+          slapDur: 0.02,
+          slapGain: 0.22,
+          punchGain: 0.45,
           saturate: true
         });
-        playNoiseSweep(ctx, dest, {
-          noiseType: "white",
-          filterType: "bandpass",
-          freqStart: 3800,
-          freqEnd: 1400,
-          q: 1.8,
-          dur: 0.055,
-          attack: 0.003,
-          gain: 0.26,
-          delay: 0.008
-        });
-        playNoiseSweep(ctx, dest, {
-          noiseType: "white",
-          filterType: "bandpass",
-          freqStart: 4500,
-          freqEnd: 2200,
-          q: 2.0,
-          dur: 0.032,
-          attack: 0.002,
-          gain: 0.18,
-          delay: 0.042
-        });
-        playNoiseSweep(ctx, dest, {
-          noiseType: "white",
-          filterType: "bandpass",
-          freqStart: 3100,
-          freqEnd: 1300,
-          q: 1.9,
-          dur: 0.036,
-          attack: 0.002,
-          gain: 0.15,
-          delay: 0.088
-        });
-        playNoiseSweep(ctx, dest, {
-          noiseType: "white",
-          filterType: "bandpass",
-          freqStart: 2300,
-          freqEnd: 900,
-          q: 1.7,
-          dur: 0.042,
-          attack: 0.002,
-          gain: 0.12,
-          delay: 0.138
-        });
-        playNoiseSweep(ctx, satCurveNode || dest, {
-          noiseType: "brown",
-          filterType: "lowpass",
-          freqStart: 360,
-          freqEnd: 62,
-          q: 0.9,
-          dur: 0.52,
-          attack: 0.01,
-          gain: 0.36,
-          delay: 0.014
-        });
-        playNoiseSweep(ctx, dest, {
-          noiseType: "pink",
-          filterType: "bandpass",
-          freqStart: 1150,
-          freqEnd: 400,
-          q: 1.3,
-          dur: 0.28,
-          attack: 0.014,
-          gain: 0.14,
-          delay: 0.045
-        });
+        playSampleClip(ctx, masterGain, "goal", { maxDur: 3.1, fadeDur: 1.15, gain: 0.94 });
         break;
 
       case "goal_concede":
-        // Barreira defensiva rachando: impacto grave sombrio + trincas secas + queda de pressão
-        playKickTransient(ctx, dest, {
-          subStart: 118,
-          subEnd: 30,
-          subDur: 0.12,
-          slapFreq: 900,
-          slapDur: 0.024,
-          slapGain: 0.26,
-          punchGain: 0.52,
-          saturate: true
-        });
-        playNoiseSweep(ctx, dest, {
-          noiseType: "white",
-          filterType: "bandpass",
-          freqStart: 1850,
-          freqEnd: 620,
-          q: 1.7,
-          dur: 0.075,
-          attack: 0.003,
-          gain: 0.20,
-          delay: 0.012
-        });
-        playNoiseSweep(ctx, dest, {
-          noiseType: "white",
-          filterType: "bandpass",
-          freqStart: 1350,
-          freqEnd: 480,
-          q: 1.6,
-          dur: 0.06,
-          attack: 0.003,
-          gain: 0.14,
-          delay: 0.068
-        });
-        playNoiseSweep(ctx, satCurveNode || dest, {
-          noiseType: "brown",
-          filterType: "lowpass",
-          freqStart: 220,
-          freqEnd: 52,
-          q: 0.85,
-          dur: 0.48,
-          attack: 0.012,
-          gain: 0.34,
-          delay: 0.018
-        });
-        playTone(ctx, dest, { type: "sine", freq: 210, freqEnd: 115, dur: 0.26, attack: 0.008, gain: 0.11, delay: 0.04 });
+        // Gol sofrido: reclamação / vaia da torcida com fade suave
+        playSampleClip(ctx, masterGain, "goal_concede", { maxDur: 2.6, fadeDur: 0.95, gain: 0.88 });
+        break;
+
+      case "near_miss":
+        // "Uuuhhhh!" da torcida em quase gol / chute raspando
+        playSampleClip(ctx, masterGain, "near_miss", { maxDur: 1.75, fadeDur: 0.65, gain: 0.82 });
         break;
 
       case "fail":
@@ -971,24 +919,14 @@
         break;
 
       case "defeat":
-        // Tom descendente suave + decaimento grave imediato na derrota
+        // Tom descendente suave + lamentação da torcida com fade-out
         playTone(ctx, dest, { type: "sine", freq: 329.63, freqEnd: 246.94, dur: 0.18, attack: 0.008, gain: 0.14 });
         playTone(ctx, dest, { type: "sine", freq: 246.94, freqEnd: 174.61, dur: 0.28, delay: 0.14, attack: 0.008, gain: 0.15 });
-        playNoiseSweep(ctx, dest, {
-          noiseType: "brown",
-          filterType: "lowpass",
-          freqStart: 200,
-          freqEnd: 65,
-          q: 0.8,
-          dur: 0.42,
-          attack: 0.015,
-          gain: 0.22,
-          delay: 0.08
-        });
+        playSampleClip(ctx, masterGain, "goal_concede", { maxDur: 2.0, fadeDur: 0.85, gain: 0.58, delay: 0.08 });
         break;
 
       case "save":
-        // Tapa abafado de luva + suspiro breve da torcida
+        // Tapa de luva na bola + "uuuhhhh!" da torcida no quase gol
         playKickTransient(ctx, dest, {
           subStart: 120,
           subEnd: 42,
@@ -999,21 +937,11 @@
           punchGain: 0.42,
           saturate: true
         });
-        playNoiseSweep(ctx, dest, {
-          noiseType: "pink",
-          filterType: "bandpass",
-          freqStart: 720,
-          freqEnd: 430,
-          q: 1.1,
-          dur: 0.26,
-          attack: 0.04,
-          gain: 0.14,
-          delay: 0.03
-        });
+        playSampleClip(ctx, masterGain, "near_miss", { maxDur: 1.55, fadeDur: 0.55, gain: 0.72, delay: 0.04 });
         break;
 
       case "post":
-        // Pancada metálica realista da trave
+        // Pancada metálica na trave + "uuuhhhh!" da torcida
         playKickTransient(ctx, dest, {
           subStart: 120,
           subEnd: 48,
@@ -1025,11 +953,11 @@
         playTone(ctx, dest, { type: "sine", freq: 612, freqEnd: 604, dur: 0.46, attack: 0.002, gain: 0.26, delay: 0.01 });
         playTone(ctx, dest, { type: "sine", freq: 1094, freqEnd: 1082, dur: 0.38, attack: 0.002, gain: 0.20, delay: 0.01 });
         playTone(ctx, dest, { type: "sine", freq: 1672, freqEnd: 1658, dur: 0.28, attack: 0.002, gain: 0.12, delay: 0.01 });
-        playTone(ctx, dest, { type: "sine", freq: 2490, dur: 0.18, attack: 0.002, gain: 0.07, delay: 0.01 });
+        playSampleClip(ctx, masterGain, "near_miss", { maxDur: 1.7, fadeDur: 0.60, gain: 0.80, delay: 0.06 });
         break;
 
       case "miss":
-        // Vento da bola passando fora + reação "uuuh" da torcida
+        // Vento da bola tirando tinta + "uuuhhhh!" da torcida
         playNoiseSweep(ctx, dest, {
           noiseType: "pink",
           filterType: "bandpass",
@@ -1040,17 +968,7 @@
           attack: 0.012,
           gain: 0.18
         });
-        playNoiseSweep(ctx, dest, {
-          noiseType: "pink",
-          filterType: "bandpass",
-          freqStart: 760,
-          freqEnd: 380,
-          q: 1.2,
-          dur: 0.34,
-          attack: 0.045,
-          gain: 0.15,
-          delay: 0.04
-        });
+        playSampleClip(ctx, masterGain, "near_miss", { maxDur: 1.7, fadeDur: 0.60, gain: 0.84, delay: 0.03 });
         break;
 
       case "roulette_tick": {
@@ -1141,5 +1059,6 @@
     window.playSfx = playSfx;
     window.playRouletteSpinSequence = playRouletteSpinSequence;
     window.stopRouletteSpinAudio = stopRouletteSpinAudio;
+    window.computeSampleStartOffset = computeSampleStartOffset;
   }
 })();

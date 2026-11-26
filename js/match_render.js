@@ -281,6 +281,53 @@ function showRefereeWhistleModal(st, type, onProceed) {
     ? `⚡ Preparar para ${nextStageName} ▶`
     : "🏆 Ver Resultado da Campanha ▶";
 
+  const halftimeData =
+    isHalftime &&
+    typeof isBetaMode === "function" &&
+    isBetaMode() &&
+    typeof buildHalftimeLockerTalk === "function"
+      ? buildHalftimeLockerTalk(st)
+      : null;
+  if (isHalftime && st?.pitch) {
+    st.pitch.halftimeBuff = null;
+  }
+  const halftimeLockerHTML = halftimeData
+    ? `
+      <div class="halftime-locker-box" id="halftime-locker-box">
+        <div class="halftime-locker-head">
+          <span>💬 Vestiário • Intervalo</span>
+          <span>Preleção do 2º Tempo</span>
+        </div>
+        ${(halftimeData.bubbles || [])
+          .map(
+            (b) => `
+          <div class="halftime-msg tone-${b.tone || "normal"}">
+            ${b.sprite ? `<img src="${b.sprite}" alt="" />` : ""}
+            <div class="halftime-msg-body">
+              <div class="halftime-msg-name">${escapeHtml(b.name)} ${b.roleLabel ? `<span style="color:#94a3b8;font-weight:700;">• ${escapeHtml(b.roleLabel)}</span>` : ""}</div>
+              <div class="halftime-msg-text">${escapeHtml(b.text)}</div>
+            </div>
+          </div>
+        `
+          )
+          .join("")}
+        <div class="halftime-pep-grid">
+          ${(halftimeData.choices || [])
+            .map(
+              (ch) => `
+            <button type="button" class="halftime-pep-btn" data-halftime-pep="${ch.key}">
+              <strong>${escapeHtml(ch.title)}</strong>
+              <small>${escapeHtml(ch.subtitle)}</small>
+            </button>
+          `
+            )
+            .join("")}
+        </div>
+        <div id="halftime-react-slot"></div>
+      </div>
+    `
+    : "";
+
   // Modal do árbitro/apito limpo e direto: Ícone/PNG do Apito, Fim do 1º Tempo / Fim de Jogo, Placar e Botão abaixo
   slotEl.classList.add("is-referee-overlay");
   slotEl.style.display = "flex";
@@ -301,6 +348,8 @@ function showRefereeWhistleModal(st, type, onProceed) {
         <span class="ref-score-badge">${st.userScore} - ${st.oppScore}</span>
         <span class="ref-team-name">${st.oppTeam?.name || "Adversário"}</span>
       </div>
+
+      ${halftimeLockerHTML}
 
       <button class="ie-cmd-btn ie-cmd-gold referee-proceed-btn" id="btn-referee-proceed">
         <span>${buttonText}</span>
@@ -390,8 +439,42 @@ function showRefereeWhistleModal(st, type, onProceed) {
     peekBtn.addEventListener("click", () => closeAndProceed("PEEK"));
   }
 
+  if (halftimeData) {
+    const lockerBox = document.getElementById("halftime-locker-box");
+    const reactSlot = document.getElementById("halftime-react-slot");
+    slotEl.querySelectorAll("[data-halftime-pep]").forEach((pepBtn) => {
+      pepBtn.addEventListener("click", () => {
+        if (!lockerBox || lockerBox.dataset.picked || closed) return;
+        const key = pepBtn.getAttribute("data-halftime-pep");
+        const picked = (halftimeData.choices || []).find((c) => c.key === key);
+        if (!picked) return;
+        lockerBox.dataset.picked = key;
+        if (st?.pitch) {
+          st.pitch.halftimeBuff = key;
+          if (key === "FIRE" && Array.isArray(st.pitch.userNodes)) {
+            st.pitch.userNodes.forEach((un) => {
+              if (un.role !== "GK") un.stamina = Math.max(18, Math.round((un.stamina - 4) * 10) / 10);
+            });
+          }
+        }
+        slotEl.querySelectorAll("[data-halftime-pep]").forEach((b) => {
+          b.disabled = true;
+          if (b === pepBtn) b.classList.add("is-chosen");
+        });
+        if (reactSlot) {
+          reactSlot.innerHTML = `<div class="halftime-react-line"><strong>Técnico:</strong> ${escapeHtml(picked.coachText)}<br/><span>${escapeHtml(picked.playerReact)}</span></div>`;
+        }
+        if (typeof playSfx === "function") playSfx("chat_send");
+        if (state.tournament.whistleTimerId) {
+          clearTimeout(state.tournament.whistleTimerId);
+          state.tournament.whistleTimerId = setTimeout(() => closeAndProceed("DIRECT_ACTION"), 3200);
+        }
+      });
+    });
+  }
+
   // Auto-avanço com tempo generoso para leitura sem pressa
-  const autoAdvanceMs = state.simSpeed === 4 ? 4500 : 7500;
+  const autoAdvanceMs = halftimeData ? (state.simSpeed === 4 ? 5000 : 14000) : (state.simSpeed === 4 ? 4500 : 7500);
   state.tournament.whistleTimerId = setTimeout(() => {
     closeAndProceed(isFulltime ? "DIRECT_ACTION" : null);
   }, autoAdvanceMs);
@@ -718,6 +801,17 @@ function calcNodeDuelScore(node, teamSupportBonus, opponentElem = null, actionKi
       // Intensidade
       if (tac.intensity === "high") tacticalAndEnergyAdj += 1.1;
       else if (tac.intensity === "low") tacticalAndEnergyAdj -= 2.1;
+
+      // Preleção do Intervalo (Teste Beta • 2º Tempo)
+      if (curMin >= 45 && livePitch?.halftimeBuff && typeof isBetaMode === "function" && isBetaMode()) {
+        if (livePitch.halftimeBuff === "FIRE" && (roleOrAction === "SH" || roleOrAction === "FW")) {
+          tacticalAndEnergyAdj += 1.8;
+        } else if (livePitch.halftimeBuff === "CALM" && (roleOrAction === "OF" || roleOrAction === "MF")) {
+          tacticalAndEnergyAdj += 1.8;
+        } else if (livePitch.halftimeBuff === "WALL" && (roleOrAction === "DF" || roleOrAction === "GK")) {
+          tacticalAndEnergyAdj += 1.8;
+        }
+      }
 
       // Referência Ofensiva ("Camisa 10")
       if (tac.acePlayerId && node.player?.id === tac.acePlayerId && (roleOrAction === "SH" || roleOrAction === "OF")) {

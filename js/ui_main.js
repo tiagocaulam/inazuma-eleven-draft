@@ -602,6 +602,10 @@ function renderTournamentScreen() {
     if (openTacModalBtn) {
       openTacModalBtn.addEventListener("click", () => openSplitModal("tactics"));
     }
+    const openChatFormBtn = document.getElementById("btn-chat-open-formation");
+    if (openChatFormBtn) {
+      openChatFormBtn.addEventListener("click", () => openSplitModal("squad"));
+    }
     if (closeSquadBtn && squadModal) {
       closeSquadBtn.addEventListener("click", closeSquadModal);
     }

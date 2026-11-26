@@ -149,15 +149,111 @@
     return txt.trim();
   }
 
-  function pickFreshWeighted(t, pool = []) {
+  function humanizeTacticalChangeForChat(rawChange = "") {
+    const raw = String(rawChange || "").trim();
+    if (!raw) return "";
+    const low = raw.toLowerCase();
+    if (low.includes("postura:")) {
+      if (low.includes("avançado")) return "postura agressiva no ataque";
+      if (low.includes("recuado")) return "linha mais fechada atrás";
+      return "postura equilibrada entre ataque e defesa";
+    }
+    if (low.includes("estilo:")) {
+      if (low.includes("posse")) return "troca de passes com calma";
+      if (low.includes("vertical")) return "jogada vertical rápida pro ataque";
+      return "liberdade pra improvisar em campo";
+    }
+    if (low.includes("corredor:")) {
+      if (low.includes("pontas")) return "saída pelas pontas";
+      if (low.includes("meio")) return "infiltração pelo meio";
+      return "movimentação livre pelos lados e pelo centro";
+    }
+    if (low.includes("esforço:")) {
+      if (low.includes("alta")) return "pressão alta no campo todo";
+      if (low.includes("baixa")) return "preservação de fôlego em campo";
+      return "intensidade controlada";
+    }
+    if (low.includes("formação:")) {
+      const f = raw.replace(/^[^:]+:\s*/, "").trim();
+      return f ? `nova formação ${f}` : "nova formação em campo";
+    }
+    if (low.includes("capitão:")) {
+      const n = raw.replace(/^[^:]+:\s*/, "").trim();
+      return n ? `faixa de capitão com ${n}` : "liderança em campo";
+    }
+    if (low.includes("camisa 10:")) {
+      const n = raw.replace(/^[^:]+:\s*/, "").trim();
+      if (low.includes("automático")) return "divisão de jogadas sem fixar camisa 10";
+      return n ? `criação centralizada no ${n}` : "referência técnica no meio";
+    }
+    if (low.includes("marcação especial:")) {
+      const n = raw.replace(/^[^:]+:\s*/, "").trim();
+      if (low.includes("livre")) return "marcação por setor sem perseguir um só jogador";
+      return n ? `marcação colada no ${n}` : "marcação individual no destaque deles";
+    }
+    if (low.includes("tática especial:")) {
+      const n = raw.replace(/^[^:]+:\s*/, "").trim();
+      return n ? `tática especial ${n}` : "tática especial do time";
+    }
+    return raw.replace(/^[^:]+:\s*/, "").trim();
+  }
+
+  function describeActorMoveAction(actor = {}, ctx = {}) {
+    const move = ctx.sigMove || actor.sigMove || "minha técnica";
+    const cat = ctx.sigMoveCat || actor.sigMoveCat || (actor.role === "GK" ? "GK" : actor.role === "DF" ? "DF" : actor.role === "MF" ? "OF" : "SH");
+    const opp = ctx.oppName || "eles";
+    if (cat === "GK") {
+      return {
+        cat,
+        move,
+        clutchLine: `Com a ${move} fechando o gol, ${opp} não passa lá atrás hoje.`,
+        supportLine: `lá atrás o gol tá trancado com a ${move}!`,
+        breakLine: `Se tentarem chutar da entrada da área eu seguro na ${move}.`
+      };
+    }
+    if (cat === "DF") {
+      return {
+        cat,
+        move,
+        clutchLine: `Se o ataque de ${opp} tentar entrar na área, eu travo na hora com a ${move}.`,
+        supportLine: `na marcação eu fecho a porta com a ${move}!`,
+        breakLine: `Quem tentar passar por mim para na ${move}.`
+      };
+    }
+    if (cat === "OF") {
+      return {
+        cat,
+        move,
+        clutchLine: `Se der meio metro de espaço, eu corto a marcação com a ${move} e deixo alguém na cara do gol.`,
+        supportLine: `se abrir corredor no meio eu passo liso com a ${move}!`,
+        breakLine: `Com a ${move} eu limpo dois marcadores e sirvo na boa.`
+      };
+    }
+    return {
+      cat: "SH",
+      move,
+      clutchLine: `Se der espaço pra ${move}, o goleiro de ${opp} nem vê a cor da bola.`,
+      supportLine: `se sobrar na área eu solto a ${move}!`,
+      breakLine: `Quando eu engatilhar a ${move}, a zaga deles não acompanha.`
+    };
+  }
+
+  function pickFreshWeighted(t, pool = [], threadUsedSet = null) {
     if (!Array.isArray(pool) || pool.length === 0) return null;
     const store = t && typeof t === "object" ? t : null;
     const history = store && Array.isArray(store._usedInaZapLineKeys) ? store._usedInaZapLineKeys : [];
     const recentSet = new Set(history.slice(-55));
-    let candidates = pool.filter((item) => item && item.key && !recentSet.has(item.key));
+    const isFreshInThread = (item) => {
+      if (!threadUsedSet || !item?.text) return true;
+      return !threadUsedSet.has(String(item.text).trim().toLowerCase());
+    };
+    let candidates = pool.filter((item) => item && item.key && !recentSet.has(item.key) && isFreshInThread(item));
     if (candidates.length === 0) {
       const shorterSet = new Set(history.slice(-18));
-      candidates = pool.filter((item) => item && item.key && !shorterSet.has(item.key));
+      candidates = pool.filter((item) => item && item.key && !shorterSet.has(item.key) && isFreshInThread(item));
+    }
+    if (candidates.length === 0) {
+      candidates = pool.filter((item) => item && isFreshInThread(item));
     }
     if (candidates.length === 0) candidates = pool;
     const chosen = candidates[Math.floor(Math.random() * candidates.length)];
@@ -176,19 +272,24 @@
     const oppShort = shortFirstName(opp);
     const move = ctx.sigMove || "minha técnica";
     const other = ctx.otherName || "galera";
-    const tac = ctx.tacText || "";
+    const tac = humanizeTacticalChangeForChat(ctx.tacText || "");
     const coopMove = ctx.coopMove || "";
+    const mv = describeActorMoveAction(ctx.actor || {}, {
+      sigMove: move,
+      sigMoveCat: ctx.sigMoveCat,
+      oppName: opp
+    });
 
     const banks = {
       CAPTAIN_FIRE: {
         GREAT: [
           { key: "cf_g1", text: `É isso aí, professor!! Com o time fechado assim ninguém segura a gente contra ${opp}!` },
-          { key: "cf_g2", text: `Boraaa! Essa energia no grupo já me deu pilha pra treinar mais duas horas!`, extra: `Se passar pelo meio eu chego junto com a ${move}!` },
-          { key: "cf_g3", text: tac ? `Curti demais esse ajuste (${tac})! Bora entrar mordendo desde o primeiro minuto!` : `Tô arrepiado já, sério. Bora fazer valer cada gota de suor contra ${opp}!` },
+          { key: "cf_g2", text: `Boraaa! Essa energia no grupo já me deu pilha pra treinar mais duas horas!`, extra: `E pode ter certeza, ${mv.supportLine}` },
+          { key: "cf_g3", text: tac ? `Curti demais apostar na ${tac}! Bora entrar mordendo desde o primeiro minuto!` : `Tô arrepiado já, sério. Bora fazer valer cada gota de suor contra ${opp}!` },
           { key: "cf_g4", text: `Futebol é isso aqui, ${other}! Quando todo mundo olha pro mesmo lado sai jogada gigante!` }
         ],
         GOOD: [
-          { key: "cf_ok1", text: tac ? `Fechou no ${tac}! Todo mundo ajudando na marcação fica bem mais leve!` : `Boa, professor! Se a gente correr um pelo outro já muda a cara do jogo.` },
+          { key: "cf_ok1", text: tac ? `Fechado na ${tac}! Todo mundo ajudando na marcação fica bem mais leve!` : `Boa, professor! Se a gente correr um pelo outro já muda a cara do jogo.` },
           { key: "cf_ok2", text: `Beleza! Já vou avisando a linha de trás pra ninguém desligar contra ${opp}.` },
           { key: "cf_ok3", text: `Tamo junto nessa! Agora é ir pro campo e testar na prática.` }
         ],
@@ -213,8 +314,8 @@
       COLD_ACE: {
         GREAT: [
           { key: "ca_g1", text: `Fechado. Toca no tempo certo que o gol sai.` },
-          { key: "ca_g2", text: tac ? `Bom ajuste (${tac}). Agora para de falar e mostra contra ${opp}.` : `Certo. Só façam a parte de vocês que eu resolvo na frente.` },
-          { key: "ca_g3", text: `Pronto. Se der espaço pra ${move}, o goleiro deles nem vê a cor da bola.` },
+          { key: "ca_g2", text: tac ? `Bom ajuste na ${tac}. Agora é mostrar contra ${opp}.` : `Certo. Só façam a parte de vocês que eu resolvo no meu setor.` },
+          { key: "ca_g3", text: mv.clutchLine },
           { key: "ca_g4", text: `${other}, mantém o olho na minha corrida. Um segundo basta.` }
         ],
         GOOD: [
@@ -224,7 +325,7 @@
         ],
         TRADEOFF: [
           { key: "ca_tr1", text: `Tem custo, mas funciona. Eu banco lá na frente.` },
-          { key: "ca_tr2", text: tac ? `Aceito o risco do ${tac}. Só não vacilem na saída.` : `Tanto faz o desgaste. O que importa é vencer ${opp}.` }
+          { key: "ca_tr2", text: tac ? `Aceito o risco com ${tac}. Só não vacilem na saída.` : `Tanto faz o desgaste. O que importa é vencer ${opp}.` }
         ],
         POOR: [
           { key: "ca_bd1", text: `...Decisão estranha, técnico.` },
@@ -244,12 +345,12 @@
       TACTICIAN: {
         GREAT: [
           { key: "tc_g1", text: tac ? `Boa leitura, técnico! Com ${tac}, o meio de ${opp} vai abrir espaço nas costas dos volantes.` : `Exato! Se a gente girar a bola rápido pelo meio, ${opp} não acompanha a troca.` },
-          { key: "tc_g2", text: `${other}, se você puxar um marcador quando eu preparar a ${move}, a linha deles quebra inteira.` },
+          { key: "tc_g2", text: mv.cat === "DF" || mv.cat === "GK" ? `${other}, se você fechar a primeira linha comigo, a gente trava o ataque de ${opp} na ${move}.` : `${other}, se você puxar um marcador quando eu preparar a ${move}, a linha deles quebra inteira.` },
           { key: "tc_g3", text: `Perfeito. Já até marquei onde costuma sobrar o rebote contra o esquema deles.` }
         ],
         GOOD: [
           { key: "tc_ok1", text: `Faz bastante sentido. Dá pra controlar o ritmo sem se expor.` },
-          { key: "tc_ok2", text: tac ? `Anotado o ${tac}. Só precisamos sincronizar a distância entre linhas.` : `Certo, vou ajustar a leitura de passe pensando nisso.` },
+          { key: "tc_ok2", text: tac ? `Anotado sobre ${tac}. Só precisamos sincronizar a distância entre linhas.` : `Certo, vou ajustar a leitura de passe pensando nisso.` },
           { key: "tc_ok3", text: `Boa, assim ninguém corre errado atrás da bola.` }
         ],
         TRADEOFF: [
@@ -273,11 +374,11 @@
       HOTHEAD: {
         GREAT: [
           { key: "hh_g1", text: `Aí sim!! Tava na hora de partir pra cima sem medo de ${opp}!!` },
-          { key: "hh_g2", text: `Quero ver a zaga deles aguentar minha ${move} depois dessa conversa!` },
-          { key: "hh_g3", text: tac ? `Esse ${tac} ficou brabo demais!! Bora atropelar!` : `É disso que eu tô falando! Agora ninguém tira o olho da bola!` }
+          { key: "hh_g2", text: mv.cat === "DF" || mv.cat === "GK" ? `Quero ver o ataque deles passar da minha ${move} depois dessa conversa!` : `Quero ver a zaga deles aguentar minha ${move} depois dessa conversa!` },
+          { key: "hh_g3", text: tac ? `Mandar ${tac} agora ficou brabo demais!! Bora atropelar!` : `É disso que eu tô falando! Agora ninguém tira o olho da bola!` }
         ],
         GOOD: [
-          { key: "hh_ok1", text: `Beleza, fechou! Só quero a bola chegando quente lá na frente.` },
+          { key: "hh_ok1", text: `Beleza, fechou! Só quero intensidade lá dentro.` },
           { key: "hh_ok2", text: `Tô pronto já. Se ${opp} vier duro eu respondo em campo!` },
           { key: "hh_ok3", text: `Demorou, ${other}, agora sim vamos jogar sério.` }
         ],
@@ -294,8 +395,8 @@
           { key: "hh_cr2", text: `Para de chorar os dois, ${opp} não vai ter dó de ninguém amanhã!` }
         ],
         CHIME_HYP: [
-          { key: "hh_ch1", text: `Tô dentro!! Me coloca nessa jogada que eu chuto até rasgar a rede!` },
-          { key: "hh_ch2", text: `Quero ver se essa técnica segura o tranco da minha ${move}!` }
+          { key: "hh_ch1", text: `Tô dentro!! Me coloca nessa jogada que eu dou a vida em campo!` },
+          { key: "hh_ch2", text: `Quero ver se a marcação deles segura o tranco da nossa jogada!` }
         ]
       },
 
@@ -324,8 +425,8 @@
           { key: "rt_cr2", text: `Ué, já acabou a briga ou vai ter segundo tempo? kkk` }
         ],
         CHIME_HYP: [
-          { key: "rt_ch1", text: `Se vocês errarem esse passe novo eu vou zoar a semana inteira kkk` },
-          { key: "rt_ch2", text: `Até que ficou sinistro hein. Quero testar pra cima do goleiro deles.` }
+          { key: "rt_ch1", text: `Se vocês errarem esse tempo novo eu vou zoar a semana inteira kkk` },
+          { key: "rt_ch2", text: `Até que ficou sinistro hein. Quero ver ${opp} tentar marcar isso!` }
         ]
       },
 
@@ -337,7 +438,7 @@
         ],
         GOOD: [
           { key: "dp_ok1", text: `Aceitável. Se mantiverem esse padrão, nós controlamos ${opp} fácil.` },
-          { key: "dp_ok2", text: `Muito bem, ${other}. Só capriche no último passe e o resto flui.` }
+          { key: "dp_ok2", text: `Muito bem, ${other}. Só capriche no timing e o resto flui.` }
         ],
         TRADEOFF: [
           { key: "dp_tr1", text: `Um preço pequeno para quem busca o extraordinário em campo.` },
@@ -381,15 +482,15 @@
           { key: "cj_cr2", text: `Poxa, vamos parar de brigar antes que o professor tire nosso lanche!` }
         ],
         CHIME_HYP: [
-          { key: "cj_ch1", text: `Eitaa! Só toma cuidado pra não derrubar eu no meio do giro desse golpe kkk` },
+          { key: "cj_ch1", text: `Eitaa! Só toma cuidado pra não derrubar eu no meio desse lance kkk` },
           { key: "cj_ch2", text: `Maneiro demais!! Quero ver a cara do time de ${opp} vendo isso.` }
         ]
       },
 
       STOIC_WALL: {
         GREAT: [
-          { key: "sw_g1", text: `Podem avançar tranquilos contra ${opp}. Com a minha ${move}, a meta tá fechada hoje.` },
-          { key: "sw_g2", text: tac ? `Excelente, professor. Esse ${tac} protege exatamente onde ${opp} costuma forçar.` : `Confiança lá em cima. Se fecharmos os espaços atrás, a bola lá na frente entra.` },
+          { key: "sw_g1", text: mv.cat === "DF" || mv.cat === "GK" ? `Podem avançar tranquilos contra ${opp}. Com a minha ${move}, a meta tá fechada hoje.` : `Podem confiar, professor! Eu ajudo na recomposição pra gente pressionar ${opp} com segurança.` },
+          { key: "sw_g2", text: tac ? `Excelente apostar na ${tac}, professor! Protege exatamente onde ${opp} costuma forçar.` : `Confiança lá em cima. Se fecharmos os espaços atrás, a bola lá na frente entra.` },
           { key: "sw_g3", text: `Tamo fechado, ${other}. Pode soltar o jogo sem medo de contra-ataque.` }
         ],
         GOOD: [
@@ -417,7 +518,7 @@
       SPEED_SPARK: {
         GREAT: [
           { key: "ss_g1", text: `Vambora!! Se a bola cair no espaço eu disparo antes mesmo da zaga de ${opp} piscar!` },
-          { key: "ss_g2", text: `Curti demais!! Já tô imaginando a velocidade que a gente vai pegar com a ${move}!` },
+          { key: "ss_g2", text: mv.cat === "OF" || mv.cat === "SH" ? `Curti demais!! Já tô imaginando a velocidade que a gente vai pegar com a ${move}!` : `Curti demais!! Já tô imaginando a velocidade da nossa saída de bola contra ${opp}!` },
           { key: "ss_g3", text: `Partiu campo agora!! Quero testar esse arranque no treino antes de esfriar!` }
         ],
         GOOD: [
@@ -476,8 +577,9 @@
 
   function getCategoryCoherentPool(kind, category, voice, quality, ctx = {}) {
     const opp = ctx.oppName || "o adversário";
-    const tac = ctx.tacText || "";
+    const tac = humanizeTacticalChangeForChat(ctx.tacText || "");
     const coop = ctx.coopMove || "";
+    const coopCat = ctx.coopCat || "SH";
 
     // Resenha / vestiário leve: NUNCA mistura tática séria ou contra-ataque fora de contexto
     if (category === "RESENHA") {
@@ -630,11 +732,17 @@
 
     // Wrap-up específico por categoria quando há ajuste tático ou técnica combinada
     if (kind === "WRAP" && coop && (quality === "GREAT" || quality === "GOOD")) {
+      const targetReaction =
+        coopCat === "DF" || coopCat === "GK"
+          ? `Quero ver o ataque de ${opp} passar por essa barreira!`
+          : coopCat === "OF"
+          ? `A marcação de ${opp} vai ficar perdida com esse giro!`
+          : `O goleiro de ${opp} não segura isso nunca!`;
       const coopLines = {
         CAPTAIN_FIRE: [{ key: "wc_cf", text: `A ${coop} encaixou bonito demais!! Quero soltar ela logo contra ${opp}!` }],
         COLD_ACE: [{ key: "wc_ca", text: `A ${coop} ficou limpa. Só chamar na hora certa.` }],
         TACTICIAN: [{ key: "wc_tc", text: `O timing da ${coop} ficou perfeito pra surpreender ${opp}.` }],
-        HOTHEAD: [{ key: "wc_hh", text: `A ${coop} tá braba demais!! O goleiro de ${opp} não segura isso nunca!` }],
+        HOTHEAD: [{ key: "wc_hh", text: `A ${coop} tá braba demais!! ${targetReaction}` }],
         REBEL_TROLL: [{ key: "wc_rt", text: `Imagina a cara do time de ${opp} levando uma ${coop} do nada kkk` }],
         DEFAULT: [{ key: "wc_df", text: `Incrível termos fechado a ${coop}! Vai ser arma pesada contra ${opp}!` }]
       };
@@ -643,11 +751,13 @@
 
     if (kind === "WRAP" && tac && (quality === "GREAT" || quality === "GOOD" || quality === "TRADEOFF")) {
       const tacLines = {
-        TACTICIAN: [{ key: "wt_tc", text: `Anotado (${tac}). Isso encaixa certinho pra enfrentar ${opp}.` }],
-        STOIC_WALL: [{ key: "wt_sw", text: `Beleza, ajustado (${tac}). Já me preparo com o setor todo.` }],
-        COLD_ACE: [{ key: "wt_ca", text: `Entendido (${tac}). Foco em campo.` }],
-        CAPTAIN_FIRE: [{ key: "wt_cf", text: `Fechou no ${tac}!! Agora é executar com garra contra ${opp}!` }],
-        DEFAULT: [{ key: "wt_df", text: `Registrado (${tac})! Todo mundo na mesma página pro próximo jogo.` }]
+        TACTICIAN: [{ key: "wt_tc", text: `Anotado, vamos com ${tac}. Isso encaixa certinho pra enfrentar ${opp}.` }],
+        STOIC_WALL: [{ key: "wt_sw", text: `Beleza, fechou na ${tac}. Já me preparo com o setor todo.` }],
+        COLD_ACE: [{ key: "wt_ca", text: `Certo, apostamos na ${tac}. Foco em campo.` }],
+        CAPTAIN_FIRE: [{ key: "wt_cf", text: `Fechou na ${tac}!! Agora é executar com garra contra ${opp}!` }],
+        REBEL_TROLL: [{ key: "wt_rt", text: `Olha, apostar na ${tac} contra ${opp} pode render demais kkk.` }],
+        CHILL_JOKER: [{ key: "wt_cj", text: `Demorou professor, vamos de ${tac} e já era!` }],
+        DEFAULT: [{ key: "wt_df", text: `Combinado na ${tac}! Todo mundo na mesma página pro próximo jogo.` }]
       };
       return tacLines[voice] || tacLines.DEFAULT;
     }
@@ -661,6 +771,11 @@
     const opp = ctx.oppName || "o próximo time";
     const a0 = participants[0] || { name: "Parceiro" };
     const a1 = participants[1] || a0;
+    const threadUsedTexts = new Set(
+      (Array.isArray(ctx.existingMessages) ? ctx.existingMessages : [])
+        .map((m) => String(m?.text || "").trim().toLowerCase())
+        .filter(Boolean)
+    );
 
     for (let idx = coreCount; idx < participants.length; idx++) {
       if (idx === coreCount + 1 && interactionMode !== "AUTO_COMPLETE" && Math.random() > 0.72) continue;
@@ -671,8 +786,10 @@
       const persona = resolveInazumaPersona(actor);
       const otherActor = idx % 2 === 0 ? a0 : a1;
       const bank = getPersonaReplyBank(persona.voice, {
+        actor,
         oppName: opp,
         sigMove: actor.sigMove || actor.shMove || "minha técnica",
+        sigMoveCat: actor.sigMoveCat,
         otherName: shortFirstName(otherActor)
       });
 
@@ -693,8 +810,12 @@
         tone = persona.voice === "CHILL_JOKER" || persona.voice === "REBEL_TROLL" ? "hype" : "normal";
       }
 
-      const picked = pickFreshWeighted(t, chosenPool || bank.GOOD);
-      const rawLine = picked?.text || `Tamo junto nessa contra ${opp}!`;
+      const poolArr = chosenPool || bank.GOOD;
+      const picked = pickFreshWeighted(t, poolArr, threadUsedTexts);
+      const rawLine = picked?.text || `Tamo junto nessa contra ${opp}, ${shortFirstName(otherActor)}!`;
+      const norm = String(rawLine).trim().toLowerCase();
+      if (threadUsedTexts.has(norm)) continue;
+      threadUsedTexts.add(norm);
       if (typeof mkSpontaneousMsg === "function") {
         out.push(mkSpontaneousMsg(participants, idx, rawLine, tone));
       }
@@ -808,6 +929,7 @@
     const opp = ctx.oppName || "o adversário";
     const tacText = Array.isArray(configChanges) && configChanges.length > 0 ? configChanges[0] : "";
     const coopMove = learnedCoop?.learned ? learnedCoop.move : "";
+    const coopCat = learnedCoop?.learned ? (learnedCoop.cat || "SH") : "";
     // Máximo 3 mensagens pós-técnico somando baseReactions + wrap-up dinâmico (coeso e sem encher linguiça)
     const totalWanted = existingCount >= 2 ? existingCount + 1 : 3;
     const needed = Math.max(0, Math.min(2, totalWanted - existingCount));
@@ -824,7 +946,11 @@
     const qBucket = quality === "GREAT" ? "GREAT" : quality === "GOOD" ? "GOOD" : quality === "TRADEOFF" ? "TRADEOFF" : "POOR";
     const tone = quality === "GREAT" ? "hype" : quality === "GOOD" ? "calm" : quality === "TRADEOFF" ? "normal" : "tense";
 
-    const usedLineTexts = new Set();
+    const usedLineTexts = new Set(
+      (Array.isArray(ctx.existingMessages) ? ctx.existingMessages : [])
+        .map((m) => String(m?.text || "").trim().toLowerCase())
+        .filter(Boolean)
+    );
     for (let i = 0; i < needed; i++) {
       const spIdx = pickSpeaker(i);
       const actor = participants[spIdx] || participants[0];
@@ -835,26 +961,37 @@
       let catPool = getCategoryCoherentPool("WRAP", category, persona.voice, qBucket, {
         oppName: opp,
         tacText: i === 0 ? tacText : "",
-        coopMove: i === 0 || i === needed - 1 ? coopMove : ""
+        coopMove: i === 0 || i === needed - 1 ? coopMove : "",
+        coopCat
       });
 
       const bank = getPersonaReplyBank(persona.voice, {
+        actor,
         oppName: opp,
         sigMove: actor.sigMove || actor.shMove || "minha técnica",
+        sigMoveCat: actor.sigMoveCat,
         otherName: shortFirstName(partner),
         tacText: i === 0 ? tacText : "",
         coopMove: i === 0 ? coopMove : ""
       });
 
-      const rawPool = catPool || (bank[qBucket] || bank.GOOD || []);
-      const pool = rawPool.filter((item) => !usedLineTexts.has(item.text));
-      const picked = pickFreshWeighted(t, pool.length > 0 ? pool : rawPool);
-      const msgText = picked?.text || `Fechado então, professor! Bora encarar ${opp}!`;
-      usedLineTexts.add(msgText);
+      const fallbackPool = bank[qBucket] || bank.GOOD || [];
+      const mergedPool = catPool ? [...catPool, ...fallbackPool] : fallbackPool;
+      const unusedInThread = mergedPool.filter((item) => item?.text && !usedLineTexts.has(String(item.text).trim().toLowerCase()));
+      if (unusedInThread.length === 0) continue;
+      const picked = pickFreshWeighted(t, unusedInThread, usedLineTexts);
+      const msgText = picked?.text || `Fechado então, professor! Bora encarar ${opp}, ${shortFirstName(partner)}!`;
+      const normTxt = String(msgText).trim().toLowerCase();
+      if (usedLineTexts.has(normTxt)) continue;
+      usedLineTexts.add(normTxt);
       out.push(mkSpontaneousMsg(participants, spIdx, msgText, tone));
 
       if (picked?.extra && i === needed - 1 && Math.random() < 0.35 && persona.voice !== "COLD_ACE") {
-        out.push(mkSpontaneousMsg(participants, spIdx, picked.extra, tone));
+        const extraNorm = String(picked.extra).trim().toLowerCase();
+        if (!usedLineTexts.has(extraNorm)) {
+          usedLineTexts.add(extraNorm);
+          out.push(mkSpontaneousMsg(participants, spIdx, picked.extra, tone));
+        }
       }
     }
     return out;
@@ -904,11 +1041,835 @@
     return messages;
   }
 
+  const LEARNABLE_SIGNATURE_MOVES = {
+    SH: ["Furacão de Fogo EX", "Tornado Dragão", "Lâmina Celestial", "Estrela Cadente", "Zona Mortal X", "Disparo Meteoro", "Pinguins Imperiais X", "Tiro Sônico"],
+    OF: ["Dança do Vento", "Drible Fantasma", "Corte Estelar", "Finta Relâmpago", "Espiral Celeste", "Bola Ilusão EX", "Ziguezague Flamejante"],
+    DF: ["A Muralha Suprema", "Torre Inabalável", "Corte Vulcaniano", "Barreira da Montanha", "Giro Defensivo", "Rede de Caça"],
+    GK: ["Mão Invencível", "Punho da Justiça G2", "Defesa Cósmica", "Mão Demoníaca", "Mão Fantasma V", "Escudo Celestial"]
+  };
+
+  function resolvePlayerLatentKeshin(actor = {}, realPlayer = null, usedKeshinNames = null) {
+    if (typeof pickCanonicalKeshinForPlayer === "function") {
+      try {
+        const picked = pickCanonicalKeshinForPlayer(realPlayer || actor, actor.role || "MF", usedKeshinNames, null);
+        if (picked && picked.name) return picked;
+      } catch (_e) {}
+    }
+    const el = String(actor.element || realPlayer?.element || "Vento");
+    const byEl = {
+      Fogo: { name: "Fênix Carmesim", iconKey: "keshinIcon", move: "Chama Imperial", moveCat: "SH" },
+      Vento: { name: "Águia da Tempestade", iconKey: "keshinIcon", move: "Asas do Vendaval", moveCat: "OF" },
+      Floresta: { name: "Guardião Esmeralda", iconKey: "keshinIcon", move: "Raiz Protetora", moveCat: "DF" },
+      Montanha: { name: "Titã de Basalto", iconKey: "keshinIcon", move: "Impacto Sísmico", moveCat: "GK" }
+    };
+    const base = byEl[el] || byEl.Vento;
+    const uIcon = typeof UI === "object" && UI ? (UI[base.iconKey] || UI.keshinIcon || "") : "";
+    return { name: base.name, iconKey: base.iconKey, icon: uIcon, move: base.move, moveCat: base.moveCat };
+  }
+
+  function pickFreshLearnableMoveForActor(actor = {}, realPlayer = null) {
+    const role = actor.role || "MF";
+    let cat = "SH";
+    if (role === "GK") cat = "GK";
+    else if (role === "DF") cat = "DF";
+    else if (role === "MF") cat = actor.hasRealOfMove === false ? "OF" : Math.random() < 0.62 ? "OF" : "SH";
+    else cat = "SH";
+    const pool = LEARNABLE_SIGNATURE_MOVES[cat] || LEARNABLE_SIGNATURE_MOVES.SH;
+    const owned = Array.isArray(realPlayer?.moves?.[cat]) ? realPlayer.moves[cat] : [];
+    const fresh = pool.filter((m) => !owned.includes(m));
+    const chosen = fresh.length > 0 ? fresh[Math.floor(Math.random() * fresh.length)] : pool[Math.floor(Math.random() * pool.length)];
+    return { cat, moveName: chosen };
+  }
+
+  function makeProcMsg(participants, idx, text, tone = "normal", opts = {}) {
+    if (typeof mkSpontaneousMsg === "function") {
+      return mkSpontaneousMsg(participants, idx, text, tone, opts);
+    }
+    const a = participants[idx] || participants[0] || { name: "Jogador", roleLabel: "Titular", sprite: "" };
+    return {
+      senderIdx: idx,
+      speakerRole: "PLAYER",
+      speakerName: a.name,
+      speakerSprite: a.sprite || "",
+      roleTag: a.roleLabel || "Titular",
+      tone,
+      text: humanizeInaZapText(text, a),
+      quote: opts.quote || null
+    };
+  }
+
+  function generateProceduralBetaChat(t, actors = [], ctx = {}, forcedKind = null, opts = {}) {
+    if (!Array.isArray(actors) || actors.length < 2) return null;
+    const opp = ctx.oppName || "o adversário";
+    const teamChem = Number(ctx.teamChem) || 45;
+    const squadObj = typeof state !== "undefined" && state?.squad ? state.squad : {};
+    const findReal = (actor) => Object.values(squadObj).find((p) => p && p.id === actor?.id) || null;
+    const pickOther = (excludeIds, pred = null) => {
+      const ex = new Set(excludeIds.filter(Boolean));
+      const cands = actors.filter((a) => !ex.has(a.id) && (!pred || pred(a)));
+      if (cands.length > 0) return cands[Math.floor(Math.random() * cands.length)];
+      return actors.find((a) => !ex.has(a.id)) || actors[1] || actors[0];
+    };
+    const shuffleChoices = (arr) => {
+      const copy = [...arr];
+      for (let i = copy.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [copy[i], copy[j]] = [copy[j], copy[i]];
+      }
+      return copy;
+    };
+
+    const kindsPool = [
+      "QUEST_LEARN_MOVE",
+      "QUEST_AWAKEN_KESHIN",
+      "PROC_FORMATION_DEBATE",
+      "PROC_RIVAL_COUNTERPLAN",
+      "PROC_MOVE_SPAR",
+      "PROC_GK_DF_SYNC",
+      "PROC_LOCKER_BANTER"
+    ];
+    let kind = forcedKind;
+    if (!kind) {
+      const candidates = [...kindsPool];
+      const eligibleKeshin = actors.some((a) => {
+        const rp = findReal(a);
+        return rp && !rp.keshin && a.role !== "GK";
+      });
+      if (!eligibleKeshin) {
+        const idxK = candidates.indexOf("QUEST_AWAKEN_KESHIN");
+        if (idxK >= 0) candidates.splice(idxK, 1);
+      }
+      kind = candidates[Math.floor(Math.random() * candidates.length)];
+    }
+
+    const baseResult = (meta) => {
+      const extraActors = actors.filter((a) => !meta.coreActors.some((c) => c.id === a.id)).slice(0, 2);
+      const participants = [...meta.coreActors, ...extraActors];
+      return {
+        ...meta,
+        participants,
+        selectedIds: meta.coreActors.map((a) => a.slotId).filter(Boolean),
+        coreCount: meta.coreActors.length,
+        interactionMode: meta.interactionMode || "CLASSIC"
+      };
+    };
+
+    // 1. Pós-jogo: Despertar em campo celebrado no grupo
+    if (kind === "POST_MATCH_BREAKTHROUGH") {
+      const bt = ctx.breakthrough || ctx.lastMatch?.breakthroughs?.[0];
+      if (!bt) return null;
+      const hero = actors.find((a) => a.id === bt.playerId) || actors[0];
+      const cap = pickOther([hero.id], (a) => a.isCaptain || resolveInazumaPersona(a).voice === "CAPTAIN_FIRE");
+      const tact = pickOther([hero.id, cap.id], (a) => resolveInazumaPersona(a).voice === "TACTICIAN");
+      const core = [hero, cap, tact].filter((v, i, arr) => v && arr.findIndex((x) => x.id === v.id) === i);
+      if (core.length < 2) return null;
+      const isKeshin = bt.kind === "AWAKEN_KESHIN";
+      const msgs = [
+        makeProcMsg(core, 0, isKeshin
+          ? `Cara, ainda tô sentindo a energia da ${bt.name} no corpo!! Quando entrou aquela bola parecia outro nível!`
+          : `Galera, viram na hora do jogo?! A ${bt.name} finalmente saiu limpa quando eu mais precisava!`, "hype"),
+        makeProcMsg(core, 1, isKeshin
+          ? `Arrepiou o estádio todo, ${shortFirstName(hero)}!! Todo mundo sentiu o peso da tua aura naquele lance!`
+          : `Baita evolução, ${shortFirstName(hero)}!! Agora já chega contra ${opp} com arma nova no pé!`, "praise", { quote: { speakerName: core[0].name, text: "saiu" } }),
+        ...(core[2] ? [makeProcMsg(core, 2, `Contra ${opp}, se a gente encaixar a ${bt.name} no segundo tempo vai pegar eles de surpresa total.`, "idea")] : [])
+      ];
+      const choices = shuffleChoices([
+        {
+          label: `Construir o plano contra ${opp} em volta da nova força do ${hero.name}!`,
+          approachTag: "Valorizar Despertar",
+          quality: "GREAT",
+          tacticsPatch: hero.role === "DF" || hero.role === "GK" ? { posture: "balanced" } : { aceActorIdx: 0 },
+          coachLine: `O mérito é todo do teu treino, ${shortFirstName(hero)}! Contra ${opp} a gente vai explorar a ${bt.name} no momento decisivo.`,
+          reactions: [
+            makeProcMsg(core, 0, `Pode mandar a bola pra mim na hora H que eu correspondo!`, "hype"),
+            makeProcMsg(core, 1, `Bora!! Grupo inteiro empurrando o ${shortFirstName(hero)} pra cima deles!`, "hype")
+          ]
+        },
+        {
+          label: "Manter os pés no chão e dividir o protagonismo com o elenco todo",
+          approachTag: "Grupo Unido",
+          quality: "GOOD",
+          coachLine: `Excelente passo, ${shortFirstName(hero)}, só lembra que a jogada só brilha porque o time cria espaço pra ela.`,
+          reactions: [
+            makeProcMsg(core, 0, `Concordo total, professor! Sem os passes de vocês eu não chegava lá.`, "calm"),
+            makeProcMsg(core, 1, `Espírito certinho de campeão!`, "calm")
+          ]
+        }
+      ]);
+      return baseResult({
+        id: `proc_bt_${bt.kind.toLowerCase()}`,
+        contextTrigger: "POST_MATCH_BREAKTHROUGH",
+        category: "ELOGIO",
+        categoryLabel: "Superação",
+        categoryIcon: "⚡",
+        badgeClass: "cat-chem",
+        title: `Despertar: ${bt.name}`,
+        coreActors: core,
+        messages: msgs,
+        choices
+      });
+    }
+
+    // 2. Pós-jogo: Jogador fominha / segurou bola ignorando colega livre
+    if (kind === "POST_MATCH_BALL_HOG") {
+      const inc = ctx.ballHogIncident || ctx.lastMatch?.ballHogIncident;
+      if (!inc) return null;
+      const hog = actors.find((a) => a.id === inc.hogId) || actors[0];
+      const victim = actors.find((a) => a.id === inc.victimId && a.id !== hog.id) || pickOther([hog.id], (a) => a.role === "FW" || a.role === "MF");
+      const med = pickOther([hog.id, victim.id], (a) => a.isCaptain || resolveInazumaPersona(a).voice === "CAPTAIN_FIRE" || resolveInazumaPersona(a).voice === "TACTICIAN");
+      const core = [victim, hog, med].filter((v, i, arr) => v && arr.findIndex((x) => x.id === v.id) === i);
+      const vPers = resolveInazumaPersona(hog).voice;
+      const hogReply = vPers === "COLD_ACE"
+        ? `Eu tinha ângulo. Da próxima vez aparece mais limpo na linha de passe.`
+        : vPers === "HOTHEAD"
+        ? `Na hora do jogo eu fui pra resolver! Não vou ficar esperando se o espaço tá na minha frente!`
+        : `Foi mal, no calor do lance achei que dava pra bater dali direto...`;
+      const msgs = [
+        makeProcMsg(core, 0, `Preciso falar na moral, ${shortFirstName(hog)}: aos ${inc.minute || 30}' eu entrei livre na cara do gol e você segurou a bola!`, "tense"),
+        makeProcMsg(core, 1, hogReply, "tense", { quote: { speakerName: core[0].name, text: "segurei a bola" } }),
+        ...(core[2] ? [makeProcMsg(core, 2, `Gente, acertei aqui fora antes que vire bola de neve contra ${opp}. Técnico, qual é a regra ali na área?`, "calm")] : [])
+      ];
+      const choices = shuffleChoices([
+        {
+          label: `Cobrar jogo coletivo: prioridade é tocar pra quem estiver melhor posicionado!`,
+          approachTag: "Jogo Coletivo",
+          quality: "GREAT",
+          tacticsPatch: { style: "possession" },
+          coachLine: `Quem vê o companheiro livre e passa constrói mais gols, ${shortFirstName(hog)}. Contra ${opp} quero posse e tabela na área.`,
+          customEffects: { affPts: 22, chemDelta: 3, respectDelta: 2 },
+          reactions: [
+            makeProcMsg(core, 0, `Valeu, professor! É só confiança que eu meto pra dentro.`, "calm"),
+            makeProcMsg(core, 1, vPers === "COLD_ACE" ? `Certo. Se correr no tempo certo, a bola chega.` : `Beleza, vou levantar mais a cabeça na próxima.`, "calm")
+          ]
+        },
+        {
+          label: `Liberar autonomia pro finalizador decidir se chuta ou toca na área`,
+          approachTag: "Instinto Livre",
+          quality: "TRADEOFF",
+          tacticsPatch: { style: "free" },
+          coachLine: `Dentro da área quem tá com a bola tem frações de segundo pra decidir. Confiar no instinto também faz parte.`,
+          customEffects: { affPts: -6, pwrDelta: 8, setArc: "TRETA_ABERTA", respectDelta: -1, note: "Risco de atrito por individualismo" },
+          reactions: [
+            makeProcMsg(core, 1, `Era isso que eu precisava ouvir. Deixa comigo lá na frente.`, "hype"),
+            makeProcMsg(core, 0, `Beleza né... depois não reclama se o ataque morrer sozinho lá na área.`, "toxic")
+          ]
+        }
+      ]);
+      return baseResult({
+        id: "proc_ball_hog",
+        contextTrigger: "POST_MATCH_BALL_HOG",
+        category: "RAIVA",
+        categoryLabel: "Individualismo",
+        categoryIcon: "💢",
+        badgeClass: "cat-tension",
+        title: `Bola Presa com ${shortFirstName(hog)}`,
+        coreActors: core,
+        messages: msgs,
+        choices
+      });
+    }
+
+    // 3. Plot da Cidade: Treta Aberta pedindo acerto no mapa da cidade
+    if (kind === "PLOT_FEUD_ESCALATION") {
+      const plot = ctx.plot || (Array.isArray(t?.activeCityPlots) ? t.activeCityPlots.find((pl) => !pl.resolved) : null);
+      if (!plot) return null;
+      const a0 = actors.find((a) => a.id === plot.aId) || actors[0];
+      const a1 = actors.find((a) => a.id === plot.bId && a.id !== a0.id) || pickOther([a0.id]);
+      const med = pickOther([a0.id, a1.id], (a) => a.isCaptain || resolveInazumaPersona(a).voice === "CHILL_JOKER");
+      const core = [a0, a1, med].filter((v, i, arr) => v && arr.findIndex((x) => x.id === v.id) === i);
+      const locName = plot.locLabel || "Campinho";
+      const msgs = [
+        makeProcMsg(core, 0, `Não adianta fingir que tá tudo certo, ${shortFirstName(a1)}. Desde aquele papo eu sinto o clima estranho no treino.`, "tense"),
+        makeProcMsg(core, 1, `Por mim a gente resolve no campo mesmo. Tô cansado de indireta antes de pegar ${opp}.`, "tense"),
+        ...(core[2] ? [makeProcMsg(core, 2, `Ó, se a galera for junta lá em ${locName} hoje, aposto que vocês se acertam antes do apito!`, "idea")] : [])
+      ];
+      const choices = shuffleChoices([
+        {
+          label: `Combinar de resolver a treta direto em ${locName} hoje ainda!`,
+          approachTag: "Resolver na Cidade",
+          quality: "GOOD",
+          coachLine: `Ninguém guarda mágoa pro jogo contra ${opp}. Hoje vamos passar em ${locName} pra fechar esse clima de vez!`,
+          customEffects: { affPts: 10, respectDelta: 1 },
+          reactions: [
+            makeProcMsg(core, 0, `Se passar por lá hoje eu topo conversar olho no olho.`, "calm"),
+            makeProcMsg(core, 1, `Fechado então. Vamos ver no ${locName}.`, "calm")
+          ]
+        },
+        {
+          label: `Cortar o clima agora mesmo e selar as pazes pelo bem do time`,
+          approachTag: "Paz Imediata",
+          quality: "GREAT",
+          coachLine: `A gente precisa dos dois inteiros contra ${opp}. Deixem a vaidade aqui no chat e apertem a mão no próximo treino!`,
+          customEffects: { affPts: 24, chemDelta: 2, setArc: "RECONCILIADOS", respectDelta: 2 },
+          reactions: [
+            makeProcMsg(core, 0, `Certo, professor. Bola pra frente, ${shortFirstName(a1)}.`, "calm"),
+            makeProcMsg(core, 1, `Combinado, ${shortFirstName(a0)}. Tamo fechado contra ${opp}!`, "hype")
+          ]
+        }
+      ]);
+      return baseResult({
+        id: "proc_plot_feud_esc",
+        contextTrigger: "PLOT_FEUD_ESCALATION",
+        category: "RAIVA",
+        categoryLabel: "Clima & Cidade",
+        categoryIcon: "🏙️",
+        badgeClass: "cat-tension",
+        title: `Trama: ${shortFirstName(a0)} × ${shortFirstName(a1)}`,
+        coreActors: core,
+        messages: msgs,
+        choices
+      });
+    }
+
+    // 4. Desfecho celebrando reconciliação após ação na cidade
+    if (kind === "CITY_PLOT_RESOLVED") {
+      const plot = ctx.plot;
+      if (!plot) return null;
+      const a0 = actors.find((a) => a.id === plot.aId) || actors[0];
+      const a1 = actors.find((a) => a.id === plot.bId && a.id !== a0.id) || pickOther([a0.id]);
+      const cap = pickOther([a0.id, a1.id], (a) => a.isCaptain);
+      const core = [a0, a1, cap].filter((v, i, arr) => v && arr.findIndex((x) => x.id === v.id) === i);
+      const msgs = [
+        makeProcMsg(core, 0, `Valeu por levar a gente em ${plot.locLabel}, professor! Deu pra zerar aquela treta com o ${shortFirstName(a1)}.`, "hype"),
+        makeProcMsg(core, 1, `Pois é, jogamos limpo e acabou o climão. Agora contra ${opp} pode contar com nossa tabela!`, "hype"),
+        ...(core[2] ? [makeProcMsg(core, 2, `Aeeee!! Agora sim esse vestiário tá com cara de campeão!!`, "praise")] : [])
+      ];
+      return baseResult({
+        id: "proc_city_resolved",
+        contextTrigger: "CITY_PLOT_RESOLVED",
+        category: "ELOGIO",
+        categoryLabel: "Reconciliação",
+        categoryIcon: "🤝",
+        badgeClass: "cat-chem",
+        interactionMode: "AUTO_COMPLETE",
+        title: `Pazes em ${plot.locLabel}`,
+        coreActors: core,
+        messages: msgs,
+        choices: [],
+        autoOutcome: {
+          kind: "CHEMISTRY_BOND",
+          headline: `✨ ${shortFirstName(a0)} e ${shortFirstName(a1)} selaram as pazes em ${plot.locLabel}!`,
+          affPts: 8,
+          chemDelta: 1,
+          setArc: "RECONCILIADOS",
+          respectDelta: 2
+        }
+      });
+    }
+
+    // 5. Quest: Jogador tentando aprender uma nova técnica (desperta no jogo!)
+    if (kind === "QUEST_LEARN_MOVE") {
+      const learner = actors.find((a) => a.role !== "GK" && (a.archetype !== "EGO_STRIKER" || Math.random() < 0.7)) || actors[0];
+      const partner = pickOther([learner.id], (a) => a.role !== "GK");
+      const med = pickOther([learner.id, partner.id], (a) => a.isCaptain || resolveInazumaPersona(a).voice === "TACTICIAN");
+      const core = [learner, partner, med].filter((v, i, arr) => v && arr.findIndex((x) => x.id === v.id) === i);
+      const realLearner = findReal(learner);
+      const mvPick = pickFreshLearnableMoveForActor(learner, realLearner);
+      const verb = mvPick.cat === "SH" ? "soltar um chute absurdo com" : mvPick.cat === "OF" ? "cortar qualquer marcador com" : mvPick.cat === "DF" ? "fechar a área inteira com" : "defender até pensamento com";
+      const msgs = [
+        makeProcMsg(core, 0, `Professor, tô treinando escondido faz dois dias pra conseguir ${verb} a ${mvPick.moveName}! Só falta confiança pra tentar no jogo!`, "idea"),
+        makeProcMsg(core, 1, `Eu vi ele ficando depois do horário! Se encaixar a ${mvPick.moveName} contra ${opp}, vai levantar a arquibancada!`, "hype"),
+        ...(core[2] ? [makeProcMsg(core, 2, `Deixa o técnico aprovar o desafio que a gente te dá cobertura em campo pra soltar!`, "calm")] : [])
+      ];
+      const choices = shuffleChoices([
+        {
+          label: `Liberar ${shortFirstName(learner)} para tentar despertar【${mvPick.moveName}】durante o jogo!`,
+          approachTag: "Missão em Campo",
+          quality: "GREAT",
+          questSpec: {
+            kind: "LEARN_MOVE",
+            playerId: learner.id,
+            playerName: learner.name,
+            moveName: mvPick.moveName,
+            cat: mvPick.cat,
+            boostPower: 8
+          },
+          coachLine: `Pode ir pra cima sem medo contra ${opp}! Na primeira oportunidade em campo, solta a ${mvPick.moveName} que o grupo garante!`,
+          customEffects: { affPts: 14, xpAmt: 20, buffType: "COOP_SYNC", note: `Missão ativa: ${shortFirstName(learner)} despertará ${mvPick.moveName} em campo` },
+          reactions: [
+            makeProcMsg(core, 0, `Sério?! Valeu demais pela confiança!! Em campo eu faço a ${mvPick.moveName} acontecer!`, "hype"),
+            makeProcMsg(core, 1, `Bora!! Quando pegar na bola contra ${opp} todo mundo abre espaço pra você!`, "hype")
+          ]
+        },
+        {
+          label: `Pedir foco no básico primeiro e guardar a técnica nova pros treinos da cidade`,
+          approachTag: "Segurança",
+          quality: "GOOD",
+          coachLine: `Calma, ${shortFirstName(learner)}. Usa o que você já domina 100% contra ${opp} e lapida a novidade aos poucos.`,
+          customEffects: { chemDelta: 2, affPts: 10 },
+          reactions: [
+            makeProcMsg(core, 0, `Certo, professor... vou seguir aperfeiçoando até sair automática.`, "calm"),
+            makeProcMsg(core, 1, `Decisão prudente pra um jogo grande assim.`, "calm")
+          ]
+        }
+      ]);
+      return baseResult({
+        id: "proc_quest_learn_move",
+        category: "CRIAR_TECNICA",
+        categoryLabel: "Despertar Técnico",
+        categoryIcon: "⚡",
+        badgeClass: "cat-tech",
+        title: `Meta: ${mvPick.moveName}`,
+        coreActors: core,
+        messages: msgs,
+        choices
+      });
+    }
+
+    // 6. Quest: Jogador sem Keshin sentindo despertar de Espírito Guerreiro!
+    if (kind === "QUEST_AWAKEN_KESHIN") {
+      const cand = actors.find((a) => {
+        const rp = findReal(a);
+        return rp && !rp.keshin && a.role !== "GK";
+      }) || actors.find((a) => {
+        const rp = findReal(a);
+        return rp && !rp.keshin;
+      });
+      if (!cand) return generateProceduralBetaChat(t, actors, ctx, "QUEST_LEARN_MOVE", opts);
+      const partner = pickOther([cand.id]);
+      const cap = pickOther([cand.id, partner.id], (a) => a.isCaptain);
+      const core = [cand, partner, cap].filter((v, i, arr) => v && arr.findIndex((x) => x.id === v.id) === i);
+      const usedKeshins = new Set(
+        Object.values(squadObj).map((p) => p?.keshin?.name).filter(Boolean)
+      );
+      const keshin = resolvePlayerLatentKeshin(cand, findReal(cand), usedKeshins);
+      const msgs = [
+        makeProcMsg(core, 0, `Treinador, estranho falar isso, mas toda vez que divido bola forte sinto uma pressão quente nas costas... acho que o ${keshin.name} tá quase despertando!`, "idea"),
+        makeProcMsg(core, 1, `Caramba, eu também senti a energia subir no último treino do ${shortFirstName(cand)}!`, "hype"),
+        ...(core[2] ? [makeProcMsg(core, 2, `Se você invocar um Espírito Guerreiro no meio do jogo contra ${opp}, o estádio inteiro vai tremer!`, "hype")] : [])
+      ];
+      const choices = shuffleChoices([
+        {
+          label: `Autorizar ${shortFirstName(cand)} a buscar a Incorporação 【${keshin.name}】 na próxima partida!`,
+          approachTag: "Despertar Keshin",
+          quality: "GREAT",
+          questSpec: {
+            kind: "AWAKEN_KESHIN",
+            playerId: cand.id,
+            playerName: cand.name,
+            keshin
+          },
+          coachLine: `Não segura essa energia, ${shortFirstName(cand)}! Quando o jogo contra ${opp} pedir, libera o ${keshin.name} em campo!`,
+          customEffects: { affPts: 16, respectDelta: 2, note: `Missão ativa: Incorporação ${keshin.name} em campo!` },
+          reactions: [
+            makeProcMsg(core, 0, `Pode deixar!! Contra ${opp} eu vou romper esse limite e trazer o ${keshin.name} pro jogo!`, "hype"),
+            makeProcMsg(core, 1, `Ansioso demais pra ver essa aura em campo!!`, "hype")
+          ]
+        },
+        {
+          label: `Manter o ritmo estável sem sobrecarregar o físico nesta rodada`,
+          approachTag: "Ritmo Seguro",
+          quality: "GOOD",
+          coachLine: `Vai com calma pra não travar a perna, ${shortFirstName(cand)}. A incorporação vem naturalmente com a sequência do time.`,
+          customEffects: { energyDelta: 4, chemDelta: 1 },
+          reactions: [
+            makeProcMsg(core, 0, `Entendido, professor. Vou guardar fôlego e jogar pro time.`, "calm")
+          ]
+        }
+      ]);
+      return baseResult({
+        id: "proc_quest_keshin",
+        category: "CRIAR_TECNICA",
+        categoryLabel: "Incorporação",
+        categoryIcon: "🔥",
+        badgeClass: "cat-tech",
+        title: `Aura de ${shortFirstName(cand)}`,
+        coreActors: core,
+        messages: msgs,
+        choices
+      });
+    }
+
+    // 7. Debate orgânico de Formação (abre botão "Ajustar Formação e Escalação" no chat!)
+    if (kind === "PROC_FORMATION_DEBATE") {
+      const curForm = typeof state !== "undefined" && state.formation ? state.formation : "4-3-3";
+      const allForms = typeof DB === "object" && DB?.formations ? Object.keys(DB.formations) : ["4-3-3", "4-4-2", "3-4-3", "3-5-2"];
+      const alts = allForms.filter((f) => f !== curForm);
+      const targetForm = alts[Math.floor(Math.random() * alts.length)] || "3-5-2";
+      const tact = actors.find((a) => resolveInazumaPersona(a).voice === "TACTICIAN") || actors[0];
+      const wing = pickOther([tact.id], (a) => a.role === "MF" || a.role === "FW");
+      const cap = pickOther([tact.id, wing.id], (a) => a.isCaptain);
+      const core = [tact, wing, cap].filter((v, i, arr) => v && arr.findIndex((x) => x.id === v.id) === i);
+      const formReason = targetForm === "3-5-2"
+        ? `ganhar o meio-campo com cinco meias e não deixar ${opp} respirar na saída`
+        : targetForm === "3-4-3"
+        ? `pressionar a zaga de ${opp} lá em cima com três atacantes abertos`
+        : targetForm === "4-3-3"
+        ? `ter equilíbrio atrás e velocidade pelas pontas contra ${opp}`
+        : `fechar duas linhas sólidas de quatro e sair no contra-ataque em dupla`;
+      const msgs = [
+        makeProcMsg(core, 0, `Professor, olhando pro jeito que ${opp} joga, o nosso ${curForm} pode sofrer espaço. Acho que mudar pro ${targetForm} ia ajudar demais pra ${formReason}!`, "idea"),
+        makeProcMsg(core, 1, `Concordo! No ${targetForm} cada um sabe certinho onde pisar, só o senhor ajustar as peças no campinho depois.`, "hype")
+      ];
+      const choices = shuffleChoices([
+        {
+          label: `Mudar para ${targetForm} agora e abrir a prancheta para reorganizar os titulares!`,
+          approachTag: `Formação ${targetForm}`,
+          quality: "GREAT",
+          tacticsPatch: { formation: targetForm },
+          openFormationModal: true,
+          coachLine: `Fechado, vamos de ${targetForm} contra ${opp}! Vou já abrir a escalação pra posicionar todo mundo certinho nesse desenho.`,
+          reactions: [
+            makeProcMsg(core, 0, `Boa!! Com a ${targetForm} encaixada, o meio de ${opp} vai ficar sem saída.`, "hype"),
+            makeProcMsg(core, 1, `Tô pronto já! Só encaixar os nomes na formação e partir pro campo.`, "hype")
+          ]
+        },
+        {
+          label: `Manter a ${curForm} por entrosamento, mas ajustar a movimentação pelas pontas`,
+          approachTag: `Manter ${curForm}`,
+          quality: "GOOD",
+          tacticsPatch: { lane: "wings" },
+          coachLine: `O grupo já conhece a ${curForm} de cor. Vamos manter o desenho e abrir mais pelas pontas pra quebrar a marcação.`,
+          reactions: [
+            makeProcMsg(core, 0, `Faz sentido também! Entrosamento conta muito em jogo apertado.`, "calm"),
+            makeProcMsg(core, 1, `Show, corredor aberto pelas laterais comigo é só festa!`, "calm")
+          ]
+        }
+      ]);
+      return baseResult({
+        id: "proc_formation_debate",
+        category: "TATICA_RIVAL",
+        categoryLabel: "Formação Tática",
+        categoryIcon: "📐",
+        badgeClass: "cat-tac",
+        title: `Ajuste para o ${targetForm}`,
+        coreActors: core,
+        messages: msgs,
+        choices
+      });
+    }
+
+    // 8. Resenha / duelo amistoso de técnicas (100% coerente com sigMoveCat!)
+    if (kind === "PROC_MOVE_SPAR") {
+      const a0 = actors.find((a) => a.hasRealShMove || a.hasRealOfMove || a.hasRealDfMove) || actors[0];
+      const a1 = pickOther([a0.id]);
+      const a2 = pickOther([a0.id, a1.id], (a) => resolveInazumaPersona(a).voice === "CHILL_JOKER" || resolveInazumaPersona(a).voice === "REBEL_TROLL");
+      const core = [a0, a1, a2].filter((v, i, arr) => v && arr.findIndex((x) => x.id === v.id) === i);
+      const d0 = describeActorMoveAction(a0, { oppName: opp });
+      const d1 = describeActorMoveAction(a1, { oppName: opp });
+      const msgs = [
+        makeProcMsg(core, 0, `Bora apostar no treino de hoje, ${shortFirstName(a1)}? Quero ver se você acompanha o ritmo da minha ${d0.move}!`, "banter"),
+        makeProcMsg(core, 1, `Haha fechou demais! ${d1.breakLine} Aposto o suco de depois do treino!`, "hype")
+      ];
+      const choices = shuffleChoices([
+        {
+          label: "Incentivar o desafio saudável e marcar um mini-treino de duelos!",
+          approachTag: "Competição Boa",
+          quality: "GREAT",
+          coachLine: `Gostei de ver essa fome de bola! Podem apostar o desafio no treino, só lembrem de levar essa pegada contra ${opp}.`,
+          customEffects: { affPts: 18, xpAmt: 28, buffType: "MORALE_BOOST" },
+          reactions: [
+            makeProcMsg(core, 0, `Agora ficou oficial hein ${shortFirstName(a1)}, quero ver pagar o suco depois kkk`, "hype"),
+            makeProcMsg(core, 1, `Pode preparar a carteira porque hoje eu tô voando!`, "hype")
+          ]
+        },
+        {
+          label: "Elogiar o foco, mas pedir cuidado pra ninguém se machucar na dividida",
+          approachTag: "Cuidado Físico",
+          quality: "GOOD",
+          coachLine: `Competitividade lá em cima é ótimo, só dosam a força na dividida pra chegarmos inteiros contra ${opp}.`,
+          customEffects: { energyDelta: 3, affPts: 10 },
+          reactions: [
+            makeProcMsg(core, 0, `Pode deixar professor, vai ser na técnica pura!`, "calm")
+          ]
+        }
+      ]);
+      return baseResult({
+        id: "proc_move_spar",
+        category: "RESENHA",
+        categoryLabel: "Desafio no Treino",
+        categoryIcon: "⚡",
+        badgeClass: "cat-banter",
+        title: `Duelo: ${shortFirstName(a0)} × ${shortFirstName(a1)}`,
+        coreActors: core,
+        messages: msgs,
+        choices
+      });
+    }
+
+    // 9. Sintonia Goleiro & Zaga
+    if (kind === "PROC_GK_DF_SYNC") {
+      const gk = actors.find((a) => a.role === "GK") || actors[0];
+      const df = pickOther([gk.id], (a) => a.role === "DF");
+      const cap = pickOther([gk.id, df.id], (a) => a.isCaptain);
+      const core = [gk, df, cap].filter((v, i, arr) => v && arr.findIndex((x) => x.id === v.id) === i);
+      const star = ctx.rivalStar?.name || `o camisa 10 de ${opp}`;
+      const msgs = [
+        makeProcMsg(core, 0, `${shortFirstName(df)}, hoje no coletivo repara no tempo da saída contra ${star}: se fechar o ângulo do chute cruzado eu pego na ${gk.gkMove || gk.sigMove}.`, "idea"),
+        makeProcMsg(core, 1, `Fechado demais! Quando eles avançarem pelo meio eu já fecho o chute com a ${df.dfMove || df.sigMove} pro seu lado.`, "calm")
+      ];
+      const choices = shuffleChoices([
+        {
+          label: `Travar marcação especial em cima de ${star} com linha mais compacta!`,
+          approachTag: "Fechar a Área",
+          quality: "GREAT",
+          tacticsPatch: { markRival: true, posture: "defensive" },
+          coachLine: `Comunicação perfeita lá atrás! Vamos colar a marcação no ${star} e dar segurança pro ${shortFirstName(gk)} trabalhar tranquilo.`,
+          reactions: [
+            makeProcMsg(core, 0, `Valeu professor! Linha alinhada desse jeito não passa nada hoje.`, "hype"),
+            makeProcMsg(core, 1, `Pode deixar o homem comigo que eu não desgrudo um minuto!`, "hype")
+          ]
+        },
+        {
+          label: `Manter marcação equilibrada sem perseguir um único jogador`,
+          approachTag: "Por Setor",
+          quality: "GOOD",
+          tacticsPatch: { posture: "balanced", markRival: "CLEAR" },
+          coachLine: `Bom papo lá atrás. Vamos defender por setor pra não abrir buraco pros outros atacantes deles.`,
+          reactions: [
+            makeProcMsg(core, 0, `Combinado, olho em todos os setores!`, "calm")
+          ]
+        }
+      ]);
+      return baseResult({
+        id: "proc_gk_df_sync",
+        category: "TATICA_RIVAL",
+        categoryLabel: "Linha Defensiva",
+        categoryIcon: "🛡️",
+        badgeClass: "cat-tac",
+        title: `Paredão com ${shortFirstName(gk)}`,
+        coreActors: core,
+        messages: msgs,
+        choices
+      });
+    }
+
+    // 10. Plano contra estrela rival
+    if (kind === "PROC_RIVAL_COUNTERPLAN") {
+      const tact = actors.find((a) => resolveInazumaPersona(a).voice === "TACTICIAN" || a.role === "MF") || actors[0];
+      const fw = pickOther([tact.id], (a) => a.role === "FW");
+      const med = pickOther([tact.id, fw.id]);
+      const core = [tact, fw, med].filter((v, i, arr) => v && arr.findIndex((x) => x.id === v.id) === i);
+      const star = ctx.rivalStar?.name || `o craque de ${opp}`;
+      const msgs = [
+        makeProcMsg(core, 0, `Revendo o último jogo de ${opp}, quase toda jogada perigosa passa pelos pés de ${star}. Se a gente cortar essa linha de passe, eles travam.`, "idea"),
+        makeProcMsg(core, 1, `E quando recuperarmos a bola, dá pra sair rápido nas costas dos laterais deles que sobem muito!`, "hype")
+      ];
+      const choices = shuffleChoices([
+        {
+          label: "Pressionar forte na saída e explorar contra-ataques verticais!",
+          approachTag: "Pressão & Ataque",
+          quality: "GREAT",
+          tacticsPatch: { style: "vertical", intensity: "high" },
+          coachLine: `Leitura cirúrgica! Vamos apertar a saída de ${opp} e acelerar na vertical assim que roubar a bola.`,
+          reactions: [
+            makeProcMsg(core, 0, `Excelente! A transição rápida vai desmontar o meio deles.`, "hype"),
+            makeProcMsg(core, 1, `Só manda em profundidade que eu disparo na frente!`, "hype")
+          ]
+        },
+        {
+          label: "Trocar passes com calma pra cansar a marcação de " + opp,
+          approachTag: "Controle de Bola",
+          quality: "GOOD",
+          tacticsPatch: { style: "possession", intensity: "medium" },
+          coachLine: `Sem pressa: vamos girar a bola com paciência e fazer ${opp} correr atrás da gente.`,
+          reactions: [
+            makeProcMsg(core, 0, `Ótimo controle de risco, professor. A gente manda no ritmo assim.`, "calm")
+          ]
+        }
+      ]);
+      return baseResult({
+        id: "proc_rival_counter",
+        category: "TATICA_RIVAL",
+        categoryLabel: "Leitura Rival",
+        categoryIcon: "📋",
+        badgeClass: "cat-tac",
+        title: `Plano vs ${opp}`,
+        coreActors: core,
+        messages: msgs,
+        choices
+      });
+    }
+
+    // 11. Resenha leve aleatória de vestiário (comida, música, superstição)
+    const joker = actors.find((a) => {
+      const v = resolveInazumaPersona(a).voice;
+      return v === "CHILL_JOKER" || v === "REBEL_TROLL";
+    }) || actors[0];
+    const buddy = pickOther([joker.id]);
+    const third = pickOther([joker.id, buddy.id]);
+    const core = [joker, buddy, third].filter((v, i, arr) => v && arr.findIndex((x) => x.id === v.id) === i);
+    const topics = [
+      {
+        title: "Superstição de Chuteira",
+        m0: `Confessem aí no grupo: quem mais amarra a chuteira direita antes da esquerda antes de pegar ${opp}? kkk`,
+        m1: `Haha eu tenho minha meia da sorte lavada desde ontem! Sem julgar ninguém aqui hein!`,
+        c0: `Cada um tem sua mania kkk mas amanhã o que ganha jogo é estar ligado na bola!`,
+        goodLine: `Superstição vale se o time entrar concentrado e leve!`,
+        chemLine: `Sem neura com ritual, o importante é o treino que a gente já fez junto.`
+      },
+      {
+        title: "Lámen Pós-Jogo",
+        m0: `Se a gente vencer ${opp} hoje sem susto, quem vai puxar o bonde pro lámen gigante depois do jogo? kkk`,
+        m1: `Opa, se tiver comemoração eu já tô garantido! Só precisa fazer o dever em campo antes!`,
+        c0: `Haha ganhem de ${opp} jogando bonito que eu mesmo pago a primeira rodada pra todo mundo!`,
+        goodLine: `Podem sonhar com o lámen sim, grupo unido rende o dobro em campo!`,
+        chemLine: `Primeiro os três pontos contra ${opp}, depois a gente fecha o restaurante.`
+      },
+      {
+        title: "Playlist do Vestiário",
+        m0: `Quem mexeu na caixinha de som do vestiário hoje?! Colocaram uma música calma demais antes de encarar ${opp} kkk`,
+        m1: `Foi mal kkk achei que ia ajudar o pessoal a respirar fundo antes do aquecimento!`,
+        c0: `Cada jogo pede um clima diferente, então soltem um som animado aí pra acordar a perna antes do apito!`,
+        goodLine: `Vestiário vivo desse jeito dá prazer de treinar!`,
+        chemLine: `Equilíbrio entre concentração e alegria é o ponto certo desse time.`
+      }
+    ];
+    const tp = topics[Math.floor(Math.random() * topics.length)];
+    const banterMsgs = [
+      makeProcMsg(core, 0, tp.m0, "banter"),
+      makeProcMsg(core, 1, tp.m1, "normal")
+    ];
+    const banterChoices = shuffleChoices([
+      {
+        label: "Entrar na resenha leve e puxar o astral do grupo lá pro alto!",
+        approachTag: "Moral Alta",
+        quality: "GREAT",
+        coachLine: tp.c0,
+        customEffects: { affPts: 16, energyDelta: 4, chemDelta: 2, buffType: "LIGHT_LOCKER" },
+        reactions: [
+          makeProcMsg(core, 0, `Aeeee!! Agora sim o melhor técnico do campeonato kkk`, "hype"),
+          makeProcMsg(core, 1, tp.goodLine, "hype")
+        ]
+      },
+      {
+        label: "Manter o bom humor dosado com foco na preparação",
+        approachTag: "Foco Leve",
+        quality: "GOOD",
+        coachLine: tp.chemLine,
+        customEffects: { affPts: 10, chemDelta: 1 },
+        reactions: [
+          makeProcMsg(core, 0, `Fechado professor, concentração ligada!`, "calm")
+        ]
+      }
+    ]);
+    return baseResult({
+      id: "proc_locker_banter_" + topics.indexOf(tp),
+      category: "RESENHA",
+      categoryLabel: "Vestiário",
+      categoryIcon: "😄",
+      badgeClass: "cat-banter",
+      title: tp.title,
+      coreActors: core,
+      messages: banterMsgs,
+      choices: banterChoices
+    });
+  }
+
+  function buildHalftimeLockerTalk(st) {
+    if (!st) return null;
+    const uScore = Number(st.userScore) || 0;
+    const oScore = Number(st.oppScore) || 0;
+    const oppName = st.oppTeam?.name || "o adversário";
+    const squadObj = typeof state !== "undefined" && state?.squad ? state.squad : {};
+    const slots = typeof getSlots === "function" ? getSlots() : [];
+    const tac = typeof getTactics === "function" ? getTactics() : {};
+    const fieldPlayers = slots
+      .map((s) => ({ slot: s, p: squadObj[s.id] }))
+      .filter((e) => e.p);
+    if (fieldPlayers.length === 0) return null;
+
+    const cap = fieldPlayers.find((e) => e.p.id === tac.captainPlayerId)
+      || fieldPlayers.find((e) => resolveInazumaPersona(e.p).voice === "CAPTAIN_FIRE")
+      || fieldPlayers[0];
+    const voice2 = fieldPlayers.find((e) => e.p.id !== cap.p.id && (e.slot.role === "FW" || e.slot.role === "MF" || resolveInazumaPersona(e.p).voice === "TACTICIAN"))
+      || fieldPlayers.find((e) => e.p.id !== cap.p.id)
+      || cap;
+    const gk = fieldPlayers.find((e) => e.slot.role === "GK") || cap;
+
+    const spriteFor = (entry) =>
+      typeof getPlayerFormSprite === "function" ? getPlayerFormSprite(entry.p, entry.slot.role) : (entry.p.sprite || "");
+
+    const isWinning = uScore > oScore;
+    const isLosing = uScore < oScore;
+
+    const bubbles = isLosing
+      ? [
+          {
+            name: cap.p.name,
+            roleLabel: "Capitão",
+            sprite: spriteFor(cap),
+            tone: "tense",
+            text: `O placar em ${uScore} x ${oScore} ainda dá pra virar fácil contra ${oppName}! Só falta a gente ajustar a pegada pro 2º tempo!`
+          },
+          {
+            name: voice2.p.name,
+            roleLabel: voice2.slot.role,
+            sprite: spriteFor(voice2),
+            tone: "normal",
+            text: `Eles deram espaço quando subimos a linha. Professor, qual a ordem pra segunda etapa?`
+          }
+        ]
+      : isWinning
+      ? [
+          {
+            name: gk.p.name,
+            roleLabel: gk.slot.role,
+            sprite: spriteFor(gk),
+            tone: "hype",
+            text: `Boa vantagem nesse ${uScore} x ${oScore}! Agora é manter a cabeça no lugar porque ${oppName} vai vir com tudo no 2º tempo.`
+          },
+          {
+            name: voice2.p.name,
+            roleLabel: voice2.slot.role,
+            sprite: spriteFor(voice2),
+            tone: "hype",
+            text: `Se encaixarmos o contragolpe certo dá pra matar o jogo rápido!`
+          }
+        ]
+      : [
+          {
+            name: cap.p.name,
+            roleLabel: "Capitão",
+            sprite: spriteFor(cap),
+            tone: "normal",
+            text: `Primeiro tempo pegado nesse ${uScore} x ${oScore} contra ${oppName}! Tá na mão da gente decidir nos últimos 45 minutos.`
+          },
+          {
+            name: voice2.p.name,
+            roleLabel: voice2.slot.role,
+            sprite: spriteFor(voice2),
+            tone: "normal",
+            text: `Só diz onde a gente aperta mais agora na volta do intervalo, professor.`
+          }
+        ];
+
+    const choices = [
+      {
+        key: "FIRE",
+        title: "🔥 Ataque Total",
+        subtitle: "+Chute/Ataque • -4% Fôlego",
+        coachText: `Quero pressão lá na frente desde o primeiro segundo do 2º tempo! Sem medo contra ${oppName}!`,
+        playerReact: `${cap.p.name}: Boraaa!! Todo mundo mordendo na área deles agora!`
+      },
+      {
+        key: "CALM",
+        title: "🧠 Cabeça Fria",
+        subtitle: "+Drible & Meio-Campo",
+        coachText: `Respirem fundo! Quero posse limpa no meio e passes conscientes até abrir a defesa de ${oppName}.`,
+        playerReact: `${voice2.p.name}: Perfeito, vamos controlar o tempo da bola e achar os espaços.`
+      },
+      {
+        key: "WALL",
+        title: "🛡️ Muralha Fechada",
+        subtitle: "+Defesa & Goleiro",
+        coachText: `Linhas compactas atrás! Primeiro fechamos todos os espaços pro ${shortFirstName(gk.p.name)}, depois saímos limpos.`,
+        playerReact: `${gk.p.name}: Fechado! Da minha área não passa nem vento no 2º tempo.`
+      }
+    ];
+
+    return { bubbles, choices };
+  }
+
   const g = typeof window !== "undefined" ? window : globalThis;
   g.resolveInazumaPersona = resolveInazumaPersona;
   g.humanizeInaZapText = humanizeInaZapText;
+  g.humanizeTacticalChangeForChat = humanizeTacticalChangeForChat;
+  g.describeActorMoveAction = describeActorMoveAction;
   g.buildDynamicGroupChimeIns = buildDynamicGroupChimeIns;
   g.buildDynamicSilentResolution = buildDynamicSilentResolution;
   g.buildDynamicPostDecisionWrapUp = buildDynamicPostDecisionWrapUp;
   g.attachDynamicEmojiReactions = attachDynamicEmojiReactions;
+  g.generateProceduralBetaChat = generateProceduralBetaChat;
+  g.buildHalftimeLockerTalk = buildHalftimeLockerTalk;
 })();

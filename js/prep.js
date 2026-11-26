@@ -1504,7 +1504,8 @@ function handleChoosePrepOption(choiceEvent) {
     prep.eventsRemaining = 0;
     prep.phase = "DONE";
     prep.affectedPlayers = affected;
-    prep.appliedMsg = `${choiceEvent.title}: <span class="b-chem">+${gain}% Energia</span> (${prevE}% ➔ ${nextE}%)${extraTxt}. <span style="color:#93c5fd;">(Noite encerrada — pronto para o jogo!)</span>`;
+    const plotNoteRest = typeof resolveCityPlotsForLocation === "function" ? resolveCityPlotsForLocation(t, prep.locId, choiceEvent.title) : "";
+    prep.appliedMsg = `${choiceEvent.title}: <span class="b-chem">+${gain}% Energia</span> (${prevE}% ➔ ${nextE}%)${extraTxt}. <span style="color:#93c5fd;">(Noite encerrada — pronto para o jogo!)</span>${plotNoteRest}`;
     t.prepBonuses.log.push(`${choiceEvent.title} (+${gain}% Energia)`);
     if (typeof playSfx === "function") {
       const anyUp = affected.some((ap) => (ap.levelsGained || 0) > 0 || (ap.learnedMoves && ap.learnedMoves.length > 0));
@@ -1524,7 +1525,8 @@ function handleChoosePrepOption(choiceEvent) {
     }
     prep.phase = "DONE";
     prep.affectedPlayers = [];
-    prep.appliedMsg = `Passiva ativada: seu time agora tem <span class="b-tech">4 ações por rodada</span>, <span class="b-chem">-3% custo</span> nos locais e <span class="b-chem">50% de desconto na 4ª ação</span>.`;
+    const plotNotePass1 = typeof resolveCityPlotsForLocation === "function" ? resolveCityPlotsForLocation(t, prep.locId, choiceEvent.title) : "";
+    prep.appliedMsg = `Passiva ativada: seu time agora tem <span class="b-tech">4 ações por rodada</span>, <span class="b-chem">-3% custo</span> nos locais e <span class="b-chem">50% de desconto na 4ª ação</span>.${plotNotePass1}`;
     renderAll();
     return;
   }
@@ -1537,7 +1539,8 @@ function handleChoosePrepOption(choiceEvent) {
     }
     prep.phase = "DONE";
     prep.affectedPlayers = [];
-    prep.appliedMsg = `Passiva equipada: os 11 titulares gastam <span class="b-chem">50% menos energia</span> a partir dos 75' de jogo.`;
+    const plotNotePass2 = typeof resolveCityPlotsForLocation === "function" ? resolveCityPlotsForLocation(t, prep.locId, choiceEvent.title) : "";
+    prep.appliedMsg = `Passiva equipada: os 11 titulares gastam <span class="b-chem">50% menos energia</span> a partir dos 75' de jogo.${plotNotePass2}`;
     renderAll();
     return;
   }
@@ -1552,7 +1555,8 @@ function handleChoosePrepOption(choiceEvent) {
     t.prepBonuses.log.push(`${choiceEvent.title} (+${gain}% Energia)`);
     prep.phase = "DONE";
     prep.affectedPlayers = [];
-    prep.appliedMsg = `<span class="b-chem">+${gain}% de Energia do Time</span> (${prevE}% ➔ ${nextE}%) e <span class="b-pwr">+${pwr} Poder</span>!`;
+    const plotNoteDrink = typeof resolveCityPlotsForLocation === "function" ? resolveCityPlotsForLocation(t, prep.locId, choiceEvent.title) : "";
+    prep.appliedMsg = `<span class="b-chem">+${gain}% de Energia do Time</span> (${prevE}% ➔ ${nextE}%) e <span class="b-pwr">+${pwr} Poder</span>!${plotNoteDrink}`;
     renderAll();
     return;
   }
@@ -1642,7 +1646,8 @@ function handleChoosePrepOption(choiceEvent) {
     prep.phase = "DONE";
     prep.affectedPlayers = affected;
     const tierCls = nextL >= 3 ? "b-lvl" : nextL === 2 ? "b-tech" : "b-chem";
-    prep.appliedMsg = `<span class="${tierCls}">${choiceEvent.title} (Nv. ${prevL} ➔ Nv. ${nextL}/${maxL})</span>: ${effectTxt} e <span class="b-pwr">+${pwr} Poder</span>.`;
+    const plotNoteScale = typeof resolveCityPlotsForLocation === "function" ? resolveCityPlotsForLocation(t, prep.locId, choiceEvent.title) : "";
+    prep.appliedMsg = `<span class="${tierCls}">${choiceEvent.title} (Nv. ${prevL} ➔ Nv. ${nextL}/${maxL})</span>: ${effectTxt} e <span class="b-pwr">+${pwr} Poder</span>.${plotNoteScale}`;
     renderAll();
     return;
   }
@@ -1785,7 +1790,8 @@ function applyPrepCollectiveEvent(event) {
       synergyExtraMsg = ` • <span class="b-tech">+22 Sintonia</span> (${boosted.join(", ")})`;
     }
   }
-  t.prep.appliedMsg = `${event.title} concluído: <span class="b-lvl">${affectedPlayers.length} jogador(es)</span> evoluíram (<span class="b-pwr">+${totalPwr} Poder Total</span>${event.teamChem ? ` • <span class="b-chem">+${event.teamChem}% Química</span>` : ""}${synergyExtraMsg}).`;
+  const plotNoteColl = typeof resolveCityPlotsForLocation === "function" ? resolveCityPlotsForLocation(t, t.prep.locId, event.title) : "";
+  t.prep.appliedMsg = `${event.title} concluído: <span class="b-lvl">${affectedPlayers.length} jogador(es)</span> evoluíram (<span class="b-pwr">+${totalPwr} Poder Total</span>${event.teamChem ? ` • <span class="b-chem">+${event.teamChem}% Química</span>` : ""}${synergyExtraMsg}).${plotNoteColl}`;
   if (typeof playSfx === "function") {
     const anyUp = affectedPlayers.some((ap) => (ap.levelsGained || 0) > 0 || (ap.learnedMoves && ap.learnedMoves.length > 0));
     playSfx(anyUp ? "level_up" : "prep_reward");
@@ -1980,7 +1986,8 @@ function applyPrepPlayerReward(slotId) {
   t.prepBonuses.log.push(`${event.title} (${player.name})`);
   prep.phase = "DONE";
   prep.affectedPlayers = affectedPlayers;
-  prep.appliedMsg = msg;
+  const plotNoteInd = typeof resolveCityPlotsForLocation === "function" ? resolveCityPlotsForLocation(t, prep.locId, event.title) : "";
+  prep.appliedMsg = msg + plotNoteInd;
   if (typeof playSfx === "function") {
     const anyUp = affectedPlayers.some((ap) => (ap.levelsGained || 0) > 0 || (ap.learnedMoves && ap.learnedMoves.length > 0));
     playSfx(anyUp ? "level_up" : "prep_reward");
@@ -2119,15 +2126,37 @@ function buildChatActorProfile(slot, player, t = state.tournament) {
     ? computePlayerArchetype(player, slot.role, isAce ? "CAMISA_10" : "NONE")
     : "COLLECTIVE";
   const moves = player.moves || {};
-  const shMove = (Array.isArray(moves.SH) && moves.SH[0]) || "Chute Relâmpago";
-  const ofMove = (Array.isArray(moves.OF) && moves.OF[0]) || "Drible Relâmpago";
-  const dfMove = (Array.isArray(moves.DF) && moves.DF[0]) || "Corte Rápido";
-  const gkMove = (Array.isArray(moves.GK) && moves.GK[0]) || "Mão Fantasma";
-  const sigMove =
-    slot.role === "GK" ? gkMove :
-    slot.role === "DF" ? dfMove :
-    slot.role === "MF" ? (moves.OF?.[0] || moves.SH?.[0] || ofMove) :
-    shMove;
+  const hasRealShMove = Array.isArray(moves.SH) && moves.SH.length > 0;
+  const hasRealOfMove = Array.isArray(moves.OF) && moves.OF.length > 0;
+  const hasRealDfMove = Array.isArray(moves.DF) && moves.DF.length > 0;
+  const hasRealGkMove = Array.isArray(moves.GK) && moves.GK.length > 0;
+  const shMove = (hasRealShMove && moves.SH[0]) || "Chute Relâmpago";
+  const ofMove = (hasRealOfMove && moves.OF[0]) || "Drible Relâmpago";
+  const dfMove = (hasRealDfMove && moves.DF[0]) || "Corte Rápido";
+  const gkMove = (hasRealGkMove && moves.GK[0]) || "Mão Fantasma";
+  let sigMove = shMove;
+  let sigMoveCat = "SH";
+  if (slot.role === "GK") {
+    sigMove = gkMove;
+    sigMoveCat = "GK";
+  } else if (slot.role === "DF") {
+    sigMove = dfMove;
+    sigMoveCat = "DF";
+  } else if (slot.role === "MF") {
+    if (hasRealOfMove) {
+      sigMove = moves.OF[0];
+      sigMoveCat = "OF";
+    } else if (hasRealShMove) {
+      sigMove = moves.SH[0];
+      sigMoveCat = "SH";
+    } else {
+      sigMove = ofMove;
+      sigMoveCat = "OF";
+    }
+  } else {
+    sigMove = shMove;
+    sigMoveCat = "SH";
+  }
   const persona = typeof resolveInazumaPersona === "function"
     ? resolveInazumaPersona({
         id: player.id,
@@ -2156,6 +2185,11 @@ function buildChatActorProfile(slot, player, t = state.tournament) {
     dfMove,
     gkMove,
     sigMove,
+    sigMoveCat,
+    hasRealShMove,
+    hasRealOfMove,
+    hasRealDfMove,
+    hasRealGkMove,
     keshinName: player.keshin?.name || null,
     equipTitle: Array.isArray(player.equippedItems) && player.equippedItems[0]?.title ? player.equippedItems[0].title : null,
     isCaptain: Boolean(capObj?.player?.id && capObj.player.id === player.id),
@@ -3947,7 +3981,7 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
     ],
     (actors, ctx) => [
       mkSpontaneousMsg(actors, 0, `Todo mundo na cidade falando que ${ctx.oppName} está forte... ótimo! Adoro estragar festa de favorito!`, "banter"),
-      mkSpontaneousMsg(actors, 1, `Haha! Eles ainda não conhecem nossa ${actors[0].sigMove} funcionando juntos — vão levar um susto logo aos 10 minutos!`, "hype")
+      mkSpontaneousMsg(actors, 1, `Haha! Eles ainda não viram nosso estilo encaixado em campo — vão levar um susto logo aos 10 minutos!`, "hype")
     ],
     (actors) => buildShuffledChatChoices(actors, {
       great: {
@@ -5340,7 +5374,14 @@ const SPONTANEOUS_CHAT_TEMPLATES = [
     ],
     (actors, ctx) => [
       mkSpontaneousMsg(actors, 1, `Contra a linha baixa de ${ctx.oppName}, precisamos de alguém centralizando as bolas perigosas com precisão cirúrgica!`, "idea"),
-      mkSpontaneousMsg(actors, 0, `Se passar pelo meu pé na armação ou no chute decisivo com ${actors[0].sigMove}, eu abro a defesa deles!`, "hype")
+      mkSpontaneousMsg(
+        actors,
+        0,
+        actors[0].sigMoveCat === "SH"
+          ? `Se passar pelo meu pé na armação ou no chute decisivo com ${actors[0].sigMove}, eu abro a defesa deles!`
+          : `Se passar pelo meu pé na armação com ${actors[0].ofMove || actors[0].sigMove}, eu desmonto a defesa deles pro ataque finalizar!`,
+        "hype"
+      )
     ],
     (actors) => buildShuffledChatChoices(actors, {
       great: {
@@ -8241,6 +8282,186 @@ function sanitizeChatQuotes(messages, opts = {}) {
   return messages;
 }
 
+const CITY_PLOT_LOC_LABELS = {
+  riverbank: "Campinho (Margem do Rio)",
+  training: "Centro Inabikari",
+  town: "Lojas de Inazuma",
+  rest: "Dormitório do Clube"
+};
+
+function ensureCityPlotForFeud(t, pA, pB, topic = "") {
+  if (typeof isBetaMode === "function" && !isBetaMode()) return null;
+  if (!t || !pA || !pB) return null;
+  if (typeof ensureBetaDynamicsState === "function") ensureBetaDynamicsState(t);
+  if (!Array.isArray(t.activeCityPlots)) t.activeCityPlots = [];
+  const rawIdA = String(pA.id || pA.fullName || pA.name || "").trim();
+  const rawIdB = String(pB.id || pB.fullName || pB.name || "").trim();
+  if (!rawIdA || !rawIdB || rawIdA === rawIdB) return null;
+  const key = typeof getPairAffinityKey === "function" ? getPairAffinityKey(rawIdA, rawIdB) : [rawIdA, rawIdB].sort().join("__");
+  const existing = t.activeCityPlots.find((pl) => pl && !pl.resolved && pl.arcKey === key);
+  if (existing) return existing;
+  const usedLocs = new Set(t.activeCityPlots.filter((pl) => pl && !pl.resolved).map((pl) => pl.locId));
+  const locIds = ["riverbank", "training", "town", "rest"];
+  const freeLocs = locIds.filter((id) => !usedLocs.has(id));
+  const pool = freeLocs.length > 0 ? freeLocs : locIds;
+  const pickedLoc = pool[Math.floor(Math.random() * pool.length)];
+  const entry = {
+    id: `plot_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+    arcKey: key,
+    aId: rawIdA,
+    bId: rawIdB,
+    aName: pA.name || rawIdA,
+    bName: pB.name || rawIdB,
+    locId: pickedLoc,
+    locLabel: CITY_PLOT_LOC_LABELS[pickedLoc] || pickedLoc,
+    topic: topic || "vestiário",
+    resolved: false,
+    createdStage: t?.prep?.nextStageIdx ?? t?.stageIndex ?? 0
+  };
+  t.activeCityPlots.push(entry);
+  return entry;
+}
+
+function resolveCityPlotsForLocation(t, locId, eventTitle = "") {
+  if (typeof isBetaMode === "function" && !isBetaMode()) return "";
+  if (!t || !locId || !Array.isArray(t.activeCityPlots) || t.activeCityPlots.length === 0) return "";
+  const matching = t.activeCityPlots.filter((pl) => pl && !pl.resolved && pl.locId === locId);
+  if (matching.length === 0) return "";
+  const slots = typeof getSlots === "function" ? getSlots() : [];
+  const notes = [];
+  matching.forEach((pl) => {
+    pl.resolved = true;
+    pl.resolvedEvent = eventTitle || pl.locLabel;
+    const findP = (pid) => {
+      for (const sl of slots) {
+        const p = state.squad?.[sl.id];
+        if (p && p.id === pid) return p;
+      }
+      return null;
+    };
+    const pA = findP(pl.aId) || { id: pl.aId, name: pl.aName };
+    const pB = findP(pl.bId) || { id: pl.bId, name: pl.bName };
+    if (typeof setBetaPairArc === "function") {
+      setBetaPairArc(pA, pB, "RECONCILIADOS", pl.topic || "cidade", t);
+    }
+    if (typeof addPairAffinityPoints === "function" && pA.id && pB.id) {
+      addPairAffinityPoints(pA, pB, 24, null, t);
+    }
+    if (typeof adjustCoachRespect === "function") {
+      adjustCoachRespect(3, [pA.id, pB.id].filter(Boolean), 4, t);
+    }
+    if (t.prepBonuses) {
+      t.prepBonuses.chem = (t.prepBonuses.chem || 0) + 3;
+    }
+    if (typeof spawnProceduralBetaChat === "function") {
+      spawnProceduralBetaChat(t, "CITY_PLOT_RESOLVED", { allowBonusCap: true, extraCtx: { plot: pl } });
+    }
+    notes.push(`🤝 <strong>${escapeHtml(pl.aName)} &amp; ${escapeHtml(pl.bName)}</strong> fizeram as pazes em ${escapeHtml(pl.locLabel)} (+24 Sintonia, +3% Química)!`);
+  });
+  return notes.length > 0 ? `<div style="margin-top:6px;font-size:0.78rem;color:#86efac;">${notes.join(" ")}</div>` : "";
+}
+
+function spawnProceduralBetaChat(t = state.tournament, forcedKind = null, opts = {}) {
+  if (typeof isBetaMode === "function" && !isBetaMode()) return null;
+  if (typeof generateProceduralBetaChat !== "function") return null;
+  const prep = t?.prep;
+  if (!prep) return null;
+  if (!Array.isArray(prep.teamChats)) prep.teamChats = [];
+  const maxChatsThisRound = opts.allowBonusCap ? 4 : 2;
+  if (prep.teamChats.length >= maxChatsThisRound) return null;
+
+  const actors = getSquadChatActors(t);
+  if (actors.length < 2) return null;
+
+  const oppName = getNextOpponentDisplayName(t);
+  const rivalStar = getTopOutfieldRivalHighlight(t);
+  const respectInfo = typeof getCoachRespectInfo === "function" ? getCoachRespectInfo(t) : { value: 66, tier: "MID" };
+  const ctx = {
+    oppName,
+    rivalStar,
+    teamEnergy: Math.round(typeof getTeamEnergy === "function" ? getTeamEnergy() : 85),
+    teamChem: Math.round(typeof calcSquadStats === "function" ? (calcSquadStats()?.chem || 45) : 45),
+    coachRespect: respectInfo.value,
+    ...(opts.extraCtx || {})
+  };
+
+  const gen = generateProceduralBetaChat(t, actors, ctx, forcedKind, opts);
+  if (!gen || !Array.isArray(gen.coreActors) || gen.coreActors.length < 2) return null;
+
+  const chosenActors = Array.isArray(gen.participants) && gen.participants.length >= 2 ? gen.participants : gen.coreActors;
+  const coreCount = gen.coreCount || gen.coreActors.length;
+  const selectedIds = Array.isArray(gen.selectedIds) && gen.selectedIds.length > 0
+    ? gen.selectedIds
+    : gen.coreActors.map((a) => a.slotId).filter(Boolean);
+
+  if (!t.chatActorCounts || typeof t.chatActorCounts !== "object") t.chatActorCounts = {};
+  gen.coreActors.forEach((a) => {
+    if (a?.id) t.chatActorCounts[a.id] = (t.chatActorCounts[a.id] || 0) + 1;
+  });
+  t.lastChatActorIds = gen.coreActors.map((a) => a.id).filter(Boolean);
+
+  const climate = computeGroupChatClimate(selectedIds, t);
+  const baseTimeMin = 840 + Math.floor(Math.random() * 180) + prep.teamChats.length * 14;
+  const interactionMode = gen.interactionMode || "CLASSIC";
+  const baseMessages = Array.isArray(gen.messages) ? gen.messages : [];
+  const chimeInMessages = buildSquadGroupChimeIns(chosenActors, coreCount, gen.category, interactionMode, {
+    ...ctx,
+    existingMessages: baseMessages
+  });
+  const messages = sanitizeChatQuotes(stampThreadTimestamps([...baseMessages, ...chimeInMessages], baseTimeMin), {
+    startIdx: 0,
+    enrichNaturalQuotes: false
+  });
+  if (interactionMode !== "AUTO_COMPLETE" && typeof attachDynamicEmojiReactions === "function") {
+    attachDynamicEmojiReactions(messages, chosenActors, gen.category, "GOOD", 0);
+  }
+  const choices = interactionMode === "AUTO_COMPLETE" ? [] : (Array.isArray(gen.choices) ? gen.choices : []);
+  if (Array.isArray(choices) && typeof humanizeInaZapText === "function") {
+    choices.forEach((c) => {
+      if (!c) return;
+      if (c.coachLine) c.coachLine = humanizeInaZapText(c.coachLine, null);
+      if (Array.isArray(c.reactions)) {
+        c.reactions.forEach((r) => {
+          if (r && r.text) r.text = humanizeInaZapText(r.text, chosenActors[r.senderIdx] || null);
+        });
+      }
+    });
+  }
+
+  const chatObj = {
+    id: `chat_${Date.now()}_${Math.floor(Math.random() * 10000)}`,
+    templateId: gen.id || `proc_${Date.now()}`,
+    contextTrigger: gen.contextTrigger || null,
+    interactionMode,
+    category: gen.category || "RESENHA",
+    categoryLabel: gen.categoryLabel || "Vestiário",
+    categoryIcon: gen.categoryIcon || "💬",
+    badgeClass: gen.badgeClass || "cat-banter",
+    title: gen.title || "Papo no Vestiário",
+    oppName,
+    ctx,
+    baseTimeMin,
+    climate,
+    coreCount,
+    participants: chosenActors,
+    selectedIds,
+    messages,
+    choices,
+    autoOutcome: gen.autoOutcome || null,
+    resolved: false,
+    chosenIdx: null,
+    outcomeQuality: null,
+    outcomeSummary: "",
+    learnedCoop: null,
+    grantedBuff: null,
+    foundItem: null,
+    appliedConfigChanges: []
+  };
+
+  prep.teamChats.push(chatObj);
+  return chatObj;
+}
+
 function spawnSpontaneousTeamChat(t = state.tournament, forcedCategory = null, opts = {}) {
   if (typeof isBetaMode === "function" && !isBetaMode()) return null;
   const prep = t?.prep;
@@ -8248,6 +8469,11 @@ function spawnSpontaneousTeamChat(t = state.tournament, forcedCategory = null, o
   if (!Array.isArray(prep.teamChats)) prep.teamChats = [];
   const maxChatsThisRound = opts.allowBonusCap ? 3 : 2;
   if (prep.teamChats.length >= maxChatsThisRound) return null;
+
+  if (!opts.contextTrigger && !opts.interactionMode && !forcedCategory && typeof generateProceduralBetaChat === "function" && Math.random() < 0.48) {
+    const procChat = spawnProceduralBetaChat(t, null, opts);
+    if (procChat) return procChat;
+  }
 
   const actors = getSquadChatActors(t);
   if (actors.length < 2) return null;
@@ -8362,7 +8588,10 @@ function spawnSpontaneousTeamChat(t = state.tournament, forcedCategory = null, o
   const baseTimeMin = 840 + Math.floor(Math.random() * 180) + prep.teamChats.length * 14;
   const interactionMode = tpl.interactionMode || "CLASSIC";
   const baseMessages = tpl.buildDialogue(chosenActors, ctx);
-  const chimeInMessages = buildSquadGroupChimeIns(chosenActors, coreCount, tpl.category, interactionMode, ctx);
+  const chimeInMessages = buildSquadGroupChimeIns(chosenActors, coreCount, tpl.category, interactionMode, {
+    ...ctx,
+    existingMessages: baseMessages
+  });
   const messages = sanitizeChatQuotes(stampThreadTimestamps([...baseMessages, ...chimeInMessages], baseTimeMin), {
     startIdx: 0,
     enrichNaturalQuotes: false
@@ -8431,6 +8660,12 @@ function generateInitialRoundTeamChats(t = state.tournament) {
   const created = [];
   const curStage = t?.prep?.nextStageIdx ?? t?.stageIndex ?? 0;
 
+  if (typeof getActiveBetaArcsByState === "function") {
+    getActiveBetaArcsByState("TRETA_ABERTA", t).forEach((arc) => {
+      ensureCityPlotForFeud(t, { id: arc.aId, name: arc.aName }, { id: arc.bId, name: arc.bName }, arc.topic);
+    });
+  }
+
   // 1. Gatilhos contextuais de memória viva (adicional natural ao espontâneo!)
   if (t.pendingBrokenPromise && Math.random() < 0.85) {
     const bp = t.pendingBrokenPromise;
@@ -8440,6 +8675,57 @@ function generateInitialRoundTeamChats(t = state.tournament) {
       extraCtx: { brokenPromise: bp }
     });
     if (ch) created.push(ch);
+  }
+
+  if (created.length === 0 && t.lastMatchMemory && !t.lastMatchMemory.consumed) {
+    const lm = t.lastMatchMemory;
+    lm.consumed = true;
+    if (Array.isArray(lm.breakthroughs) && lm.breakthroughs.length > 0 && typeof spawnProceduralBetaChat === "function") {
+      const ch = spawnProceduralBetaChat(t, "POST_MATCH_BREAKTHROUGH", {
+        extraCtx: { lastMatch: lm, breakthrough: lm.breakthroughs[0] }
+      });
+      if (ch) created.push(ch);
+    } else if (lm.ballHogIncident && Math.random() < 0.85 && typeof spawnProceduralBetaChat === "function") {
+      const ch = spawnProceduralBetaChat(t, "POST_MATCH_BALL_HOG", {
+        extraCtx: { lastMatch: lm, ballHogIncident: lm.ballHogIncident }
+      });
+      if (ch) created.push(ch);
+    }
+    if (created.length === 0) {
+      let matchTrigger = null;
+      let prefIds = [];
+      if (lm.disobediences > 0 && Math.random() < 0.80) {
+        matchTrigger = "POST_MATCH_DISOBEY";
+      } else if (lm.viaPenalties && lm.won && Math.random() < 0.72) {
+        matchTrigger = "POST_MATCH_PENALTIES";
+        if (lm.gkHeroId) prefIds.push(lm.gkHeroId);
+      } else if (!lm.won && !lm.isDraw && Math.random() < 0.65) {
+        matchTrigger = "POST_MATCH_LOSS";
+      } else if (lm.topScorerGoals >= 2 && Math.random() < 0.60) {
+        matchTrigger = "POST_MATCH_HERO";
+        if (lm.topScorerId) prefIds.push(lm.topScorerId);
+      } else if (lm.cleanSheet && lm.won && Math.random() < 0.45) {
+        matchTrigger = "POST_MATCH_GK_WALL";
+        if (lm.gkHeroId) prefIds.push(lm.gkHeroId);
+      }
+      if (matchTrigger) {
+        const ch = spawnContextualBetaChat(t, matchTrigger, {
+          preferredPlayerIds: prefIds,
+          extraCtx: { lastMatch: lm }
+        });
+        if (ch) created.push(ch);
+      }
+    }
+  }
+
+  if (created.length === 0 && Array.isArray(t.activeCityPlots)) {
+    const openPlot = t.activeCityPlots.find((pl) => pl && !pl.resolved);
+    if (openPlot && Math.random() < 0.62 && typeof spawnProceduralBetaChat === "function") {
+      const ch = spawnProceduralBetaChat(t, "PLOT_FEUD_ESCALATION", {
+        extraCtx: { plot: openPlot }
+      });
+      if (ch) created.push(ch);
+    }
   }
 
   if (created.length === 0 && typeof getActiveBetaArcsByState === "function") {
@@ -8461,34 +8747,6 @@ function generateInitialRoundTeamChats(t = state.tournament) {
       const ch = spawnContextualBetaChat(t, "ARC_BOND_CH2", {
         exactActorIds: [arc.aId, arc.bId],
         extraCtx: { arc }
-      });
-      if (ch) created.push(ch);
-    }
-  }
-
-  if (created.length === 0 && t.lastMatchMemory && !t.lastMatchMemory.consumed) {
-    const lm = t.lastMatchMemory;
-    lm.consumed = true;
-    let matchTrigger = null;
-    let prefIds = [];
-    if (lm.disobediences > 0 && Math.random() < 0.80) {
-      matchTrigger = "POST_MATCH_DISOBEY";
-    } else if (lm.viaPenalties && lm.won && Math.random() < 0.72) {
-      matchTrigger = "POST_MATCH_PENALTIES";
-      if (lm.gkHeroId) prefIds.push(lm.gkHeroId);
-    } else if (!lm.won && !lm.isDraw && Math.random() < 0.65) {
-      matchTrigger = "POST_MATCH_LOSS";
-    } else if (lm.topScorerGoals >= 2 && Math.random() < 0.60) {
-      matchTrigger = "POST_MATCH_HERO";
-      if (lm.topScorerId) prefIds.push(lm.topScorerId);
-    } else if (lm.cleanSheet && lm.won && Math.random() < 0.45) {
-      matchTrigger = "POST_MATCH_GK_WALL";
-      if (lm.gkHeroId) prefIds.push(lm.gkHeroId);
-    }
-    if (matchTrigger) {
-      const ch = spawnContextualBetaChat(t, matchTrigger, {
-        preferredPlayerIds: prefIds,
-        extraCtx: { lastMatch: lm }
       });
       if (ch) created.push(ch);
     }
@@ -8666,7 +8924,10 @@ function finalizeAutonomousTeamChat(chatId, skipRender = false) {
   const autoArcState = out.setArc || (out.kind === "TENSION_FALLOUT" ? "TRETA_ABERTA" : out.kind === "CHEMISTRY_BOND" ? "PARCERIA_EM_ALTA" : null);
   if (autoArcState && selectedIds.length >= 2 && typeof setBetaPairArc === "function") {
     setBetaPairArc(state.squad[selectedIds[0]], state.squad[selectedIds[1]], autoArcState, chat.title, t);
-    if (autoArcState === "TRETA_ABERTA") summaryParts.push(`<span style="color:#fca5a5;">🔥 Treta Aberta</span>`);
+    if (autoArcState === "TRETA_ABERTA") {
+      const createdPlot = ensureCityPlotForFeud(t, state.squad[selectedIds[0]], state.squad[selectedIds[1]], chat.title);
+      summaryParts.push(`<span style="color:#fca5a5;">🔥 Treta Aberta${createdPlot ? ` (Resolver em ${escapeHtml(createdPlot.locLabel)})` : ""}</span>`);
+    }
     else if (autoArcState === "PARCERIA_EM_ALTA") summaryParts.push(`<span class="b-tech">🤝 Parceria em Alta</span>`);
     else if (autoArcState === "RECONCILIADOS") summaryParts.push(`<span class="b-chem">✨ Reconciliados</span>`);
   }
@@ -8987,7 +9248,10 @@ function resolveSpontaneousTeamChat(chatId, choiceIdx) {
     : ce?.setArc || (quality === "POOR" && chat.category === "RAIVA" ? "TRETA_ABERTA" : quality === "GREAT" && (chat.category === "ELOGIO" || chat.category === "CRIAR_TECNICA") ? "PARCERIA_EM_ALTA" : null);
   if (targetArc && selectedIds.length >= 2 && typeof setBetaPairArc === "function") {
     setBetaPairArc(state.squad[selectedIds[0]], state.squad[selectedIds[1]], targetArc, chat.title, t);
-    if (targetArc === "TRETA_ABERTA") extraOutcomeTxt += ` • <span style="color:#fca5a5;">🔥 Treta Aberta</span>`;
+    if (targetArc === "TRETA_ABERTA") {
+      const createdPlot = ensureCityPlotForFeud(t, state.squad[selectedIds[0]], state.squad[selectedIds[1]], chat.title);
+      extraOutcomeTxt += ` • <span style="color:#fca5a5;">🔥 Treta Aberta${createdPlot ? ` (Resolver em ${escapeHtml(createdPlot.locLabel)})` : ""}</span>`;
+    }
     else if (targetArc === "RECONCILIADOS") extraOutcomeTxt += ` • <span class="b-chem">✨ Reconciliados</span>`;
     else if (targetArc === "RIVALIDADE_FRIA") extraOutcomeTxt += ` • <span style="color:#fde68a;">⚔️ Rivalidade Fria</span>`;
     else if (targetArc === "PARCERIA_EM_ALTA") extraOutcomeTxt += ` • <span class="b-tech">🤝 Parceria em Alta</span>`;
@@ -9092,7 +9356,7 @@ function resolveSpontaneousTeamChat(chatId, choiceIdx) {
       quality,
       chat.category,
       configChanges,
-      chat.ctx || {},
+      { ...(chat.ctx || {}), existingMessages: chat.messages },
       baseReactionCount,
       learnedCoop
     );
@@ -9116,6 +9380,21 @@ function resolveSpontaneousTeamChat(chatId, choiceIdx) {
   chat.learnedCoop = learnedCoop;
   chat.grantedBuff = grantedBuff;
   chat.appliedConfigChanges = configChanges;
+  chat.needsFormationAdjust = Boolean(
+    choice?.tacticsPatch?.formation ||
+    choice?.openFormationModal ||
+    /forma[çc][ãa]o|escala[çc][ãa]o/i.test(chat.title || "") ||
+    /formation/i.test(chat.templateId || "")
+  );
+  if (choice?.questSpec && typeof choice.questSpec === "object") {
+    if (typeof ensureBetaDynamicsState === "function") ensureBetaDynamicsState(t);
+    if (!Array.isArray(t.pendingMatchQuests)) t.pendingMatchQuests = [];
+    t.pendingMatchQuests.push({
+      ...choice.questSpec,
+      completed: false,
+      stageIdx: t.prep?.nextStageIdx ?? t.stageIndex ?? 0
+    });
+  }
   const configOutcome = configChanges.length > 0 ? ` • <span class="b-tech">⚙️ ${configChanges.join(" • ")}</span>` : "";
   chat.outcomeSummary = `<strong>${headerDesc}</strong> ${baseStatParts.join(" · ")}${extraOutcomeTxt}${configOutcome}`;
   t.prepBonuses.log.push(`Chat (${chat.title}): ${quality}${learnedCoop.learned ? ` + ${learnedCoop.move}` : ""}${configChanges.length ? ` [${configChanges.join(", ")}]` : ""}`);
@@ -9231,16 +9510,19 @@ function runStreet5v5Challenge() {
         }
       }
       
+      const plotNote5v5 = typeof resolveCityPlotsForLocation === "function"
+        ? resolveCityPlotsForLocation(t, prep.locId || "riverbank", "Desafio 5x5 Margem do Rio")
+        : "";
       // Se venceu e havia um craque adversário, abre a oportunidade de RECRUTAMENTO!
       if (won && c5.starRecruit) {
         prep.phase = "RECRUIT_OFFER";
         prep.recruitCandidate = c5.starRecruit;
-        prep.appliedMsg = `Vitória épica por Gol de Ouro (1 x 0${scorerName ? ` · ${scorerName}` : ""})! Os 5 participantes ganharam +95 a +115 XP${drinkMsg} e o craque rival ${c5.starRecruit.player.name} (OVR ${c5.starRecruit.player.ovr}) quer se juntar ao seu Dream Team!`;
+        prep.appliedMsg = `Vitória épica por Gol de Ouro (1 x 0${scorerName ? ` · ${scorerName}` : ""})! Os 5 participantes ganharam +95 a +115 XP${drinkMsg} e o craque rival ${c5.starRecruit.player.name} (OVR ${c5.starRecruit.player.ovr}) quer se juntar ao seu Dream Team!${plotNote5v5}`;
       } else {
         prep.phase = "DONE";
-        prep.appliedMsg = won
+        prep.appliedMsg = (won
           ? `Vitória por Gol de Ouro (1 x 0${scorerName ? ` · ${scorerName}` : ""})! Todos os 5 participantes ganharam +95 a +115 XP${drinkMsg} e o time ganhou +${pwr} Poder!`
-          : `Os Desafiantes venceram o Gol de Ouro (0 x 1). O time sentiu a pressão (-20 Poder), mas ganhou +${totalXpGiven} XP de aprendizado.`;
+          : `Os Desafiantes venceram o Gol de Ouro (0 x 1). O time sentiu a pressão (-20 Poder), mas ganhou +${totalXpGiven} XP de aprendizado.`) + plotNote5v5;
       }
       renderAll();
     }
@@ -9966,7 +10248,11 @@ function buildBetweenMatchPrepHTML(t, stats) {
                 const isDisabled = loc.isRestLocation
                   ? isRestUsed
                   : (isNoActions || curTeamEnergy < reqCost);
-                const pinTitle = loc.isRestLocation
+                const locPlot = isBetaChatOn && Array.isArray(t.activeCityPlots)
+                  ? t.activeCityPlots.find((pl) => pl && !pl.resolved && pl.locId === loc.id)
+                  : null;
+                const plotHint = locPlot ? ` • Trama ativa: ${locPlot.aName} x ${locPlot.bName}` : "";
+                const pinTitle = (loc.isRestLocation
                   ? isRestUsed
                     ? `${loc.title} — Descanso já utilizado nesta rodada`
                     : isRestEarlyDay
@@ -9976,16 +10262,18 @@ function buildBetweenMatchPrepHTML(t, stats) {
                   ? `${loc.title} — Ações desta rodada encerradas`
                   : isDisabled
                   ? `${loc.title} — Energia insuficiente (precisa de ${reqCost}%)`
-                  : `${loc.title} — ${loc.sub}`;
+                  : `${loc.title} — ${loc.sub}`) + plotHint;
                 const energyBadge = loc.isRestLocation
                   ? `<span class="pin-energy-tag is-gain">${isRestUsed ? "Usado" : isRestEarlyDay ? "Encerra Dia" : "Grátis"}</span>`
                   : `<span class="pin-energy-tag is-cost">-${reqCost}%</span>`;
+                const plotTagHTML = locPlot ? `<span class="pin-plot-tag" title="Trama aberta no vestiário">🔥 Trama</span>` : "";
                 return `
-            <div class="prep-map-pin ${loc.isRestLocation ? "is-rest-pin" : ""} ${isRestReadyNight ? "is-night-highlight" : isRestReady ? "is-rest-open" : ""} ${isDisabled ? "is-disabled" : ""}" data-prep-loc="${loc.id}" style="left:${loc.mapX || 50}%; top:${loc.mapY || 50}%;" title="${pinTitle}">
+            <div class="prep-map-pin ${loc.isRestLocation ? "is-rest-pin" : ""} ${isRestReadyNight ? "is-night-highlight" : isRestReady ? "is-rest-open" : ""} ${locPlot ? "has-city-plot" : ""} ${isDisabled ? "is-disabled" : ""}" data-prep-loc="${loc.id}" style="left:${loc.mapX || 50}%; top:${loc.mapY || 50}%;" title="${pinTitle}">
               <div class="prep-map-pin-orb">
                 ${loc.badgeIcon ? `<img class="pin-main-icon" src="${loc.badgeIcon}" alt="" />` : ""}
                 ${loc.subIcon ? `<span class="prep-map-pin-sub"><img src="${loc.subIcon}" alt="" /></span>` : ""}
                 ${energyBadge}
+                ${plotTagHTML}
               </div>
               <span class="prep-map-pin-label">${loc.mapLabel || loc.title}</span>
             </div>
@@ -10510,6 +10798,9 @@ function buildBetweenMatchPrepHTML(t, stats) {
               <div id="wpp-resolved-bar" class="wpp-resolved-bar${animFrom >= 0 ? " is-wpp-hidden" : ""}">
                 <div class="synergy-outcome-card ${qualCls}">${activeChat.outcomeSummary || ""}</div>
                 <div class="wpp-resolved-actions">
+                  ${activeChat.needsFormationAdjust
+                    ? `<button type="button" class="ie-cmd-btn ie-cmd-blue" id="btn-chat-open-formation"><span>📐 Ajustar Formação e Escalação</span></button>`
+                    : ""}
                   ${nextUnread
                     ? `<button type="button" class="ie-cmd-btn ie-cmd-gold" id="btn-next-unread-chat" data-next-chat-id="${nextUnread.id}"><span>Próxima Conversa (${unreadThreads.length}) →</span></button>`
                     : ""}
