@@ -1712,7 +1712,7 @@ function openSettingsModal() {
 
 function init() {
   const topEmblem = document.getElementById("topbar-emblem");
-  if (topEmblem && UI.raimonEmblem) {
+  if (topEmblem && topEmblem.tagName === "IMG" && UI.raimonEmblem) {
     topEmblem.src = UI.raimonEmblem;
   }
 

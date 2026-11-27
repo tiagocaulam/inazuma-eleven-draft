@@ -4,14 +4,22 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Inazuma Eleven Dream Team</title>
-  <link rel="stylesheet" href="style.css?v=20261127d" />
+  <link rel="stylesheet" href="style.css?v=20261127e" />
 </head>
 <body>
   <header class="topbar">
     <div class="brand" id="topbar-brand">
-      <div class="topbar-crest-badge">
-        <img id="topbar-emblem" class="brand-emblem-img" alt="Inazuma" />
-      </div>
+      <svg id="topbar-emblem" class="brand-bolt-svg" viewBox="0 0 36 36" fill="none" aria-hidden="true">
+        <defs>
+          <linearGradient id="ieTopBoltGrad" x1="6" y1="2" x2="28" y2="34" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stop-color="#fef08a" />
+            <stop offset="52%" stop-color="#facc15" />
+            <stop offset="100%" stop-color="#ea580c" />
+          </linearGradient>
+        </defs>
+        <path d="M21.5 2L7.5 19.2h8.1L12.5 34l16-18.8h-8.3L21.5 2z" fill="url(#ieTopBoltGrad)" stroke="#091530" stroke-width="2" stroke-linejoin="round" />
+        <path d="M20.2 5.4L10.8 17.3h5.4l4-11.9z" fill="#ffffff" fill-opacity="0.42" />
+      </svg>
       <div class="brand-text-col">
         <h1>INAZUMA ELEVEN</h1>
         <span class="brand-sub" id="topbar-brand-sub">DREAM TEAM • MODO RELÂMPAGO</span>
@@ -82,18 +90,18 @@
     <section class="screen-card" id="main-screen-container"></section>
   </main>
 
-  <script src="ui_assets.js?v=20261127d"></script>
-  <script src="data.js?v=20261127d"></script>
-  <script src="ranking_config.js?v=20261127d"></script>
-  <script src="js/core.js?v=20261127d"></script>
-  <script src="js/sfx.js?v=20261127d"></script>
-  <script src="js/draft_tournament.js?v=20261127d"></script>
-  <script src="js/match_render.js?v=20261127d"></script>
-  <script src="js/penalties.js?v=20261127d"></script>
-  <script src="js/match_physics.js?v=20261127d"></script>
-  <script src="js/menu_ranking_save.js?v=20261127d"></script>
-  <script src="js/inazap_engine.js?v=20261127d"></script>
-  <script src="js/prep.js?v=20261127d"></script>
-  <script src="js/ui_main.js?v=20261127d"></script>
+  <script src="ui_assets.js?v=20261127e"></script>
+  <script src="data.js?v=20261127e"></script>
+  <script src="ranking_config.js?v=20261127e"></script>
+  <script src="js/core.js?v=20261127e"></script>
+  <script src="js/sfx.js?v=20261127e"></script>
+  <script src="js/draft_tournament.js?v=20261127e"></script>
+  <script src="js/match_render.js?v=20261127e"></script>
+  <script src="js/penalties.js?v=20261127e"></script>
+  <script src="js/match_physics.js?v=20261127e"></script>
+  <script src="js/menu_ranking_save.js?v=20261127e"></script>
+  <script src="js/inazap_engine.js?v=20261127e"></script>
+  <script src="js/prep.js?v=20261127e"></script>
+  <script src="js/ui_main.js?v=20261127e"></script>
 </body>
 </html>

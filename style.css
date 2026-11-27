@@ -25,14 +25,8 @@ html {
 
 body {
   font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-  background-color: #040c1f;
-  background-image:
-    radial-gradient(ellipse 68% 42% at 14% 0%, rgba(250, 204, 21, 0.13) 0%, transparent 62%),
-    radial-gradient(ellipse 70% 45% at 88% 4%, rgba(56, 189, 248, 0.18) 0%, transparent 64%),
-    radial-gradient(circle at 50% 18%, rgba(29, 78, 216, 0.42) 0%, rgba(5, 13, 32, 0.96) 68%),
-    radial-gradient(ellipse 90% 34% at 50% 104%, rgba(22, 163, 74, 0.14) 0%, transparent 65%),
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160' viewBox='0 0 160 160'%3E%3Cg fill='none' stroke='%2338bdf8' stroke-opacity='0.055'%3E%3Cpath d='M0 160 L160 0' stroke-width='1'/%3E%3Cpath d='M-40 120 L120 -40' stroke-width='0.8'/%3E%3Ccircle cx='80' cy='80' r='34' stroke-dasharray='5 5' stroke-width='1'/%3E%3C/g%3E%3Cpath d='M84 44 L66 80 H80 L73 114 L96 76 H81 Z' fill='%23facc15' fill-opacity='0.04'/%3E%3C/svg%3E");
-  background-size: auto, auto, auto, auto, 160px 160px;
+  background-color: #030712;
+  background-image: linear-gradient(180deg, #081229 0%, #040814 48%, #02050d 100%);
   color: var(--text-main);
   min-height: 100vh;
   overflow-x: hidden;
@@ -87,23 +81,11 @@ body {
   vertical-align: middle;
 }
 
-/* Topbar estilo Console / Transmissão Inazuma Eleven */
+/* Topbar Limpa Estilo Placar Inazuma Eleven */
 .topbar {
-  background:
-    repeating-linear-gradient(
-      -55deg,
-      rgba(56, 189, 248, 0.045) 0px,
-      rgba(56, 189, 248, 0.045) 10px,
-      transparent 10px,
-      transparent 24px
-    ),
-    linear-gradient(180deg, #163674 0%, #0b1c43 58%, #07122b 100%);
-  border-top: 1px solid rgba(125, 211, 252, 0.35);
+  background: linear-gradient(180deg, #0d1f47 0%, #061026 100%);
   border-bottom: 2px solid var(--ie-gold);
-  box-shadow:
-    0 2px 0 rgba(56, 189, 248, 0.35),
-    0 8px 24px rgba(2, 6, 23, 0.72),
-    inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.68), inset 0 1px 0 rgba(255, 255, 255, 0.12);
   padding: 8px 16px;
   display: flex;
   align-items: center;
@@ -112,46 +94,30 @@ body {
   position: sticky;
   top: 0;
   z-index: 60;
-}
-
-.topbar::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: -2px;
-  height: 3px;
-  background: linear-gradient(90deg, #fde047 0%, #f59e0b 42%, #38bdf8 78%, rgba(56, 189, 248, 0.25) 100%);
-  pointer-events: none;
+  max-width: 100%;
 }
 
 .brand {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 9px;
   min-width: 0;
+  flex: 1 1 auto;
 }
 
-.topbar-crest-badge {
-  width: 39px;
-  height: 39px;
-  border-radius: 9px;
-  transform: skewX(-7deg);
-  background: linear-gradient(145deg, rgba(250, 204, 21, 0.24) 0%, rgba(15, 29, 64, 0.94) 100%);
-  border: 1.5px solid rgba(250, 204, 21, 0.78);
-  box-shadow: 0 0 12px rgba(250, 204, 21, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.35);
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.brand-bolt-svg {
+  width: 30px;
+  height: 30px;
   flex-shrink: 0;
+  display: block;
+  filter: drop-shadow(0 0 6px rgba(250, 204, 21, 0.45));
 }
 
 .brand-emblem-img {
-  width: 28px;
-  height: 28px;
+  width: 32px;
+  height: 32px;
   object-fit: contain;
-  transform: skewX(7deg);
-  filter: drop-shadow(0 1px 4px rgba(0, 0, 0, 0.75));
+  filter: drop-shadow(0 0 6px rgba(250, 204, 21, 0.5));
   flex-shrink: 0;
 }
 
@@ -160,28 +126,23 @@ body {
 }
 
 .brand h1 {
-  font-size: 1.04rem;
+  font-size: 1.02rem;
   font-weight: 900;
   font-style: italic;
-  letter-spacing: 0.7px;
+  letter-spacing: 0.65px;
   background: linear-gradient(180deg, #ffffff 8%, #fde047 62%, #f97316 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.65));
-  line-height: 1.05;
+  line-height: 1.08;
 }
 
 .brand-sub {
-  font-size: 0.6rem;
-  font-weight: 900;
-  letter-spacing: 0.95px;
-  color: #bae6fd;
-  background: rgba(5, 12, 30, 0.72);
-  border: 1px solid rgba(56, 189, 248, 0.32);
-  border-radius: 4px;
-  padding: 1px 7px;
-  margin-top: 2px;
-  display: inline-block;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.9px;
+  color: #7dd3fc;
+  display: block;
   max-width: 100%;
   white-space: nowrap;
   overflow: hidden;
@@ -211,7 +172,10 @@ body {
   border: 2px solid #60a5fa;
   padding: 7px 14px;
   border-radius: 6px;
-  transform: skewX(-7deg);
+  transform: skewX(-5deg);
+  margin-inline: 2px;
+  max-width: calc(100% - 4px);
+  min-width: 0;
   font-size: 0.78rem;
   font-weight: 900;
   text-transform: uppercase;
@@ -226,7 +190,8 @@ body {
 }
 
 .ie-cmd-btn > *, .ui-btn > * {
-  transform: skewX(7deg);
+  transform: skewX(5deg);
+  min-width: 0;
 }
 
 .ie-cmd-btn > span, .ui-btn > span {
@@ -241,7 +206,7 @@ body {
 }
 
 .ie-cmd-btn:active:not(:disabled), .ui-btn:active:not(:disabled) {
-  transform: skewX(-7deg) translateY(2px);
+  transform: skewX(-5deg) translateY(2px);
   box-shadow: 0 1px 0 #050d21;
 }
 
@@ -501,7 +466,9 @@ body {
 
 /* Container Principal */
 .app-wrap {
-  max-width: 940px;
+  width: 100%;
+  max-width: 960px;
+  min-width: 0;
   margin: 0 auto;
   padding: 14px;
   display: flex;
@@ -1045,20 +1012,21 @@ body {
   color: #fecaca;
 }
 
-/* Card Principal da Tela */
+/* Container Principal da Tela (sem moldura externa prendendo o conteúdo) */
 .screen-card {
-  background: linear-gradient(180deg, rgba(13, 30, 68, 0.95) 0%, rgba(7, 17, 40, 0.97) 100%);
-  border: 1.5px solid rgba(56, 189, 248, 0.38);
-  border-top: 2px solid rgba(250, 204, 21, 0.55);
-  border-radius: 14px;
-  padding: 14px;
+  background: transparent;
+  border: none;
+  border-top: none;
+  border-radius: 0;
+  padding: 0;
+  min-width: 0;
+  max-width: 100%;
   display: flex;
   flex-direction: column;
   gap: 12px;
-  box-shadow: 0 14px 38px rgba(0, 0, 0, 0.58), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  box-shadow: none;
 }
 
-/* No Menu Inicial, remove a moldura dupla em volta do card principal */
 body.phase-menu .screen-card,
 .screen-card.is-menu-phase {
   background: transparent;
@@ -1204,11 +1172,16 @@ body.phase-menu .screen-card,
   padding: 12px 14px;
   border-radius: 10px;
   border: 1.5px solid #3b82f6;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .drawn-team-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
+  max-width: 100%;
+  min-width: 0;
 }
 
 /* Grid de Jogadores estilo Binder/Player List do Inazuma */
@@ -2053,10 +2026,12 @@ body.phase-menu .screen-card,
 }
 
 .broadcast-card {
-  background: linear-gradient(180deg, #0c1b3d 0%, #060f24 100%);
+  background: linear-gradient(180deg, #0b1936 0%, #050c1d 100%);
   border: none;
   border-radius: 12px;
   padding: 12px;
+  min-width: 0;
+  max-width: 100%;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -2068,6 +2043,8 @@ body.phase-menu .screen-card,
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .minute-clock {
@@ -4169,26 +4146,34 @@ body.phase-menu .screen-card,
    ========================================================= */
 @media (max-width: 640px) {
   .topbar {
-    padding: 7px 10px;
+    padding: 6px 8px;
+    gap: 6px;
   }
 
-  .topbar-crest-badge {
-    width: 32px;
-    height: 32px;
+  .brand {
+    gap: 7px;
+  }
+
+  .brand-bolt-svg {
+    width: 24px;
+    height: 24px;
   }
 
   .brand-emblem-img {
-    width: 23px;
-    height: 23px;
+    width: 24px;
+    height: 24px;
   }
 
   .brand h1 {
-    font-size: 0.82rem;
+    font-size: 0.78rem;
   }
 
   .brand-sub {
-    font-size: 0.53rem;
-    padding: 1px 5px;
+    font-size: 0.52rem;
+  }
+
+  .topbar-btns {
+    gap: 4px;
   }
 
   .topbar-btn-inner {
@@ -4196,15 +4181,12 @@ body.phase-menu .screen-card,
   }
 
   .start-hero-ff-crest {
-    width: 34px;
-    height: 34px;
-    top: 8px;
-    left: 8px;
+    display: none;
   }
 
   .ie-cmd-btn, .ui-btn {
-    padding: 6px 9px;
-    font-size: 0.69rem;
+    padding: 6px 8px;
+    font-size: 0.67rem;
   }
 
   .app-wrap {
@@ -4241,7 +4223,7 @@ body.phase-menu .screen-card,
   }
 
   .screen-card {
-    padding: 10px;
+    padding: 0;
     gap: 10px;
   }
 
@@ -4695,9 +4677,16 @@ body.phase-menu .screen-card,
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
+  min-width: 0;
+  max-width: 100%;
   padding: 10px 14px;
   border-radius: 12px;
   margin-top: 2px;
+}
+
+.match-finish-bar > div {
+  min-width: 0;
+  flex: 1 1 220px;
 }
 
 .match-finish-bar.is-win {
@@ -5557,26 +5546,31 @@ body.phase-menu .screen-card,
   display: flex;
   flex-direction: column;
   gap: 14px;
-  padding: 16px;
-  border-radius: 14px;
-  background: linear-gradient(165deg, rgba(13, 28, 66, 0.96), rgba(6, 15, 38, 0.98));
-  border: 1.5px solid rgba(59, 130, 246, 0.42);
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45);
+  padding: 4px 0 8px;
+  border-radius: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .prep-top-banner {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 12px;
+  gap: 10px 12px;
   flex-wrap: wrap;
+  min-width: 0;
+  max-width: 100%;
   padding-bottom: 12px;
-  border-bottom: 1px solid rgba(59, 130, 246, 0.28);
+  border-bottom: 1px solid rgba(59, 130, 246, 0.24);
 }
 
 .prep-banner-main {
-  flex: 1 1 320px;
+  flex: 1 1 280px;
   min-width: 0;
+  max-width: 100%;
 }
 
 .prep-banner-actions {
@@ -5585,7 +5579,9 @@ body.phase-menu .screen-card,
   gap: 8px;
   flex-wrap: wrap;
   justify-content: flex-end;
-  flex-shrink: 0;
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .prep-banner-notice {
@@ -5636,7 +5632,9 @@ body.phase-menu .screen-card,
   display: flex;
   flex-direction: column;
   gap: 8px;
-  flex-shrink: 0;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .prep-next-opp-pill {
@@ -8847,8 +8845,11 @@ body.phase-menu .screen-card,
 .continue-run-actions {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 6px;
-  flex-shrink: 0;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .continue-run-btn {
@@ -8908,6 +8909,8 @@ body.phase-menu .screen-card,
   padding: 10px 12px;
   margin: 6px 0 8px 0;
   border-radius: 12px;
+  min-width: 0;
+  max-width: 100%;
   background: linear-gradient(135deg, rgba(13, 28, 66, 0.92), rgba(8, 17, 42, 0.96));
   border: 1.5px solid rgba(59, 130, 246, 0.4);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
@@ -8957,6 +8960,8 @@ body.phase-menu .screen-card,
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .ie-cmd-blue {

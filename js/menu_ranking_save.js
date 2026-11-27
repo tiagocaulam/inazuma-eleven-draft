@@ -19,7 +19,9 @@ function renderHeaderAndBonds() {
     const modeLabel = typeof isBetaMode === "function" && isBetaMode() ? "TESTE BETA" : "MODO RELÂMPAGO";
     const activeTeamDisp = typeof getActiveTeamName === "function" ? getActiveTeamName() : "Dream Team";
     const activeUpper = activeTeamDisp.toUpperCase();
-    if (state.phase === "tournament") {
+    if (state.phase === "menu") {
+      subEl.textContent = `DREAM TEAM • ${modeLabel}`;
+    } else if (state.phase === "tournament") {
       const curSt = state.tournament?.stages?.[state.tournament.stageIndex];
       const comp = state.tournament?.prep
         ? state.tournament.stages?.[state.tournament.prep.nextStageIdx]?.competition
@@ -28,7 +30,8 @@ function renderHeaderAndBonds() {
       subEl.textContent =
         activeTeamDisp !== "Dream Team" ? `${activeUpper} • ${modeLabel} • ${compTag}` : `${modeLabel} • ${compTag}`;
     } else {
-      subEl.textContent = `${activeUpper} • ${modeLabel}`;
+      const draftEntered = String(state.draftTeamName || "").trim();
+      subEl.textContent = draftEntered ? `${draftEntered.toUpperCase()} • ${modeLabel}` : `DREAM TEAM • ${modeLabel}`;
     }
   }
   const headerWrap = document.getElementById("hud-bars-wrap");
