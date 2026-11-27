@@ -2284,6 +2284,9 @@ function buildChatActorProfile(slot, player, t = state.tournament) {
     hasRealOfMove,
     hasRealDfMove,
     hasRealGkMove,
+    teamName: player.teamName || "",
+    teamId: player.teamId || "",
+    ovr: player.ovr || 80,
     keshinName: player.keshin?.name || null,
     equipTitle: Array.isArray(player.equippedItems) && player.equippedItems[0]?.title ? player.equippedItems[0].title : null,
     isCaptain: Boolean(capObj?.player?.id && capObj.player.id === player.id),
@@ -8594,8 +8597,15 @@ function spawnProceduralBetaChat(t = state.tournament, forcedKind = null, opts =
   const oppName = getNextOpponentDisplayName(t);
   const rivalStar = getTopOutfieldRivalHighlight(t);
   const respectInfo = typeof getCoachRespectInfo === "function" ? getCoachRespectInfo(t) : { value: 66, tier: "MID" };
+  const nextStageIdx = prep?.nextStageIdx ?? t?.stageIndex ?? 0;
+  const nextStageObj = t?.stages?.[nextStageIdx];
+  const oppGkElem = (nextStageObj?.oppTeam?.players || []).find((p) => p && p.pos === "GK")?.element || null;
   const ctx = {
     oppName,
+    teamName: typeof getActiveTeamName === "function" ? getActiveTeamName() : "Dream Team",
+    stageIdx: nextStageIdx,
+    stageName: nextStageObj?.stageName || "Fase Decisiva",
+    oppGkElem,
     rivalStar,
     teamEnergy: Math.round(typeof getTeamEnergy === "function" ? getTeamEnergy() : 85),
     teamChem: Math.round(typeof calcSquadStats === "function" ? (calcSquadStats()?.chem || 45) : 45),
@@ -8688,7 +8698,7 @@ function spawnSpontaneousTeamChat(t = state.tournament, forcedCategory = null, o
   const maxChatsThisRound = opts.allowBonusCap ? 3 : 2;
   if (prep.teamChats.length >= maxChatsThisRound) return null;
 
-  if (!opts.contextTrigger && !opts.interactionMode && !forcedCategory && typeof generateProceduralBetaChat === "function" && Math.random() < 0.48) {
+  if (!opts.contextTrigger && !opts.interactionMode && !forcedCategory && typeof generateProceduralBetaChat === "function" && Math.random() < 0.52) {
     const procChat = spawnProceduralBetaChat(t, null, opts);
     if (procChat) return procChat;
   }
@@ -8794,8 +8804,15 @@ function spawnSpontaneousTeamChat(t = state.tournament, forcedCategory = null, o
   const oppName = getNextOpponentDisplayName(t);
   const rivalStar = getTopOutfieldRivalHighlight(t);
   const respectInfo = typeof getCoachRespectInfo === "function" ? getCoachRespectInfo(t) : { value: 66, tier: "MID" };
+  const nextStageIdx = prep?.nextStageIdx ?? t?.stageIndex ?? 0;
+  const nextStageObj = t?.stages?.[nextStageIdx];
+  const oppGkElem = (nextStageObj?.oppTeam?.players || []).find((p) => p && p.pos === "GK")?.element || null;
   const ctx = {
     oppName,
+    teamName: typeof getActiveTeamName === "function" ? getActiveTeamName() : "Dream Team",
+    stageIdx: nextStageIdx,
+    stageName: nextStageObj?.stageName || "Fase Decisiva",
+    oppGkElem,
     rivalStar,
     teamEnergy: Math.round(typeof getTeamEnergy === "function" ? getTeamEnergy() : 85),
     teamChem: Math.round(typeof calcSquadStats === "function" ? (calcSquadStats()?.chem || 45) : 45),
@@ -8906,6 +8923,16 @@ function generateInitialRoundTeamChats(t = state.tournament) {
     } else if (lm.ballHogIncident && Math.random() < 0.85 && typeof spawnProceduralBetaChat === "function") {
       const ch = spawnProceduralBetaChat(t, "POST_MATCH_BALL_HOG", {
         extraCtx: { lastMatch: lm, ballHogIncident: lm.ballHogIncident }
+      });
+      if (ch) created.push(ch);
+    } else if (lm.wasComeback && Math.random() < 0.85 && typeof spawnProceduralBetaChat === "function") {
+      const ch = spawnProceduralBetaChat(t, "POST_MATCH_COMEBACK", {
+        extraCtx: { lastMatch: lm }
+      });
+      if (ch) created.push(ch);
+    } else if (lm.won && (lm.goalDiff || 0) >= 3 && Math.random() < 0.72 && typeof spawnProceduralBetaChat === "function") {
+      const ch = spawnProceduralBetaChat(t, "POST_MATCH_BLOWOUT", {
+        extraCtx: { lastMatch: lm }
       });
       if (ch) created.push(ch);
     }
@@ -9766,7 +9793,7 @@ function runStreet5v5Challenge() {
       if (won && c5.starRecruit) {
         prep.phase = "RECRUIT_OFFER";
         prep.recruitCandidate = c5.starRecruit;
-        prep.appliedMsg = `Vitória épica por Gol de Ouro (1 x 0${scorerName ? ` · ${scorerName}` : ""})! Os 5 participantes ganharam +95 a +115 XP${drinkMsg} e o craque rival ${c5.starRecruit.player.name} (OVR ${c5.starRecruit.player.ovr}) quer se juntar ao seu Dream Team!${plotNote5v5}`;
+        prep.appliedMsg = `Vitória épica por Gol de Ouro (1 x 0${scorerName ? ` · ${scorerName}` : ""})! Os 5 participantes ganharam +95 a +115 XP${drinkMsg} e o craque rival ${c5.starRecruit.player.name} (OVR ${c5.starRecruit.player.ovr}) quer se juntar ao ${typeof getActiveTeamName === "function" ? getActiveTeamName() : "Dream Team"}!${plotNote5v5}`;
       } else {
         prep.phase = "DONE";
         prep.appliedMsg = (won

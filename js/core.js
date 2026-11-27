@@ -886,7 +886,9 @@ function recordBetaPostMatchMemory(st, t = state.tournament) {
     feudSnubs: Number(bStats.feudSnubs) || 0,
     brokenPromises: Number(bStats.brokenPromises) || 0,
     ballHogIncident: bStats.ballHogIncident || null,
-    breakthroughs: Array.isArray(bStats.breakthroughs) ? bStats.breakthroughs : []
+    breakthroughs: Array.isArray(bStats.breakthroughs) ? bStats.breakthroughs : [],
+    wasComeback: Boolean(st.won && (bStats.trailedAtHalftime || ((Number(st.oppScore) || 0) >= 2 && (Number(st.userScore) || 0) > (Number(st.oppScore) || 0)))),
+    goalDiff: (Number(st.userScore) || 0) - (Number(st.oppScore) || 0)
   };
 
   // Ajusta Respeito ao Técnico conforme o resultado em campo

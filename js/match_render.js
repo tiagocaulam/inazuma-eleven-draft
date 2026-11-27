@@ -288,6 +288,12 @@ function showRefereeWhistleModal(st, type, onProceed) {
     typeof buildHalftimeLockerTalk === "function"
       ? buildHalftimeLockerTalk(st)
       : null;
+  if (isHalftime && st && typeof isBetaMode === "function" && isBetaMode()) {
+    st.betaMatchStats = st.betaMatchStats || {};
+    if ((Number(st.userScore) || 0) < (Number(st.oppScore) || 0)) {
+      st.betaMatchStats.trailedAtHalftime = true;
+    }
+  }
   if (isHalftime && st?.pitch) {
     st.pitch.halftimeBuff = null;
   }

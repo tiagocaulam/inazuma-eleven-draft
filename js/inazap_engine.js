@@ -127,21 +127,36 @@
       [/blindar(?:mos)? o vestiário/gi, "fechar o grupo"],
       [/hierarquia ofensiva/gi, "quem decide na frente"],
       [/dentro das quatro linhas/gi, "no campo"],
-      [/administração perfeita/gi, "mando muito bem"],
+      [/administração perfeita/gi, "mandou muito bem"],
       [/elevar o nível/gi, "subir o ritmo"],
       [/fator psicológico/gi, "cabeça no lugar"],
       [/protocolo tático/gi, "esquema de jogo"],
       [/executar até o último segundo do relógio/gi, "correr até o apito final"],
-      [/cumprir minha parte no gramado/gi, "fazer o meu em campo"]
+      [/cumprir minha parte no gramado/gi, "fazer o meu em campo"],
+      [/\bde o (próximo adversário|próximo time|adversário|time)\b/gi, "do $1"],
+      [/\bpra o (próximo adversário|próximo time|adversário|time)\b/gi, "pro $1"],
+      [/\bno o (próximo adversário|próximo time|adversário|time)\b/gi, "no $1"]
     ];
     for (let i = 0; i < naturalSwaps.length; i++) {
       txt = txt.replace(naturalSwaps[i][0], naturalSwaps[i][1]);
     }
 
-    // 3) Pequena variação orgânica por voz (sem exagerar nem quebrar nomes/técnicas)
+    // 3) Variação orgânica estrita por voz (COLD_ACE nunca grita em CAPS nem ri com kkk/haha)
     const p = resolveInazumaPersona(actor);
     if (p.voice === "COLD_ACE") {
-      txt = txt.replace(/^Haha[,!]?\s*/i, "");
+      txt = txt
+        .replace(/^(Haha|K+k+|Rs+|Aeee+)[,!.\s]*/i, "")
+        .replace(/(?:^|\s)(k{2,}|haha+|rs+|aeee+)[!?.]*(?=\s|$|[,.])/gi, "")
+        .replace(/\?{2,}/g, "?")
+        .replace(/!{2,}/g, ".")
+        .replace(/\b([A-ZÀ-Ÿ]{5,})\b/g, (w) => {
+          if (/^(EX|GK|FW|MF|DF|OVR|FFI|INAZUMA)$/.test(w)) return w;
+          return w.toLowerCase();
+        })
+        .replace(/\s{2,}/g, " ")
+        .trim();
+      txt = txt.replace(/^([a-zà-ÿ])/, (_, ch) => ch.toUpperCase());
+      if (txt && !/[.!?]$/.test(txt)) txt += ".";
     } else if (p.voice === "REBEL_TROLL" || p.voice === "CHILL_JOKER") {
       txt = txt.replace(/\bHaha\b/g, "kkk");
     }
@@ -198,43 +213,75 @@
     return raw.replace(/^[^:]+:\s*/, "").trim();
   }
 
+  function moveWithArticle(moveName, prep = "") {
+    const clean = String(moveName || "técnica").trim();
+    const low = clean.toLowerCase();
+    let art = "o";
+    if (/^(asas|chamas|garras|ondas|estrelas|l[aâ]minas|sombras|espadas|rosas|balas)\b/i.test(low)) {
+      art = "as";
+    } else if (/^(pinguins|raios|meteoros|lobos|drag[õo]es|ventos|golpes|punhos|canh[õo]es|furac[õo]es|tornados|disparos|chutes|olhos)\b/i.test(low)) {
+      art = "os";
+    } else if (/^(grande\s+(muralha|barreira|defesa|torre)|m[aã]o|barreira|muralha|torre|rede|dan[çc]a|finta|bola|espiral|l[aâ]mina|estrela|zona|defesa|guarda|asa|chama|aura|tempestade|origem|lenda|f[eê]nix|flecha|garra|for[çc]a|onda|flor|luz|sombra|nevasca|avalanche|espada|cruz|corrida|roleta|parede|cortina|explos[aã]o|ilus[aã]o|miragem|chuva|queda|presa|serpente|corrente|pris[aã]o|esfera|rajada|lan[çc]a|ponte|roda|t[eé]cnica)\b/i.test(low)) {
+      art = "a";
+    }
+    if (prep === "de") {
+      const map = { a: "da", o: "do", as: "das", os: "dos" };
+      return `${map[art]} ${clean}`;
+    }
+    if (prep === "em") {
+      const map = { a: "na", o: "no", as: "nas", os: "nos" };
+      return `${map[art]} ${clean}`;
+    }
+    if (prep === "com") {
+      return `com ${art} ${clean}`;
+    }
+    if (prep === "para") {
+      const map = { a: "pra", o: "pro", as: "pras", os: "pros" };
+      return `${map[art]} ${clean}`;
+    }
+    return `${art} ${clean}`;
+  }
+
   function describeActorMoveAction(actor = {}, ctx = {}) {
     const move = ctx.sigMove || actor.sigMove || "minha técnica";
     const cat = ctx.sigMoveCat || actor.sigMoveCat || (actor.role === "GK" ? "GK" : actor.role === "DF" ? "DF" : actor.role === "MF" ? "OF" : "SH");
     const opp = ctx.oppName || "eles";
+    const mArt = moveWithArticle(move);
+    const mEm = moveWithArticle(move, "em");
+    const mCom = moveWithArticle(move, "com");
     if (cat === "GK") {
       return {
         cat,
         move,
-        clutchLine: `Com a ${move} fechando o gol, ${opp} não passa lá atrás hoje.`,
-        supportLine: `lá atrás o gol tá trancado com a ${move}!`,
-        breakLine: `Se tentarem chutar da entrada da área eu seguro na ${move}.`
+        clutchLine: `${mCom.charAt(0).toUpperCase() + mCom.slice(1)} fechando o gol, ${opp} não passa lá atrás hoje.`,
+        supportLine: `lá atrás o gol tá trancado ${mCom}!`,
+        breakLine: `Se tentarem chutar da entrada da área eu seguro ${mEm}.`
       };
     }
     if (cat === "DF") {
       return {
         cat,
         move,
-        clutchLine: `Se o ataque de ${opp} tentar entrar na área, eu travo na hora com a ${move}.`,
-        supportLine: `na marcação eu fecho a porta com a ${move}!`,
-        breakLine: `Quem tentar passar por mim para na ${move}.`
+        clutchLine: `Se o ataque de ${opp} tentar entrar na área, eu travo na hora ${mCom}.`,
+        supportLine: `na marcação eu fecho a porta ${mCom}!`,
+        breakLine: `Quem tentar passar por mim para ${mEm}.`
       };
     }
     if (cat === "OF") {
       return {
         cat,
         move,
-        clutchLine: `Se der meio metro de espaço, eu corto a marcação com a ${move} e deixo alguém na cara do gol.`,
-        supportLine: `se abrir corredor no meio eu passo liso com a ${move}!`,
-        breakLine: `Com a ${move} eu limpo dois marcadores e sirvo na boa.`
+        clutchLine: `Se der meio metro de espaço, eu corto a marcação ${mCom} e deixo alguém na cara do gol.`,
+        supportLine: `se abrir corredor no meio eu passo liso ${mCom}!`,
+        breakLine: `${mCom.charAt(0).toUpperCase() + mCom.slice(1)} eu limpo dois marcadores e sirvo na boa.`
       };
     }
     return {
       cat: "SH",
       move,
-      clutchLine: `Se der espaço pra ${move}, o goleiro de ${opp} nem vê a cor da bola.`,
-      supportLine: `se sobrar na área eu solto a ${move}!`,
-      breakLine: `Quando eu engatilhar a ${move}, a zaga deles não acompanha.`
+      clutchLine: `Se der espaço ${moveWithArticle(move, "para")}, o goleiro de ${opp} nem vê a cor da bola.`,
+      supportLine: `se sobrar na área eu solto ${mArt}!`,
+      breakLine: `Quando eu engatilhar ${mArt}, a zaga deles não acompanha.`
     };
   }
 
@@ -242,14 +289,14 @@
     if (!Array.isArray(pool) || pool.length === 0) return null;
     const store = t && typeof t === "object" ? t : null;
     const history = store && Array.isArray(store._usedInaZapLineKeys) ? store._usedInaZapLineKeys : [];
-    const recentSet = new Set(history.slice(-55));
+    const recentSet = new Set(history.slice(-85));
     const isFreshInThread = (item) => {
       if (!threadUsedSet || !item?.text) return true;
       return !threadUsedSet.has(String(item.text).trim().toLowerCase());
     };
     let candidates = pool.filter((item) => item && item.key && !recentSet.has(item.key) && isFreshInThread(item));
     if (candidates.length === 0) {
-      const shorterSet = new Set(history.slice(-18));
+      const shorterSet = new Set(history.slice(-24));
       candidates = pool.filter((item) => item && item.key && !shorterSet.has(item.key) && isFreshInThread(item));
     }
     if (candidates.length === 0) {
@@ -260,8 +307,8 @@
     if (store && chosen?.key) {
       if (!Array.isArray(store._usedInaZapLineKeys)) store._usedInaZapLineKeys = [];
       store._usedInaZapLineKeys.push(chosen.key);
-      if (store._usedInaZapLineKeys.length > 90) {
-        store._usedInaZapLineKeys = store._usedInaZapLineKeys.slice(-90);
+      if (store._usedInaZapLineKeys.length > 140) {
+        store._usedInaZapLineKeys = store._usedInaZapLineKeys.slice(-140);
       }
     }
     return chosen;
@@ -269,11 +316,14 @@
 
   function getPersonaReplyBank(voice, ctx = {}) {
     const opp = ctx.oppName || "eles";
-    const oppShort = shortFirstName(opp);
     const move = ctx.sigMove || "minha técnica";
     const other = ctx.otherName || "galera";
     const tac = humanizeTacticalChangeForChat(ctx.tacText || "");
     const coopMove = ctx.coopMove || "";
+    const mArt = moveWithArticle(move);
+    const mDe = moveWithArticle(move, "de");
+    const mEm = moveWithArticle(move, "em");
+    const mCom = moveWithArticle(move, "com");
     const mv = describeActorMoveAction(ctx.actor || {}, {
       sigMove: move,
       sigMoveCat: ctx.sigMoveCat,
@@ -285,47 +335,58 @@
         GREAT: [
           { key: "cf_g1", text: `É isso aí, professor!! Com o time fechado assim ninguém segura a gente contra ${opp}!` },
           { key: "cf_g2", text: `Boraaa! Essa energia no grupo já me deu pilha pra treinar mais duas horas!`, extra: `E pode ter certeza, ${mv.supportLine}` },
-          { key: "cf_g3", text: tac ? `Curti demais apostar na ${tac}! Bora entrar mordendo desde o primeiro minuto!` : `Tô arrepiado já, sério. Bora fazer valer cada gota de suor contra ${opp}!` },
-          { key: "cf_g4", text: `Futebol é isso aqui, ${other}! Quando todo mundo olha pro mesmo lado sai jogada gigante!` }
+          { key: "cf_g3", text: tac ? `Curti demais apostar em ${tac}! Bora entrar mordendo desde o primeiro minuto!` : `Tô arrepiado já, sério. Bora fazer valer cada gota de suor contra ${opp}!` },
+          { key: "cf_g4", text: `Futebol é isso aqui, ${other}! Quando todo mundo olha pro mesmo lado sai jogada gigante!` },
+          { key: "cf_g5", text: `Com esse foco contra ${opp}, a torcida vai sair do estádio sem voz!` }
         ],
         GOOD: [
-          { key: "cf_ok1", text: tac ? `Fechado na ${tac}! Todo mundo ajudando na marcação fica bem mais leve!` : `Boa, professor! Se a gente correr um pelo outro já muda a cara do jogo.` },
+          { key: "cf_ok1", text: tac ? `Fechado em ${tac}! Todo mundo ajudando na marcação fica bem mais leve!` : `Boa, professor! Se a gente correr um pelo outro já muda a cara do jogo.` },
           { key: "cf_ok2", text: `Beleza! Já vou avisando a linha de trás pra ninguém desligar contra ${opp}.` },
-          { key: "cf_ok3", text: `Tamo junto nessa! Agora é ir pro campo e testar na prática.` }
+          { key: "cf_ok3", text: `Tamo junto nessa! Agora é ir pro campo e testar na prática.` },
+          { key: "cf_ok4", text: `Firmeza, ${other}! Cada bola dividida contra ${opp} vai ser nossa!` }
         ],
         TRADEOFF: [
           { key: "cf_tr1", text: `Beleza, professor. Tem risco, mas futebol sem coragem não tem graça nenhuma!` },
-          { key: "cf_tr2", text: tac ? `Vai exigir mais fôlego com ${tac}, então bora puxar o ritmo no aquecimento!` : `Se apertar lá atrás eu mesmo cubro a sobra, pode deixar comigo.` }
+          { key: "cf_tr2", text: tac ? `Vai exigir mais fôlego com ${tac}, então bora puxar o ritmo no aquecimento!` : `Se apertar lá atrás eu mesmo cubro a sobra, pode deixar comigo.` },
+          { key: "cf_tr3", text: `Aposta alta pede entrega dobrada! Bora segurar juntos em campo!` }
         ],
         POOR: [
           { key: "cf_bd1", text: `Pô professor... eu vou dar o sangue igual, mas senti que a galera ficou meio travada.` },
-          { key: "cf_bd2", text: `Eita, assim o clima pesa antes do jogo. Bora tentar não levar isso pro campo, pessoal.` }
+          { key: "cf_bd2", text: `Eita, assim o clima pesa antes do jogo. Bora tentar não levar isso pro campo, pessoal.` },
+          { key: "cf_bd3", text: `Não curti muito o rumo, mas vestiário campeão resolve jogando bola!` }
         ],
         CHIME_RAGE: [
           { key: "cf_cr1", text: `Ei ei, para tudo vocês dois! A gente tá no mesmo barco contra ${opp}!` },
-          { key: "cf_cr2", text: `Calma aí, ${other}! Não deixa uma discussão boba esfriar o nosso treino!` }
+          { key: "cf_cr2", text: `Calma aí, ${other}! Não deixa uma discussão boba esfriar o nosso treino!` },
+          { key: "cf_cr3", text: `Respirem fundo os dois! Se dividirmos o grupo agora quem ganha é ${opp}!` },
+          { key: "cf_cr4", text: `Bora focar no escudo que a gente carrega antes de sair trocando farpa aqui!` }
         ],
         CHIME_HYP: [
           { key: "cf_ch1", text: `Tô dentro total! Se der brecha eu grito na hora pra gente encaixar!` },
-          { key: "cf_ch2", text: `Cara, que absurdo vai ficar isso quando sair no meio do jogo!!` }
+          { key: "cf_ch2", text: `Cara, que absurdo vai ficar isso quando sair contra ${opp}!!` },
+          { key: "cf_ch3", text: `Essa é a faísca que faltava! Quero ver todo mundo ligado no lance!` },
+          { key: "cf_ch4", text: `Se precisarem de corredor aberto ou apoio no lance, tô colado com vocês!` }
         ]
       },
 
       COLD_ACE: {
         GREAT: [
           { key: "ca_g1", text: `Fechado. Toca no tempo certo que o gol sai.` },
-          { key: "ca_g2", text: tac ? `Bom ajuste na ${tac}. Agora é mostrar contra ${opp}.` : `Certo. Só façam a parte de vocês que eu resolvo no meu setor.` },
+          { key: "ca_g2", text: tac ? `Bom ajuste em ${tac}. Agora é mostrar contra ${opp}.` : `Certo. Só façam a parte de vocês que eu resolvo no meu setor.` },
           { key: "ca_g3", text: mv.clutchLine },
-          { key: "ca_g4", text: `${other}, mantém o olho na minha corrida. Um segundo basta.` }
+          { key: "ca_g4", text: `${other}, mantém o olho na minha corrida. Um segundo basta.` },
+          { key: "ca_g5", text: `Objetivo claro. Contra ${opp} ninguém vacila.` }
         ],
         GOOD: [
           { key: "ca_ok1", text: `Certo. Faz sentido pra cima de ${opp}.` },
           { key: "ca_ok2", text: `Ok. Foca no treino que eu tô pronto.` },
-          { key: "ca_ok3", text: `Beleza, menos conversa e mais jogo.` }
+          { key: "ca_ok3", text: `Beleza, menos conversa e mais jogo.` },
+          { key: "ca_ok4", text: `Combinado, ${other}. Só manter o ritmo.` }
         ],
         TRADEOFF: [
           { key: "ca_tr1", text: `Tem custo, mas funciona. Eu banco lá na frente.` },
-          { key: "ca_tr2", text: tac ? `Aceito o risco com ${tac}. Só não vacilem na saída.` : `Tanto faz o desgaste. O que importa é vencer ${opp}.` }
+          { key: "ca_tr2", text: tac ? `Aceito o risco com ${tac}. Só não vacilem na saída.` : `Tanto faz o desgaste. O que importa é vencer ${opp}.` },
+          { key: "ca_tr3", text: `Ousado. Desde que a bola chegue inteira, por mim tudo bem.` }
         ],
         POOR: [
           { key: "ca_bd1", text: `...Decisão estranha, técnico.` },
@@ -334,69 +395,89 @@
         ],
         CHIME_RAGE: [
           { key: "ca_cr1", text: `Chega. Os dois estão falando demais.` },
-          { key: "ca_cr2", text: `Se tiverem essa energia toda pra marcar ${opp}, o jogo já ajuda.` }
+          { key: "ca_cr2", text: `Se tiverem essa energia toda pra marcar ${opp}, já ajuda.` },
+          { key: "ca_cr3", text: `Discussão inútil. Resolvam treinando.` },
+          { key: "ca_cr4", text: `Poupem fôlego pro jogo.` }
         ],
         CHIME_HYP: [
           { key: "ca_ch1", text: `Interessante. Se abrir o corredor eu entro.` },
-          { key: "ca_ch2", text: `Não atrasem o passe. Só isso.` }
+          { key: "ca_ch2", text: `Não atrasem o passe. Só isso.` },
+          { key: "ca_ch3", text: `Boa ideia. Dá pra quebrar a marcação de ${opp} nisso.` },
+          { key: "ca_ch4", text: `Me acionem na hora certa que funciona.` }
         ]
       },
 
       TACTICIAN: {
         GREAT: [
           { key: "tc_g1", text: tac ? `Boa leitura, técnico! Com ${tac}, o meio de ${opp} vai abrir espaço nas costas dos volantes.` : `Exato! Se a gente girar a bola rápido pelo meio, ${opp} não acompanha a troca.` },
-          { key: "tc_g2", text: mv.cat === "DF" || mv.cat === "GK" ? `${other}, se você fechar a primeira linha comigo, a gente trava o ataque de ${opp} na ${move}.` : `${other}, se você puxar um marcador quando eu preparar a ${move}, a linha deles quebra inteira.` },
-          { key: "tc_g3", text: `Perfeito. Já até marquei onde costuma sobrar o rebote contra o esquema deles.` }
+          { key: "tc_g2", text: mv.cat === "DF" || mv.cat === "GK" ? `${other}, se você fechar a primeira linha comigo, a gente trava o ataque de ${opp} ${mCom}.` : `${other}, se você puxar um marcador quando eu preparar ${mArt}, a linha deles quebra inteira.` },
+          { key: "tc_g3", text: `Perfeito. Já até marquei onde costuma sobrar o rebote contra o esquema deles.` },
+          { key: "tc_g4", text: `Com essa organização, cada passe nosso contra ${opp} vai ter dois alvos livres.` }
         ],
         GOOD: [
           { key: "tc_ok1", text: `Faz bastante sentido. Dá pra controlar o ritmo sem se expor.` },
           { key: "tc_ok2", text: tac ? `Anotado sobre ${tac}. Só precisamos sincronizar a distância entre linhas.` : `Certo, vou ajustar a leitura de passe pensando nisso.` },
-          { key: "tc_ok3", text: `Boa, assim ninguém corre errado atrás da bola.` }
+          { key: "tc_ok3", text: `Boa, assim ninguém corre errado atrás da bola.` },
+          { key: "tc_ok4", text: `Equilibrado, ${other}. Dá pra rodar o jogo com tranquilidade.` }
         ],
         TRADEOFF: [
           { key: "tc_tr1", text: `É uma aposta ousada. Ganha poder de fogo mas exige cobertura rápida se perdermos a bola.` },
-          { key: "tc_tr2", text: `Beleza, vou ficar de olho na transição de ${opp} pra não deixar buraco.` }
+          { key: "tc_tr2", text: `Beleza, vou ficar de olho na transição de ${opp} pra não deixar buraco.` },
+          { key: "tc_tr3", text: `Tem margem de risco calculada. Se ajustarmos o tempo da pressão, compensa.` }
         ],
         POOR: [
           { key: "tc_bd1", text: `Sinceramente, professor? Esse plano entrega exatamente o espaço que ${opp} gosta.` },
-          { key: "tc_bd2", text: `Não curti a ideia, mas vou tentar consertar o posicionamento na hora.` }
+          { key: "tc_bd2", text: `Não curti a ideia, mas vou tentar consertar o posicionamento na hora.` },
+          { key: "tc_bd3", text: `Vamos ficar com a linha curta se jogarmos assim... olho atento lá atrás.` }
         ],
         CHIME_RAGE: [
           { key: "tc_cr1", text: `Pessoal, brigar aqui só ajuda ${opp}. Olhem pro que a gente precisa ajustar no campo.` },
-          { key: "tc_cr2", text: `Os dois têm parte de razão, mas se não conversarem direito vai dar erro de passe na hora H.` }
+          { key: "tc_cr2", text: `Os dois têm parte de razão, mas se não conversarem direito vai dar erro de passe na hora H.` },
+          { key: "tc_cr3", text: `Se a comunicação quebrar fora de campo, dentro dele o meio-campo vira uma peneira.` },
+          { key: "tc_cr4", text: `Baixem a temperatura, ${other}. A gente precisa das duas cabeças frescas contra ${opp}.` }
         ],
         CHIME_HYP: [
           { key: "tc_ch1", text: `O ângulo dessa jogada é ótimo. Se soltar de primeira não tem interceptação que pegue.` },
-          { key: "tc_ch2", text: `Eu calculo o tempo da tabela com vocês, manda o sinal no treino.` }
+          { key: "tc_ch2", text: `Eu calculo o tempo da tabela com vocês, manda o sinal no treino.` },
+          { key: "tc_ch3", text: `Se puxarmos dois marcadores pro centro, essa saída abre um clarão.` },
+          { key: "tc_ch4", text: `Tecnicamente é exatamente o ponto fraco da defesa de ${opp}!` }
         ]
       },
 
       HOTHEAD: {
         GREAT: [
           { key: "hh_g1", text: `Aí sim!! Tava na hora de partir pra cima sem medo de ${opp}!!` },
-          { key: "hh_g2", text: mv.cat === "DF" || mv.cat === "GK" ? `Quero ver o ataque deles passar da minha ${move} depois dessa conversa!` : `Quero ver a zaga deles aguentar minha ${move} depois dessa conversa!` },
-          { key: "hh_g3", text: tac ? `Mandar ${tac} agora ficou brabo demais!! Bora atropelar!` : `É disso que eu tô falando! Agora ninguém tira o olho da bola!` }
+          { key: "hh_g2", text: mv.cat === "DF" || mv.cat === "GK" ? `Quero ver o ataque deles passar ${mDe} depois dessa conversa!` : `Quero ver a zaga deles aguentar ${mArt} depois dessa conversa!` },
+          { key: "hh_g3", text: tac ? `Mandar ${tac} agora ficou brabo demais!! Bora atropelar!` : `É disso que eu tô falando! Agora ninguém tira o olho da bola!` },
+          { key: "hh_g4", text: `Agora sim o sangue ferveu do jeito certo! Coitado de ${opp}!` }
         ],
         GOOD: [
           { key: "hh_ok1", text: `Beleza, fechou! Só quero intensidade lá dentro.` },
           { key: "hh_ok2", text: `Tô pronto já. Se ${opp} vier duro eu respondo em campo!` },
-          { key: "hh_ok3", text: `Demorou, ${other}, agora sim vamos jogar sério.` }
+          { key: "hh_ok3", text: `Demorou, ${other}, agora sim vamos jogar sério.` },
+          { key: "hh_ok4", text: `Bora pra cima então, sem moleza em dividida nenhuma!` }
         ],
         TRADEOFF: [
           { key: "hh_tr1", text: `Pode mandar o risco! Melhor morrer tentando ganhar do que ficar assistindo ${opp} jogar!` },
-          { key: "hh_tr2", text: `Se cansar eu corro na raça mesmo, tô nem aí!` }
+          { key: "hh_tr2", text: `Se cansar eu corro na raça mesmo, tô nem aí!` },
+          { key: "hh_tr3", text: `Jogo grande é pra quem bota a cara! Manda ver!` }
         ],
         POOR: [
           { key: "hh_bd1", text: `Ah qual é, professor?! Desse jeito a gente vai entrar recuado apanhando!` },
-          { key: "hh_bd2", text: `Não desceu bem não... mas bora ver quem aguenta na hora do jogo.` }
+          { key: "hh_bd2", text: `Não desceu bem não... mas bora ver quem aguenta na hora do jogo.` },
+          { key: "hh_bd3", text: `Ficar segurando freio contra ${opp} me tira do sério, mas bora lá.` }
         ],
         CHIME_RAGE: [
           { key: "hh_cr1", text: `Ôpa, querem resolver no grito ou mostrando bola no campo?!` },
-          { key: "hh_cr2", text: `Para de chorar os dois, ${opp} não vai ter dó de ninguém amanhã!` }
+          { key: "hh_cr2", text: `Para de chorar os dois, ${opp} não vai ter dó de ninguém amanhã!` },
+          { key: "hh_cr3", text: `Se é pra ter fogo, vamo jogar essa raiva toda em cima da marcação de ${opp}!` },
+          { key: "hh_cr4", text: `Bora testar quem tem razão na próxima disputa de bola do treino, simples!` }
         ],
         CHIME_HYP: [
           { key: "hh_ch1", text: `Tô dentro!! Me coloca nessa jogada que eu dou a vida em campo!` },
-          { key: "hh_ch2", text: `Quero ver se a marcação deles segura o tranco da nossa jogada!` }
+          { key: "hh_ch2", text: `Quero ver se a marcação deles segura o tranco da nossa jogada!` },
+          { key: "hh_ch3", text: `Essa sim tem cara de lance que derruba goleiro!!` },
+          { key: "hh_ch4", text: `Já quero testar isso agora mesmo antes do treino acabar!` }
         ]
       },
 
@@ -404,16 +485,19 @@
         GREAT: [
           { key: "rt_g1", text: `Olha só, até que o técnico mandou bem nessa kkk. Quero ver ${opp} entender algo agora.` },
           { key: "rt_g2", text: `Haha beleza, pelo menos não ficou aquele papo chato. Agora vai ficar divertido.` },
-          { key: "rt_g3", text: `Se deixarem solto eu aposto que faço o marcador de ${opp} cair sentado kkk` }
+          { key: "rt_g3", text: `Se deixarem solto eu aposto que faço o marcador de ${opp} cair sentado kkk` },
+          { key: "rt_g4", text: `Bom plano professor, até eu fiquei com vontade de assistir esse jogo kkk` }
         ],
         GOOD: [
           { key: "rt_ok1", text: `É, dá pro gasto. Melhor do que ficar parado no treino sem fazer nada kkk` },
           { key: "rt_ok2", text: `Tranquilo, ${other}. Só não me pede pra sorrir depois da jogada kkk` },
-          { key: "rt_ok3", text: `Bora testar então. Se der bom eu até falo que foi ideia sua.` }
+          { key: "rt_ok3", text: `Bora testar então. Se der bom eu até falo que foi ideia sua.` },
+          { key: "rt_ok4", text: `Fechou! Se ${opp} piscar a gente já apronta.` }
         ],
         TRADEOFF: [
           { key: "rt_tr1", text: `Opa, gostei da loucura kkk. Se der errado ninguém viu quem sugeriu hein!` },
-          { key: "rt_tr2", text: `Arriscado? Bem melhor assim. Jogo morno dá sono.` }
+          { key: "rt_tr2", text: `Arriscado? Bem melhor assim. Jogo morno dá sono.` },
+          { key: "rt_tr3", text: `Gosto quando a comissão joga pra bagunçar o plano dos caras kkk` }
         ],
         POOR: [
           { key: "rt_bd1", text: `kkkkk sério mesmo essa ordem? Tá bom né, quem sou eu...` },
@@ -422,39 +506,51 @@
         ],
         CHIME_RAGE: [
           { key: "rt_cr1", text: `Pega a pipoca que o grupo hoje tá pegando fogo kkk`, extra: `Mas falando sério, guarda metade dessa raiva pra bater em ${opp}.` },
-          { key: "rt_cr2", text: `Ué, já acabou a briga ou vai ter segundo tempo? kkk` }
+          { key: "rt_cr2", text: `Ué, já acabou a briga ou vai ter segundo tempo? kkk` },
+          { key: "rt_cr3", text: `Vocês dois discutindo por aqui parece até pré-jogo de rival kkk` },
+          { key: "rt_cr4", text: `Duvido vocês dois pararem de olhar torto até entrar no campo kkk` }
         ],
         CHIME_HYP: [
           { key: "rt_ch1", text: `Se vocês errarem esse tempo novo eu vou zoar a semana inteira kkk` },
-          { key: "rt_ch2", text: `Até que ficou sinistro hein. Quero ver ${opp} tentar marcar isso!` }
+          { key: "rt_ch2", text: `Até que ficou sinistro hein. Quero ver ${opp} tentar marcar isso!` },
+          { key: "rt_ch3", text: `Se funcionar de primeira no jogo eu finjo que ajudei a inventar kkk` },
+          { key: "rt_ch4", text: `Isso aí vai deixar o camisa 10 de ${opp} falando sozinho!` }
         ]
       },
 
       DIVINE_PRIDE: {
         GREAT: [
           { key: "dp_g1", text: `Agora sim uma estratégia digna do nosso futebol. ${opp} vai apenas assistir.` },
-          { key: "dp_g2", text: `Quando eu acionar a ${move} com esse apoio, o jogo vira obra de arte.` },
-          { key: "dp_g3", text: `Perfeito, professor. A vitória já começa a tomar forma.` }
+          { key: "dp_g2", text: `Quando eu acionar ${mArt} com esse apoio, o jogo vira obra de arte.` },
+          { key: "dp_g3", text: `Perfeito, professor. A vitória já começa a tomar forma.` },
+          { key: "dp_g4", text: `Com esse nível de exigência, ninguém neste torneio nos acompanha.` }
         ],
         GOOD: [
           { key: "dp_ok1", text: `Aceitável. Se mantiverem esse padrão, nós controlamos ${opp} fácil.` },
-          { key: "dp_ok2", text: `Muito bem, ${other}. Só capriche no timing e o resto flui.` }
+          { key: "dp_ok2", text: `Muito bem, ${other}. Só capriche no timing e o resto flui.` },
+          { key: "dp_ok3", text: `Razoável. Façamos o necessário com elegância.` }
         ],
         TRADEOFF: [
           { key: "dp_tr1", text: `Um preço pequeno para quem busca o extraordinário em campo.` },
-          { key: "dp_tr2", text: `Não temo o risco. Grandes jogadas exigem ousadia.` }
+          { key: "dp_tr2", text: `Não temo o risco. Grandes jogadas exigem ousadia.` },
+          { key: "dp_tr3", text: `Que assim seja. Vamos impor nossa superioridade.` }
         ],
         POOR: [
           { key: "dp_bd1", text: `Isso limita completamente o meu brilho em campo, treinador.` },
-          { key: "dp_bd2", text: `Comum demais... esperava algo muito mais ambicioso contra ${opp}.` }
+          { key: "dp_bd2", text: `Comum demais... esperava algo muito mais ambicioso contra ${opp}.` },
+          { key: "dp_bd3", text: `Se querem jogar no básico, que seja... mas podemos muito mais.` }
         ],
         CHIME_RAGE: [
           { key: "dp_cr1", text: `Que falta de elegância ficar batendo boca antes da entrada em campo.` },
-          { key: "dp_cr2", text: `Elevem o nível, por favor. Brigas pequenas não combinam com quem quer o topo.` }
+          { key: "dp_cr2", text: `Elevem o nível, por favor. Brigas pequenas não combinam com quem quer o topo.` },
+          { key: "dp_cr3", text: `Enquanto discutem detalhes banais, ${opp} espera por nós.` },
+          { key: "dp_cr4", text: `Usem o talento dentro do campo em vez de desperdiçar energia aqui.` }
         ],
         CHIME_HYP: [
-          { key: "dp_ch1", text: `Com a minha presença no lance, essa técnica fica simplesmente impecável.` },
-          { key: "dp_ch2", text: `Interessante... deixe-me polir os detalhes finais disso no treino.` }
+          { key: "dp_ch1", text: `Com a minha presença no lance, essa jogada fica simplesmente impecável.` },
+          { key: "dp_ch2", text: `Interessante... deixe-me polir os detalhes finais disso no treino.` },
+          { key: "dp_ch3", text: `Um movimento refinado assim realmente merece destaque no próximo jogo.` },
+          { key: "dp_ch4", text: `Se o passe vier na altura exata, a execução será perfeita.` }
         ]
       },
 
@@ -462,84 +558,108 @@
         GREAT: [
           { key: "cj_g1", text: `Aeee boa professor!! Se a gente ganhar de ${opp} hoje eu pago um lámen pra galera kkk` },
           { key: "cj_g2", text: `Cara, agora sim deu ânimo! Sério, parecia até que ia chover no vestiário antes.` },
-          { key: "cj_g3", text: `Boraa! Quem der assistência ganha folga de carregar as bolas amanhã kkk` }
+          { key: "cj_g3", text: `Boraa! Quem der assistência ganha folga de carregar as bolas amanhã kkk` },
+          { key: "cj_g4", text: `Esse técnico manja demais kkk agora ninguém segura a gente!` }
         ],
         GOOD: [
           { key: "cj_ok1", text: `Showw! Bem mais tranquilo agora, vamo que vamo!` },
           { key: "cj_ok2", text: `Boa ${other}, fechou total! Só não esquece de tocar pra mim livre kkk` },
-          { key: "cj_ok3", text: `Tranquilaço! Tudo certo pro jogo contra ${opp}.` }
+          { key: "cj_ok3", text: `Tranquilaço! Tudo certo pro jogo contra ${opp}.` },
+          { key: "cj_ok4", text: `Massa demais! Só manter o passo leve que o gol vem.` }
         ],
         TRADEOFF: [
           { key: "cj_tr1", text: `Eita, vai cansar um pouco mas depois a gente come dobrado pra recuperar kkk` },
-          { key: "cj_tr2", text: `Opa, apostinha boa hein! Bora encarar!` }
+          { key: "cj_tr2", text: `Opa, apostinha boa hein! Bora encarar!` },
+          { key: "cj_tr3", text: `Beleza kkk só me separa uma garrafinha d'água extra no banco!` }
         ],
         POOR: [
           { key: "cj_bd1", text: `Ué... achei que ia ser mais de boa, deu até um frio na barriga agora.` },
-          { key: "cj_bd2", text: `Vish maria, clima azedou legal aqui no zap kkk melhor eu ir encher minha garrafa.` }
+          { key: "cj_bd2", text: `Vish maria, clima azedou legal aqui no zap kkk melhor eu ir encher minha garrafa.` },
+          { key: "cj_bd3", text: `Poxa, deu uma brochada de leve mas amanhã a gente corre igual!` }
         ],
         CHIME_RAGE: [
           { key: "cj_cr1", text: `Calma aí gente kkk respira, toma uma água gelada antes de mandar áudio bravo!` },
-          { key: "cj_cr2", text: `Poxa, vamos parar de brigar antes que o professor tire nosso lanche!` }
+          { key: "cj_cr2", text: `Poxa, vamos parar de brigar antes que tirem nosso lanche pós-treino!` },
+          { key: "cj_cr3", text: `Ôpa ôpa, olha a pressão arterial galera kkk vamos resolver de boa!` },
+          { key: "cj_cr4", text: `Gente, eu só queria tomar meu suco em paz e vocês já tão em pé de guerra kkk` }
         ],
         CHIME_HYP: [
           { key: "cj_ch1", text: `Eitaa! Só toma cuidado pra não derrubar eu no meio desse lance kkk` },
-          { key: "cj_ch2", text: `Maneiro demais!! Quero ver a cara do time de ${opp} vendo isso.` }
+          { key: "cj_ch2", text: `Maneiro demais!! Quero ver a cara do time de ${opp} vendo isso.` },
+          { key: "cj_ch3", text: `Olocoo!! Se sair isso no jogo eu comemoro até dando cambalhota kkk` },
+          { key: "cj_ch4", text: `Rapaz, essa jogada aí parece coisa de final de campeonato!` }
         ]
       },
 
       STOIC_WALL: {
         GREAT: [
-          { key: "sw_g1", text: mv.cat === "DF" || mv.cat === "GK" ? `Podem avançar tranquilos contra ${opp}. Com a minha ${move}, a meta tá fechada hoje.` : `Podem confiar, professor! Eu ajudo na recomposição pra gente pressionar ${opp} com segurança.` },
-          { key: "sw_g2", text: tac ? `Excelente apostar na ${tac}, professor! Protege exatamente onde ${opp} costuma forçar.` : `Confiança lá em cima. Se fecharmos os espaços atrás, a bola lá na frente entra.` },
-          { key: "sw_g3", text: `Tamo fechado, ${other}. Pode soltar o jogo sem medo de contra-ataque.` }
+          { key: "sw_g1", text: mv.cat === "DF" || mv.cat === "GK" ? `Podem avançar tranquilos contra ${opp}. ${mCom.charAt(0).toUpperCase() + mCom.slice(1)}, a meta tá fechada hoje.` : `Podem confiar, professor! Eu ajudo na recomposição pra gente pressionar ${opp} com segurança.` },
+          { key: "sw_g2", text: tac ? `Excelente apostar em ${tac}, professor! Protege exatamente onde ${opp} costuma forçar.` : `Confiança lá em cima. Se fecharmos os espaços atrás, a bola lá na frente entra.` },
+          { key: "sw_g3", text: `Tamo fechado, ${other}. Pode soltar o jogo sem medo de contra-ataque.` },
+          { key: "sw_g4", text: `Lá atrás não passa nada hoje, professor. O time todo pode atacar inteiro.` }
         ],
         GOOD: [
           { key: "sw_ok1", text: `Combinado. Vou manter a linha organizada e avisar todo mundo na marcação.` },
-          { key: "sw_ok2", text: `Podem deixar a cobertura comigo. Foco total até o fim.` }
+          { key: "sw_ok2", text: `Podem deixar a cobertura comigo. Foco total até o fim.` },
+          { key: "sw_ok3", text: `Firme e seguro, ${other}. Seguimos firmes contra ${opp}.` }
         ],
         TRADEOFF: [
           { key: "sw_tr1", text: `Vai puxar mais da defesa, mas eu aguento o tranco. Pode mandar.` },
-          { key: "sw_tr2", text: `Se alguém cansar no segundo tempo eu fecho o espaço na raça.` }
+          { key: "sw_tr2", text: `Se alguém cansar no segundo tempo eu fecho o espaço na raça.` },
+          { key: "sw_tr3", text: `Mesmo mais exposto atrás, eu garanto a primeira trava na área.` }
         ],
         POOR: [
           { key: "sw_bd1", text: `Deixar a defesa exposta assim contra ${opp} me preocupa bastante, professor.` },
-          { key: "sw_bd2", text: `Não concordo com esse caminho, mas não vou abandonar minha área.` }
+          { key: "sw_bd2", text: `Não concordo com esse caminho, mas não vou abandonar minha área.` },
+          { key: "sw_bd3", text: `Vai exigir milagre na cobertura lá atrás se eles contra-atacarem.` }
         ],
         CHIME_RAGE: [
           { key: "sw_cr1", text: `Ei, foco. Lá atrás eu preciso que vocês se falem direito, não que briguem.` },
-          { key: "sw_cr2", text: `Respiram os dois. Quando a bola rolar eu quero todo mundo inteiro.` }
+          { key: "sw_cr2", text: `Respirem os dois. Quando a bola rolar eu quero todo mundo inteiro.` },
+          { key: "sw_cr3", text: `União defensiva começa aqui no grupo, não deixem o clima rachar.` },
+          { key: "sw_cr4", text: `Já enfrentei jogos duros antes e garanto: time dividido perde sozinho.` }
         ],
         CHIME_HYP: [
           { key: "sw_ch1", text: `Boa iniciativa. Quando recuperar atrás eu já mando a bola direto pra vocês.` },
-          { key: "sw_ch2", text: `Firmeza. Se encaixar no treino ninguém para.` }
+          { key: "sw_ch2", text: `Firmeza. Se encaixar no treino ninguém para.` },
+          { key: "sw_ch3", text: `Lá atrás eu seguro a onda pra vocês testarem isso com calma.` },
+          { key: "sw_ch4", text: `Gostei da coragem! Vai pegar ${opp} desprevenido.` }
         ]
       },
 
       SPEED_SPARK: {
         GREAT: [
           { key: "ss_g1", text: `Vambora!! Se a bola cair no espaço eu disparo antes mesmo da zaga de ${opp} piscar!` },
-          { key: "ss_g2", text: mv.cat === "OF" || mv.cat === "SH" ? `Curti demais!! Já tô imaginando a velocidade que a gente vai pegar com a ${move}!` : `Curti demais!! Já tô imaginando a velocidade da nossa saída de bola contra ${opp}!` },
-          { key: "ss_g3", text: `Partiu campo agora!! Quero testar esse arranque no treino antes de esfriar!` }
+          { key: "ss_g2", text: mv.cat === "OF" || mv.cat === "SH" ? `Curti demais!! Já tô imaginando a velocidade que a gente vai pegar ${mCom}!` : `Curti demais!! Já tô imaginando a velocidade da nossa saída de bola contra ${opp}!` },
+          { key: "ss_g3", text: `Partiu campo agora!! Quero testar esse arranque no treino antes de esfriar!` },
+          { key: "ss_g4", text: `Ritmo lá em cima, professor!! Desse jeito ${opp} não vê a placa!` }
         ],
         GOOD: [
-          { key: "ss_ok1", text: `Fechado! Se acelerar na transição a gente pega ${opp} todo aberto.` },
-          { key: "ss_ok2", text: `Beleza ${other}, só lança na corrida que eu chego primeiro!` }
+          { key: "ss_ok1", text: `Fechado! Se acelerar no contra-ataque a gente pega ${opp} todo aberto.` },
+          { key: "ss_ok2", text: `Beleza ${other}, só lança na corrida que eu chego primeiro!` },
+          { key: "ss_ok3", text: `Tô pronto já! É só soar o apito que eu decolo!` }
         ],
         TRADEOFF: [
           { key: "ss_tr1", text: `Puxado na correria? Deixa comigo que perna aqui não falta!` },
-          { key: "ss_tr2", text: `Pode exigir o ritmo alto, eu aguento ir e voltar o jogo todo.` }
+          { key: "ss_tr2", text: `Pode exigir o ritmo alto, eu aguento ir e voltar o jogo todo.` },
+          { key: "ss_tr3", text: `Se cansar no fim a gente decide nos primeiros 20 minutos!` }
         ],
         POOR: [
           { key: "ss_bd1", text: `Poxa, segurar tanto o ritmo assim tira meu melhor ponto em campo.` },
-          { key: "ss_bd2", text: `Beleza então... só achei lento demais pra pegar ${opp}.` }
+          { key: "ss_bd2", text: `Beleza então... só achei lento demais pra pegar ${opp}.` },
+          { key: "ss_bd3", text: `Vou obedecer, mas se precisar de arrancada vai fazer falta.` }
         ],
         CHIME_RAGE: [
           { key: "ss_cr1", text: `Gente, menos briga no chat e mais pique no campo, pfvr!` },
-          { key: "ss_cr2", text: `Enquanto vocês digitam textão ${opp} tá treinando lá kkk bora focar!` }
+          { key: "ss_cr2", text: `Enquanto vocês digitam textão ${opp} tá treinando lá kkk bora focar!` },
+          { key: "ss_cr3", text: `Deixem essa treta pra trás rapidão antes que esfrie nosso ritmo!` },
+          { key: "ss_cr4", text: `Vambora resolver correndo no rachão em vez de ficar no clima pesado!` }
         ],
         CHIME_HYP: [
           { key: "ss_ch1", text: `Opa! Se for jogada em velocidade pode me chamar na hora!` },
-          { key: "ss_ch2", text: `Se eu puxar o marcador no drible sobra limpo pra vocês!` }
+          { key: "ss_ch2", text: `Se eu puxar o marcador no drible sobra limpo pra vocês!` },
+          { key: "ss_ch3", text: `Velocidade pura nisso aí!! Quando lançarem na ponta já tô lá!` },
+          { key: "ss_ch4", text: `Só dar o toque na frente que eu acompanho qualquer arrancada!` }
         ]
       },
 
@@ -547,27 +667,35 @@
         GREAT: [
           { key: "ht_g1", text: `Muito bom ouvir isso, professor! Dá uma confiança enorme pra todo mundo.` },
           { key: "ht_g2", text: `Valeu mesmo, galera. Assim a gente joga leve e dando o máximo contra ${opp}!` },
-          { key: "ht_g3", text: coopMove ? `A gente conseguiu encaixar a ${coopMove}!! Nem acredito, bora mostrar pro estádio inteiro!` : `Bora! Eu ajudo no que precisar pro esquema funcionar 100%.` }
+          { key: "ht_g3", text: coopMove ? `A gente conseguiu encaixar ${moveWithArticle(coopMove)}!! Nem acredito, bora mostrar pro estádio inteiro!` : `Bora! Eu ajudo no que precisar pro time funcionar 100%.` },
+          { key: "ht_g4", text: `Quando todo mundo se apoia assim, o jogo flui naturalmente!` }
         ],
         GOOD: [
           { key: "ht_ok1", text: `Boa, professor! Tmj time, vamos pra cima de ${opp} unidos.` },
-          { key: "ht_ok2", text: `Gostei da ideia, ${other}. Se der tudo certo hoje a gente comemora depois!` }
+          { key: "ht_ok2", text: `Gostei da ideia, ${other}. Se der tudo certo hoje a gente comemora depois!` },
+          { key: "ht_ok3", text: `Show! Todo mundo junto fica bem mais tranquilo.` }
         ],
         TRADEOFF: [
           { key: "ht_tr1", text: `Justo! Cada um faz um esforço a mais e a gente compensa junto em campo.` },
-          { key: "ht_tr2", text: `Combinado então. Ninguém vai deixar ninguém na mão hoje.` }
+          { key: "ht_tr2", text: `Combinado então. Ninguém vai deixar ninguém na mão hoje.` },
+          { key: "ht_tr3", text: `Topado! Se precisar de cobertura eu dou uma força extra.` }
         ],
         POOR: [
           { key: "ht_bd1", text: `Ficou meio estranho esse clima... tomara que dê tudo certo no jogo.` },
-          { key: "ht_bd2", text: `Vou fazer minha parte direitinho, mas não fiquei tão seguro não.` }
+          { key: "ht_bd2", text: `Vou fazer minha parte direitinho, mas não fiquei tão seguro não.` },
+          { key: "ht_bd3", text: `Vamos manter a calma pessoal, a gente ainda se ajuda dentro de campo.` }
         ],
         CHIME_RAGE: [
           { key: "ht_cr1", text: `Calma galera, a gente se ajuda todo dia no treino, não vale brigar por isso.` },
-          { key: "ht_cr2", text: `Bora conversar de boa, faltando pouco pra enfrentar ${opp}.` }
+          { key: "ht_cr2", text: `Bora conversar de boa, faltando pouco pra enfrentar ${opp}.` },
+          { key: "ht_cr3", text: `Todo mundo quer o mesmo resultado aqui, só precisamos alinhar o passo.` },
+          { key: "ht_cr4", text: `Não deixem um mal-entendido apagar o esforço da semana inteira.` }
         ],
         CHIME_HYP: [
           { key: "ht_ch1", text: `Caramba, que daora! Se eu puder ajudar na tabela só falar!` },
-          { key: "ht_ch2", text: `Tô animado pra ver vocês soltando isso no jogo!` }
+          { key: "ht_ch2", text: `Tô animado pra ver vocês soltando isso no jogo!` },
+          { key: "ht_ch3", text: `Que entrosamento bonito tá ficando entre vocês!` },
+          { key: "ht_ch4", text: `Tamo torcendo e correndo junto por vocês em campo!` }
         ]
       }
     };
@@ -580,6 +708,131 @@
     const tac = humanizeTacticalChangeForChat(ctx.tacText || "");
     const coop = ctx.coopMove || "";
     const coopCat = ctx.coopCat || "SH";
+    const other = ctx.otherName || "pessoal";
+
+    // DILEMA antes da resposta do técnico: nunca comemora decisão antecipada e foca nos dois lados da escolha
+    if (kind === "CHIME" && ctx.interactionMode === "DILEMMA") {
+      const dilemmaChimes = {
+        CAPTAIN_FIRE: [
+          { key: "cd_cf1", text: `Os dois caminhos têm valor contra ${opp}, só precisamos decidir juntos e ir com tudo!` },
+          { key: "cd_cf2", text: `Não importa o lado escolhido, o grupo inteiro vai abraçar e correr dobrado!` },
+          { key: "cd_cf3", text: `Bora ouvir o comando e fechar questão logo antes do treino começar!` }
+        ],
+        COLD_ACE: [
+          { key: "cd_ca1", text: `Os dois pontos fazem sentido. Falta definir qual vale mais contra ${opp}.` },
+          { key: "cd_ca2", text: `Sem perder tempo. Decidam logo pra gente treinar.` },
+          { key: "cd_ca3", text: `Só não fiquem no meio do caminho.` }
+        ],
+        TACTICIAN: [
+          { key: "cd_tc1", text: `Cada opção mexe num equilíbrio diferente do time contra ${opp}. Depende do risco que queremos correr.` },
+          { key: "cd_tc2", text: `Um lado garante segurança, o outro força o erro de ${opp}. Boa dúvida pro vestiário.` },
+          { key: "cd_tc3", text: `Olhando pelo mapa do campo, as duas escolhas pedem ajustes distintos no meio.` }
+        ],
+        HOTHEAD: [
+          { key: "cd_hh1", text: `Eu já tenho meu lado preferido nessa história aí, bora bater o martelo logo!` },
+          { key: "cd_hh2", text: `Prefiro arriscar pra ganhar de ${opp} do que ficar em cima do muro!` },
+          { key: "cd_hh3", text: `Seja o que for, ninguém pode entrar meia-boca depois!` }
+        ],
+        REBEL_TROLL: [
+          { key: "cd_rt1", text: `Clássico dilema do grupo kkk quero só ver que lado vai levar essa.` },
+          { key: "cd_rt2", text: `Se ninguém decidir logo a gente tira no par ou ímpar kkk` },
+          { key: "cd_rt3", text: `Cada um defendendo o seu lado aí tá melhor que mesa redonda kkk` }
+        ],
+        DIVINE_PRIDE: [
+          { key: "cd_dp1", text: `Duas filosofias bem claras. Resta saber qual combina melhor com a nossa ambição.` },
+          { key: "cd_dp2", text: `Qualquer decisão tomada com firmeza nos deixa acima de ${opp}.` },
+          { key: "cd_dp3", text: `Escolham a opção que mais valoriza o nosso talento em campo.` }
+        ],
+        CHILL_JOKER: [
+          { key: "cd_cj1", text: `Rapaz, essa dividida aí deixou até o grupo pensativo kkk` },
+          { key: "cd_cj2", text: `Pior que faz sentido o que os dois falaram, ${other}!` },
+          { key: "cd_cj3", text: `Seja qual for o plano contra ${opp}, eu fecho com a galera!` }
+        ],
+        STOIC_WALL: [
+          { key: "cd_sw1", text: `Só espero que a escolha não deixe nossa linha vulnerável atrás.` },
+          { key: "cd_sw2", text: `Precisamos de uma diretriz clara pra todo mundo saber seu papel.` },
+          { key: "cd_sw3", text: `Quando definirmos o rumo, eu garanto a cobertura no meu setor.` }
+        ],
+        SPEED_SPARK: [
+          { key: "cd_ss1", text: `Por mim vamos pro caminho que deixar o jogo mais rápido contra ${opp}!` },
+          { key: "cd_ss2", text: `Boa discussão! Só definam logo pro treino render.` },
+          { key: "cd_ss3", text: `Se abrir espaço pra correr, eu apoio na hora!` }
+        ],
+        HEART_TEAM: [
+          { key: "cd_ht1", text: `Legal ver todo mundo dando opinião sincera pelo bem do time.` },
+          { key: "cd_ht2", text: `Independente do que for definido, vamos estar juntos nessa contra ${opp}.` },
+          { key: "cd_ht3", text: `Os dois argumentos ajudam o grupo a crescer!` }
+        ]
+      };
+      return dilemmaChimes[voice] || dilemmaChimes.HEART_TEAM;
+    }
+
+    // ELOGIO pré-decisão: exalta companheiros e grupo SEM agradecer decisão do técnico antes da hora
+    if (kind === "CHIME" && category === "ELOGIO") {
+      const chimeElogio = {
+        CAPTAIN_FIRE: [
+          { key: "ce_cf1", text: `Dá gosto demais jogar num elenco que se apoia assim todo dia!!` },
+          { key: "ce_cf2", text: `Com essa irmandade aqui dentro, ${opp} vai ter que suar dobrado!` },
+          { key: "ce_cf3", text: `Todo mundo crescendo junto na hora certa do campeonato!` },
+          { key: "ce_cf4", text: `Orgulho absurdo de dividir esse vestiário com vocês, ${other}!` }
+        ],
+        COLD_ACE: [
+          { key: "ce_ca1", text: `Reconhecimento merecido. A entrega no treino está aparecendo.` },
+          { key: "ce_ca2", text: `Bom momento do grupo. Agora manter esse padrão contra ${opp}.` },
+          { key: "ce_ca3", text: `Entrosamento sólido. Faz diferença na hora decisiva.` },
+          { key: "ce_ca4", text: `Continuem nesse ritmo sem perder foco.` }
+        ],
+        TACTICIAN: [
+          { key: "ce_tc1", text: `Dá pra ver no campo: quando a sintonia sobe assim, os passes saem de olhos fechados.` },
+          { key: "ce_tc2", text: `Cada setor tá entendendo o tempo do outro muito melhor contra ${opp}.` },
+          { key: "ce_tc3", text: `Confiança mútua reduz erros de posicionamento pela metade.` },
+          { key: "ce_tc4", text: `Esse equilíbrio emocional ajuda demais nas viradas de jogo.` }
+        ],
+        HOTHEAD: [
+          { key: "ce_hh1", text: `É isso aí!! Moral nas alturas pra atropelar ${opp} sem dó!!` },
+          { key: "ce_hh2", text: `Quando o grupo fecha desse jeito não tem zaga que aguente nossa pressão!` },
+          { key: "ce_hh3", text: `Esse fogo no vestiário dá vontade de entrar em campo agora mesmo!` },
+          { key: "ce_hh4", text: `Ninguém tira a confiança desse elenco hoje!!` }
+        ],
+        REBEL_TROLL: [
+          { key: "ce_rt1", text: `Olha os caras se elogiando ao vivo kkk mas pior que tá merecido mesmo!` },
+          { key: "ce_rt2", text: `Se continuarem jogando assim vou até ficar sem piada pra fazer no treino kkk` },
+          { key: "ce_rt3", text: `Belo momento do time! Quero ver ${opp} segurar a onda agora!` },
+          { key: "ce_rt4", text: `Até quem geralmente é calado tá sorrindo hoje kkk sinal bom!` }
+        ],
+        DIVINE_PRIDE: [
+          { key: "ce_dp1", text: `A evolução coletiva deste grupo finalmente acompanha o nosso talento.` },
+          { key: "ce_dp2", text: `Um elenco em harmonia assim transforma o jogo contra ${opp} em espetáculo.` },
+          { key: "ce_dp3", text: `Justo reconhecer quem eleva o padrão dos treinos todos os dias.` },
+          { key: "ce_dp4", text: `É dessa excelência que nascem as grandes campanhas.` }
+        ],
+        CHILL_JOKER: [
+          { key: "ce_cj1", text: `Clima bom demais no grupo kkk dá até prazer acordar cedo pro treino!` },
+          { key: "ce_cj2", text: `Aeee galera mandando bem demais! Tô me sentindo em família aqui!` },
+          { key: "ce_cj3", text: `Quando o vestiário tá leve assim a bola até procura o gol sozinha kkk` },
+          { key: "ce_cj4", text: `Só vitória e sintonia boa antes de pegar ${opp}!` }
+        ],
+        STOIC_WALL: [
+          { key: "ce_sw1", text: `Essa confiança entre os setores deixa todo mundo mais seguro nas divididas.` },
+          { key: "ce_sw2", text: `Treino sério e união sincera formam a base de uma equipe difícil de bater.` },
+          { key: "ce_sw3", text: `Daqui de trás eu sinto como o time inteiro está correndo mais firme.` },
+          { key: "ce_sw4", text: `Justíssimo o reconhecimento, ${other}. Seguimos firmes juntos.` }
+        ],
+        SPEED_SPARK: [
+          { key: "ce_ss1", text: `Com o grupo embalado assim até os piques no fim do treino parecem leves!` },
+          { key: "ce_ss2", text: `Essa energia positiva acelera o ritmo de todo mundo contra ${opp}!` },
+          { key: "ce_ss3", text: `Daora demais ver a sintonia fluindo em cada tabela!` },
+          { key: "ce_ss4", text: `Vamo com essa vibração toda pra cima de ${opp}!` }
+        ],
+        HEART_TEAM: [
+          { key: "ce_ht1", text: `Bonito demais ver o grupo se valorizando assim fora e dentro de campo.` },
+          { key: "ce_ht2", text: `Cada treino juntos deixa esse time ainda mais unido, ${other}!` },
+          { key: "ce_ht3", text: `Com essa força coletiva, ninguém se sente sozinho contra ${opp}.` },
+          { key: "ce_ht4", text: `Dá muito orgulho fazer parte desse elenco!` }
+        ]
+      };
+      return chimeElogio[voice] || chimeElogio.HEART_TEAM;
+    }
 
     // Resenha / vestiário leve: NUNCA mistura tática séria ou contra-ataque fora de contexto
     if (category === "RESENHA") {
@@ -587,43 +840,63 @@
         const chimeResenha = {
           CAPTAIN_FIRE: [
             { key: "cr_cf1", text: `Haha esse grupo não tem jeito mesmo! Só não vale perder a hora do treino depois.` },
-            { key: "cr_cf2", text: `Kkk bom demais ver todo mundo leve antes de encarar ${opp}.` }
+            { key: "cr_cf2", text: `Kkk bom demais ver todo mundo leve antes de encarar ${opp}.` },
+            { key: "cr_cf3", text: `Adoro essa energia no grupo! Só guardar fôlego pro aquecimento!` },
+            { key: "cr_cf4", text: `Vestiário feliz joga muito melhor, bora manter o pique!` }
           ],
           COLD_ACE: [
             { key: "cr_ca1", text: `Vocês não param um minuto no grupo.` },
-            { key: "cr_ca2", text: `Só guardem metade desse gás pro campo.` }
+            { key: "cr_ca2", text: `Só guardem metade desse gás pro campo.` },
+            { key: "cr_ca3", text: `Aproveitem a folga enquanto dá. Amanhã é sério.` },
+            { key: "cr_ca4", text: `Foco também no descanso antes de ${opp}.` }
           ],
           TACTICIAN: [
             { key: "cr_tc1", text: `Pelo menos o astral do vestiário tá lá em cima hoje kkk` },
-            { key: "cr_tc2", text: `Vocês distraem até a comissão técnica antes de ${opp} haha` }
+            { key: "cr_tc2", text: `Vocês distraem até a comissão técnica antes de ${opp} haha` },
+            { key: "cr_tc3", text: `Um pouco de resenha ajuda a soltar a tensão antes do jogo.` },
+            { key: "cr_tc4", text: `Só não virem a noite conversando no grupo hein pessoal haha` }
           ],
           HOTHEAD: [
             { key: "cr_hh1", text: `Quero só ver quem vai aguentar correr amanhã depois dessa resenha kkk` },
-            { key: "cr_hh2", text: `Haha deixa o treino começar que eu quero ver a disposição de vocês!` }
+            { key: "cr_hh2", text: `Haha deixa o treino começar que eu quero ver a disposição de vocês!` },
+            { key: "cr_hh3", text: `Se tiver desafio valendo algo depois do treino eu entro na hora!` },
+            { key: "cr_hh4", text: `Resenha tá boa mas amanhã quero esse mesmo fogo contra ${opp}!` }
           ],
           REBEL_TROLL: [
             { key: "cr_rt1", text: `kkkkk alguém salva o print disso aqui pro técnico ver depois` },
-            { key: "cr_rt2", text: `Se perder bola amanhã eu já sei o motivo hein kkk` }
+            { key: "cr_rt2", text: `Se alguém tropeçar amanhã eu já sei o motivo hein kkk` },
+            { key: "cr_rt3", text: `Eu sabia que esse assunto ia render pérola no grupo kkk` },
+            { key: "cr_rt4", text: `Nunca decepcionam na bagunça pós-treino kkk` }
           ],
           DIVINE_PRIDE: [
             { key: "cr_dp1", text: `Curioso o senso de humor desse elenco às vésperas do jogo.` },
-            { key: "cr_dp2", text: `Ao menos a confiança do vestiário está intacta antes de ${opp}.` }
+            { key: "cr_dp2", text: `Ao menos a confiança do vestiário está intacta antes de ${opp}.` },
+            { key: "cr_dp3", text: `Vocês transformam qualquer pausa em teatro, impressionante.` },
+            { key: "cr_dp4", text: `Contanto que durmam na hora certa, aproveitem o momento.` }
           ],
           CHILL_JOKER: [
             { key: "cr_cj1", text: `Kkkk já cheguei no grupo rindo! Tem mais história boa aí?` },
-            { key: "cr_cj2", text: `Olha, eu não julgo não kkk depois do treino eu também capricho no lanche!` }
+            { key: "cr_cj2", text: `Olha, eu não julgo não kkk depois do treino eu também capricho no lanche!` },
+            { key: "cr_cj3", text: `Resenha de qualidade merece até figurinha nova no grupo kkk` },
+            { key: "cr_cj4", text: `Por mim o vestiário ficava nessa vibe até depois da final kkk` }
           ],
           STOIC_WALL: [
             { key: "cr_sw1", text: `Haha só cuidado pra não pesar no aquecimento amanhã cedo.` },
-            { key: "cr_sw2", text: `Tudo bem dar uma relaxada, só não deixem cair o ritmo depois.` }
+            { key: "cr_sw2", text: `Tudo bem dar uma relaxada, só não deixem cair a concentração depois.` },
+            { key: "cr_sw3", text: `Bom ver a turma sorrindo depois de tanta cobrança na semana.` },
+            { key: "cr_sw4", text: `Só lembrem da hora de descansar direito pra encarar ${opp}.` }
           ],
           SPEED_SPARK: [
             { key: "cr_ss1", text: `kkkk ainda bem que eu queimo tudo no primeiro pique do treino!` },
-            { key: "cr_ss2", text: `Esse chat rende demais todo dia antes dos jogos!` }
+            { key: "cr_ss2", text: `Esse chat rende demais todo dia antes dos jogos!` },
+            { key: "cr_ss3", text: `Não pisca não que já tem mais piada chegando no grupo kkk` },
+            { key: "cr_ss4", text: `Bora aproveitar a leveza pra recarregar a bateria pro próximo jogo!` }
           ],
           HEART_TEAM: [
             { key: "cr_ht1", text: `Haha adoro quando o grupo fica leve assim antes de entrar em campo!` },
-            { key: "cr_ht2", text: `Faz bem dar uma risada junto pra quebrar a pressão antes de ${opp}.` }
+            { key: "cr_ht2", text: `Faz bem dar uma risada junto pra quebrar a pressão antes de ${opp}.` },
+            { key: "cr_ht3", text: `Esse clima de amizade é o que faz diferença nos momentos difíceis.` },
+            { key: "cr_ht4", text: `Só risada boa com esse time kkk` }
           ]
         };
         return chimeResenha[voice] || chimeResenha.HEART_TEAM;
@@ -633,65 +906,110 @@
         GREAT: {
           CAPTAIN_FIRE: [
             { key: "wr_g_cf1", text: `Haha boa, professor!! Vestiário leve desse jeito joga muito mais solto!` },
-            { key: "wr_g_cf2", text: `Aeee! Amanhã contra ${opp} a gente entrega o dobro dentro de campo!` }
+            { key: "wr_g_cf2", text: `Aeee! Amanhã contra ${opp} a gente entrega o dobro dentro de campo!` },
+            { key: "wr_g_cf3", text: `Esse clima unido dá uma força absurda pro time inteiro!` }
           ],
           COLD_ACE: [
             { key: "wr_g_ca1", text: `Se render em campo amanhã, tá valendo.` },
-            { key: "wr_g_ca2", text: `Só não relaxem demais antes de ${opp}.` }
+            { key: "wr_g_ca2", text: `Só não relaxem demais antes de ${opp}.` },
+            { key: "wr_g_ca3", text: `Bom astral. Agora foco no próximo compromisso.` }
+          ],
+          TACTICIAN: [
+            { key: "wr_g_tc1", text: `Clima leve assim limpa a cabeça pra tomarmos boas decisões em campo!` },
+            { key: "wr_g_tc2", text: `Valeu professor, até o descanso rende mais com o grupo entrosado assim.` },
+            { key: "wr_g_tc3", text: `Amanhã ninguém entra tenso demais contra ${opp}!` }
+          ],
+          HOTHEAD: [
+            { key: "wr_g_hh1", text: `Aí sim!! Depois dessa moral, quero ver quem segura a gente!` },
+            { key: "wr_g_hh2", text: `Partiu campo amanhã com sangue nos olhos e sorriso no rosto!` },
+            { key: "wr_g_hh3", text: `Fechado! Vamos descontar essa pilha toda na bola!` }
           ],
           REBEL_TROLL: [
             { key: "wr_g_rt1", text: `Aí sim professor kkk sabia que ia entrar na resenha!` },
-            { key: "wr_g_rt2", text: `Fechado, agora tá devendo uma assistência pra turma hein kkk` }
+            { key: "wr_g_rt2", text: `Fechado, agora tá devendo uma pizza pra turma se ganharmos hein kkk` },
+            { key: "wr_g_rt3", text: `Melhor técnico da liga, zero frescura no vestiário kkk` }
+          ],
+          DIVINE_PRIDE: [
+            { key: "wr_g_dp1", text: `Excelente condução do ambiente, professor. Chegaremos leves e confiantes.` },
+            { key: "wr_g_dp2", text: `Quando o espírito está em paz, o futebol flui como arte.` },
+            { key: "wr_g_dp3", text: `Amanhã retribuiremos essa confiança em grande estilo.` }
           ],
           CHILL_JOKER: [
             { key: "wr_g_cj1", text: `Aeee!! Melhor técnico possível kkk vou dormir feliz hoje!` },
-            { key: "wr_g_cj2", text: `Isso sim levanta a moral do grupo inteiro!!` }
+            { key: "wr_g_cj2", text: `Isso sim levanta a moral do grupo inteiro!!` },
+            { key: "wr_g_cj3", text: `Já garanti minha risada do dia, amanhã o pé vai tar leve!` }
+          ],
+          STOIC_WALL: [
+            { key: "wr_g_sw1", text: `Muito bom manter a união leve assim antes de encarar ${opp}.` },
+            { key: "wr_g_sw2", text: `Grupo feliz corre pelo companheiro do lado até o fim.` },
+            { key: "wr_g_sw3", text: `Boa, professor! Agora descanso caprichado pro elenco.` }
+          ],
+          SPEED_SPARK: [
+            { key: "wr_g_ss1", text: `Vambora!! Astral lá em cima e perna leve pro jogo de amanhã!` },
+            { key: "wr_g_ss2", text: `Showww! Clima bom assim dá vontade até de fazer tiro extra no treino!` },
+            { key: "wr_g_ss3", text: `Tudo certo aqui no grupo, amanhã é dia de voar!` }
           ],
           DEFAULT: [
             { key: "wr_g_df1", text: `Combinado, professor! O clima no grupo ficou leve demais agora!` },
-            { key: "wr_g_df2", text: `Haha fechou! Amanhã contra ${opp} todo mundo entra voando.` },
-            { key: "wr_g_df3", text: `Merecido depois dos treinos dessa semana!` }
+            { key: "wr_g_df2", text: `Haha fechou! Amanhã contra ${opp} todo mundo entra com o astral lá em cima.` },
+            { key: "wr_g_df3", text: `Merecido depois da semana puxada de treinos!` }
           ]
         },
         GOOD: {
           COLD_ACE: [
             { key: "wr_ok_ca1", text: `Justo. Hora de descansar pro jogo.` },
-            { key: "wr_ok_ca2", text: `Certo. Foco amanhã.` }
+            { key: "wr_ok_ca2", text: `Certo. Foco amanhã.` },
+            { key: "wr_ok_ca3", text: `Entendido. Cada um faz a sua parte.` }
           ],
           REBEL_TROLL: [
             { key: "wr_ok_rt1", text: `Beleza professor, tá bom até demais kkk` },
-            { key: "wr_ok_rt2", text: `Recado dado hein galera, sem exagero hoje!` }
+            { key: "wr_ok_rt2", text: `Recado dado hein galera, sem exagero hoje!` },
+            { key: "wr_ok_rt3", text: `Justo kkk pelo menos não cortou a resenha inteira.` }
           ],
           CHILL_JOKER: [
             { key: "wr_ok_cj1", text: `Tranquilo! Já tá de bom tamanho pro nosso grupo kkk` },
-            { key: "wr_ok_cj2", text: `Fechado chefia! Agora sim partiu descanso.` }
+            { key: "wr_ok_cj2", text: `Fechado chefia! Agora sim partiu descanso.` },
+            { key: "wr_ok_cj3", text: `Showw! Já vou até guardar o celular e dormir cedo hoje.` }
           ],
           DEFAULT: [
             { key: "wr_ok_df1", text: `Tudo certo então! Deu pra dar boas risadas e manter a cabeça no jogo.` },
             { key: "wr_ok_df2", text: `Combinado! Amanhã cedo estamos inteiros pro aquecimento.` },
-            { key: "wr_ok_df3", text: `Boa, professor! Equilíbrio certinho no vestiário.` }
+            { key: "wr_ok_df3", text: `Boa, professor! Equilíbrio certinho no vestiário.` },
+            { key: "wr_ok_df4", text: `Fechado! Vamo com o espírito leve enfrentar ${opp}.` }
           ]
         },
         TRADEOFF: {
+          COLD_ACE: [
+            { key: "wr_tr_ca1", text: `Aceito os limites. O jogo contra ${opp} exige cabeça no lugar.` },
+            { key: "wr_tr_ca2", text: `Decisão sensata.` }
+          ],
           DEFAULT: [
-            { key: "wr_tr_df1", text: `Justo, professor! Deu uma segurada boa sem perder o foco contra ${opp}.` },
+            { key: "wr_tr_df1", text: `Justo, professor! Deu uma segurada boa sem perder o foco antes de ${opp}.` },
             { key: "wr_tr_df2", text: `Anotado! Cada um sabe o limite antes de decisão.` },
-            { key: "wr_tr_df3", text: `Combinado, bora fechar a noite tranquilos!` }
+            { key: "wr_tr_df3", text: `Combinado, bora fechar a noite tranquilos!` },
+            { key: "wr_tr_df4", text: `Beleza, foco na medida certa sem cortar o clima!` }
           ]
         },
         POOR: {
+          COLD_ACE: [
+            { key: "wr_bd_ca1", text: `Tanto faz. Concentração pra amanhã.` },
+            { key: "wr_bd_ca2", text: `Fim de papo.` }
+          ],
           CHILL_JOKER: [
             { key: "wr_bd_cj1", text: `Poxa, achei que ia levar mais na esportiva kkk bora dormir logo então.` },
-            { key: "wr_bd_cj2", text: `Eita, clima fechou do nada kkk vou até desligar o celular.` }
+            { key: "wr_bd_cj2", text: `Eita, clima fechou do nada kkk vou até desligar o celular.` },
+            { key: "wr_bd_cj3", text: `Beleza né... acabou a diversão de hoje, fui dormir kkk` }
           ],
           REBEL_TROLL: [
             { key: "wr_bd_rt1", text: `Vish, zero humor hoje hein professor kkk fui!` },
-            { key: "wr_bd_rt2", text: `Ok ok, clima de quartel ativado.` }
+            { key: "wr_bd_rt2", text: `Ok ok, clima de quartel ativado.` },
+            { key: "wr_bd_rt3", text: `Silêncio no grupo então kkk até amanhã!` }
           ],
           DEFAULT: [
             { key: "wr_bd_df1", text: `Entendido... acabou a resenha por hoje então, galera.` },
             { key: "wr_bd_df2", text: `Ficou meio pesado o papo, mas amanhã a gente responde em campo.` },
-            { key: "wr_bd_df3", text: `Certo, técnico. Todo mundo focado amanhã.` }
+            { key: "wr_bd_df3", text: `Certo, técnico. Todo mundo focado amanhã.` },
+            { key: "wr_bd_df4", text: `Pessoal deu uma murchada aqui, mas amanhã passa.` }
           ]
         }
       };
@@ -699,39 +1017,76 @@
       return wrapResenha[qKey][voice] || wrapResenha[qKey].DEFAULT;
     }
 
-    // Estudo do Rival: chime-ins táticos coerentes
+    // Estudo do Rival: chime-ins táticos coerentes para TODAS as 10 vozes
     if (category === "TATICA_RIVAL" && kind === "CHIME") {
       const chimeTat = {
         TACTICIAN: [
           { key: "ct_tc1", text: `Concordo com a leitura. Contra ${opp}, quem dominar o meio controla o placar.` },
-          { key: "ct_tc2", text: `Se a transição deles aperta pelos lados, ajustar o tempo do passe já resolve metade.` }
+          { key: "ct_tc2", text: `Se o ataque deles aperta pelos lados, ajustar o tempo do passe já resolve metade.` },
+          { key: "ct_tc3", text: `Reparei que a linha defensiva de ${opp} sobe descoordenada quando viramos a bola rápido.` },
+          { key: "ct_tc4", text: `Se fecharmos a saída curta deles pelo centro, o goleiro vai ter que rifar toda hora.` }
         ],
         COLD_ACE: [
           { key: "ct_ca1", text: `Só me digam onde querem que eu ataque contra ${opp}.` },
-          { key: "ct_ca2", text: `Se abrir espaço na área deles eu resolvo.` }
+          { key: "ct_ca2", text: `Se abrir espaço na área deles eu resolvo.` },
+          { key: "ct_ca3", text: `Leitura clara. Só executar quando o jogo começar.` },
+          { key: "ct_ca4", text: `A zaga de ${opp} vacila se receber pressão contínua.` }
         ],
         CAPTAIN_FIRE: [
-          { key: "ct_cf1", text: `Boa visão! Se o time todo se ajudar na recomposição, ${opp} não passa!` },
-          { key: "ct_cf2", text: `Tamo ligado nesse detalhe! Só dar o comando que a gente aplica.` }
+          { key: "ct_cf1", text: `Boa visão! Se o time todo se ajudar na volta defensiva, ${opp} não passa!` },
+          { key: "ct_cf2", text: `Tamo ligado nesse detalhe! Só dar o sinal que a gente ajusta na hora.` },
+          { key: "ct_cf3", text: `É estudando ${opp} assim antes do apito que a gente sai na frente!` },
+          { key: "ct_cf4", text: `Se cada um cobrir o setor do parceiro, esse esquema funciona 100%!` }
         ],
         STOIC_WALL: [
           { key: "ct_sw1", text: `Do meu setor também dá pra fechar esse corredor de ${opp}.` },
-          { key: "ct_sw2", text: `Se combinarmos a cobertura atrás, ninguém entra livre.` }
+          { key: "ct_sw2", text: `Se combinarmos a cobertura atrás, ninguém entra livre.` },
+          { key: "ct_sw3", text: `A linha de trás já sabe onde apertar contra os pontas de ${opp}.` },
+          { key: "ct_sw4", text: `Comunicação constante lá atrás evita surpresa em contra-ataque.` }
         ],
         SPEED_SPARK: [
           { key: "ct_ss1", text: `Se der brecha nas costas da linha de ${opp}, eu chego primeiro nessa bola!` },
-          { key: "ct_ss2", text: `Só me acionarem rápido quando roubarmos no meio.` }
+          { key: "ct_ss2", text: `Só me acionarem rápido quando roubarmos no meio.` },
+          { key: "ct_ss3", text: `Reparei nos laterais de ${opp}: quando sobem, demoram muito pra voltar!` },
+          { key: "ct_ss4", text: `Dá pra explorar esse corredor na velocidade sem dar chance de recuperação!` }
         ],
-        DEFAULT: [
-          { key: "ct_df1", text: `Faz sentido olhar esse ponto de ${opp} agora antes do aquecimento.` },
-          { key: "ct_df2", text: `Tô acompanhando aqui! O que o técnico definir a gente executa certinho.` }
+        HOTHEAD: [
+          { key: "ct_hh1", text: `Sem mistério: é pressionar a saída de ${opp} até sufocar eles!` },
+          { key: "ct_hh2", text: `Não podemos deixar os criadores de ${opp} pensarem com a bola no pé!` },
+          { key: "ct_hh3", text: `Se o plano for ir pra cima e abafar na área deles, eu assino embaixo!` },
+          { key: "ct_hh4", text: `O ponto fraco deles aparece na hora que a dividida aperta!` }
+        ],
+        REBEL_TROLL: [
+          { key: "ct_rt1", text: `Se ${opp} já tá previsível no vídeo, imagina quando mudarmos o passo no jogo kkk` },
+          { key: "ct_rt2", text: `Apanhei uns cacoetes do goleiro de ${opp} também, ele sempre atrasa um segundo pra cair.` },
+          { key: "ct_rt3", text: `Boa sacada! Se enganarmos eles no primeiro tempo já desmonta o plano todo.` },
+          { key: "ct_rt4", text: `Adoro quando o time descobre onde o rival se aperta sozinho kkk` }
+        ],
+        DIVINE_PRIDE: [
+          { key: "ct_dp1", text: `Observação precisa. Explorando essa brecha, ${opp} não encontrará resposta tática.` },
+          { key: "ct_dp2", text: `Conhecendo os padrões de ${opp}, nossa superioridade técnica se impõe naturalmente.` },
+          { key: "ct_dp3", text: `Ajuste elegante que coloca o controle da partida nas nossas mãos.` },
+          { key: "ct_dp4", text: `Cada fraqueza mapeada aproxima nossa equipe de uma vitória segura.` }
+        ],
+        CHILL_JOKER: [
+          { key: "ct_cj1", text: `Rapaz, olhando desse jeito ${opp} parece até mais fácil de marcar haha` },
+          { key: "ct_cj2", text: `Tô anotando tudo aqui mentalmente kkk depois não falem que não prestei atenção!` },
+          { key: "ct_cj3", text: `Boa leitura! Assim até quem tá lá trás já sabe onde a bola vai pingar!` },
+          { key: "ct_cj4", text: `Gostei do estudo, dá muita calma saber o que ${opp} vai tentar!` }
+        ],
+        HEART_TEAM: [
+          { key: "ct_ht1", text: `Bem observado! Conversando assim todo mundo entra sabendo o que esperar de ${opp}.` },
+          { key: "ct_ht2", text: `Cada detalhe desses ajuda o setor vizinho a fechar junto na hora H.` },
+          { key: "ct_ht3", text: `Se todo mundo acompanhar essa movimentação, ninguém fica perdido em campo.` },
+          { key: "ct_ht4", text: `Ótima troca de ideias antes de entrarmos no aquecimento contra ${opp}.` }
         ]
       };
-      return chimeTat[voice] || chimeTat.DEFAULT;
+      return chimeTat[voice] || chimeTat.HEART_TEAM;
     }
 
     // Wrap-up específico por categoria quando há ajuste tático ou técnica combinada
     if (kind === "WRAP" && coop && (quality === "GREAT" || quality === "GOOD")) {
+      const mCoop = moveWithArticle(coop);
       const targetReaction =
         coopCat === "DF" || coopCat === "GK"
           ? `Quero ver o ataque de ${opp} passar por essa barreira!`
@@ -739,25 +1094,76 @@
           ? `A marcação de ${opp} vai ficar perdida com esse giro!`
           : `O goleiro de ${opp} não segura isso nunca!`;
       const coopLines = {
-        CAPTAIN_FIRE: [{ key: "wc_cf", text: `A ${coop} encaixou bonito demais!! Quero soltar ela logo contra ${opp}!` }],
-        COLD_ACE: [{ key: "wc_ca", text: `A ${coop} ficou limpa. Só chamar na hora certa.` }],
-        TACTICIAN: [{ key: "wc_tc", text: `O timing da ${coop} ficou perfeito pra surpreender ${opp}.` }],
-        HOTHEAD: [{ key: "wc_hh", text: `A ${coop} tá braba demais!! ${targetReaction}` }],
-        REBEL_TROLL: [{ key: "wc_rt", text: `Imagina a cara do time de ${opp} levando uma ${coop} do nada kkk` }],
-        DEFAULT: [{ key: "wc_df", text: `Incrível termos fechado a ${coop}! Vai ser arma pesada contra ${opp}!` }]
+        CAPTAIN_FIRE: [
+          { key: "wc_cf1", text: `${mCoop.charAt(0).toUpperCase() + mCoop.slice(1)} encaixou bonito demais!! Quero soltar logo contra ${opp}!` },
+          { key: "wc_cf2", text: `Sintonia absurda!! Quando sair ${mCoop} no jogo o estádio vem abaixo!` }
+        ],
+        COLD_ACE: [
+          { key: "wc_ca1", text: `${mCoop.charAt(0).toUpperCase() + mCoop.slice(1)} ficou limpa. Só chamar na hora certa.` },
+          { key: "wc_ca2", text: `Movimento limpo. Vamos usar contra ${opp}.` }
+        ],
+        TACTICIAN: [
+          { key: "wc_tc1", text: `O tempo de bola ${moveWithArticle(coop, "de")} ficou perfeito pra surpreender ${opp}.` },
+          { key: "wc_tc2", text: `Essa combinação quebra qualquer linha compacta de ${opp}.` }
+        ],
+        HOTHEAD: [
+          { key: "wc_hh1", text: `${mCoop.charAt(0).toUpperCase() + mCoop.slice(1)} tá braba demais!! ${targetReaction}` },
+          { key: "wc_hh2", text: `Agora sim temos uma arma absurda pra cima deles!!` }
+        ],
+        REBEL_TROLL: [
+          { key: "wc_rt1", text: `Imagina a cara do time de ${opp} levando ${mCoop} do nada kkk` },
+          { key: "wc_rt2", text: `Pior que ${mCoop} saiu limpa de primeira kkk quero ver segurarem!` }
+        ],
+        DEFAULT: [
+          { key: "wc_df1", text: `Incrível termos fechado ${mCoop}! Vai ser arma pesada contra ${opp}!` },
+          { key: "wc_df2", text: `Ficou muito sincronizada ${mCoop}! Orgulho demais dessa dupla!` }
+        ]
       };
       return coopLines[voice] || coopLines.DEFAULT;
     }
 
     if (kind === "WRAP" && tac && (quality === "GREAT" || quality === "GOOD" || quality === "TRADEOFF")) {
       const tacLines = {
-        TACTICIAN: [{ key: "wt_tc", text: `Anotado, vamos com ${tac}. Isso encaixa certinho pra enfrentar ${opp}.` }],
-        STOIC_WALL: [{ key: "wt_sw", text: `Beleza, fechou na ${tac}. Já me preparo com o setor todo.` }],
-        COLD_ACE: [{ key: "wt_ca", text: `Certo, apostamos na ${tac}. Foco em campo.` }],
-        CAPTAIN_FIRE: [{ key: "wt_cf", text: `Fechou na ${tac}!! Agora é executar com garra contra ${opp}!` }],
-        REBEL_TROLL: [{ key: "wt_rt", text: `Olha, apostar na ${tac} contra ${opp} pode render demais kkk.` }],
-        CHILL_JOKER: [{ key: "wt_cj", text: `Demorou professor, vamos de ${tac} e já era!` }],
-        DEFAULT: [{ key: "wt_df", text: `Combinado na ${tac}! Todo mundo na mesma página pro próximo jogo.` }]
+        TACTICIAN: [
+          { key: "wt_tc1", text: `Anotado, vamos com ${tac}. Isso encaixa certinho pra enfrentar ${opp}.` },
+          { key: "wt_tc2", text: `Com ${tac}, nossa saída e recomposição ficam bem mais alinhadas.` }
+        ],
+        STOIC_WALL: [
+          { key: "wt_sw1", text: `Beleza, fechou em ${tac}. Já me preparo com o setor todo.` },
+          { key: "wt_sw2", text: `Garanto a cobertura lá atrás dentro desse ajuste de ${tac}.` }
+        ],
+        COLD_ACE: [
+          { key: "wt_ca1", text: `Certo, apostamos em ${tac}. Foco em campo.` },
+          { key: "wt_ca2", text: `Ajuste feito em ${tac}. Agora é jogar.` }
+        ],
+        CAPTAIN_FIRE: [
+          { key: "wt_cf1", text: `Fechou em ${tac}!! Agora é executar com garra contra ${opp}!` },
+          { key: "wt_cf2", text: `Todo mundo ligado na movimentação de ${tac} pro próximo jogo!` }
+        ],
+        HOTHEAD: [
+          { key: "wt_hh1", text: `Bora pra cima com ${tac}!! Quero ver quem para a gente!` },
+          { key: "wt_hh2", text: `Gostei da pegada em ${tac}! É assim que se entra em jogo grande!` }
+        ],
+        REBEL_TROLL: [
+          { key: "wt_rt1", text: `Olha, apostar em ${tac} contra ${opp} pode render demais kkk` },
+          { key: "wt_rt2", text: `Se ${tac} surpreender eles logo no começo vai ser lindo kkk` }
+        ],
+        DIVINE_PRIDE: [
+          { key: "wt_dp1", text: `Decisão cirúrgica em ${tac}. ${opp} não terá saída.` },
+          { key: "wt_dp2", text: `Com ${tac} bem executado, controlamos o espetáculo.` }
+        ],
+        CHILL_JOKER: [
+          { key: "wt_cj1", text: `Demorou professor, vamos de ${tac} e já era!` },
+          { key: "wt_cj2", text: `Anotado sobre ${tac} kkk agora ninguém se perde no campinho!` }
+        ],
+        SPEED_SPARK: [
+          { key: "wt_ss1", text: `Com ${tac} eu já sei exatamente o corredor pra acelerar!` },
+          { key: "wt_ss2", text: `Partiu treinar ${tac} na velocidade máxima!` }
+        ],
+        DEFAULT: [
+          { key: "wt_df1", text: `Combinado em ${tac}! Todo mundo na mesma página pro próximo jogo.` },
+          { key: "wt_df2", text: `Anotado o plano em ${tac}! Agora é executar bem contra ${opp}.` }
+        ]
       };
       return tacLines[voice] || tacLines.DEFAULT;
     }
@@ -785,34 +1191,41 @@
       if (!actor) continue;
       const persona = resolveInazumaPersona(actor);
       const otherActor = idx % 2 === 0 ? a0 : a1;
+      const otherShort = shortFirstName(otherActor);
       const bank = getPersonaReplyBank(persona.voice, {
         actor,
         oppName: opp,
         sigMove: actor.sigMove || actor.shMove || "minha técnica",
         sigMoveCat: actor.sigMoveCat,
-        otherName: shortFirstName(otherActor)
+        otherName: otherShort
       });
 
-      let chosenPool = getCategoryCoherentPool("CHIME", category, persona.voice, "GOOD", { oppName: opp });
+      let chosenPool = getCategoryCoherentPool("CHIME", category, persona.voice, "GOOD", {
+        oppName: opp,
+        interactionMode,
+        otherName: otherShort
+      });
       let tone = "normal";
-      if (category === "RAIVA") {
-        chosenPool = bank.CHIME_RAGE || bank.TRADEOFF;
+      if (interactionMode === "DILEMMA" && chosenPool) {
+        tone = category === "RAIVA" ? "tense" : "normal";
+      } else if (category === "ELOGIO") {
+        chosenPool = chosenPool || bank.CHIME_HYP;
+        tone = "praise";
+      } else if (category === "RAIVA") {
+        chosenPool = bank.CHIME_RAGE || chosenPool;
         tone = persona.voice === "REBEL_TROLL" ? "normal" : "tense";
       } else if (category === "CRIAR_TECNICA") {
-        chosenPool = bank.CHIME_HYP || bank.GREAT;
+        chosenPool = bank.CHIME_HYP || chosenPool;
         tone = "idea";
-      } else if (category === "ELOGIO") {
-        chosenPool = bank.GREAT;
-        tone = "hype";
       } else if (category === "TATICA_RIVAL") {
         tone = persona.voice === "TACTICIAN" ? "idea" : "normal";
       } else if (category === "RESENHA") {
         tone = persona.voice === "CHILL_JOKER" || persona.voice === "REBEL_TROLL" ? "hype" : "normal";
       }
 
-      const poolArr = chosenPool || bank.GOOD;
+      const poolArr = chosenPool || bank.CHIME_HYP || bank.GOOD;
       const picked = pickFreshWeighted(t, poolArr, threadUsedTexts);
-      const rawLine = picked?.text || `Tamo junto nessa contra ${opp}, ${shortFirstName(otherActor)}!`;
+      const rawLine = picked?.text || `Tamo junto nessa contra ${opp}, ${otherShort}!`;
       const norm = String(rawLine).trim().toLowerCase();
       if (threadUsedTexts.has(norm)) continue;
       threadUsedTexts.add(norm);
@@ -975,12 +1388,28 @@
         coopMove: i === 0 ? coopMove : ""
       });
 
+      const pureResenhaBackup = [
+        { key: "prb_1", text: `Tudo alinhado por aqui! Agora bora guardar energia pro jogo.` },
+        { key: "prb_2", text: `Showww! Esse vestiário fechado vale ouro.` },
+        { key: "prb_3", text: `Fechado, galera! Amanhã ninguém segura esse grupo!` }
+      ];
       const fallbackPool = bank[qBucket] || bank.GOOD || [];
-      const mergedPool = catPool ? [...catPool, ...fallbackPool] : fallbackPool;
-      const unusedInThread = mergedPool.filter((item) => item?.text && !usedLineTexts.has(String(item.text).trim().toLowerCase()));
+      let unusedInThread = [];
+      if (category === "RESENHA") {
+        const strictCat = (catPool || []).filter((item) => item?.text && !usedLineTexts.has(String(item.text).trim().toLowerCase()));
+        unusedInThread = strictCat.length > 0
+          ? strictCat
+          : pureResenhaBackup.filter((item) => !usedLineTexts.has(item.text.trim().toLowerCase()));
+      } else {
+        const unusedCat = (catPool || []).filter((item) => item?.text && !usedLineTexts.has(String(item.text).trim().toLowerCase()));
+        const unusedFallback = fallbackPool.filter((item) => item?.text && !usedLineTexts.has(String(item.text).trim().toLowerCase()));
+        unusedInThread = unusedCat.length > 0 ? unusedCat : unusedFallback;
+      }
       if (unusedInThread.length === 0) continue;
       const picked = pickFreshWeighted(t, unusedInThread, usedLineTexts);
-      const msgText = picked?.text || `Fechado então, professor! Bora encarar ${opp}, ${shortFirstName(partner)}!`;
+      const msgText = picked?.text || (category === "RESENHA"
+        ? `Tudo certo por aqui então, galera!`
+        : `Fechado então, professor! Bora encarar ${opp}, ${shortFirstName(partner)}!`);
       const normTxt = String(msgText).trim().toLowerCase();
       if (usedLineTexts.has(normTxt)) continue;
       usedLineTexts.add(normTxt);
@@ -1098,18 +1527,47 @@
     };
   }
 
+  function pickVariant(arr) {
+    if (!Array.isArray(arr) || arr.length === 0) return "";
+    return arr[Math.floor(Math.random() * arr.length)];
+  }
+
   function generateProceduralBetaChat(t, actors = [], ctx = {}, forcedKind = null, opts = {}) {
     if (!Array.isArray(actors) || actors.length < 2) return null;
     const opp = ctx.oppName || "o adversário";
+    const teamName = ctx.teamName || "nosso time";
     const teamChem = Number(ctx.teamChem) || 45;
+    const teamEnergy = Number(ctx.teamEnergy) || 85;
+    const stageName = ctx.stageName || "Fase Decisiva";
+    const oppGkElem = ctx.oppGkElem || null;
     const squadObj = typeof state !== "undefined" && state?.squad ? state.squad : {};
     const findReal = (actor) => Object.values(squadObj).find((p) => p && p.id === actor?.id) || null;
-    const pickOther = (excludeIds, pred = null) => {
-      const ex = new Set(excludeIds.filter(Boolean));
-      const cands = actors.filter((a) => !ex.has(a.id) && (!pred || pred(a)));
-      if (cands.length > 0) return cands[Math.floor(Math.random() * cands.length)];
-      return actors.find((a) => !ex.has(a.id)) || actors[1] || actors[0];
+    const actorCounts = t && typeof t.chatActorCounts === "object" ? t.chatActorCounts : {};
+    const lastIds = new Set(Array.isArray(t?.lastChatActorIds) ? t.lastChatActorIds : []);
+
+    const pickFairActor = (pred = null, excludeIds = []) => {
+      const ex = new Set((excludeIds || []).filter(Boolean));
+      let pool = actors.filter((a) => a && !ex.has(a.id) && (!pred || pred(a)));
+      if (pool.length === 0) {
+        pool = actors.filter((a) => a && !ex.has(a.id));
+      }
+      if (pool.length === 0) return actors[0];
+      const weights = pool.map((a) => {
+        const cnt = Number(actorCounts[a.id]) || 0;
+        const recentPenalty = lastIds.has(a.id) ? 0.42 : 1.0;
+        return recentPenalty / (1 + cnt * 1.45);
+      });
+      const total = weights.reduce((s, w) => s + w, 0);
+      let r = Math.random() * total;
+      for (let i = 0; i < pool.length; i++) {
+        r -= weights[i];
+        if (r <= 0) return pool[i];
+      }
+      return pool[pool.length - 1];
     };
+
+    const pickOther = (excludeIds, pred = null) => pickFairActor(pred, excludeIds);
+
     const shuffleChoices = (arr) => {
       const copy = [...arr];
       for (let i = copy.length - 1; i > 0; i--) {
@@ -1119,6 +1577,38 @@
       return copy;
     };
 
+    // Detecta elegibilidade de cenários contextuais ricos
+    const normTeam = (s) => normNameKey(s || "");
+    const oppKey = normTeam(opp);
+    const exClubActor = actors.find((a) => {
+      const tn = normTeam(a.teamName);
+      return tn && oppKey && (oppKey.includes(tn) || tn.includes(oppKey));
+    }) || null;
+    let sharedSchoolPair = null;
+    if (!exClubActor) {
+      const bySchool = new Map();
+      actors.forEach((a) => {
+        const k = normTeam(a.teamName);
+        if (!k) return;
+        if (!bySchool.has(k)) bySchool.set(k, []);
+        bySchool.get(k).push(a);
+      });
+      const pairs = [...bySchool.values()].filter((g) => g.length >= 2);
+      if (pairs.length > 0) {
+        const grp = pairs[Math.floor(Math.random() * pairs.length)];
+        sharedSchoolPair = [grp[0], grp[1]];
+      }
+    }
+    const advMap = typeof ELEMENT_ADVANTAGE === "object" && ELEMENT_ADVANTAGE ? ELEMENT_ADVANTAGE : null;
+    const elemEdgeActor = oppGkElem && advMap
+      ? pickFairActor((a) => a.role !== "GK" && advMap[a.element] === oppGkElem)
+      : null;
+    const hasElemEdge = Boolean(oppGkElem && advMap && actors.some((a) => a.role !== "GK" && advMap[a.element] === oppGkElem));
+    const eligibleKeshin = actors.some((a) => {
+      const rp = findReal(a);
+      return rp && !rp.keshin && a.role !== "GK";
+    });
+
     const kindsPool = [
       "QUEST_LEARN_MOVE",
       "QUEST_AWAKEN_KESHIN",
@@ -1126,24 +1616,45 @@
       "PROC_RIVAL_COUNTERPLAN",
       "PROC_MOVE_SPAR",
       "PROC_GK_DF_SYNC",
-      "PROC_LOCKER_BANTER"
+      "PROC_LOCKER_BANTER",
+      "PROC_EX_CLUB_REUNION",
+      "PROC_ELEMENTAL_MATCHUP",
+      "PROC_CAPTAINCY_PRESSURE",
+      "PROC_CHEMISTRY_DUO_LAB",
+      "PROC_TOURNAMENT_FEVER",
+      "PROC_SET_PIECE_CHOREOGRAPHY",
+      "PROC_BENCH_FATIGUE_ROTATION",
+      "PROC_RIVAL_TRASH_TALK"
     ];
+
     let kind = forcedKind;
     if (!kind) {
-      const candidates = [...kindsPool];
-      const eligibleKeshin = actors.some((a) => {
-        const rp = findReal(a);
-        return rp && !rp.keshin && a.role !== "GK";
+      const candidates = kindsPool.filter((k) => {
+        if (k === "QUEST_AWAKEN_KESHIN" && !eligibleKeshin) return false;
+        if (k === "PROC_EX_CLUB_REUNION" && !exClubActor && !sharedSchoolPair) return false;
+        if (k === "PROC_ELEMENTAL_MATCHUP" && !hasElemEdge) return false;
+        return true;
       });
-      if (!eligibleKeshin) {
-        const idxK = candidates.indexOf("QUEST_AWAKEN_KESHIN");
-        if (idxK >= 0) candidates.splice(idxK, 1);
+      const recentProc = t && Array.isArray(t._usedProcKinds) ? t._usedProcKinds.slice(-6) : [];
+      const freshKinds = candidates.filter((k) => !recentProc.includes(k));
+      const pickFrom = freshKinds.length > 0 ? freshKinds : candidates;
+      kind = pickFrom[Math.floor(Math.random() * pickFrom.length)];
+      if (t && typeof t === "object" && kind) {
+        if (!Array.isArray(t._usedProcKinds)) t._usedProcKinds = [];
+        t._usedProcKinds.push(kind);
+        if (t._usedProcKinds.length > 10) t._usedProcKinds = t._usedProcKinds.slice(-10);
       }
-      kind = candidates[Math.floor(Math.random() * candidates.length)];
     }
 
     const baseResult = (meta) => {
-      const extraActors = actors.filter((a) => !meta.coreActors.some((c) => c.id === a.id)).slice(0, 2);
+      const coreIds = new Set(meta.coreActors.map((c) => c.id));
+      const remaining = actors.filter((a) => !coreIds.has(a.id));
+      remaining.sort((a, b) => {
+        const scoreA = (Number(actorCounts[a.id]) || 0) + (lastIds.has(a.id) ? 2 : 0) + Math.random() * 1.6;
+        const scoreB = (Number(actorCounts[b.id]) || 0) + (lastIds.has(b.id) ? 2 : 0) + Math.random() * 1.6;
+        return scoreA - scoreB;
+      });
+      const extraActors = remaining.slice(0, 2);
       const participants = [...meta.coreActors, ...extraActors];
       return {
         ...meta,
@@ -1158,28 +1669,29 @@
     if (kind === "POST_MATCH_BREAKTHROUGH") {
       const bt = ctx.breakthrough || ctx.lastMatch?.breakthroughs?.[0];
       if (!bt) return null;
-      const hero = actors.find((a) => a.id === bt.playerId) || actors[0];
+      const hero = actors.find((a) => a.id === bt.playerId) || pickFairActor();
       const cap = pickOther([hero.id], (a) => a.isCaptain || resolveInazumaPersona(a).voice === "CAPTAIN_FIRE");
       const tact = pickOther([hero.id, cap.id], (a) => resolveInazumaPersona(a).voice === "TACTICIAN");
       const core = [hero, cap, tact].filter((v, i, arr) => v && arr.findIndex((x) => x.id === v.id) === i);
       if (core.length < 2) return null;
       const isKeshin = bt.kind === "AWAKEN_KESHIN";
+      const btArt = moveWithArticle(bt.name);
       const msgs = [
         makeProcMsg(core, 0, isKeshin
-          ? `Cara, ainda tô sentindo a energia da ${bt.name} no corpo!! Quando entrou aquela bola parecia outro nível!`
-          : `Galera, viram na hora do jogo?! A ${bt.name} finalmente saiu limpa quando eu mais precisava!`, "hype"),
+          ? `Cara, ainda tô sentindo a energia ${moveWithArticle(bt.name, "de")} no corpo!! Quando entrou aquela bola parecia outro nível!`
+          : `Galera, viram na hora do jogo?! ${btArt.charAt(0).toUpperCase() + btArt.slice(1)} finalmente saiu limpa quando eu mais precisava!`, "hype"),
         makeProcMsg(core, 1, isKeshin
           ? `Arrepiou o estádio todo, ${shortFirstName(hero)}!! Todo mundo sentiu o peso da tua aura naquele lance!`
-          : `Baita evolução, ${shortFirstName(hero)}!! Agora já chega contra ${opp} com arma nova no pé!`, "praise", { quote: { speakerName: core[0].name, text: "saiu" } }),
-        ...(core[2] ? [makeProcMsg(core, 2, `Contra ${opp}, se a gente encaixar a ${bt.name} no segundo tempo vai pegar eles de surpresa total.`, "idea")] : [])
+          : `Baita evolução, ${shortFirstName(hero)}!! Agora já chega contra ${opp} com arma nova no pé!`, "praise", { quote: { speakerName: core[0].name, text: isKeshin ? "energia" : "saiu" } }),
+        ...(core[2] ? [makeProcMsg(core, 2, `Contra ${opp}, se a gente encaixar ${btArt} no segundo tempo vai pegar eles de surpresa total.`, "idea")] : [])
       ];
       const choices = shuffleChoices([
         {
-          label: `Construir o plano contra ${opp} em volta da nova força do ${hero.name}!`,
+          label: `Construir o plano contra ${opp} em volta da nova força de ${shortFirstName(hero)}!`,
           approachTag: "Valorizar Despertar",
           quality: "GREAT",
           tacticsPatch: hero.role === "DF" || hero.role === "GK" ? { posture: "balanced" } : { aceActorIdx: 0 },
-          coachLine: `O mérito é todo do teu treino, ${shortFirstName(hero)}! Contra ${opp} a gente vai explorar a ${bt.name} no momento decisivo.`,
+          coachLine: `O mérito é todo do teu treino, ${shortFirstName(hero)}! Contra ${opp} a gente vai explorar ${btArt} no momento decisivo.`,
           reactions: [
             makeProcMsg(core, 0, `Pode mandar a bola pra mim na hora H que eu correspondo!`, "hype"),
             makeProcMsg(core, 1, `Bora!! Grupo inteiro empurrando o ${shortFirstName(hero)} pra cima deles!`, "hype")
@@ -1210,11 +1722,124 @@
       });
     }
 
-    // 2. Pós-jogo: Jogador fominha / segurou bola ignorando colega livre
+    // 2. Pós-jogo: Virada épica celebrada no grupo
+    if (kind === "POST_MATCH_COMEBACK") {
+      const lm = ctx.lastMatch || { userScore: 3, oppScore: 2, oppName: opp };
+      const scorer = (lm.topScorerId && actors.find((a) => a.id === lm.topScorerId))
+        || pickFairActor((a) => a.role === "FW" || a.role === "MF");
+      const cap = pickOther([scorer.id], (a) => a.isCaptain || resolveInazumaPersona(a).voice === "CAPTAIN_FIRE");
+      const gk = pickOther([scorer.id, cap.id], (a) => a.role === "GK" || resolveInazumaPersona(a).voice === "STOIC_WALL");
+      const core = [cap, scorer, gk].filter((v, i, arr) => v && arr.findIndex((x) => x.id === v.id) === i);
+      if (core.length < 2) return null;
+      const prevOpp = lm.oppName || opp;
+      const placar = `${lm.userScore || 2} x ${lm.oppScore || 1}`;
+      const openLine = pickVariant([
+        `Gente, até agora não acredito naquela virada de ${placar} em cima de ${prevOpp}!! Ninguém baixou a cabeça quando tava tudo atrás!`,
+        `Aquele segundo tempo contra ${prevOpp} pra virar pra ${placar} mostrou do que esse vestiário é feito!!`
+      ]);
+      const msgs = [
+        makeProcMsg(core, 0, openLine, "hype"),
+        makeProcMsg(core, 1, `Quando você gritou no intervalo pra acreditar até o fim, virou a chave do time todo! Agora contra ${opp} entramos gigantes.`, "praise", { quote: { speakerName: core[0].name, text: prevOpp } }),
+        ...(core[2] ? [makeProcMsg(core, 2, `A entrega lá atrás pra segurar o placar depois da virada também foi insana!`, "hype")] : [])
+      ];
+      const choices = shuffleChoices([
+        {
+          label: "Transformar o espírito da virada em combustível para atacar desde o minuto 1!",
+          approachTag: "Garra Inazuma",
+          quality: "GREAT",
+          coachLine: `Virada assim só acontece em time com alma! Contra ${opp} quero essa mesma coragem desde o apito inicial!`,
+          customEffects: { affPts: 20, chemDelta: 3, buffType: "MORALE_BOOST", respectDelta: 2 },
+          reactions: [
+            makeProcMsg(core, 0, `Agora ninguém segura a gente!! Bora com tudo contra ${opp}!`, "hype"),
+            makeProcMsg(core, 1, `Com essa confiança no talo vai sair mais gol ainda!`, "hype")
+          ]
+        },
+        {
+          label: "Comemorar a raça, mas corrigir os sustos do 1º tempo pra não precisar sofrer de novo",
+          approachTag: "Equilíbrio",
+          quality: "GOOD",
+          tacticsPatch: { posture: "balanced" },
+          coachLine: `Bravos demais na reação, agora vamos entrar ligados desde cedo contra ${opp} pra não sair atrás no placar!`,
+          customEffects: { affPts: 14, chemDelta: 2, buffType: "RIVAL_READ", respectDelta: 1 },
+          reactions: [
+            makeProcMsg(core, 0, `Justíssimo, professor! Começar ligado evita susto lá atrás.`, "calm"),
+            makeProcMsg(core, 1, `Boa leitura. Virada é linda, mas dominar desde o início é melhor ainda.`, "calm")
+          ]
+        }
+      ]);
+      return baseResult({
+        id: "proc_post_comeback",
+        contextTrigger: "POST_MATCH_COMEBACK",
+        category: "ELOGIO",
+        categoryLabel: "Virada Épica",
+        categoryIcon: "🔥",
+        badgeClass: "cat-chem",
+        title: `Virada Histórica (${placar})`,
+        coreActors: core,
+        messages: msgs,
+        choices
+      });
+    }
+
+    // 3. Pós-jogo: Goleada / Vitória larga (evitar salto alto antes de enfrentar o próximo rival)
+    if (kind === "POST_MATCH_BLOWOUT") {
+      const lm = ctx.lastMatch || { userScore: 4, oppScore: 0, oppName: opp };
+      const ace = (lm.topScorerId && actors.find((a) => a.id === lm.topScorerId))
+        || pickFairActor((a) => a.role === "FW");
+      const tact = pickOther([ace.id], (a) => resolveInazumaPersona(a).voice === "TACTICIAN" || a.isCaptain);
+      const joker = pickOther([ace.id, tact.id]);
+      const core = [ace, tact, joker].filter((v, i, arr) => v && arr.findIndex((x) => x.id === v.id) === i);
+      if (core.length < 2) return null;
+      const placar = `${lm.userScore || 4} x ${lm.oppScore || 0}`;
+      const prevOpp = lm.oppName || opp;
+      const msgs = [
+        makeProcMsg(core, 0, `${placar} em cima de ${prevOpp}... ataque encaixou quase tudo que tentou hoje!`, "hype"),
+        makeProcMsg(core, 1, `Vitória pesada, mas cuidado com salto alto, ${shortFirstName(ace)}. ${opp} vem estudando nosso último jogo com certeza.`, "idea"),
+        ...(core[2] ? [makeProcMsg(core, 2, `A galera já tava querendo folga dupla depois desse placar, né técnico?`, "banter")] : [])
+      ];
+      const choices = shuffleChoices([
+        {
+          label: "Manter os pés no chão: proibir relaxamento e já estudar pontos fracos de " + opp,
+          approachTag: "Foco Máximo",
+          quality: "GREAT",
+          coachLine: `Goleada de ${placar} já virou passado! Contra ${opp} o placar começa 0 x 0 e respeito se ganha correndo mais!`,
+          customEffects: { chemDelta: 3, affPts: 14, respectDelta: 2, buffType: "RIVAL_READ" },
+          reactions: [
+            makeProcMsg(core, 1, `Falou tudo! É exatamente essa postura que sustenta sequência de vitórias.`, "calm"),
+            makeProcMsg(core, 0, `Certo. Zerar a cabeça e ir pro próximo jogo.`, "calm")
+          ]
+        },
+        {
+          label: "Dar um alívio leve na carga pra turma curtir a boa fase e soltar o futebol",
+          approachTag: "Moral Solta",
+          quality: "GOOD",
+          coachLine: `Podem comemorar o ${placar} hoje sim! Time confiante joga leve contra ${opp}, só não desligam na hora H.`,
+          customEffects: { energyDelta: 5, affPts: 16, buffType: "LIGHT_LOCKER" },
+          reactions: [
+            makeProcMsg(core, 0, `Bom equilíbrio. Time solto rende melhor.`, "hype"),
+            makeProcMsg(core, 2, `Aeee!! Moral no máximo pro próximo duelo!`, "hype")
+          ]
+        }
+      ]);
+      return baseResult({
+        id: "proc_post_blowout",
+        contextTrigger: "POST_MATCH_BLOWOUT",
+        category: "ELOGIO",
+        categoryLabel: "Pós-Goleada",
+        categoryIcon: "⚽",
+        badgeClass: "cat-chem",
+        title: `Show de ${placar}!`,
+        coreActors: core,
+        messages: msgs,
+        choices
+      });
+    }
+
+    // 4. Pós-jogo: Jogador fominha / segurou bola ignorando colega livre
     if (kind === "POST_MATCH_BALL_HOG") {
       const inc = ctx.ballHogIncident || ctx.lastMatch?.ballHogIncident;
       if (!inc) return null;
-      const hog = actors.find((a) => a.id === inc.hogId) || actors[0];
+      const hog = actors.find((a) => a.id === inc.hogId) || pickFairActor((a) => a.role === "FW");
       const victim = actors.find((a) => a.id === inc.victimId && a.id !== hog.id) || pickOther([hog.id], (a) => a.role === "FW" || a.role === "MF");
       const med = pickOther([hog.id, victim.id], (a) => a.isCaptain || resolveInazumaPersona(a).voice === "CAPTAIN_FIRE" || resolveInazumaPersona(a).voice === "TACTICIAN");
       const core = [victim, hog, med].filter((v, i, arr) => v && arr.findIndex((x) => x.id === v.id) === i);
@@ -1227,7 +1852,7 @@
       const msgs = [
         makeProcMsg(core, 0, `Preciso falar na moral, ${shortFirstName(hog)}: aos ${inc.minute || 30}' eu entrei livre na cara do gol e você segurou a bola!`, "tense"),
         makeProcMsg(core, 1, hogReply, "tense", { quote: { speakerName: core[0].name, text: "segurei a bola" } }),
-        ...(core[2] ? [makeProcMsg(core, 2, `Gente, acertei aqui fora antes que vire bola de neve contra ${opp}. Técnico, qual é a regra ali na área?`, "calm")] : [])
+        ...(core[2] ? [makeProcMsg(core, 2, `Gente, acertem aqui fora antes que vire bola de neve contra ${opp}. Técnico, qual é a regra ali na área?`, "calm")] : [])
       ];
       const choices = shuffleChoices([
         {
@@ -1269,11 +1894,11 @@
       });
     }
 
-    // 3. Plot da Cidade: Treta Aberta pedindo acerto no mapa da cidade
+    // 5. Plot da Cidade: Treta Aberta pedindo acerto no mapa da cidade
     if (kind === "PLOT_FEUD_ESCALATION") {
       const plot = ctx.plot || (Array.isArray(t?.activeCityPlots) ? t.activeCityPlots.find((pl) => !pl.resolved) : null);
       if (!plot) return null;
-      const a0 = actors.find((a) => a.id === plot.aId) || actors[0];
+      const a0 = actors.find((a) => a.id === plot.aId) || pickFairActor();
       const a1 = actors.find((a) => a.id === plot.bId && a.id !== a0.id) || pickOther([a0.id]);
       const med = pickOther([a0.id, a1.id], (a) => a.isCaptain || resolveInazumaPersona(a).voice === "CHILL_JOKER");
       const core = [a0, a1, med].filter((v, i, arr) => v && arr.findIndex((x) => x.id === v.id) === i);
@@ -1292,7 +1917,7 @@
           customEffects: { affPts: 10, respectDelta: 1 },
           reactions: [
             makeProcMsg(core, 0, `Se passar por lá hoje eu topo conversar olho no olho.`, "calm"),
-            makeProcMsg(core, 1, `Fechado então. Vamos ver no ${locName}.`, "calm")
+            makeProcMsg(core, 1, `Fechado então. Nos vemos em ${locName}.`, "calm")
           ]
         },
         {
@@ -1321,11 +1946,11 @@
       });
     }
 
-    // 4. Desfecho celebrando resolução após ação na cidade
+    // 6. Desfecho celebrando resolução após ação na cidade
     if (kind === "CITY_PLOT_RESOLVED") {
       const plot = ctx.plot;
       if (!plot) return null;
-      const a0 = actors.find((a) => a.id === plot.aId) || actors[0];
+      const a0 = actors.find((a) => a.id === plot.aId) || pickFairActor();
       const a1 = actors.find((a) => a.id === plot.bId && a.id !== a0.id) || pickOther([a0.id]);
       const cap = pickOther([a0.id, a1.id], (a) => a.isCaptain);
       const core = [a0, a1, cap].filter((v, i, arr) => v && arr.findIndex((x) => x.id === v.id) === i);
@@ -1361,19 +1986,31 @@
       });
     }
 
-    // 5. Quest: Jogador tentando aprender uma nova técnica (desperta no jogo!)
+    // 7. Quest: Jogador tentando aprender uma nova técnica (desperta no jogo!)
     if (kind === "QUEST_LEARN_MOVE") {
-      const learner = actors.find((a) => a.role !== "GK" && (a.archetype !== "EGO_STRIKER" || Math.random() < 0.7)) || actors[0];
+      const learner = pickFairActor((a) => a.role !== "GK");
       const partner = pickOther([learner.id], (a) => a.role !== "GK");
       const med = pickOther([learner.id, partner.id], (a) => a.isCaptain || resolveInazumaPersona(a).voice === "TACTICIAN");
       const core = [learner, partner, med].filter((v, i, arr) => v && arr.findIndex((x) => x.id === v.id) === i);
       const realLearner = findReal(learner);
       const mvPick = pickFreshLearnableMoveForActor(learner, realLearner);
-      const verb = mvPick.cat === "SH" ? "soltar um chute absurdo com" : mvPick.cat === "OF" ? "cortar qualquer marcador com" : mvPick.cat === "DF" ? "fechar a área inteira com" : "defender até pensamento com";
+      const mvArt = moveWithArticle(mvPick.moveName);
+      const mvCom = moveWithArticle(mvPick.moveName, "com");
+      const verb = mvPick.cat === "SH"
+        ? `soltar um chute absurdo ${mvCom}`
+        : mvPick.cat === "OF"
+        ? `cortar qualquer marcador ${mvCom}`
+        : mvPick.cat === "DF"
+        ? `fechar a área inteira ${mvCom}`
+        : `defender até pensamento ${mvCom}`;
+      const openers = [
+        `Professor, tô treinando escondido faz dois dias pra conseguir ${verb}! Só falta confiança pra tentar no jogo!`,
+        `Fiquei depois do treino ajustando o tempo de bola pra tentar ${verb} contra ${opp}. Se der brecha em campo eu mando!`
+      ];
       const msgs = [
-        makeProcMsg(core, 0, `Professor, tô treinando escondido faz dois dias pra conseguir ${verb} a ${mvPick.moveName}! Só falta confiança pra tentar no jogo!`, "idea"),
-        makeProcMsg(core, 1, `Eu vi ele ficando depois do horário! Se encaixar a ${mvPick.moveName} contra ${opp}, vai levantar a arquibancada!`, "hype"),
-        ...(core[2] ? [makeProcMsg(core, 2, `Deixa o técnico aprovar o desafio que a gente te dá cobertura em campo pra soltar!`, "calm")] : [])
+        makeProcMsg(core, 0, pickVariant(openers), "idea"),
+        makeProcMsg(core, 1, `Eu vi ${shortFirstName(learner)} ralar nos treinos! Se encaixar ${mvArt} contra ${opp}, vai levantar a arquibancada!`, "hype"),
+        ...(core[2] ? [makeProcMsg(core, 2, `Deixa o técnico aprovar o desafio que a gente dá cobertura em campo pra soltar!`, "calm")] : [])
       ];
       const choices = shuffleChoices([
         {
@@ -1388,10 +2025,10 @@
             cat: mvPick.cat,
             boostPower: 8
           },
-          coachLine: `Pode ir pra cima sem medo contra ${opp}! Na primeira oportunidade em campo, solta a ${mvPick.moveName} que o grupo garante!`,
+          coachLine: `Pode ir pra cima sem medo contra ${opp}! Na primeira oportunidade em campo, solta ${mvArt} que o grupo garante!`,
           customEffects: { affPts: 14, xpAmt: 20, buffType: "COOP_SYNC", note: `Missão ativa: ${shortFirstName(learner)} despertará ${mvPick.moveName} em campo` },
           reactions: [
-            makeProcMsg(core, 0, `Sério?! Valeu demais pela confiança!! Em campo eu faço a ${mvPick.moveName} acontecer!`, "hype"),
+            makeProcMsg(core, 0, `Valeu demais pela confiança! Em campo eu faço ${mvArt} acontecer!`, "hype"),
             makeProcMsg(core, 1, `Bora!! Quando pegar na bola contra ${opp} todo mundo abre espaço pra você!`, "hype")
           ]
         },
@@ -1420,27 +2057,29 @@
       });
     }
 
-    // 6. Quest: Jogador sem Keshin sentindo despertar de Espírito Guerreiro!
+    // 8. Quest: Jogador sem Keshin sentindo despertar de Espírito Guerreiro!
     if (kind === "QUEST_AWAKEN_KESHIN") {
-      const cand = actors.find((a) => {
+      const cand = pickFairActor((a) => {
         const rp = findReal(a);
         return rp && !rp.keshin && a.role !== "GK";
-      }) || actors.find((a) => {
+      }) || pickFairActor((a) => {
         const rp = findReal(a);
         return rp && !rp.keshin;
       });
-      if (!cand) return generateProceduralBetaChat(t, actors, ctx, "QUEST_LEARN_MOVE", opts);
+      if (!cand || findReal(cand)?.keshin) return generateProceduralBetaChat(t, actors, ctx, "QUEST_LEARN_MOVE", opts);
       const partner = pickOther([cand.id]);
       const cap = pickOther([cand.id, partner.id], (a) => a.isCaptain);
       const core = [cand, partner, cap].filter((v, i, arr) => v && arr.findIndex((x) => x.id === v.id) === i);
-      const usedKeshins = new Set(
-        Object.values(squadObj).map((p) => p?.keshin?.name).filter(Boolean)
-      );
+      const usedKeshins = new Set(Object.values(squadObj).map((p) => p?.keshin?.name).filter(Boolean));
       const keshin = resolvePlayerLatentKeshin(cand, findReal(cand), usedKeshins);
+      const openK = pickVariant([
+        `Treinador, estranho falar isso, mas toda vez que divido bola forte sinto uma pressão quente nas costas... acho que o ${keshin.name} tá quase despertando!`,
+        `Senti uma aura pesada vibrando no treino de hoje, professor. Parece que o ${keshin.name} quer sair na hora do jogo contra ${opp}!`
+      ]);
       const msgs = [
-        makeProcMsg(core, 0, `Treinador, estranho falar isso, mas toda vez que divido bola forte sinto uma pressão quente nas costas... acho que o ${keshin.name} tá quase despertando!`, "idea"),
-        makeProcMsg(core, 1, `Caramba, eu também senti a energia subir no último treino do ${shortFirstName(cand)}!`, "hype"),
-        ...(core[2] ? [makeProcMsg(core, 2, `Se você invocar um Espírito Guerreiro no meio do jogo contra ${opp}, o estádio inteiro vai tremer!`, "hype")] : [])
+        makeProcMsg(core, 0, openK, "idea"),
+        makeProcMsg(core, 1, `Eu também senti a energia subir no último treino de ${shortFirstName(cand)}!`, "hype"),
+        ...(core[2] ? [makeProcMsg(core, 2, `Se invocar um Espírito Guerreiro no meio do jogo contra ${opp}, o estádio inteiro vai tremer!`, "hype")] : [])
       ];
       const choices = shuffleChoices([
         {
@@ -1456,7 +2095,7 @@
           coachLine: `Não segura essa energia, ${shortFirstName(cand)}! Quando o jogo contra ${opp} pedir, libera o ${keshin.name} em campo!`,
           customEffects: { affPts: 16, respectDelta: 2, note: `Missão ativa: Incorporação ${keshin.name} em campo!` },
           reactions: [
-            makeProcMsg(core, 0, `Pode deixar!! Contra ${opp} eu vou romper esse limite e trazer o ${keshin.name} pro jogo!`, "hype"),
+            makeProcMsg(core, 0, `Contra ${opp} eu vou romper esse limite e trazer o ${keshin.name} pro jogo!`, "hype"),
             makeProcMsg(core, 1, `Ansioso demais pra ver essa aura em campo!!`, "hype")
           ]
         },
@@ -1484,13 +2123,13 @@
       });
     }
 
-    // 7. Debate orgânico de Formação (abre botão "Ajustar Formação e Escalação" no chat!)
+    // 9. Debate orgânico de Formação (abre botão "Ajustar Formação e Escalação" no chat!)
     if (kind === "PROC_FORMATION_DEBATE") {
       const curForm = typeof state !== "undefined" && state.formation ? state.formation : "4-3-3";
       const allForms = typeof DB === "object" && DB?.formations ? Object.keys(DB.formations) : ["4-3-3", "4-4-2", "3-4-3", "3-5-2"];
       const alts = allForms.filter((f) => f !== curForm);
       const targetForm = alts[Math.floor(Math.random() * alts.length)] || "3-5-2";
-      const tact = actors.find((a) => resolveInazumaPersona(a).voice === "TACTICIAN") || actors[0];
+      const tact = pickFairActor((a) => resolveInazumaPersona(a).voice === "TACTICIAN" || a.role === "MF");
       const wing = pickOther([tact.id], (a) => a.role === "MF" || a.role === "FW");
       const cap = pickOther([tact.id, wing.id], (a) => a.isCaptain);
       const core = [tact, wing, cap].filter((v, i, arr) => v && arr.findIndex((x) => x.id === v.id) === i);
@@ -1502,7 +2141,7 @@
         ? `ter equilíbrio atrás e velocidade pelas pontas contra ${opp}`
         : `fechar duas linhas sólidas de quatro e sair no contra-ataque em dupla`;
       const msgs = [
-        makeProcMsg(core, 0, `Professor, olhando pro jeito que ${opp} joga, o nosso ${curForm} pode sofrer espaço. Acho que mudar pro ${targetForm} ia ajudar demais pra ${formReason}!`, "idea"),
+        makeProcMsg(core, 0, `Professor, olhando pro jeito que ${opp} joga, o nosso ${curForm} pode sofrer espaço. Mudar pro ${targetForm} ia ajudar demais pra ${formReason}!`, "idea"),
         makeProcMsg(core, 1, `Concordo! No ${targetForm} cada um sabe certinho onde pisar, só o senhor ajustar as peças no campinho depois.`, "hype")
       ];
       const choices = shuffleChoices([
@@ -1514,16 +2153,16 @@
           openFormationModal: true,
           coachLine: `Fechado, vamos de ${targetForm} contra ${opp}! Vou já abrir a escalação pra posicionar todo mundo certinho nesse desenho.`,
           reactions: [
-            makeProcMsg(core, 0, `Boa!! Com a ${targetForm} encaixada, o meio de ${opp} vai ficar sem saída.`, "hype"),
+            makeProcMsg(core, 0, `Boa!! Com o ${targetForm} encaixado, o meio de ${opp} vai ficar sem saída.`, "hype"),
             makeProcMsg(core, 1, `Tô pronto já! Só encaixar os nomes na formação e partir pro campo.`, "hype")
           ]
         },
         {
-          label: `Manter a ${curForm} por entrosamento, mas ajustar a movimentação pelas pontas`,
+          label: `Manter o ${curForm} por entrosamento, mas ajustar a movimentação pelas pontas`,
           approachTag: `Manter ${curForm}`,
           quality: "GOOD",
           tacticsPatch: { lane: "wings" },
-          coachLine: `O grupo já conhece a ${curForm} de cor. Vamos manter o desenho e abrir mais pelas pontas pra quebrar a marcação.`,
+          coachLine: `O grupo já conhece o ${curForm} de cor. Vamos manter o desenho e abrir mais pelas pontas pra quebrar a marcação.`,
           reactions: [
             makeProcMsg(core, 0, `Faz sentido também! Entrosamento conta muito em jogo apertado.`, "calm"),
             makeProcMsg(core, 1, `Show, corredor aberto pelas laterais comigo é só festa!`, "calm")
@@ -1543,18 +2182,41 @@
       });
     }
 
-    // 8. Resenha / duelo amistoso de técnicas (100% coerente com sigMoveCat!)
+    // 10. Resenha / duelo amistoso de técnicas (GK-aware e com artigo correto!)
     if (kind === "PROC_MOVE_SPAR") {
-      const a0 = actors.find((a) => a.hasRealShMove || a.hasRealOfMove || a.hasRealDfMove) || actors[0];
-      const a1 = pickOther([a0.id]);
+      const a0 = pickFairActor((a) => a.hasRealShMove || a.hasRealOfMove || a.hasRealDfMove || a.hasRealGkMove);
+      const isA0Gk = a0.role === "GK";
+      const a1 = isA0Gk
+        ? pickOther([a0.id], (a) => a.role === "FW" || a.role === "MF")
+        : pickOther([a0.id], (a) => a.role !== "GK");
       const a2 = pickOther([a0.id, a1.id], (a) => resolveInazumaPersona(a).voice === "CHILL_JOKER" || resolveInazumaPersona(a).voice === "REBEL_TROLL");
       const core = [a0, a1, a2].filter((v, i, arr) => v && arr.findIndex((x) => x.id === v.id) === i);
-      const d0 = describeActorMoveAction(a0, { oppName: opp });
-      const d1 = describeActorMoveAction(a1, { oppName: opp });
-      const msgs = [
-        makeProcMsg(core, 0, `Bora apostar no treino de hoje, ${shortFirstName(a1)}? Quero ver se você acompanha o ritmo da minha ${d0.move}!`, "banter"),
-        makeProcMsg(core, 1, `Haha fechou demais! ${d1.breakLine} Aposto o suco de depois do treino!`, "hype")
-      ];
+      const isGkDuel = a0.role === "GK" || a1.role === "GK";
+      let msgs;
+      if (isGkDuel) {
+        const gkA = a0.role === "GK" ? a0 : a1;
+        const fwA = a0.role === "GK" ? a1 : a0;
+        const gkMoveArt = moveWithArticle(gkA.gkMove || gkA.sigMove);
+        const shMoveArt = moveWithArticle(fwA.shMove || fwA.sigMove);
+        const gkLine = `Bora ficar depois do treino batendo falta e chute de fora, ${shortFirstName(fwA)}? Quero testar ${gkMoveArt} contra ${shMoveArt}!`;
+        const fwLine = `Fechou, ${shortFirstName(gkA)}. Vamos ver se ${gkMoveArt} segura quando eu caprichar no ângulo.`;
+        msgs = [
+          makeProcMsg(core, a0.id === gkA.id ? 0 : 1, gkLine, "banter"),
+          makeProcMsg(core, a0.id === gkA.id ? 1 : 0, fwLine, "hype")
+        ];
+      } else {
+        const d0 = describeActorMoveAction(a0, { oppName: opp });
+        const d1 = describeActorMoveAction(a1, { oppName: opp });
+        const sparOpener = pickVariant([
+          `Bora apostar no treino de hoje, ${shortFirstName(a1)}? Quero ver se você aguenta o ritmo ${moveWithArticle(d0.move, "de")}!`,
+          `Desafio relâmpago depois do aquecimento, ${shortFirstName(a1)}: se você passar ${moveWithArticle(d0.move, "de")}, eu pago o lanche!`,
+          `Hoje eu tô afim de testar ${moveWithArticle(d0.move)} em 1x1 contra você, ${shortFirstName(a1)}! Topa ou vai correr?`
+        ]);
+        msgs = [
+          makeProcMsg(core, 0, sparOpener, "banter"),
+          makeProcMsg(core, 1, `Fechou! ${d1.breakLine} Aposto o suco de depois do treino!`, "hype")
+        ];
+      }
       const choices = shuffleChoices([
         {
           label: "Incentivar o desafio saudável e marcar um mini-treino de duelos!",
@@ -1563,8 +2225,8 @@
           coachLine: `Gostei de ver essa fome de bola! Podem apostar o desafio no treino, só lembrem de levar essa pegada contra ${opp}.`,
           customEffects: { affPts: 18, xpAmt: 28, buffType: "MORALE_BOOST" },
           reactions: [
-            makeProcMsg(core, 0, `Agora ficou oficial hein ${shortFirstName(a1)}, quero ver pagar o suco depois kkk`, "hype"),
-            makeProcMsg(core, 1, `Pode preparar a carteira porque hoje eu tô voando!`, "hype")
+            makeProcMsg(core, 0, `Agora ficou oficial hein, ${shortFirstName(a1)}! Quero ver pagar a aposta depois.`, "hype"),
+            makeProcMsg(core, 1, `Pode separar a carteira que hoje ninguém me segura no treino!`, "hype")
           ]
         },
         {
@@ -1574,14 +2236,14 @@
           coachLine: `Competitividade lá em cima é ótimo, só dosam a força na dividida pra chegarmos inteiros contra ${opp}.`,
           customEffects: { energyDelta: 3, affPts: 10 },
           reactions: [
-            makeProcMsg(core, 0, `Pode deixar professor, vai ser na técnica pura!`, "calm")
+            makeProcMsg(core, 0, `Combinado, professor! Vai ser só na técnica limpa.`, "calm")
           ]
         }
       ]);
       return baseResult({
         id: "proc_move_spar",
         category: "RESENHA",
-        categoryLabel: "Desafio no Treino",
+        categoryLabel: isGkDuel ? "Duelo Gol × Ataque" : "Desafio no Treino",
         categoryIcon: "⚡",
         badgeClass: "cat-banter",
         title: `Duelo: ${shortFirstName(a0)} × ${shortFirstName(a1)}`,
@@ -1591,16 +2253,18 @@
       });
     }
 
-    // 9. Sintonia Goleiro & Zaga
+    // 11. Sintonia Goleiro & Zaga
     if (kind === "PROC_GK_DF_SYNC") {
-      const gk = actors.find((a) => a.role === "GK") || actors[0];
+      const gk = pickFairActor((a) => a.role === "GK");
       const df = pickOther([gk.id], (a) => a.role === "DF");
       const cap = pickOther([gk.id, df.id], (a) => a.isCaptain);
       const core = [gk, df, cap].filter((v, i, arr) => v && arr.findIndex((x) => x.id === v.id) === i);
       const star = ctx.rivalStar?.name || `o camisa 10 de ${opp}`;
+      const gkEm = moveWithArticle(gk.gkMove || gk.sigMove, "em");
+      const dfCom = moveWithArticle(df.dfMove || df.sigMove, "com");
       const msgs = [
-        makeProcMsg(core, 0, `${shortFirstName(df)}, hoje no coletivo repara no tempo da saída contra ${star}: se fechar o ângulo do chute cruzado eu pego na ${gk.gkMove || gk.sigMove}.`, "idea"),
-        makeProcMsg(core, 1, `Fechado demais! Quando eles avançarem pelo meio eu já fecho o chute com a ${df.dfMove || df.sigMove} pro seu lado.`, "calm")
+        makeProcMsg(core, 0, `${shortFirstName(df)}, hoje no coletivo repara no tempo da saída contra ${star}: se fechar o ângulo do chute cruzado eu pego ${gkEm}.`, "idea"),
+        makeProcMsg(core, 1, `Fechado demais! Quando eles avançarem pelo meio eu já fecho o chute ${dfCom} pro seu lado.`, "calm")
       ];
       const choices = shuffleChoices([
         {
@@ -1638,15 +2302,15 @@
       });
     }
 
-    // 10. Plano contra estrela rival
+    // 12. Plano contra estrela rival
     if (kind === "PROC_RIVAL_COUNTERPLAN") {
-      const tact = actors.find((a) => resolveInazumaPersona(a).voice === "TACTICIAN" || a.role === "MF") || actors[0];
+      const tact = pickFairActor((a) => resolveInazumaPersona(a).voice === "TACTICIAN" || a.role === "MF");
       const fw = pickOther([tact.id], (a) => a.role === "FW");
       const med = pickOther([tact.id, fw.id]);
       const core = [tact, fw, med].filter((v, i, arr) => v && arr.findIndex((x) => x.id === v.id) === i);
       const star = ctx.rivalStar?.name || `o craque de ${opp}`;
       const msgs = [
-        makeProcMsg(core, 0, `Revendo o último jogo de ${opp}, quase toda jogada perigosa passa pelos pés de ${star}. Se a gente cortar essa linha de passe, eles travam.`, "idea"),
+        makeProcMsg(core, 0, `Revendo o último jogo de ${opp}, quase toda jogada perigosa passa pelos pés de ${star}. Se cortarmos essa linha de passe, eles travam.`, "idea"),
         makeProcMsg(core, 1, `E quando recuperarmos a bola, dá pra sair rápido nas costas dos laterais deles que sobem muito!`, "hype")
       ];
       const choices = shuffleChoices([
@@ -1685,12 +2349,463 @@
       });
     }
 
-    // 11. Resenha leve aleatória de vestiário (comida, música, superstição)
-    const joker = actors.find((a) => {
+    // 13. NOVO: Reencontro com ex-escola ou velhos companheiros da mesma escola!
+    if (kind === "PROC_EX_CLUB_REUNION") {
+      if (exClubActor) {
+        const buddy = pickOther([exClubActor.id], (a) => a.isCaptain || a.role === "MF");
+        const tact = pickOther([exClubActor.id, buddy.id]);
+        const core = [exClubActor, buddy, tact].filter((v, i, arr) => v && arr.findIndex((x) => x.id === v.id) === i);
+        const star = ctx.rivalStar?.name || `os caras de ${opp}`;
+        const msgs = [
+          makeProcMsg(core, 0, `Jogar contra ${opp} vai ser estranho demais... passei anos treinando lá e conheço cada atalho do jogo de ${star}.`, "idea"),
+          makeProcMsg(core, 1, `Sério mesmo?! Então já entrega o mapa das jogadas ensaiadas deles antes do apito!`, "hype"),
+          ...(core[2] ? [makeProcMsg(core, 2, `Se você conhece o tempo de reação do goleiro e dos zagueiros deles, vale ouro agora!`, "calm")] : [])
+        ];
+        const choices = shuffleChoices([
+          {
+            label: `Usar a leitura de ${shortFirstName(exClubActor)} para montar uma emboscada tática contra ${opp}!`,
+            approachTag: "Raio-X do Rival",
+            quality: "GREAT",
+            tacticsPatch: { aceActorIdx: 0 },
+            coachLine: `Agora você defende o ${teamName}, ${shortFirstName(exClubActor)}! Usa tudo que sabe sobre ${opp} pra guiar nosso ataque!`,
+            customEffects: { affPts: 18, chemDelta: 2, buffType: "RIVAL_READ", respectDelta: 1 },
+            reactions: [
+              makeProcMsg(core, 0, `Pode deixar! Eu sei exatamente onde o goleiro deles costuma soltar rebote.`, "hype"),
+              makeProcMsg(core, 1, `Informação privilegiada antes da decisão! Agora ${opp} tá em maus lençóis!`, "hype")
+            ]
+          },
+          {
+            label: `Agradecer as dicas, mas manter o foco no nosso próprio estilo de jogo`,
+            approachTag: "Jogo Limpo",
+            quality: "GOOD",
+            coachLine: `Sem pressão emocional contra ex-companheiros, ${shortFirstName(exClubActor)}. Confia no que construímos no ${teamName}!`,
+            customEffects: { affPts: 14, energyDelta: 3 },
+            reactions: [
+              makeProcMsg(core, 0, `Valeu, professor. Vai ser bonito mostrar em campo o quanto evoluí aqui.`, "calm")
+            ]
+          }
+        ]);
+        return baseResult({
+          id: "proc_ex_club_reunion",
+          category: "TATICA_RIVAL",
+          categoryLabel: "Reencontro",
+          categoryIcon: "🏫",
+          badgeClass: "cat-tac",
+          title: `Ex-Clube: ${shortFirstName(exClubActor)}`,
+          coreActors: core,
+          messages: msgs,
+          choices
+        });
+      }
+      if (sharedSchoolPair) {
+        const [s0, s1] = sharedSchoolPair;
+        const med = pickOther([s0.id, s1.id]);
+        const core = [s0, s1, med].filter((v, i, arr) => v && arr.findIndex((x) => x.id === v.id) === i);
+        const origTeam = s0.teamName || "nossa antiga escola";
+        const msgs = [
+          makeProcMsg(core, 0, `Lembra quando a gente treinava aquele passe de primeira lá no ${origTeam}, ${shortFirstName(s1)}? Até hoje o timing bate de olhos fechados.`, "praise"),
+          makeProcMsg(core, 1, `Demais! Agora juntando aquilo com o ritmo do ${teamName}, vai dar trabalho dobrado pra ${opp}!`, "hype")
+        ];
+        const choices = shuffleChoices([
+          {
+            label: "Liberar os ex-companheiros para liderarem uma jogada combinada no treino!",
+            approachTag: "Combo Clássico",
+            quality: "GREAT",
+            coachLine: `Química que vem de longe não se desperdiça! Quero ver vocês puxando essa memória do ${origTeam} contra ${opp}!`,
+            customEffects: { affPts: 20, chemDelta: 2, grantCoopAttempt: true, buffType: "COOP_SYNC" },
+            reactions: [
+              makeProcMsg(core, 0, `Pode contar com a gente, professor! Tá no sangue já.`, "hype"),
+              makeProcMsg(core, 1, `Bora mostrar pra turma inteira como funcionava nossa dupla!`, "hype")
+            ]
+          },
+          {
+            label: "Pedir pra espalharem essa sintonia pro resto do elenco no coletivo",
+            approachTag: "Integrar Grupo",
+            quality: "GOOD",
+            coachLine: `Ensinem esse atalho de passe pros outros setores também, assim o ${teamName} inteiro sobe de nível!`,
+            customEffects: { affPts: 14, pwrDelta: 6 },
+            reactions: [
+              makeProcMsg(core, 0, `Boa ideia! Já já todo mundo aqui tá no mesmo ritmo.`, "calm")
+            ]
+          }
+        ]);
+        return baseResult({
+          id: "proc_ex_school_bond",
+          category: "ELOGIO",
+          categoryLabel: "Velha Dupla",
+          categoryIcon: "🤝",
+          badgeClass: "cat-chem",
+          title: `Conexão ${origTeam}`,
+          coreActors: core,
+          messages: msgs,
+          choices
+        });
+      }
+    }
+
+    // 14. NOVO: Vantagem Elemental Real contra o Goleiro Rival
+    if (kind === "PROC_ELEMENTAL_MATCHUP" && elemEdgeActor && oppGkElem) {
+      const a0 = elemEdgeActor;
+      const partner = pickOther([a0.id], (a) => a.role === "MF" || a.role === "FW");
+      const cap = pickOther([a0.id, partner.id], (a) => a.isCaptain);
+      const core = [a0, partner, cap].filter((v, i, arr) => v && arr.findIndex((x) => x.id === v.id) === i);
+      const mvArt = moveWithArticle(a0.shMove || a0.sigMove);
+      const msgs = [
+        makeProcMsg(core, 0, `Repararam no goleiro de ${opp}? Elemento ${oppGkElem}... pra minha afinidade de ${a0.element}, isso é um convite aberto pra testar ${mvArt}!`, "idea"),
+        makeProcMsg(core, 1, `Real!! Quando a bola cair na sua área com vantagem de ${a0.element} contra ${oppGkElem}, a chance de furar o bloqueio dispara!`, "hype")
+      ];
+      const choices = shuffleChoices([
+        {
+          label: `Centralizar as finalizações em ${shortFirstName(a0)} (${a0.element} vs ${oppGkElem})!`,
+          approachTag: "Vantagem Elemental",
+          quality: "GREAT",
+          tacticsPatch: a0.role !== "GK" ? { aceActorIdx: 0, style: "vertical" } : { style: "vertical" },
+          coachLine: `Olho clínico! Contra goleiro ${oppGkElem}, cada bola limpa pro ${shortFirstName(a0)} vale ouro!`,
+          customEffects: { affPts: 14, buffType: "BLOOD_FOCUS" },
+          reactions: [
+            makeProcMsg(core, 0, `Só deixar chegar limpa na entrada da área que ${mvArt} resolve!`, "hype"),
+            makeProcMsg(core, 1, `Já sei exatamente pra quem vou enfiar a bola na área!`, "hype")
+          ]
+        },
+        {
+          label: "Explorar essa vantagem, mas variar as opções pra não ficar previsível",
+          approachTag: "Ataque Variado",
+          quality: "GOOD",
+          tacticsPatch: { lane: "balanced" },
+          coachLine: `Boa arma sim, só não forcem toda bola num lado só senão ${opp} dobra a marcação.`,
+          customEffects: { affPts: 10, chemDelta: 2 },
+          reactions: [
+            makeProcMsg(core, 0, `Verdade, professor. Se marcarem dobrado em mim, sobra pro lado oposto.`, "calm")
+          ]
+        }
+      ]);
+      return baseResult({
+        id: "proc_elemental_edge",
+        category: "TATICA_RIVAL",
+        categoryLabel: "Leitura Elemental",
+        categoryIcon: "⚡",
+        badgeClass: "cat-tac",
+        title: `${a0.element} vs Goleiro ${oppGkElem}`,
+        coreActors: core,
+        messages: msgs,
+        choices
+      });
+    }
+
+    // 15. NOVO: Pressão na Braçadeira de Capitão / Liderança
+    if (kind === "PROC_CAPTAINCY_PRESSURE") {
+      const cap = actors.find((a) => a.isCaptain) || pickFairActor((a) => resolveInazumaPersona(a).voice === "CAPTAIN_FIRE");
+      const vice = pickOther([cap.id], (a) => resolveInazumaPersona(a).voice === "TACTICIAN" || resolveInazumaPersona(a).voice === "STOIC_WALL" || a.ovr >= 85);
+      const third = pickOther([cap.id, vice.id]);
+      const core = [cap, vice, third].filter((v, i, arr) => v && arr.findIndex((x) => x.id === v.id) === i);
+      const msgs = [
+        makeProcMsg(core, 0, `Vou ser sincero com o grupo: carregar a braçadeira contra ${opp} em ${stageName} pesa bastante... às vezes fico me cobrando se tô cobrando certo.`, "tense"),
+        makeProcMsg(core, 1, `Você segura essa bronca todo jogo, ${shortFirstName(cap)}. Mas se precisar dividir a voz dentro de campo, tô aqui do teu lado.`, "calm")
+      ];
+      const choices = shuffleChoices([
+        {
+          label: `Reafirmar confiança total em ${shortFirstName(cap)} como nosso capitão!`,
+          approachTag: "Banco o Capitão",
+          quality: "GREAT",
+          coachLine: `A braçadeira é tua porque o elenco confia no teu coração, ${shortFirstName(cap)}! Lidera o ${teamName} sem medo contra ${opp}!`,
+          customEffects: { affPts: 20, chemDelta: 2, respectDelta: 3, buffType: "MORALE_BOOST" },
+          reactions: [
+            makeProcMsg(core, 0, `Obrigado pela confiança, professor!! Não vou deixar esse grupo cair nunca!`, "hype"),
+            makeProcMsg(core, 1, `Capitão fechado e todo mundo junto atrás!`, "hype")
+          ]
+        },
+        {
+          label: `Dividir a comunicação: ${shortFirstName(cap)} puxa a garra e ${shortFirstName(vice)} organiza os setores`,
+          approachTag: "Liderança Dupla",
+          quality: "GOOD",
+          coachLine: `Capitão não precisa carregar tudo sozinho! ${shortFirstName(cap)} incendeia o time e ${shortFirstName(vice)} orienta a marcação!`,
+          customEffects: { affPts: 16, chemDelta: 3 },
+          reactions: [
+            makeProcMsg(core, 0, `Aliviou muito ouvir isso, ${shortFirstName(vice)}. Vamos dividir o campo!`, "calm"),
+            makeProcMsg(core, 1, `Conta comigo pra segurar a organização lá dentro!`, "calm")
+          ]
+        },
+        {
+          label: `Passar a braçadeira para ${shortFirstName(vice)} tirar o peso das costas de ${shortFirstName(cap)}`,
+          approachTag: "Trocar Capitão",
+          quality: "TRADEOFF",
+          tacticsPatch: { captainActorIdx: 1 },
+          coachLine: `Às vezes ficar livre pra jogar seu melhor futebol ajuda mais o time. Vamos testar ${shortFirstName(vice)} com a faixa contra ${opp}.`,
+          customEffects: { respectDelta: -1, pwrDelta: 6, note: "Novo capitão escolhido para aliviar pressão" },
+          reactions: [
+            makeProcMsg(core, 1, `Assumo essa responsabilidade de frente. Vamos organizar o ${teamName}.`, "normal"),
+            makeProcMsg(core, 0, `Se for pro time render mais leve... vou correr o dobro sem a faixa mesmo.`, "tense")
+          ]
+        }
+      ]);
+      return baseResult({
+        id: "proc_captaincy_pressure",
+        category: "ELOGIO",
+        categoryLabel: "Liderança",
+        categoryIcon: "🏅",
+        badgeClass: "cat-chem",
+        title: `Peso da Braçadeira`,
+        coreActors: core,
+        messages: msgs,
+        choices
+      });
+    }
+
+    // 16. NOVO: Laboratório de Tabela e Entrosamento (chance real de técnica combinada!)
+    if (kind === "PROC_CHEMISTRY_DUO_LAB") {
+      const a0 = pickFairActor((a) => a.role === "MF" || a.role === "FW");
+      const a1 = pickOther([a0.id], (a) => a.role === "FW" || a.role === "MF");
+      const a2 = pickOther([a0.id, a1.id]);
+      const core = [a0, a1, a2].filter((v, i, arr) => v && arr.findIndex((x) => x.id === v.id) === i);
+      const msgs = [
+        makeProcMsg(core, 0, `Ei ${shortFirstName(a1)}, percebi um padrão legal no coletivo: se eu atrair dois zagueiros de ${opp} e soltar de primeira nas costas, você sai cara a cara!`, "idea"),
+        makeProcMsg(core, 1, `Se a gente acertar essa tabela em velocidade máxima hoje, dá até pra nascer uma jogada combinada nossa!`, "hype")
+      ];
+      const choices = shuffleChoices([
+        {
+          label: "Liberar sessão extra no campo pros dois lapidarem a jogada combinada!",
+          approachTag: "Laboratório Co-op",
+          quality: "GREAT",
+          tacticsPatch: { style: "possession" },
+          coachLine: `Adoro iniciativa de campo! Testem essa tabela até sair automática — pode virar nossa arma secreta contra ${opp}!`,
+          customEffects: { affPts: 22, xpAmt: 24, grantCoopAttempt: true, buffType: "COOP_SYNC" },
+          reactions: [
+            makeProcMsg(core, 0, `Bora pro campo agora mesmo, ${shortFirstName(a1)}! Vamos acertar esse último toque!`, "hype"),
+            makeProcMsg(core, 1, `Quero ver a zaga de ${opp} entender quando essa bola passar!`, "hype")
+          ]
+        },
+        {
+          label: "Trabalhar a troca de passes sem forçar risco de desgaste",
+          approachTag: "Ritmo Controlado",
+          quality: "GOOD",
+          coachLine: `Treinem o timing sem forçar demais as pernas, amanhã o simples bem feito resolve!`,
+          customEffects: { affPts: 14, energyDelta: 3 },
+          reactions: [
+            makeProcMsg(core, 0, `Certo, professor! Foco no toque limpo.`, "calm")
+          ]
+        }
+      ]);
+      return baseResult({
+        id: "proc_chem_duo_lab",
+        category: "CRIAR_TECNICA",
+        categoryLabel: "Sintonia de Ataque",
+        categoryIcon: "⚡",
+        badgeClass: "cat-tech",
+        title: `Tabela: ${shortFirstName(a0)} & ${shortFirstName(a1)}`,
+        coreActors: core,
+        messages: msgs,
+        choices
+      });
+    }
+
+    // 17. NOVO: Clima de Mata-Mata / Fase do Torneio
+    if (kind === "PROC_TOURNAMENT_FEVER") {
+      const a0 = pickFairActor((a) => a.isCaptain || resolveInazumaPersona(a).voice === "HOTHEAD" || resolveInazumaPersona(a).voice === "CAPTAIN_FIRE");
+      const a1 = pickOther([a0.id], (a) => resolveInazumaPersona(a).voice === "TACTICIAN" || resolveInazumaPersona(a).voice === "STOIC_WALL");
+      const a2 = pickOther([a0.id, a1.id]);
+      const core = [a0, a1, a2].filter((v, i, arr) => v && arr.findIndex((x) => x.id === v.id) === i);
+      const isFinalish = /final|semi/i.test(stageName);
+      const msgs = [
+        makeProcMsg(core, 0, isFinalish
+          ? `Chegamos em ${stageName}!! Um erro contra ${opp} agora e acabou... dá até frio na barriga só de olhar a chave!`
+          : `Clima de ${stageName} bateu pesado hoje no ônibus! Todo mundo sabe que contra ${opp} é vencer ou ir pra casa.`, "tense"),
+        makeProcMsg(core, 1, `O segredo em ${stageName} é não deixar a ansiedade apressar o passe nos primeiros dez minutos.`, "calm")
+      ];
+      const choices = shuffleChoices([
+        {
+          label: `Entrar em ${stageName} com postura ofensiva total para sufocar ${opp} logo no início!`,
+          approachTag: "Fogo no Mata-Mata",
+          quality: "TRADEOFF",
+          tacticsPatch: { posture: "offensive", intensity: "high" },
+          coachLine: `Quem quer taça em ${stageName} não espera o adversário gostar do jogo! Vamos sufocar ${opp} desde o primeiro segundo!`,
+          customEffects: { affPts: 12, pwrDelta: 8, energyDelta: -4, buffType: "BLOOD_FOCUS", note: "Pressão inicial máxima no mata-mata" },
+          reactions: [
+            makeProcMsg(core, 0, `Agora sim!! Vambora atropelar desde o apito!`, "hype"),
+            makeProcMsg(core, 1, `Cuidado só com a volta atrás se não sair gol cedo.`, "tense")
+          ]
+        },
+        {
+          label: "Manter postura equilibrada e controlar os nervos com cabeça fria!",
+          approachTag: "Controle Emocional",
+          quality: "GREAT",
+          tacticsPatch: { posture: "balanced", intensity: "medium" },
+          coachLine: `Pressão de ${stageName} se vence com inteligência. Respirem fundo e joguem o futebol que trouxe o ${teamName} até aqui!`,
+          customEffects: { affPts: 16, chemDelta: 3, respectDelta: 2, buffType: "RIVAL_READ" },
+          reactions: [
+            makeProcMsg(core, 1, `Leitura madura de treinador campeão!`, "calm"),
+            makeProcMsg(core, 0, `Respirando fundo... vamo com calma mas sem tirar o pé!`, "calm")
+          ]
+        }
+      ]);
+      return baseResult({
+        id: "proc_tournament_fever",
+        category: "TATICA_RIVAL",
+        categoryLabel: stageName,
+        categoryIcon: "🏆",
+        badgeClass: "cat-tac",
+        title: `Clima de ${stageName}`,
+        coreActors: core,
+        messages: msgs,
+        choices
+      });
+    }
+
+    // 18. NOVO: Jogada Ensaiada de Escanteio / Bola Parada
+    if (kind === "PROC_SET_PIECE_CHOREOGRAPHY") {
+      const df = pickFairActor((a) => a.role === "DF");
+      const mf = pickOther([df.id], (a) => a.role === "MF");
+      const fw = pickOther([df.id, mf.id], (a) => a.role === "FW");
+      const core = [mf, df, fw].filter((v, i, arr) => v && arr.findIndex((x) => x.id === v.id) === i);
+      const msgs = [
+        makeProcMsg(core, 0, `Tava desenhando aqui: contra ${opp}, se eu bater a falta ou escanteio fechado no primeiro pau, ${shortFirstName(df)} desvia e ${shortFirstName(fw)} fecha livre atrás!`, "idea"),
+        makeProcMsg(core, 1, `Pior que na hora de bola parada eles costumam olhar só pro centroavante! Eu entro fácil de surpresa pelo alto.`, "hype")
+      ];
+      const choices = shuffleChoices([
+        {
+          label: "Treinar o cruzamento pelas pontas e ensaiar o desvio no primeiro pau!",
+          approachTag: "Bola Parada Ensaiada",
+          quality: "GREAT",
+          tacticsPatch: { lane: "wings" },
+          coachLine: `Jogo duro muitas vezes se decide numa bola parada! Caprichem nesse ensaio de escanteio pra castigar ${opp}!`,
+          customEffects: { affPts: 16, pwrDelta: 7, buffType: "BLOOD_FOCUS" },
+          reactions: [
+            makeProcMsg(core, 0, `Já tô separando as bolas no canto do campo pra gente repetir dez vezes!`, "hype"),
+            makeProcMsg(core, 1, `Na primeira que pingar lá dentro eu subo no terceiro andar!`, "hype")
+          ]
+        },
+        {
+          label: "Variar com cobrança curta pra segurar posse e não expor contra-ataque",
+          approachTag: "Cobrança Curta",
+          quality: "GOOD",
+          tacticsPatch: { style: "possession" },
+          coachLine: `Escanteio curto mantém a posse e evita contra-ataque mortal se ${opp} afastar!`,
+          customEffects: { affPts: 12, chemDelta: 2 },
+          reactions: [
+            makeProcMsg(core, 0, `Seguro demais, dá pra confundir a marcação deles assim também!`, "calm")
+          ]
+        }
+      ]);
+      return baseResult({
+        id: "proc_set_piece",
+        category: "TATICA_RIVAL",
+        categoryLabel: "Bola Parada",
+        categoryIcon: "🚩",
+        badgeClass: "cat-tac",
+        title: `Ensaio de Bola Parada`,
+        coreActors: core,
+        messages: msgs,
+        choices
+      });
+    }
+
+    // 19. NOVO: Gestão de Fôlego e Rotação de Ritmo
+    if (kind === "PROC_BENCH_FATIGUE_ROTATION") {
+      const spk = pickFairActor((a) => resolveInazumaPersona(a).voice === "SPEED_SPARK" || a.role === "MF");
+      const wall = pickOther([spk.id], (a) => resolveInazumaPersona(a).voice === "STOIC_WALL" || a.role === "DF");
+      const med = pickOther([spk.id, wall.id]);
+      const core = [spk, wall, med].filter((v, i, arr) => v && arr.findIndex((x) => x.id === v.id) === i);
+      const lowEnergy = teamEnergy < 70;
+      const msgs = [
+        makeProcMsg(core, 0, lowEnergy
+          ? `Vou mandar a real: com o elenco em ${teamEnergy}% de energia, sair correndo feito louco contra ${opp} pode quebrar a perna aos 60'!`
+          : `Mesmo com a perna boa agora (${teamEnergy}%), ${opp} costuma acelerar no segundo tempo. A gente aperta tudo no início ou dosa?`, "tense"),
+        makeProcMsg(core, 1, `Se cansarmos cedo demais, a recomposição atrás abre buraco fácil. O ritmo do técnico vai fazer toda diferença.`, "calm")
+      ];
+      const choices = shuffleChoices([
+        {
+          label: "Dosar o esforço em ritmo cadenciado e guardar fôlego para decidir no final!",
+          approachTag: "Poupar Fôlego",
+          quality: lowEnergy ? "GREAT" : "GOOD",
+          tacticsPatch: { intensity: "low" },
+          coachLine: `Inteligência física ganha campeonato! Cadência controlada na bola e pulmão sobrando quando ${opp} cansar!`,
+          customEffects: { energyDelta: 6, chemDelta: 2, affPts: 12 },
+          reactions: [
+            makeProcMsg(core, 0, `Respiro aliviado aqui! No finalzinho a gente ainda vai ter arranque sobrando.`, "calm"),
+            makeProcMsg(core, 1, `Linha descansada fecha qualquer espaço atrás.`, "calm")
+          ]
+        },
+        {
+          label: "Botar intensidade máxima desde o início mesmo gastando mais energia!",
+          approachTag: "Blitz Física",
+          quality: "TRADEOFF",
+          tacticsPatch: { intensity: "high" },
+          coachLine: `Não vim segurar empate! Quero intensidade alta em cima de ${opp} até matar o jogo!`,
+          customEffects: { pwrDelta: 8, energyDelta: -4, buffType: "BLOOD_FOCUS", note: "Esforço alto aumenta desgaste físico" },
+          reactions: [
+            makeProcMsg(core, 0, `Beleza! Se é pra correr no limite, eu topo o desafio!`, "hype"),
+            makeProcMsg(core, 1, `Vou hidratar dobrado hoje pra aguentar o segundo tempo.`, "tense")
+          ]
+        }
+      ]);
+      return baseResult({
+        id: "proc_fatigue_rotation",
+        category: "TATICA_RIVAL",
+        categoryLabel: "Ritmo Físico",
+        categoryIcon: "🔋",
+        badgeClass: "cat-tac",
+        title: `Ritmo vs ${opp}`,
+        coreActors: core,
+        messages: msgs,
+        choices
+      });
+    }
+
+    // 20. NOVO: Provocação do Craque Rival antes da partida
+    if (kind === "PROC_RIVAL_TRASH_TALK") {
+      const hot = pickFairActor((a) => resolveInazumaPersona(a).voice === "HOTHEAD" || resolveInazumaPersona(a).voice === "REBEL_TROLL" || a.role === "FW");
+      const tact = pickOther([hot.id], (a) => resolveInazumaPersona(a).voice === "TACTICIAN" || resolveInazumaPersona(a).voice === "COLD_ACE");
+      const cap = pickOther([hot.id, tact.id], (a) => a.isCaptain);
+      const core = [hot, tact, cap].filter((v, i, arr) => v && arr.findIndex((x) => x.id === v.id) === i);
+      const star = ctx.rivalStar?.name || `o craque de ${opp}`;
+      const msgs = [
+        makeProcMsg(core, 0, `Viram a entrevista do ${star} hoje?! Falou que o ${teamName} só chegou até aqui na sorte e que passa fácil pela gente!!`, "tense"),
+        makeProcMsg(core, 1, `Ele falou isso justamente pra fazer a gente perder a cabeça e correr errado amanhã. Não caiam na pilha fácil.`, "calm")
+      ];
+      const choices = shuffleChoices([
+        {
+          label: "Responder em campo: transformar a raiva em pressão agressiva e sede de vitória!",
+          approachTag: "Resposta em Campo",
+          quality: "GREAT",
+          tacticsPatch: { intensity: "high", posture: "offensive" },
+          coachLine: `Não respondam no microfone — deixem o placar responder no campo contra ${star} e ${opp}!`,
+          customEffects: { affPts: 16, buffType: "BLOOD_FOCUS", respectDelta: 2 },
+          reactions: [
+            makeProcMsg(core, 0, `Agora sim!! Quando soar o apito ele vai engolir cada palavra!`, "hype"),
+            makeProcMsg(core, 1, `Raiva canalizada no jogo certo faz estrago.`, "hype")
+          ]
+        },
+        {
+          label: "Ignorar totalmente o barulho externo e travar a mente no nosso plano tático!",
+          approachTag: "Mente Blindada",
+          quality: "GOOD",
+          tacticsPatch: { style: "possession" },
+          coachLine: `Falatório de fora não faz gol! Cabeça fria, marcação inteligente e futebol limpo contra ${opp}.`,
+          customEffects: { chemDelta: 3, affPts: 12, buffType: "RIVAL_READ" },
+          reactions: [
+            makeProcMsg(core, 1, `Exatamente. Controle frio desmonta qualquer provocação.`, "calm"),
+            makeProcMsg(core, 0, `Beleza... vou guardar minha resposta só pro placar final.`, "calm")
+          ]
+        }
+      ]);
+      return baseResult({
+        id: "proc_rival_trash_talk",
+        category: "RAIVA",
+        categoryLabel: "Provocação Rival",
+        categoryIcon: "🔥",
+        badgeClass: "cat-tension",
+        title: `Recado de ${star}`,
+        coreActors: core,
+        messages: msgs,
+        choices
+      });
+    }
+
+    // 21. Resenha leve aleatória de vestiário (6 temas variados e sem COLD_ACE rindo com kkk!)
+    const joker = pickFairActor((a) => {
       const v = resolveInazumaPersona(a).voice;
-      return v === "CHILL_JOKER" || v === "REBEL_TROLL";
-    }) || actors[0];
-    const buddy = pickOther([joker.id]);
+      return v === "CHILL_JOKER" || v === "REBEL_TROLL" || v === "CAPTAIN_FIRE";
+    }) || pickFairActor((a) => resolveInazumaPersona(a).voice !== "COLD_ACE");
+    const buddy = pickOther([joker.id], (a) => resolveInazumaPersona(a).voice !== "COLD_ACE");
     const third = pickOther([joker.id, buddy.id]);
     const core = [joker, buddy, third].filter((v, i, arr) => v && arr.findIndex((x) => x.id === v.id) === i);
     const topics = [
@@ -1713,10 +2828,34 @@
       {
         title: "Playlist do Vestiário",
         m0: `Quem mexeu na caixinha de som do vestiário hoje?! Colocaram uma música calma demais antes de encarar ${opp} kkk`,
-        m1: `Foi mal kkk achei que ia ajudar o pessoal a respirar fundo antes do aquecimento!`,
+        m1: `Foi mal haha achei que ia ajudar o pessoal a respirar fundo antes do aquecimento!`,
         c0: `Cada jogo pede um clima diferente, então soltem um som animado aí pra acordar a perna antes do apito!`,
         goodLine: `Vestiário vivo desse jeito dá prazer de treinar!`,
         chemLine: `Equilíbrio entre concentração e alegria é o ponto certo desse time.`
+      },
+      {
+        title: "Desafio das Embaixadinhas",
+        m0: `Pessoal tá apostando aqui no fundo quem faz mais embaixadinhas de calcanhar antes do ônibus chegar kkk`,
+        m1: `Eu já passei de quarenta ontem! Só quero ver o equilíbrio da galera quando o campo molhar.`,
+        c0: `Haha gosto de ver o controle de bola afiado até na brincadeira! Só guardem magia pros 90 minutos contra ${opp}!`,
+        goodLine: `Controle de bola em dia até no intervalo do vestiário!`,
+        chemLine: `Show de técnica na resenha, agora vamo descansar pra amanhã.`
+      },
+      {
+        title: "Filme na Concentração",
+        m0: `Que filme vocês vão colocar na TV do alojamento hoje antes de enfrentar ${opp}? Nada de terror antes de dormir hein kkk`,
+        m1: `Se deixarem na mão dos atacantes só sai filme de ação explodindo tudo haha`,
+        c0: `Escolham algo que deixe o elenco tranquilo pra dormir bem — quero perna fresca contra ${opp}!`,
+        goodLine: `Noite tranquila em equipe recarrega mais que treino extra!`,
+        chemLine: `Boa noite de descanso é metade da vitória amanhã.`
+      },
+      {
+        title: "Foto Oficial do Elenco",
+        m0: `O fotógrafo do torneio pediu uma pose nova pro ${teamName} antes do jogo contra ${opp}! Quem vai puxar a careta no fundo? kkk`,
+        m1: `Haha eu juro que tentei ficar sério na última, mas sempre tem alguém piscando na hora!`,
+        c0: `Haha podem caprichar na foto de equipe unida — só quero esse mesmo sorriso depois dos três apitos contra ${opp}!`,
+        goodLine: `Essa foto vai entrar pra história da campanha!`,
+        chemLine: `Foco e união na medida certa!`
       }
     ];
     const tp = topics[Math.floor(Math.random() * topics.length)];
@@ -1764,6 +2903,7 @@
     if (!st) return null;
     const uScore = Number(st.userScore) || 0;
     const oScore = Number(st.oppScore) || 0;
+    const margin = Math.abs(uScore - oScore);
     const oppName = st.oppTeam?.name || "o adversário";
     const squadObj = typeof state !== "undefined" && state?.squad ? state.squad : {};
     const slots = typeof getSlots === "function" ? getSlots() : [];
@@ -1787,45 +2927,83 @@
     const goalNames = Array.isArray(st.goalsUser) ? st.goalsUser.map((g) => g?.name).filter(Boolean) : [];
     const lastGoalName = goalNames.length > 0 ? goalNames[goalNames.length - 1] : null;
     const scorerEntry = lastGoalName ? fieldPlayers.find((e) => e.p.name === lastGoalName) : null;
-    if (scorerEntry && scorerEntry.p.id !== cap.p.id) {
-      // Destaca quem marcou no 1º tempo como segunda voz se diferente do capitão
-    }
     const lead2 = scorerEntry && scorerEntry.p.id !== cap.p.id ? scorerEntry : voice2;
 
     const pCap = resolveInazumaPersona(cap.p);
-    const pLead2 = resolveInazumaPersona(lead2.p);
     const pGk = resolveInazumaPersona(gk.p);
 
     const isWinning = uScore > oScore;
     const isLosing = uScore < oScore;
     const statusTag = isLosing
-      ? "🔥 VIRADA NO 2º TEMPO!"
+      ? (margin >= 2 ? "🔥 VIRADA HISTÓRICA!" : "🔥 VIRADA NO 2º TEMPO!")
       : isWinning
-      ? "🛡️ SEGURE A VANTAGEM!"
+      ? (margin >= 2 ? "🛡️ VANTAGEM SÓLIDA!" : "🛡️ SEGURE A VANTAGEM!")
       : "⚡ TUDO EM ABERTO!";
 
     const voiceTxt = (entry, pers, mode) => {
       const v = pers.voice;
       if (mode === "LOSE") {
-        if (v === "COLD_ACE") return `Estar ${uScore} x ${oScore} atrás contra ${oppName} não interessa. Soltem a bola na frente no 2º tempo que eu resolvo.`;
-        if (v === "HOTHEAD") return `Não vou aceitar sair desse campo perdendo pra ${oppName}!! Manda pressionar em cima agora, professor!`;
-        if (v === "TACTICIAN") return `O meio de ${oppName} abriu espaços nos últimos dez minutos. Com um ajuste fino agora nós viramos esse ${uScore} x ${oScore}!`;
-        if (v === "CHILL_JOKER") return `Ei, levanta a cabeça galera! Já viramos jogos piores que esse, bora incendiar o vestiário!`;
-        return `Esse ${uScore} x ${oScore} não acabou!! Todo mundo confia no companheiro do lado porque contra ${oppName} nós vamos buscar a virada!`;
+        if (v === "COLD_ACE") return pickVariant([
+          `Estar ${uScore} x ${oScore} atrás contra ${oppName} não interessa. Soltem a bola na frente no 2º tempo que eu resolvo.`,
+          `${uScore} x ${oScore} ainda dá tempo de virar. Só preciso da bola limpa uma vez.`
+        ]);
+        if (v === "HOTHEAD") return pickVariant([
+          `Não vou aceitar sair desse campo perdendo pra ${oppName}!! Manda pressionar em cima agora, professor!`,
+          `Falta 45 minutos inteiros ainda!! Libera a linha alta pra gente amassar ${oppName} na volta!`
+        ]);
+        if (v === "TACTICIAN") return pickVariant([
+          `O meio de ${oppName} abriu espaços nos últimos dez minutos. Com um ajuste fino agora nós viramos esse ${uScore} x ${oScore}!`,
+          `Eles estão marcando adiantado nesse ${uScore} x ${oScore}. Se ligarmos direto pelas pontas quebramos a linha deles!`
+        ]);
+        if (v === "CHILL_JOKER") return pickVariant([
+          `Ei, levanta a cabeça galera! Já viramos jogos piores que esse, bora incendiar o vestiário!`,
+          `Respira fundo pessoal! ${margin === 1 ? "Um golzinho já iguala tudo" : "Ainda tem muito jogo"}, bora acordar na volta!`
+        ]);
+        return pickVariant([
+          `Esse ${uScore} x ${oScore} não acabou!! Todo mundo confia no companheiro do lado porque contra ${oppName} nós vamos buscar a virada!`,
+          `Escutem a torcida ainda cantando lá fora! Vamos dar a resposta em campo contra ${oppName} nesses 45 minutos finais!`
+        ]);
       }
       if (mode === "WIN") {
         if (scorerEntry && scorerEntry.p.id === entry.p.id) {
-          return `Aquele gol foi só o começo contra ${oppName}! Mas ${uScore} x ${oScore} ainda pede concentração máxima na volta.`;
+          return pickVariant([
+            `Aquele gol foi só o começo contra ${oppName}! Mas ${uScore} x ${oScore} ainda pede concentração máxima na volta.`,
+            `A bola entrou limpa no 1º tempo! Se ${oppName} sair pra cima agora, a gente mata o jogo no contra-ataque.`
+          ]);
         }
-        if (v === "STOIC_WALL") return `Seguramos bem nesse ${uScore} x ${oScore}, mas ${oppName} vai tentar tudo no 2º tempo. Linha fechada lá atrás!`;
-        if (v === "COLD_ACE") return `Boa vantagem, mas jogo só acaba no apito. Se der espaço pra contra-atacar nós matamos ${oppName}.`;
-        if (v === "TACTICIAN") return `Eles vão precisar avançar pra buscar o empate. Se controlarmos o ritmo do meio, a vitória não escapa.`;
-        return `Bora manter esse fogo aceso!! ${uScore} x ${oScore} tá ótimo, mas quero ver todo mundo correndo ainda mais na etapa final!`;
+        if (v === "STOIC_WALL") return pickVariant([
+          `Seguramos bem nesse ${uScore} x ${oScore}, mas ${oppName} vai tentar tudo no 2º tempo. Linha fechada lá atrás!`,
+          `Nenhum segundo de distração lá atrás, ${uScore} x ${oScore} só fica seguro quando soar o apito final.`
+        ]);
+        if (v === "COLD_ACE") return pickVariant([
+          `Boa vantagem, mas jogo só acaba no apito. Se der espaço pra contra-atacar nós matamos ${oppName}.`,
+          `Sem relaxar com ${uScore} x ${oScore}. Quero mais um pra fechar a conta.`
+        ]);
+        if (v === "TACTICIAN") return pickVariant([
+          `Eles vão precisar avançar pra buscar o empate. Se controlarmos o ritmo do meio, a vitória não escapa.`,
+          `Excelente 1º tempo em ${uScore} x ${oScore}. Agora é usar a pressa de ${oppName} contra eles mesmos.`
+        ]);
+        return pickVariant([
+          `Bora manter esse fogo aceso!! ${uScore} x ${oScore} tá ótimo, mas quero ver todo mundo correndo ainda mais na etapa final!`,
+          `Um tempo excelente já foi, falta terminar o serviço contra ${oppName} com a mesma garra!`
+        ]);
       }
-      if (v === "COLD_ACE") return `${uScore} x ${oScore} tá aberto demais contra ${oppName}. Só me deem a jogada limpa uma vez.`;
-      if (v === "TACTICIAN") return `Primeiro tempo muito estudado nesse ${uScore} x ${oScore}. Qual setor vamos atacar pra quebrar o empate, treinador?`;
-      if (v === "CHILL_JOKER") return `Jogo amarrado hein ${uScore} x ${oScore}! Um ajuste certo no intervalo e a torcida explode!`;
-      return `Empate em ${uScore} x ${oScore} contra ${oppName}! Ninguém abaixa o ritmo agora, os últimos 45 minutos são nossos!`;
+      if (v === "COLD_ACE") return pickVariant([
+        `${uScore} x ${oScore} tá aberto demais contra ${oppName}. Só me deem a jogada limpa uma vez.`,
+        `Jogo travado em ${uScore} x ${oScore}. Hora de decidir quem erra primeiro.`
+      ]);
+      if (v === "TACTICIAN") return pickVariant([
+        `Primeiro tempo muito estudado nesse ${uScore} x ${oScore}. Qual setor vamos atacar pra quebrar o empate, treinador?`,
+        `Tá muito equilibrado nesse ${uScore} x ${oScore}. Um ajuste de ritmo agora pode abrir a defesa de ${oppName}.`
+      ]);
+      if (v === "CHILL_JOKER") return pickVariant([
+        `Jogo amarrado hein ${uScore} x ${oScore}! Um ajuste certo no intervalo e a torcida explode!`,
+        `${uScore} x ${oScore} pegado demais! Qual é o comando do chefe pra destravar o placar?`
+      ]);
+      return pickVariant([
+        `Empate em ${uScore} x ${oScore} contra ${oppName}! Ninguém abaixa o ritmo agora, os últimos 45 minutos são nossos!`,
+        `Tudo aberto nesse ${uScore} x ${oScore}! Vamos voltar mordendo mais forte pra arrancar essa vitória!`
+      ]);
     };
 
     const modeKey = isLosing ? "LOSE" : isWinning ? "WIN" : "DRAW";
@@ -1859,6 +3037,9 @@
 
     const fwStar = fieldPlayers.find((e) => e.slot.role === "FW") || cap;
     const mfStar = fieldPlayers.find((e) => e.slot.role === "MF") || safeLead2;
+    const vFw = resolveInazumaPersona(fwStar.p).voice;
+    const vMf = resolveInazumaPersona(mfStar.p).voice;
+    const vGk = pGk.voice;
 
     const choices = [
       {
@@ -1868,8 +3049,12 @@
         buffTag: "+Ataque/Chute • -4% Fôlego",
         reactName: fwStar.p.name,
         reactSprite: spriteFor(fwStar),
-        coachText: `Escutem bem: não viemos assistir ${oppName} jogar! Pressionem lá em cima e chutem com alma desde o apito!`,
-        playerReact: `Pode deixar, professor!! No primeiro espaço na área a rede vai balançar!`
+        coachText: isWinning
+          ? `Não recuem nem um passo! Vamos matar o jogo contra ${oppName} em cima no 2º tempo!`
+          : `Escutem bem: não viemos assistir ${oppName} jogar! Pressionem lá em cima e chutem com alma desde o apito!`,
+        playerReact: vFw === "COLD_ACE"
+          ? `Certo. Quando a bola cair na área contra ${oppName}, ela entra.`
+          : `Pode deixar, professor!! No primeiro espaço na área a rede vai balançar!`
       },
       {
         key: "CALM",
@@ -1879,7 +3064,9 @@
         reactName: mfStar.p.name,
         reactSprite: spriteFor(mfStar),
         coachText: `Cabeça erguida e toque rápido pelo meio! Façam ${oppName} correr atrás da bola até a defesa abrir!`,
-        playerReact: `Leitura perfeita! Vamos girar a bola e desmontar a marcação deles no drible!`
+        playerReact: vMf === "COLD_ACE"
+          ? `Entendido. Vou encontrar o espaço limpo no meio.`
+          : `Leitura perfeita! Vamos girar a bola e desmontar a marcação deles no drible!`
       },
       {
         key: "WALL",
@@ -1889,7 +3076,9 @@
         reactName: gk.p.name,
         reactSprite: spriteFor(gk),
         coachText: `Linha compacta na frente do ${shortFirstName(gk.p.name)}! Primeiro protegemos nossa meta, depois saímos mortais!`,
-        playerReact: `Fechado! Da minha área não passa nem sombra de bola no 2º tempo!`
+        playerReact: vGk === "COLD_ACE"
+          ? `Meta fechada. Ninguém passa no 2º tempo.`
+          : `Fechado! Da minha área não passa nem sombra de bola no 2º tempo!`
       }
     ];
 
@@ -1900,6 +3089,7 @@
   g.resolveInazumaPersona = resolveInazumaPersona;
   g.humanizeInaZapText = humanizeInaZapText;
   g.humanizeTacticalChangeForChat = humanizeTacticalChangeForChat;
+  g.moveWithArticle = moveWithArticle;
   g.describeActorMoveAction = describeActorMoveAction;
   g.buildDynamicGroupChimeIns = buildDynamicGroupChimeIns;
   g.buildDynamicSilentResolution = buildDynamicSilentResolution;
