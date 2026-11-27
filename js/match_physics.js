@@ -3029,22 +3029,38 @@ function stepContinuousPhysics(st, pitch, dt) {
       const blockedByLowEffort = n.side === "user" && !pitch.is5v5 && getTactics().intensity === "low";
       if (!blockedByLowEffort) {
         const isCarrying = pitch.ballMode === "CARRIED" && pitch.carrierUid === n.uid;
+        const nTr = n.tacticalRole || n.role;
         const inAttackHalf = n.side === "user" ? n.x >= 50 : n.x <= 50;
+        const inStrikeZone = n.side === "user" ? n.x >= 56 : n.x <= 44;
         const oppThreatening =
           pitch.ballSide !== n.side &&
-          ((n.side === "user" && (pitch.ballX || 50) <= 38) || (n.side === "opp" && (pitch.ballX || 50) >= 62));
+          ((n.side === "user" && (pitch.ballX || 50) <= 36) || (n.side === "opp" && (pitch.ballX || 50) >= 64));
         const isTrailing = n.side === "user" ? (st.userScore || 0) < (st.oppScore || 0) : (st.oppScore || 0) < (st.userScore || 0);
+        const isCloseMatch = Math.abs((st.userScore || 0) - (st.oppScore || 0)) <= 1;
+        const prof = typeof getNodePersonality === "function" ? getNodePersonality(n) : { ego: 0.5, combativeness: 0.5, archetype: "" };
+        const isAttackerRole = n.role === "FW" || nTr === "AM" || nTr === "WING" || nTr === "ST";
+        const isStopperRole = n.role === "GK" || nTr === "CB" || nTr === "LIB" || nTr === "DM" || n.role === "DF";
+        const isPlaymakerRole = n.role === "MF" || prof.archetype === "ESTRATEGISTA";
         const allowEarly = (isCarrying && inAttackHalf) || isTrailing;
         const isBigMoment =
           (st.minute >= 10 || allowEarly) &&
-          ((isCarrying && inAttackHalf) ||
-            ((n.role === "GK" || n.role === "DF") && oppThreatening && st.minute >= 12) ||
-            (st.minute >= 52 && Math.abs((st.userScore || 0) - (st.oppScore || 0)) <= 1));
+          ((isCarrying && ((isAttackerRole && inStrikeZone) || inAttackHalf)) ||
+            (isStopperRole && oppThreatening && st.minute >= 10) ||
+            (isPlaymakerRole && st.minute >= 32 && isCloseMatch) ||
+            (st.minute >= 52 && isCloseMatch));
 
         if (isBigMoment) {
-          const prof = typeof getNodePersonality === "function" ? getNodePersonality(n) : { ego: 0.5, combativeness: 0.5 };
           const intBoost = n.side === "user" && !pitch.is5v5 && getTactics().intensity === "high" ? 1.45 : 1.0;
-          const baseRate = isCarrying && inAttackHalf ? 0.42 : oppThreatening ? 0.22 : 0.06;
+          const baseRate =
+            isCarrying && isAttackerRole && inStrikeZone
+              ? 0.48
+              : isCarrying && inAttackHalf
+              ? 0.40
+              : isStopperRole && oppThreatening
+              ? 0.28
+              : isPlaymakerRole && st.minute >= 32 && isCloseMatch
+              ? 0.14
+              : 0.06;
           const triggerChance = baseRate * (0.75 + (prof.ego + prof.combativeness) * 0.35) * intBoost * dt;
           if (Math.random() < triggerChance) {
             n.keshinUsed = true;
@@ -3600,16 +3616,24 @@ function stepContinuousPhysics(st, pitch, dt) {
         }
 
         // 3) Quando o marcador se aproxima (entre 3.75 e 6.3 unidades visuais),
-        // personalidade + Estilo + Capitão + Harmonia da Raimon decidem entre TABELAR (1-2) ou partir para o 1x1!
+        // habilidade (OF vs DF), posição (CB/DM vs AM/ST/WING), personalidade e Estilo decidem entre TABELAR / ESCAPAR ou ir pro 1x1!
         if (closestDist <= 6.3 && closestDist > 3.75 && carrier.carryTime >= 0.30) {
-          const cProf = typeof getNodePersonality === "function" ? getNodePersonality(carrier) : { archetype: "COLETIVISTA", ego: 0.5, vision: 0.5 };
+          const cProf = typeof getNodePersonality === "function" ? getNodePersonality(carrier) : { archetype: "COLETIVISTA", ego: 0.5, vision: 0.5, hasOfMove: false };
+          const dProf = typeof getNodePersonality === "function" ? getNodePersonality(closestDef) : { archetype: "COMBATIVO", hasDfMove: false };
+          const cTr = carrier.tacticalRole || carrier.role;
           const oppGoalXCheck = attIsUser ? 96 : 4;
           const distGoalCheck = Math.hypot(carrier.x - oppGoalXCheck, carrier.y - 50);
           const defIsBehind = attIsUser ? closestDef.x < carrier.x - 1.5 : closestDef.x > carrier.x + 1.5;
-          // Se está perto do gol com marcador atrás, não tabela para longe — parte pro chute!
-          if (!(distGoalCheck <= 22 && defIsBehind)) {
-            const passReceiver = pickPassReceiver(attNodes, defNodes, carrier, true, pitch);
-            const hasTeammateNear = passReceiver && Math.hypot(passReceiver.x - carrier.x, passReceiver.y - carrier.y) <= 32;
+          const carrierHasOf = Boolean(cProf.hasOfMove && carrier.stamina >= 40);
+          const markerHasDf = Boolean(dProf.hasDfMove && closestDef.stamina >= 40);
+          const techEdge = ((carrier.attrs?.tec || 75) + (carrier.attrs?.vel || 75)) - ((closestDef.attrs?.def || 75) + (closestDef.attrs?.vel || 75));
+          const isStPivotWall = cTr === "ST" && !defIsBehind && (cProf.archetype === "COLETIVISTA" || (carrier.attrs?.fis || 75) >= 84);
+
+          if (!(distGoalCheck <= 22 && defIsBehind) || isStPivotWall) {
+            const allowBackwardLayoff = isStPivotWall || cTr === "CB" || cTr === "DM";
+            const passReceiver = pickPassReceiver(attNodes, defNodes, carrier, !allowBackwardLayoff, pitch);
+            const maxWallDist = isStPivotWall ? 22 : 32;
+            const hasTeammateNear = passReceiver && Math.hypot(passReceiver.x - carrier.x, passReceiver.y - carrier.y) <= maxWallDist;
             const baseTabela = carrier.effOvr >= 80 ? 0.34 : 0.22;
             const persMod =
               cProf.archetype === "COLETIVISTA"
@@ -3621,6 +3645,16 @@ function stepContinuousPhysics(st, pitch, dt) {
                 : cProf.archetype === "VELOZ"
                 ? -0.12
                 : 0;
+            const skillMod =
+              (!carrierHasOf
+                ? (cTr === "CB" ? 0.36 : (cTr === "DM" || cTr === "FB") ? 0.24 : 0.14)
+                : (cProf.archetype === "VELOZ" || cProf.archetype === "INDIVIDUALISTA" || carrier.keshinState === "ACTIVE" || techEdge >= 8) ? -0.18 : 0) +
+              (markerHasDf && !carrierHasOf ? 0.14 : 0) +
+              (carrier.stamina < 40 ? 0.16 : 0);
+            const roleTabelaMod =
+              cTr === "AM" ? 0.16 :
+              (cTr === "CM" || cTr === "WM" || cTr === "WB") ? 0.08 :
+              isStPivotWall ? 0.14 : 0;
             const userStyleNow = attIsUser && !pitch.is5v5 ? getTactics().style : "free";
             const styleTabelaMod = userStyleNow === "possession" ? 0.10 : userStyleNow === "vertical" ? -0.05 : 0;
             const capAuraTabela = attIsUser && getUserCaptainAuraType(pitch) === "COLLECTIVE" ? 0.12 : 0;
@@ -3628,11 +3662,12 @@ function stepContinuousPhysics(st, pitch, dt) {
               attIsUser && !pitch.is5v5 && (pitch.hissatsuTacticTimer || 0) > 0 && pitch.activeHissatsuTacticId === "raimon_harmony"
                 ? 0.20
                 : 0;
-            const tabelaChance = Math.max(0.06, Math.min(0.75, baseTabela + persMod + styleTabelaMod + capAuraTabela + harmonyTabela));
+            const tabelaChance = Math.max(0.06, Math.min(0.84, baseTabela + persMod + skillMod + roleTabelaMod + styleTabelaMod + capAuraTabela + harmonyTabela));
             if (hasTeammateNear && Math.random() < tabelaChance) {
               carrier.duelCooldown = 0.9;
               closestDef.duelCooldown = 0.9;
-              launchContinuousPass(st, pitch, carrier, attNodes, defNodes, true, false, true);
+              const doOneTwo = !(cTr === "CB" || (cTr === "DM" && !carrierHasOf));
+              launchContinuousPass(st, pitch, carrier, attNodes, defNodes, !allowBackwardLayoff, false, doOneTwo);
               return;
             }
           }
@@ -3658,7 +3693,8 @@ function stepContinuousPhysics(st, pitch, dt) {
     if (carrier.decisionTimer <= 0 || gkUrgentPressure) {
       const cProf = typeof getNodePersonality === "function"
         ? getNodePersonality(carrier)
-        : { archetype: "COLETIVISTA", ego: 0.5, vision: 0.55, combativeness: 0.5, roaming: 0.5, shotInstinct: 0.6 };
+        : { archetype: "COLETIVISTA", ego: 0.5, vision: 0.55, combativeness: 0.5, roaming: 0.5, shotInstinct: 0.6, hasShMove: false, hasOfMove: false, hasCoopSh: false, quickOutletBias: 0.72 };
+      const cTr = carrier.tacticalRole || carrier.role;
       const tacNow = getTactics();
       const userStyle = attIsUser && !pitch.is5v5 ? tacNow.style : "free";
       const userPosture = attIsUser && !pitch.is5v5 ? tacNow.posture : "balanced";
@@ -3679,7 +3715,8 @@ function stepContinuousPhysics(st, pitch, dt) {
       }
 
       if (carrier.role === "GK") {
-        if (carrier.carryTime >= 0.72) {
+        const gkReleaseSec = cProf.quickOutletBias || (cProf.archetype === "GOLEIRO_LIBERO" ? 0.44 : 0.72);
+        if (carrier.carryTime >= gkReleaseSec) {
           launchContinuousPass(st, pitch, carrier, attNodes, defNodes, true, true);
         }
         return;
@@ -3747,6 +3784,8 @@ function stepContinuousPhysics(st, pitch, dt) {
 
       const roll = Math.random();
       const effShotInstinct = Math.min(0.98, cProf.shotInstinct + (isCarrierAce ? 0.08 : 0));
+      const longMove = getNodeLongShotMove(carrier);
+      const canShootOrLong = goalDist <= 27.5 || Boolean(longMove);
 
       // TESTE BETA: Desobediência tática por Respeito baixo ao técnico / Insatisfação individual ou Treta Aberta!
       if (attIsUser && !pitch.is5v5 && typeof isBetaMode === "function" && isBetaMode()) {
@@ -3769,7 +3808,7 @@ function stepContinuousPhysics(st, pitch, dt) {
           st.betaMatchStats.feudSnubs < 2
         ) {
           const pairArc = getBetaPairArc(carrier.player, betterShotTeammate.player);
-          if (pairArc && pairArc.state === "TRETA_ABERTA" && Math.random() < 0.34 && goalDist <= 38) {
+          if (pairArc && pairArc.state === "TRETA_ABERTA" && Math.random() < 0.34 && canShootOrLong && goalDist <= 38) {
             st.betaMatchStats.feudSnubs += 1;
             if (!st.betaMatchStats.ballHogIncident) {
               st.betaMatchStats.ballHogIncident = {
@@ -3792,13 +3831,14 @@ function stepContinuousPhysics(st, pitch, dt) {
                 null
               );
             }
-            launchContinuousShot(st, pitch, carrier, defNodes, attSupport, defSupport, ovrDiff, attNodes, { forceLongShot: goalDist > 26 });
+            launchContinuousShot(st, pitch, carrier, defNodes, attSupport, defSupport, ovrDiff, attNodes, { forceLongShot: Boolean(longMove && goalDist > 26) });
             return;
           }
         }
         if (
           !st.betaMatchStats.ballHogIncident &&
           betterShotTeammate &&
+          canShootOrLong &&
           goalDist <= 34 &&
           carrier.carryTime >= 0.35 &&
           (cProf.ego >= 0.65 || isCarrierAce) &&
@@ -3823,7 +3863,7 @@ function stepContinuousPhysics(st, pitch, dt) {
               null
             );
           }
-          launchContinuousShot(st, pitch, carrier, defNodes, attSupport, defSupport, ovrDiff, attNodes, { forceLongShot: goalDist > 26 });
+          launchContinuousShot(st, pitch, carrier, defNodes, attSupport, defSupport, ovrDiff, attNodes, { forceLongShot: Boolean(longMove && goalDist > 26) });
           return;
         }
         const isUnhappyOrLowRespect = respectInfo.tier === "LOW" || pMood.mood === "UNHAPPY";
@@ -3831,7 +3871,8 @@ function stepContinuousPhysics(st, pitch, dt) {
           isUnhappyOrLowRespect &&
           st.betaMatchStats.disobediences < 3 &&
           carrier.carryTime >= 0.35 &&
-          goalDist <= 40 &&
+          canShootOrLong &&
+          goalDist <= 38 &&
           (userStyle === "possession" || userPosture === "defensive" || betterShotTeammate)
         ) {
           const disobeyProb = respectInfo.value < 30 ? 0.24 : respectInfo.tier === "LOW" ? 0.16 : 0.14;
@@ -3848,25 +3889,27 @@ function stepContinuousPhysics(st, pitch, dt) {
                 null
               );
             }
-            launchContinuousShot(st, pitch, carrier, defNodes, attSupport, defSupport, ovrDiff, attNodes, { forceLongShot: goalDist > 25 });
+            launchContinuousShot(st, pitch, carrier, defNodes, attSupport, defSupport, ovrDiff, attNodes, { forceLongShot: Boolean(longMove && goalDist > 25) });
             return;
           }
         }
       }
 
-      // LONG SHOT: técnica de Chute Longo (mais frequente para Individualistas, Camisa 10 e estilo Vertical)
-      const longMove = getNodeLongShotMove(carrier);
-      const inLongZone = attIsUser ? (carrier.x >= 28 && carrier.x < 68) : (carrier.x <= 72 && carrier.x > 32);
+      // LONG SHOT: técnica de Chute Longo (mais frequente para especialistas, Camisa 10 e estilo Vertical)
+      const inLongZone = attIsUser ? (carrier.x >= 32 && carrier.x < 68) : (carrier.x <= 68 && carrier.x > 32);
+      const isTrailing2H = st.minute >= 46 && (attIsUser ? (st.userScore || 0) < (st.oppScore || 0) : (st.oppScore || 0) < (st.userScore || 0));
       const longShotChance =
-        (carrier.role === "FW" || carrier.role === "MF" ? 0.22 : 0.13) +
+        (carrier.role === "FW" || carrier.role === "MF" ? 0.25 : cTr === "LIB" ? 0.18 : 0.12) +
         (effShotInstinct - 0.5) * 0.14 +
-        (userStyle === "vertical" ? 0.06 : 0);
+        (userStyle === "vertical" ? 0.06 : 0) +
+        (laneBlockers === 0 ? 0.08 : 0) +
+        (isTrailing2H ? 0.08 : 0);
       if (
         longMove &&
         inLongZone &&
-        carrier.stamina >= 50 &&
-        carrier.carryTime >= 0.42 &&
-        nearestDefDist >= 4.2 &&
+        carrier.stamina >= 48 &&
+        carrier.carryTime >= 0.38 &&
+        nearestDefDist >= 4.0 &&
         !isCarrierDisadvVsGk &&
         roll < longShotChance
       ) {
@@ -3875,7 +3918,7 @@ function stepContinuousPhysics(st, pitch, dt) {
       }
 
       // REAÇÃO À SAÍDA DO GOLEIRO: se o GK está saindo para abafar, decide AGORA (chuta antes do abafa ou rola pro tap-in!)
-      if (gkUrgentPressure && shootableAngle) {
+      if (gkUrgentPressure && shootableAngle && (canShootOrLong || goalDist <= 24.5)) {
         if (
           betterShotTeammate &&
           (cProf.archetype === "COLETIVISTA" || cProf.archetype === "ESTRATEGISTA") &&
@@ -3890,37 +3933,46 @@ function stepContinuousPhysics(st, pitch, dt) {
         return;
       }
 
-      // INSTINTO DE FINALIZAÇÃO: livre pro gol CHUTA! Não recua a bola sem motivo!
+      // INSTINTO DE FINALIZAÇÃO: livre pro gol CHUTA! Só quem tem técnica SH ou FW arrisca de fora da área
+      const hasShAbility = Boolean(cProf.hasShMove || effRoleOrPos(carrier) === "FW");
       const postureShotMod = userPosture === "offensive" ? 0.10 : userPosture === "defensive" ? -0.10 : 0;
-      const clearShotRange =
-        (cProf.archetype === "INDIVIDUALISTA" ? 31.5 : effRoleOrPos(carrier) === "FW" ? 29.5 : 27.5) +
-        (userStyle === "vertical" ? 2.5 : 0);
+      const clearShotRange = !hasShAbility
+        ? 17.5
+        : Math.min(
+            27.5,
+            (cProf.archetype === "INDIVIDUALISTA" ? 27.0 : effRoleOrPos(carrier) === "FW" ? 26.2 : 24.5) +
+              (userStyle === "vertical" ? 1.0 : 0)
+          );
       const isClearOnGoal = laneBlockers === 0 && shootableAngle && goalDist <= clearShotRange;
-      const clearBoxShot = inPenaltyX && centralLane && (laneBlockers === 0 || (laneBlockers === 1 && goalDist <= 22));
-      const pointBlankShot = goalDist <= 19.5 && Math.abs(carrier.y - 50) <= 26;
+      const clearBoxShot = inPenaltyX && centralLane && (laneBlockers === 0 || (laneBlockers === 1 && goalDist <= 22)) && (hasShAbility || goalDist <= 18);
+      const pointBlankShot = goalDist <= 19.0 && Math.abs(carrier.y - 50) <= 26;
       const openShotTrigger =
         isClearOnGoal &&
-        (goalDist <= 23.5 ||
+        (goalDist <= 22.5 ||
           roll <
             Math.min(
               0.96,
               0.56 +
                 effShotInstinct * 0.34 +
                 (sideRelDiff >= 0.14 ? 0.10 : 0) +
-                (userStyle === "vertical" ? 0.14 : 0) +
+                (userStyle === "vertical" ? 0.12 : 0) +
+                (carrier.keshinState === "ACTIVE" ? 0.14 : 0) +
                 postureShotMod
             ));
       const contestedOpportunityShot =
-        effRoleOrPos(carrier) === "FW" &&
-        goalDist <= 27 &&
+        hasShAbility &&
+        goalDist <= 25.5 &&
         laneBlockers <= 1 &&
         shootableAngle &&
         roll <
           Math.max(
             0.05,
-            0.18 +
+            0.16 +
               cProf.ego * 0.24 +
-              (userStyle === "vertical" ? 0.10 : userStyle === "possession" ? -0.08 : 0) +
+              (effRoleOrPos(carrier) === "FW" ? 0.06 : -0.04) +
+              (carrier.keshinState === "ACTIVE" ? 0.16 : 0) +
+              (cProf.hasCoopSh ? 0.10 : 0) +
+              (userStyle === "vertical" ? 0.08 : userStyle === "possession" ? -0.08 : 0) +
               postureShotMod
           );
 
@@ -3958,26 +4010,88 @@ function stepContinuousPhysics(st, pitch, dt) {
       }
 
       // VOLEIO / BOLA CRUZADA: se recebeu um cruzamento fresco na área, bate de primeira!
-      if ((carrier.crossVolleyTimer || 0) > 0 && Math.abs(carrier.y - 50) <= 25 && goalDist <= 28) {
+      if ((carrier.crossVolleyTimer || 0) > 0 && Math.abs(carrier.y - 50) <= 25 && goalDist <= 26.5) {
         launchContinuousShot(st, pitch, carrier, defNodes, attSupport, defSupport, ovrDiff, attNodes);
         return;
       }
 
-      // CRUZAMENTO INTELIGENTE PELAS PONTAS: no terço final pela lateral, cruza com curva para quem ataca a área!
-      const isWideFinalThird = (attIsUser ? carrier.x >= 69 : carrier.x <= 31) && Math.abs(carrier.y - 50) >= 24;
-      if (isWideFinalThird && carrier.carryTime >= 0.25) {
-        const boxTarget = prioritizedAttNodes.find((n) => {
+      // CRUZAMENTO INTELIGENTE PELAS PONTAS: FB/WB/WM/WING no corredor lateral cruzam com curva para quem ataca a área!
+      const isWideFinalThird = (attIsUser ? carrier.x >= 65 : carrier.x <= 35) && Math.abs(carrier.y - 50) >= 21;
+      if (isWideFinalThird && carrier.carryTime >= 0.22) {
+        const boxTargets = prioritizedAttNodes.filter((n) => {
           if (n.uid === carrier.uid || n.role === "GK" || !isLegalPassTarget(n)) return false;
-          const inBox = (attIsUser ? n.x >= 72 : n.x <= 28) && Math.abs(n.y - 50) <= 19;
+          const inBox = (attIsUser ? n.x >= 68 : n.x <= 32) && Math.abs(n.y - 50) <= 22;
           return inBox;
         });
-        if (boxTarget && Math.random() < (0.52 + cProf.vision * 0.26 - cProf.ego * 0.14)) {
+        boxTargets.sort((a, b) => {
+          const boxScore = (n) => (n.role === "FW" ? 3 : n.role === "MF" ? 1 : 0) + ((n.attrs?.fis || 75) >= 84 ? 1.5 : 0) + (n.player?.id === aceId ? 2 : 0);
+          return boxScore(b) - boxScore(a);
+        });
+        const boxTarget = boxTargets[0] || null;
+        const crossProb =
+          (cTr === "FB" || cTr === "WB" || cTr === "WM")
+            ? Math.min(0.92, 0.76 + cProf.vision * 0.16)
+            : cTr === "WING"
+            ? (cProf.archetype === "INDIVIDUALISTA" ? 0.34 : Math.min(0.90, 0.72 + cProf.vision * 0.14))
+            : Math.min(0.84, 0.50 + cProf.vision * 0.24 - cProf.ego * 0.14);
+        if (boxTarget && Math.random() < crossProb) {
           launchContinuousPass(st, pitch, carrier, attNodes, defNodes, true, false, false, {
             targetReceiver: boxTarget,
             isCross: true
           });
           return;
         }
+      }
+
+      // Procura enfiada de bola / passe em profundidade nas costas da zaga (AM/CM/LIB/Estrategistas!)
+      const spaceBehindDef = attIsUser ? (oppGoalX - oppDefLineX) : (oppDefLineX - oppGoalX);
+      const throughTargets = prioritizedAttNodes.filter((n) => {
+        if (n.uid === carrier.uid || n.role === "GK" || !isLegalPassTarget(n)) return false;
+        const fwdGain = attIsUser ? (n.x - carrier.x) : (carrier.x - n.x);
+        if (fwdGain < 4) return false;
+        const tightMarkers = oppOutfieldDefs.filter((d) => visualPitchDist(d.x, d.y, n.x, n.y) < 5.8).length;
+        if (tightMarkers > 1) return false;
+        const openGrass = attIsUser ? (oppDefLineX - n.x) : (n.x - oppDefLineX);
+        const nearDefLine = attIsUser
+          ? (oppDefLineX - n.x >= -0.4 && oppDefLineX - n.x <= 9.0)
+          : (n.x - oppDefLineX >= -0.4 && n.x - oppDefLineX <= 9.0);
+        const attackerRole = n.role === "FW" || n.tacticalRole === "WING" || n.tacticalRole === "AM" || n.tacticalRole === "WM" || n.tacticalRole === "WB";
+        return (nearDefLine && spaceBehindDef >= 11 && attackerRole) || (openGrass >= 5 && tightMarkers === 0);
+      });
+      throughTargets.sort((a, b) => {
+        const scoreT = (x) => {
+          const xp = typeof getNodePersonality === "function" ? getNodePersonality(x) : {};
+          return (x.player?.id === aceId ? 3 : 0) + (xp.archetype === "VELOZ" ? 2.5 : 0) + (x.role === "FW" ? 1.5 : 0) + ((x.attrs?.vel || 75) - 75) * 0.08;
+        };
+        return scoreT(b) - scoreT(a);
+      });
+      const throughCandidate = throughTargets[0] || null;
+
+      const roleThroughBias =
+        cTr === "AM" ? 0.24 :
+        (cTr === "CM" || cTr === "LIB") ? 0.14 :
+        cTr === "DM" ? 0.06 :
+        cTr === "CB" ? -0.26 : 0;
+      const throughProb = Math.max(
+        0.05,
+        Math.min(
+          0.88,
+          0.20 +
+            cProf.vision * 0.30 -
+            cProf.ego * 0.12 +
+            roleThroughBias +
+            ((carrier.attrs?.tec || 75) >= 84 ? 0.08 : 0) +
+            (userStyle === "vertical" ? 0.16 : userStyle === "possession" ? -0.06 : 0) +
+            (capAura === "STRATEGIST" ? 0.14 : 0)
+        )
+      );
+      const isPlaymakerForThrough = cTr === "AM" || cTr === "CM" || cTr === "LIB" || cProf.archetype === "ESTRATEGISTA";
+      if (throughCandidate && carrier.carryTime >= 0.30 && nearestDefDist >= 3.8 && (!isClearOnGoal || (isPlaymakerForThrough && goalDist > 18.5)) && roll < throughProb) {
+        launchContinuousPass(st, pitch, carrier, attNodes, defNodes, true, false, false, {
+          targetReceiver: throughCandidate,
+          forceSpacePass: true
+        });
+        return;
       }
 
       // Se está livre rumo ao gol (sem marcadores na linha de chute), segue conduzindo para finalizar em vez de recuar!
@@ -4001,35 +4115,14 @@ function stepContinuousPhysics(st, pitch, dt) {
         }
       }
 
-      // Procura enfiada de bola / passe no espaço vazio (Estrategistas, Capitão Maestro, Estilo Vertical e Camisa 10!)
-      const throughCandidate = prioritizedAttNodes.find((n) => {
-        if (n.uid === carrier.uid || n.role === "GK" || !isLegalPassTarget(n)) return false;
-        const fwdGain = attIsUser ? (n.x - carrier.x) : (carrier.x - n.x);
-        const openGrass = attIsUser ? (oppDefLineX - n.x) : (n.x - oppDefLineX);
-        return fwdGain >= 3 && openGrass >= 5;
-      });
-
-      const throughProb = Math.max(
-        0.08,
-        Math.min(
-          0.82,
-          0.22 +
-            cProf.vision * 0.28 -
-            cProf.ego * 0.12 +
-            (userStyle === "vertical" ? 0.18 : userStyle === "possession" ? -0.08 : 0) +
-            (capAura === "STRATEGIST" ? 0.14 : 0)
-        )
-      );
-      if (throughCandidate && carrier.carryTime >= 0.38 && nearestDefDist >= 3.8 && roll < throughProb) {
-        launchContinuousPass(st, pitch, carrier, attNodes, defNodes, true, false, false, {
-          targetReceiver: throughCandidate,
-          forceSpacePass: true
-        });
-        return;
-      }
-
-      // Passes de construção / reciclagem pensada (Individualistas/Velozes conduzem se tiverem campo aberto!)
-      const fastCarrierSpace = (cProf.archetype === "VELOZ" || cProf.archetype === "INDIVIDUALISTA") && nearestDefDist >= 6.8;
+      // Passes de construção / overlap de lateral / reciclagem pensada
+      const fbOverlapLane =
+        (cTr === "FB" || cTr === "WB") &&
+        Math.abs(carrier.y - 50) >= 18 &&
+        !isWideFinalThird &&
+        nearestDefDist >= 6.4 &&
+        carrier.stamina >= 48;
+      const fastCarrierSpace = ((cProf.archetype === "VELOZ" || cProf.archetype === "INDIVIDUALISTA") && nearestDefDist >= 6.8) || fbOverlapLane;
       const tiredPass = carrier.stamina < 42 && roll < 0.58;
       const pressPass = nearestDefDist < 7.5 && roll < (0.36 + cProf.vision * 0.24 - cProf.ego * 0.18);
       // No terço final, só recicla para trás se estiver REALMENTE cercado (decisão pensada de Estrategista/Coletivista)
@@ -4061,7 +4154,15 @@ function stepContinuousPhysics(st, pitch, dt) {
       if (tiredPass || pressPass || crowdedRecycle || flowPass || forceRecycle) {
         // Se estiver cercado no terço final, permite passe pensado de reorganização; Vertical força progressão!
         const strictFwd = carrier.role === "DF" || userStyle === "vertical" || (inFinalThird && !boxedInFinalThird);
-        launchContinuousPass(st, pitch, carrier, attNodes, defNodes, strictFwd, false);
+        const inOwnThirdCarrier = attIsUser ? carrier.x < 38 : carrier.x > 62;
+        const canPressOneTwo =
+          pressPass &&
+          !tiredPass &&
+          !inOwnThirdCarrier &&
+          cProf.archetype !== "INDIVIDUALISTA" &&
+          (cTr === "AM" || cTr === "CM" || cTr === "WM" || cTr === "WB" || cProf.archetype === "COLETIVISTA") &&
+          Math.random() < (cTr === "AM" ? 0.52 : 0.28);
+        launchContinuousPass(st, pitch, carrier, attNodes, defNodes, strictFwd, false, canPressOneTwo);
         return;
       }
     }
