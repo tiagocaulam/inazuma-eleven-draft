@@ -81,16 +81,17 @@ body {
   vertical-align: middle;
 }
 
-/* Topbar Limpa Estilo Placar Inazuma Eleven */
+/* Topbar Sóbria com Logo Oficial Inazuma Eleven */
 .topbar {
-  background: linear-gradient(180deg, #0d1f47 0%, #061026 100%);
-  border-bottom: 2px solid var(--ie-gold);
-  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.68), inset 0 1px 0 rgba(255, 255, 255, 0.12);
-  padding: 8px 16px;
+  background: rgba(5, 10, 22, 0.92);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.14);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+  padding: 9px 18px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  gap: 12px;
   position: sticky;
   top: 0;
   z-index: 60;
@@ -100,53 +101,97 @@ body {
 .brand {
   display: flex;
   align-items: center;
-  gap: 9px;
+  gap: 12px;
   min-width: 0;
   flex: 1 1 auto;
 }
 
-.brand-bolt-svg {
-  width: 30px;
+.topbar-ie-logo {
   height: 30px;
-  flex-shrink: 0;
-  display: block;
-  filter: drop-shadow(0 0 6px rgba(250, 204, 21, 0.45));
-}
-
-.brand-emblem-img {
-  width: 32px;
-  height: 32px;
+  width: auto;
+  max-width: 155px;
   object-fit: contain;
-  filter: drop-shadow(0 0 6px rgba(250, 204, 21, 0.5));
+  display: block;
+  flex-shrink: 0;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.7));
+}
+
+.topbar-divider {
+  width: 1px;
+  height: 22px;
+  background: rgba(148, 163, 184, 0.22);
   flex-shrink: 0;
 }
 
-.brand-text-col {
+.topbar-status-tags {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   min-width: 0;
+  flex-wrap: nowrap;
+  overflow: hidden;
 }
 
-.brand h1 {
-  font-size: 1.02rem;
-  font-weight: 900;
-  font-style: italic;
-  letter-spacing: 0.65px;
-  background: linear-gradient(180deg, #ffffff 8%, #fde047 62%, #f97316 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.65));
-  line-height: 1.08;
-}
-
-.brand-sub {
-  font-size: 0.62rem;
+.topbar-team-name {
+  font-size: 0.82rem;
   font-weight: 800;
-  letter-spacing: 0.9px;
-  color: #7dd3fc;
-  display: block;
-  max-width: 100%;
+  color: #f8fafc;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.topbar-comp-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: #cbd5e1;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.topbar-ff-ico {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.topbar-mode-tag {
+  font-size: 0.66rem;
+  font-weight: 900;
+  letter-spacing: 0.55px;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.topbar-mode-tag.is-relampago {
+  background: rgba(250, 204, 21, 0.14);
+  color: #fde047;
+  border: 1px solid rgba(250, 204, 21, 0.34);
+}
+
+.topbar-mode-tag.is-beta {
+  background: rgba(56, 189, 248, 0.14);
+  color: #7dd3fc;
+  border: 1px solid rgba(56, 189, 248, 0.36);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .topbar-btns {
@@ -4146,30 +4191,34 @@ body.phase-menu .screen-card,
    ========================================================= */
 @media (max-width: 640px) {
   .topbar {
-    padding: 6px 8px;
-    gap: 6px;
+    padding: 7px 10px;
+    gap: 8px;
   }
 
   .brand {
-    gap: 7px;
+    gap: 8px;
   }
 
-  .brand-bolt-svg {
-    width: 24px;
-    height: 24px;
+  .topbar-ie-logo {
+    height: 23px;
+    max-width: 112px;
   }
 
-  .brand-emblem-img {
-    width: 24px;
-    height: 24px;
+  .topbar-divider {
+    height: 16px;
   }
 
-  .brand h1 {
-    font-size: 0.78rem;
+  .topbar-team-name {
+    font-size: 0.72rem;
   }
 
-  .brand-sub {
-    font-size: 0.52rem;
+  .topbar-comp-tag {
+    font-size: 0.64rem;
+  }
+
+  .topbar-mode-tag {
+    font-size: 0.58rem;
+    padding: 2px 6px;
   }
 
   .topbar-btns {
@@ -4475,6 +4524,13 @@ body.phase-menu .screen-card,
 
   .pitch-stat-pill strong {
     font-size: 0.66rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .topbar-divider,
+  .topbar-comp-tag {
+    display: none;
   }
 }
 

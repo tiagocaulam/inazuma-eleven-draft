@@ -15,23 +15,45 @@ function renderHeaderAndBonds() {
     autoBtn.style.display = state.phase === "draft" ? "inline-flex" : "none";
   }
   const subEl = document.getElementById("topbar-brand-sub");
-  if (subEl) {
-    const modeLabel = typeof isBetaMode === "function" && isBetaMode() ? "TESTE BETA" : "MODO RELÂMPAGO";
-    const activeTeamDisp = typeof getActiveTeamName === "function" ? getActiveTeamName() : "Dream Team";
-    const activeUpper = activeTeamDisp.toUpperCase();
-    if (state.phase === "menu") {
-      subEl.textContent = `DREAM TEAM • ${modeLabel}`;
-    } else if (state.phase === "tournament") {
-      const curSt = state.tournament?.stages?.[state.tournament.stageIndex];
-      const comp = state.tournament?.prep
-        ? state.tournament.stages?.[state.tournament.prep.nextStageIdx]?.competition
-        : curSt?.competition;
-      const compTag = comp === "WORLD" ? "MUNDIAL (FFI)" : "FUTEBOL FRONTEIRA";
+  const tagsEl = document.getElementById("topbar-status-tags");
+  const isBeta = typeof isBetaMode === "function" && isBetaMode();
+  const modeLabel = isBeta ? "TESTE BETA" : "MODO RELÂMPAGO";
+  const modeShort = isBeta ? "Teste Beta" : "Relâmpago";
+  const modePillHTML = `<span class="topbar-mode-tag ${isBeta ? "is-beta" : "is-relampago"}">${modeShort}</span>`;
+  const activeTeamDisp = typeof getActiveTeamName === "function" ? getActiveTeamName() : "Dream Team";
+  const activeUpper = activeTeamDisp.toUpperCase();
+
+  if (state.phase === "menu") {
+    if (subEl) subEl.textContent = `DREAM TEAM ${modeLabel}`;
+    if (tagsEl) tagsEl.innerHTML = modePillHTML;
+  } else if (state.phase === "tournament") {
+    const curSt = state.tournament?.stages?.[state.tournament.stageIndex];
+    const comp = state.tournament?.prep
+      ? state.tournament.stages?.[state.tournament.prep.nextStageIdx]?.competition
+      : curSt?.competition;
+    const compTag = comp === "WORLD" ? "MUNDIAL (FFI)" : "FUTEBOL FRONTEIRA";
+    const compPretty = comp === "WORLD" ? "Mundial FFI" : "Futebol Fronteira";
+    if (subEl) {
       subEl.textContent =
-        activeTeamDisp !== "Dream Team" ? `${activeUpper} • ${modeLabel} • ${compTag}` : `${modeLabel} • ${compTag}`;
-    } else {
-      const draftEntered = String(state.draftTeamName || "").trim();
-      subEl.textContent = draftEntered ? `${draftEntered.toUpperCase()} • ${modeLabel}` : `DREAM TEAM • ${modeLabel}`;
+        activeTeamDisp !== "Dream Team" ? `${activeUpper} ${modeLabel} ${compTag}` : `${modeLabel} ${compTag}`;
+    }
+    if (tagsEl) {
+      const teamPart = activeTeamDisp !== "Dream Team"
+        ? `<span class="topbar-team-name">${escapeHtml(activeTeamDisp)}</span>`
+        : "";
+      const ffIcon = typeof ffLogoIconHTML === "function" ? ffLogoIconHTML("topbar-ff-ico") : "";
+      const compPart = `<span class="topbar-comp-tag">${ffIcon}<span>${compPretty}</span></span>`;
+      const showModePart = isBeta || activeTeamDisp === "Dream Team";
+      tagsEl.innerHTML = `${teamPart}${compPart}${showModePart ? modePillHTML : ""}`;
+    }
+  } else {
+    const draftEntered = String(state.draftTeamName || "").trim();
+    if (subEl) {
+      subEl.textContent = draftEntered ? `${draftEntered.toUpperCase()} ${modeLabel}` : `DREAM TEAM ${modeLabel}`;
+    }
+    if (tagsEl) {
+      const teamPart = draftEntered ? `<span class="topbar-team-name">${escapeHtml(draftEntered)}</span>` : "";
+      tagsEl.innerHTML = `${teamPart}${modePillHTML}`;
     }
   }
   const headerWrap = document.getElementById("hud-bars-wrap");

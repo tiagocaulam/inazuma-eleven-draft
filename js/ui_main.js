@@ -1711,6 +1711,10 @@ function openSettingsModal() {
 }
 
 function init() {
+  const topLogo = document.getElementById("topbar-logo-img");
+  if (topLogo && UI.ieLogo) {
+    topLogo.src = UI.ieLogo;
+  }
   const topEmblem = document.getElementById("topbar-emblem");
   if (topEmblem && topEmblem.tagName === "IMG" && UI.raimonEmblem) {
     topEmblem.src = UI.raimonEmblem;
