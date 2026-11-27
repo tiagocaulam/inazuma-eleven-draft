@@ -269,17 +269,19 @@ function showRefereeWhistleModal(st, type, onProceed) {
     ? `Partida encerrada com avanço para ${nextStageName}!`
     : "O árbitro apita o fim da partida! Confira os números e os destaques.";
 
-  const buttonText = isHalftime
-    ? "⚡ Iniciar 2º Tempo ▶"
+  const btnBoltIco = typeof buildInazumaBoltSVG === "function" ? buildInazumaBoltSVG("inline-svg-icon") : "";
+  const btnTrophyIco = typeof uiAssetIconHTML === "function" ? uiAssetIconHTML("ffLogo", "", "inline-ui-icon") : "";
+  const buttonHTML = isHalftime
+    ? `${btnBoltIco} Iniciar 2º Tempo ▶`
     : isEtHalftime
-    ? "⚡ Iniciar 2º Tempo Extra ▶"
+    ? `${btnBoltIco} Iniciar 2º Tempo Extra ▶`
     : isExtraTime
-    ? "⚡ Iniciar Prorrogação ▶"
+    ? `${btnBoltIco} Iniciar Prorrogação ▶`
     : isPenalties
-    ? "⚡ Bater Pênaltis ▶"
+    ? `${btnBoltIco} Bater Pênaltis ▶`
     : isAdvancingToNextStage
-    ? `⚡ Preparar para ${nextStageName} ▶`
-    : "🏆 Ver Resultado da Campanha ▶";
+    ? `${btnBoltIco} Preparar para ${nextStageName} ▶`
+    : `${btnTrophyIco} Ver Resultado da Campanha ▶`;
 
   const halftimeData =
     isHalftime &&
@@ -297,12 +299,25 @@ function showRefereeWhistleModal(st, type, onProceed) {
   if (isHalftime && st?.pitch) {
     st.pitch.halftimeBuff = null;
   }
+  const htCmdIconHTML = (k) => {
+    if (typeof uiAssetIconHTML !== "function") return "";
+    if (k === "FIRE") return uiAssetIconHTML("elemFire", "", "ht-cmd-ico");
+    if (k === "WALL") return uiAssetIconHTML("itemSpikeBlock", "", "ht-cmd-ico");
+    return uiAssetIconHTML("itemShoesThunder", "", "ht-cmd-ico");
+  };
+  const htStatusIconHTML = halftimeData
+    ? halftimeData.statusKind === "LOSE"
+      ? (typeof uiAssetIconHTML === "function" ? uiAssetIconHTML("elemFire", "", "inline-ui-icon") : "")
+      : halftimeData.statusKind === "WIN"
+      ? (typeof uiAssetIconHTML === "function" ? uiAssetIconHTML("itemSpikeBlock", "", "inline-ui-icon") : "")
+      : btnBoltIco
+    : "";
   const halftimeLockerHTML = halftimeData
     ? `
       <div class="halftime-locker-box" id="halftime-locker-box">
         <div class="halftime-locker-head">
-          <span>⚡ VESTIÁRIO • INTERVALO 45'</span>
-          <span class="ht-status-pill">${escapeHtml(halftimeData.statusTag || "2º TEMPO")}</span>
+          <span class="btn-inline-flex">${btnBoltIco} VESTIÁRIO • INTERVALO 45'</span>
+          <span class="ht-status-pill">${htStatusIconHTML}<span>${escapeHtml(halftimeData.statusTag || "2º TEMPO")}</span></span>
         </div>
         <div class="ht-speeches-list">
           ${(halftimeData.bubbles || [])
@@ -331,7 +346,7 @@ function showRefereeWhistleModal(st, type, onProceed) {
             .map(
               (ch) => `
             <button type="button" class="ht-cmd-card is-${String(ch.key || "").toLowerCase()}" data-halftime-pep="${ch.key}">
-              <span class="ht-cmd-title">${escapeHtml(ch.title)}</span>
+              <span class="ht-cmd-title">${htCmdIconHTML(ch.key)}<span>${escapeHtml(ch.title)}</span></span>
               <span class="ht-cmd-sub">${escapeHtml(ch.subtitle)}</span>
               <span class="ht-cmd-buff">${escapeHtml(ch.buffTag || "")}</span>
             </button>
@@ -363,6 +378,7 @@ function showRefereeWhistleModal(st, type, onProceed) {
           <div class="ht-score-pill">
             <span>${escapeHtml(st.userTeamName || activeTeamName)}</span>
             <strong>${st.userScore} × ${st.oppScore}</strong>
+            ${st.oppTeam?.emblem ? `<img class="ht-score-emblem" src="${st.oppTeam.emblem}" alt="" />` : ""}
             <span>${escapeHtml(st.oppTeam?.name || "Adversário")}</span>
           </div>
         </div>
@@ -389,7 +405,7 @@ function showRefereeWhistleModal(st, type, onProceed) {
       ${halftimeLockerHTML}
 
       <button class="ie-cmd-btn ie-cmd-gold referee-proceed-btn" id="btn-referee-proceed">
-        <span>${buttonText}</span>
+        <span class="btn-inline-flex">${buttonHTML}</span>
       </button>
     </div>
   `;
@@ -507,7 +523,7 @@ function showRefereeWhistleModal(st, type, onProceed) {
                 ${picked.reactSprite ? `<img src="${picked.reactSprite}" alt="" />` : ""}
                 <div><strong>${escapeHtml(picked.reactName || "Equipe")}:</strong> ${escapeHtml(picked.playerReact)}</div>
               </div>
-              <div class="ht-react-buff-row">✨ Bônus ativo no 2º tempo: <strong>${escapeHtml(picked.buffTag || picked.subtitle)}</strong></div>
+              <div class="ht-react-buff-row">${typeof buildInazumaBoltSVG === "function" ? buildInazumaBoltSVG("inline-svg-icon") : ""} <span>Bônus ativo no 2º tempo: <strong>${escapeHtml(picked.buffTag || picked.subtitle)}</strong></span></div>
             </div>
           `;
         }

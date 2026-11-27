@@ -3196,11 +3196,12 @@
 
     const isWinning = uScore > oScore;
     const isLosing = uScore < oScore;
+    const statusKind = isLosing ? "LOSE" : isWinning ? "WIN" : "DRAW";
     const statusTag = isLosing
-      ? (margin >= 2 ? "🔥 VIRADA HISTÓRICA!" : "🔥 VIRADA NO 2º TEMPO!")
+      ? (margin >= 2 ? "VIRADA HISTÓRICA!" : "VIRADA NO 2º TEMPO!")
       : isWinning
-      ? (margin >= 2 ? "🛡️ VANTAGEM SÓLIDA!" : "🛡️ SEGURE A VANTAGEM!")
-      : "⚡ TUDO EM ABERTO!";
+      ? (margin >= 2 ? "VANTAGEM SÓLIDA!" : "SEGURE A VANTAGEM!")
+      : "TUDO EM ABERTO!";
 
     const voiceTxt = (entry, pers, mode) => {
       const v = pers.voice;
@@ -3306,7 +3307,7 @@
     const choices = [
       {
         key: "FIRE",
-        title: "🔥 Espírito de Chama",
+        title: "Espírito de Chama",
         subtitle: "Pressão total no ataque",
         buffTag: "+Ataque/Chute • -4% Fôlego",
         reactName: fwStar.p.name,
@@ -3320,7 +3321,7 @@
       },
       {
         key: "CALM",
-        title: "⚡ Ritmo Relâmpago",
+        title: "Ritmo Relâmpago",
         subtitle: "Posse & drible no meio",
         buffTag: "+Drible & Meio-Campo",
         reactName: mfStar.p.name,
@@ -3332,7 +3333,7 @@
       },
       {
         key: "WALL",
-        title: "🛡️ Paredão Inazuma",
+        title: "Paredão Inazuma",
         subtitle: "Compactar defesa e gol",
         buffTag: "+Defesa & Goleiro",
         reactName: gk.p.name,
@@ -3344,7 +3345,7 @@
       }
     ];
 
-    return { statusTag, oppEmblem: st.oppTeam?.emblem || "", bubbles, choices };
+    return { statusKind, statusTag, oppEmblem: st.oppTeam?.emblem || "", bubbles, choices };
   }
 
   const g = typeof window !== "undefined" ? window : globalThis;
