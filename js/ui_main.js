@@ -1036,7 +1036,7 @@ function renderTournamentScreen() {
             </span>
             <h3 style="font-size:0.96rem; color:#fff; display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
               <span>${escapeHtml(typeof getActiveTeamName === "function" ? getActiveTeamName() : "Dream Team")} (Nv. ${stats.avgLevel || 1}) vs ${st.oppTeam.name}</span>
-              <span class="stage-opp-buff-badge">⚡ Nv. ${oppStats.oppLevel || 1}</span>
+              <span class="stage-opp-buff-badge"><span class="btn-inline-flex">${typeof buildInazumaBoltSVG === "function" ? buildInazumaBoltSVG("inline-svg-icon") : ""} Nv. ${oppStats.oppLevel || 1}</span></span>
             </h3>
           </div>
         </div>
@@ -1053,8 +1053,8 @@ function renderTournamentScreen() {
 
       ${
         st.penaltiesText
-          ? `<div style="text-align:center; background:rgba(250,204,21,0.15); border:1px solid #facc15; padding:6px; border-radius:8px; font-weight:800; color:#fde047; font-size:0.82rem;">
-              ⚽ ${st.penaltiesText}
+          ? `<div style="text-align:center; background:rgba(250,204,21,0.15); border:1px solid #facc15; padding:6px; border-radius:8px; font-weight:800; color:#fde047; font-size:0.82rem; display:flex; align-items:center; justify-content:center; gap:6px;">
+              ${typeof buildMiniBallSVG === "function" ? buildMiniBallSVG("inline-svg-icon") : ""} <span>${st.penaltiesText}</span>
             </div>`
           : ""
       }
@@ -1169,7 +1169,7 @@ function renderTournamentScreen() {
           </div>
           <div class="modal-collapse-section" id="live-squad-collapse-section">
             <button type="button" class="modal-collapse-header" id="btn-toggle-live-squad-collapse">
-              <span>⚽ Escalação &amp; Formação (<span id="live-squad-form-val">${state.formation}</span>)</span>
+              <span class="btn-inline-flex">${formationIconHTML("inline-ui-icon")} Escalação &amp; Formação (<span id="live-squad-form-val">${state.formation}</span>)</span>
               <span class="modal-collapse-chevron" id="live-squad-collapse-chevron">Expandir ▼</span>
             </button>
             <div class="modal-collapse-body is-collapsed" id="live-squad-collapse-body">
@@ -1597,10 +1597,8 @@ function updateSettingsBtnIndicator() {
   const btn = document.getElementById("btn-settings");
   if (!btn) return;
   const on = typeof isSfxEnabled === "function" ? isSfxEnabled() : true;
-  const spanEl = btn.querySelector ? btn.querySelector("span") : null;
-  if (spanEl) {
-    spanEl.textContent = on ? "⚙️ Som" : "🔇 Mudo";
-  }
+  const icoHTML = typeof buildInazumaSoundSVG === "function" ? buildInazumaSoundSVG(on, "inline-svg-icon topbar-sound-ico") : "";
+  btn.innerHTML = `<span class="topbar-btn-inner">${icoHTML}<span class="topbar-btn-txt">${on ? "Som" : "Mudo"}</span></span>`;
   btn.classList.toggle("is-sfx-muted", !on);
 }
 
@@ -1625,7 +1623,7 @@ function openSettingsModal() {
   backdrop.innerHTML = `
     <div class="settings-modal-card" role="dialog" aria-modal="true" aria-label="Configurações do Jogo">
       <div class="settings-modal-head">
-        <strong>⚙️ Configurações</strong>
+        <strong class="ie-inline-title">${typeof buildInazumaGearSVG === "function" ? buildInazumaGearSVG("inline-svg-icon") : ""} Configurações</strong>
         <button type="button" class="settings-close-x" id="btn-close-settings-x" aria-label="Fechar">✕</button>
       </div>
       <div class="settings-modal-body">
@@ -1650,7 +1648,7 @@ function openSettingsModal() {
       </div>
       <div class="settings-modal-foot">
         <button type="button" class="ie-cmd-btn ie-cmd-gold" id="btn-sfx-test">
-          <span>🔊 Testar Som</span>
+          <span class="btn-inline-flex">${typeof uiAssetIconHTML === "function" ? uiAssetIconHTML("whistleIcon", "", "inline-ui-icon") : ""} Testar Som</span>
         </button>
         <button type="button" class="ie-cmd-btn ie-cmd-green" id="btn-close-settings">
           <span>Fechar</span>

@@ -48,6 +48,44 @@ function buildClipboardIconSVG(cls = "tactics-clip-svg") {
   return `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="18" rx="2.5" fill="rgba(15,23,42,0.55)"/><path d="M9 4.5h6a1 1 0 0 0 1-1V2.8a.8.8 0 0 0-.8-.8H8.8a.8.8 0 0 0-.8.8v.7a1 1 0 0 0 1 1z" fill="currentColor"/><path d="M8.5 10.5l2 2m0-2l-2 2"/><circle cx="15.2" cy="11.5" r="1.35"/><path d="M8.5 16.8c2-1.8 4.4-1.8 6.5-.2"/><path d="M13.5 17.2l2-.4-.4-2"/></svg>`;
 }
 
+/** Retorna imagem de um asset oficial de ui_assets.js para uso inline em botões, badges e barras. */
+function uiAssetIconHTML(assetKey, alt = "", cls = "inline-ui-icon") {
+  const src = UI?.[assetKey];
+  if (!src) return "";
+  return `<img class="${cls}" src="${src}" alt="${alt}" />`;
+}
+
+function buildInazumaBoltSVG(cls = "inline-svg-icon") {
+  return `<svg class="${cls}" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M13.8 1.8L4.2 13.5h6.1l-1.9 8.7 11.4-12.1h-6.3L13.8 1.8z" fill="#fde047" stroke="#b45309" stroke-width="1.3" stroke-linejoin="round"/></svg>`;
+}
+
+function buildPowerBoltSVG(cls = "inline-svg-icon") {
+  return `<svg class="${cls}" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 2l2.6 5.2 5.6.9-4 4 .9 5.7-5.1-2.6-5.1 2.6.9-5.7-4-4 5.6-.9L12 2z" fill="#fb923c" stroke="#fff7ed" stroke-width="1.2" stroke-linejoin="round"/><path d="M12.7 6.2L9.2 12h3l-.8 5.2 3.8-5.9h-2.9l.4-5.1z" fill="#fef08a"/></svg>`;
+}
+
+function buildInazumaSoundSVG(enabled = true, cls = "inline-svg-icon") {
+  if (!enabled) {
+    return `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" fill="currentColor" fill-opacity="0.22"/><line x1="22" y1="9" x2="16" y2="15" stroke="#f87171"/><line x1="16" y1="9" x2="22" y2="15" stroke="#f87171"/></svg>`;
+  }
+  return `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" fill="currentColor" fill-opacity="0.25"/><path d="M15.5 8.5a5 5 0 0 1 0 7" stroke="#fde047"/><path d="M18.8 5.8a9 9 0 0 1 0 12.4" stroke="#38bdf8"/></svg>`;
+}
+
+function buildInazumaGearSVG(cls = "inline-svg-icon") {
+  return `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3" fill="#fde047" stroke="#fde047"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>`;
+}
+
+function buildInazumaLockSVG(cls = "inline-svg-icon") {
+  return `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2.2" fill="rgba(250,204,21,0.22)" stroke="#fde047"/><path d="M8 11V7a4 4 0 0 1 8 0v4" stroke="#fde047"/><circle cx="12" cy="16" r="1.4" fill="#fde047" stroke="none"/></svg>`;
+}
+
+function buildInazumaHomeSVG(cls = "inline-svg-icon") {
+  return `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5L12 3l9 7.5" /><path d="M5 9.5V20a1 1 0 0 0 1 1h4.5v-5.5h3V21H18a1 1 0 0 0 1-1V9.5" fill="currentColor" fill-opacity="0.18"/></svg>`;
+}
+
+function buildInazumaChatSVG(cls = "inline-svg-icon") {
+  return `<svg class="${cls}" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-3 9H7V9h10v2zm-4 4H7v-2h6v2zm4-8H7V5h10v2z"/></svg>`;
+}
+
 function buildGoalTopDownSVG(side = "left") {
   const isLeft = side === "left";
   const netPatternId = isLeft ? "netGridLeft" : "netGridRight";
@@ -745,12 +783,33 @@ function getCoachRespectInfo(t = state.tournament) {
   ensureBetaDynamicsState(t);
   const val = t && typeof t.coachRespect === "number" ? Math.max(0, Math.min(100, Math.round(t.coachRespect))) : 66;
   if (val >= 75) {
-    return { value: val, tier: "HIGH", label: "Elenco Fechado", icon: "🫡", color: "#4ade80" };
+    return {
+      value: val,
+      tier: "HIGH",
+      label: "Elenco Fechado",
+      icon: "🫡",
+      iconHTML: captainIconHTML("inline-ui-icon"),
+      color: "#4ade80"
+    };
   }
   if (val >= 45) {
-    return { value: val, tier: "MID", label: "Profissional", icon: "⚖️", color: "#93c5fd" };
+    return {
+      value: val,
+      tier: "MID",
+      label: "Profissional",
+      icon: "⚖️",
+      iconHTML: formationIconHTML("inline-ui-icon"),
+      color: "#93c5fd"
+    };
   }
-  return { value: val, tier: "LOW", label: "Vestiário Rachado", icon: "⚠️", color: "#f87171" };
+  return {
+    value: val,
+    tier: "LOW",
+    label: "Vestiário Rachado",
+    icon: "⚠️",
+    iconHTML: uiAssetIconHTML("whistleIcon", "", "inline-ui-icon") || uiAssetIconHTML("refereeWhistle", "", "inline-ui-icon"),
+    color: "#f87171"
+  };
 }
 
 function getPlayerRespectStatus(playerId, t = state.tournament) {
@@ -2485,7 +2544,7 @@ function evaluateTeamStats(slots, getPlayerForSlot, options = {}) {
     chem += 8;
     bondsPower += cPwr;
     activeCombos.push({
-      label: `🔥 Combo Lendário (+${cPwr} • +8%)`,
+      label: `${uiAssetIconHTML("itemShoesLegend", "", "inline-ui-icon")} Combo Lendário (+${cPwr} • +8%)`,
       players: mergeUnique(itemHoldersMap["glove_legend"], itemHoldersMap["shoes_legend"])
     });
   }
@@ -2495,7 +2554,7 @@ function evaluateTeamStats(slots, getPlayerForSlot, options = {}) {
     chem += 6;
     bondsPower += cPwr;
     activeCombos.push({
-      label: `🛡️ Muralha Impenetrável (+${cPwr} • +6%)`,
+      label: `${uiAssetIconHTML("itemSpikeBlock", "", "inline-ui-icon")} Muralha Impenetrável (+${cPwr} • +6%)`,
       players: mergeUnique(itemHoldersMap["glove_legend"], itemHoldersMap["spike_block"])
     });
   }
@@ -2505,7 +2564,7 @@ function evaluateTeamStats(slots, getPlayerForSlot, options = {}) {
     chem += 6;
     bondsPower += cPwr;
     activeCombos.push({
-      label: `⚡ Tempestade Relâmpago (+${cPwr} • +6%)`,
+      label: `${uiAssetIconHTML("itemShoesThunder", "", "inline-ui-icon")} Tempestade Relâmpago (+${cPwr} • +6%)`,
       players: mergeUnique(itemHoldersMap["shoes_thunder"], itemHoldersMap["captain_armband"], itemHoldersMap["elem_crest_boost"])
     });
   }
@@ -2515,7 +2574,7 @@ function evaluateTeamStats(slots, getPlayerForSlot, options = {}) {
     const cPwr = Math.min(140, uniqueEquippedPlayers.length * 14);
     bondsPower += cPwr;
     activeCombos.push({
-      label: `🎒 Arsenal (${uniqueEquippedPlayers.length}x: +${cPwr})`,
+      label: `${uiAssetIconHTML("iconShopBag", "", "inline-ui-icon")} Arsenal (${uniqueEquippedPlayers.length}x: +${cPwr})`,
       players: uniqueEquippedPlayers
     });
   }
@@ -2532,7 +2591,7 @@ function evaluateTeamStats(slots, getPlayerForSlot, options = {}) {
       chem += 6;
       bondsPower += cPwr;
       activeCombos.push({
-        label: `🌟 Domínio ${bEl} (${elCnt}x: +${cPwr} • +6%)`,
+        label: `${elemIconHTML(bEl, "inline-ui-icon")} Domínio ${bEl} (${elCnt}x: +${cPwr} • +6%)`,
         players: elemPlayersMap[bEl] || []
       });
     }
@@ -2543,7 +2602,7 @@ function evaluateTeamStats(slots, getPlayerForSlot, options = {}) {
     chem += 7;
     bondsPower += cPwr;
     activeCombos.push({
-      label: `🧠 Cérebro do Time (+${cPwr} • +7%)`,
+      label: `${uiAssetIconHTML("manualSkill", "", "inline-ui-icon")} Cérebro do Time (+${cPwr} • +7%)`,
       players: mergeUnique(itemHoldersMap["tactical_visor"], itemHoldersMap["captain_armband"], itemHoldersMap["shoes_thunder"])
     });
   }
@@ -2553,7 +2612,7 @@ function evaluateTeamStats(slots, getPlayerForSlot, options = {}) {
     chem += 6;
     bondsPower += cPwr;
     activeCombos.push({
-      label: `🗼 Guardião da Torre (+${cPwr} • +6%)`,
+      label: `${uiAssetIconHTML("steelTowerIcon", "", "inline-ui-icon")} Guardião da Torre (+${cPwr} • +6%)`,
       players: mergeUnique(itemHoldersMap["raimon_keeper_gloves"], itemHoldersMap["spike_block"], itemHoldersMap["keshin_charm"])
     });
   }
@@ -2563,7 +2622,7 @@ function evaluateTeamStats(slots, getPlayerForSlot, options = {}) {
     chem += 8;
     bondsPower += cPwr;
     activeCombos.push({
-      label: `✨ Vínculo Inazuma (+${cPwr} • +8%)`,
+      label: `${uiAssetIconHTML("itemMisangaFriend", "", "inline-ui-icon")} Vínculo Inazuma (+${cPwr} • +8%)`,
       players: mergeUnique(itemHoldersMap["misanga_friend"], itemHoldersMap["lucky_amulet"])
     });
   }

@@ -3,8 +3,13 @@
 // ============================================================================
 function renderHeaderAndBonds() {
   const inPrep = Boolean(state.phase === "tournament" && state.tournament?.prep);
-  document.body.classList.toggle("phase-tournament", state.phase === "tournament");
-  document.body.classList.toggle("phase-prep", inPrep);
+  document.body?.classList?.toggle("phase-menu", state.phase === "menu");
+  document.body?.classList?.toggle("phase-tournament", state.phase === "tournament");
+  document.body?.classList?.toggle("phase-prep", inPrep);
+  const mainScreenEl = document.getElementById("main-screen-container");
+  if (mainScreenEl?.classList) {
+    mainScreenEl.classList.toggle("is-menu-phase", state.phase === "menu");
+  }
   const autoBtn = document.getElementById("btn-auto-draft");
   if (autoBtn) {
     autoBtn.style.display = state.phase === "draft" ? "inline-flex" : "none";
@@ -114,9 +119,9 @@ function renderRankingModalList(entries, filterDiff = "all", expandedSet = new S
           const isExpanded = expandedSet.has(entry.runId);
           const diffLabel = entry.difficulty === "hidden" ? "Difícil" : "Fácil";
           const champBadge = entry.isWorldChampion
-            ? `<span class="ranking-micro-badge is-world">🏆 Mundial</span>`
+            ? `<span class="ranking-micro-badge is-world">${uiAssetIconHTML("ffLogo", "", "inline-ui-icon")} Mundial</span>`
             : entry.isChampion
-            ? `<span class="ranking-micro-badge is-ff">🥇 FF</span>`
+            ? `<span class="ranking-micro-badge is-ff">${uiAssetIconHTML("raimonEmblem", "", "inline-ui-icon")} FF</span>`
             : "";
           const rosterHTML = (entry.roster || [])
             .map((pl) => {
@@ -140,7 +145,7 @@ function renderRankingModalList(entries, filterDiff = "all", expandedSet = new S
                       <span>OVR ${pl.ovr}</span>
                     </div>
                   </div>
-                  <span class="ranking-roster-pwr">⚔️ ${Number(pl.power || 0).toLocaleString("pt-BR")}</span>
+                  <span class="ranking-roster-pwr">${buildPowerBoltSVG("inline-svg-icon")} ${Number(pl.power || 0).toLocaleString("pt-BR")}</span>
                 </div>
               `;
             })
@@ -168,7 +173,7 @@ function renderRankingModalList(entries, filterDiff = "all", expandedSet = new S
                   </div>
                 </div>
                 <div class="ranking-entry-right">
-                  <span class="ranking-power-pill">⚔️ ${Number(entry.power || 0).toLocaleString("pt-BR")}</span>
+                  <span class="ranking-power-pill">${buildPowerBoltSVG("inline-svg-icon")} ${Number(entry.power || 0).toLocaleString("pt-BR")}</span>
                   <span class="ranking-chevron" aria-hidden="true">▾</span>
                 </div>
               </button>
@@ -227,17 +232,21 @@ function renderRankingModalList(entries, filterDiff = "all", expandedSet = new S
 // TELA 1: MENU INICIAL ESTILO JOGO
 function renderStartMenuScreen() {
   clearRankingEscListener();
+  document.body?.classList?.toggle("phase-menu", true);
   const container = document.getElementById("main-screen-container");
   if (!container) return;
+  if (container.classList) container.classList.add("is-menu-phase");
 
   const stadiumStyle = UI.stadiumBg ? `background-image: url('${UI.stadiumBg}');` : "";
   const rankCfg = getRankingConfig();
   const savedRun = loadActiveRunPreview();
+  const isBetaSelected = typeof isBetaMode === "function" && isBetaMode();
 
   container.innerHTML = `
     <div class="start-menu-card">
       <div class="start-hero-banner" style="${stadiumStyle}">
         <div class="start-hero-overlay"></div>
+        ${UI.ffLogo ? `<img class="start-hero-ff-crest" src="${UI.ffLogo}" alt="" aria-hidden="true" />` : ""}
         <button type="button"
                 class="start-ranking-icon-btn"
                 id="btn-open-ranking-modal"
@@ -254,8 +263,9 @@ function renderStartMenuScreen() {
         </button>
         <div class="start-hero-content">
           ${UI.ieLogo ? `<img class="start-ie-logo" src="${UI.ieLogo}" alt="Inazuma Eleven" />` : `<h2>INAZUMA ELEVEN</h2>`}
-          <div class="start-title-ribbon">DREAM TEAM • MODO RELÂMPAGO</div>
+          <div class="start-title-ribbon ${isBetaSelected ? "is-beta" : ""}">DREAM TEAM • ${isBetaSelected ? "TESTE BETA" : "MODO RELÂMPAGO"}</div>
         </div>
+        <div class="start-hero-lightning-bar" aria-hidden="true"></div>
       </div>
 
       <div class="start-body">
@@ -263,7 +273,7 @@ function renderStartMenuScreen() {
           savedRun
             ? `<div class="continue-run-banner" id="continue-run-banner">
                 <div class="continue-run-info">
-                  <div class="continue-run-eyebrow">⚡ CAMPANHA EM ANDAMENTO</div>
+                  <div class="continue-run-eyebrow">${buildInazumaBoltSVG("inline-svg-icon")} CAMPANHA EM ANDAMENTO</div>
                   <div class="continue-run-title">${escapeHtml(savedRun.preview.stageLabel)}</div>
                   <div class="continue-run-meta">${escapeHtml(savedRun.preview.metaLine)}</div>
                 </div>
@@ -277,15 +287,15 @@ function renderStartMenuScreen() {
             : ""
         }
         <div class="option-group" style="margin-top:0;">
-          <label>${ffLogoIconHTML("inline-ui-icon")} 1. Escolha o Modo de Jogo:</label>
+          <label class="start-section-title">${ffLogoIconHTML("inline-ui-icon")} 1. Escolha o Modo de Jogo:</label>
           <div class="mode-select-grid">
             ${(() => {
-              const isBeta = typeof isBetaMode === "function" && isBetaMode();
+              const isBeta = isBetaSelected;
               return `
             <div class="mode-card ${!isBeta ? "selected" : ""}" data-game-mode="relampago">
               <div class="mode-card-head">
                 <div class="mode-card-title">
-                  ${elemIconHTML("Vento")}
+                  ${uiAssetIconHTML("itemShoesThunder", "", "mode-card-ie-icon") || elemIconHTML("Vento")}
                   <strong>Modo Relâmpago</strong>
                 </div>
                 <span class="mode-badge is-active">LIBERADO</span>
@@ -298,7 +308,7 @@ function renderStartMenuScreen() {
             <div class="mode-card is-beta ${isBeta ? "selected" : ""}" data-game-mode="beta">
               <div class="mode-card-head">
                 <div class="mode-card-title">
-                  ${elemIconHTML("Floresta")}
+                  ${uiAssetIconHTML("keshinCoin", "", "mode-card-ie-icon") || elemIconHTML("Floresta")}
                   <strong>Teste Beta</strong>
                 </div>
                 <span class="mode-badge is-beta">BETA</span>
@@ -312,7 +322,7 @@ function renderStartMenuScreen() {
               <div class="mode-card-head">
                 <div class="mode-card-title">
                   <span class="mode-title-lock" aria-hidden="true">
-                    <svg viewBox="0 0 20 20" width="16" height="16" fill="currentColor"><path fill-rule="evenodd" d="M10 2a4 4 0 0 0-4 4v2H5a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2h-1V6a4 4 0 0 0-4-4Zm2 6V6a2 2 0 1 0-4 0v2h4Zm-2 3.25a1.25 1.25 0 0 1 .75 2.25V15a.75.75 0 0 1-1.5 0v-1.5a1.25 1.25 0 0 1 .75-2.25Z" clip-rule="evenodd"/></svg>
+                    ${uiAssetIconHTML("raimonEmblem", "", "mode-card-ie-icon") || buildInazumaLockSVG("inline-svg-icon")}
                   </span>
                   <strong>Modo História</strong>
                 </div>
@@ -327,27 +337,27 @@ function renderStartMenuScreen() {
           </div>
           ${
             state.storyLockNotice
-              ? `<div class="mode-locked-toast">🔒 O <strong>Modo História</strong> ainda está em desenvolvimento e chegará em breve! Por enquanto, jogue o <strong>Modo Relâmpago</strong> ou experimente o <strong>Teste Beta</strong>.</div>`
+              ? `<div class="mode-locked-toast">${buildInazumaLockSVG("inline-svg-icon")} O <strong>Modo História</strong> ainda está em desenvolvimento e chegará em breve! Por enquanto, jogue o <strong>Modo Relâmpago</strong> ou experimente o <strong>Teste Beta</strong>.</div>`
               : ""
           }
         </div>
 
         <div class="option-group">
-          <label>${captainIconHTML()} 2. Escolha a Dificuldade:</label>
+          <label class="start-section-title">${captainIconHTML()} 2. Escolha a Dificuldade:</label>
           <div class="difficulty-grid">
             <div class="diff-card ${!state.hideOvrBeforePick ? "selected" : ""}" data-diff="visible">
-              <strong>${elemIconHTML("Vento")} Modo Fácil (Com Overall)</strong>
+              <strong>${uiAssetIconHTML("moveOF", "", "diff-card-ie-icon") || elemIconHTML("Vento")} Modo Fácil (Com Overall)</strong>
               <span>Mostra o Overall dos jogadores do time sorteado antes de você escolher.</span>
             </div>
             <div class="diff-card ${state.hideOvrBeforePick ? "selected" : ""}" data-diff="hidden">
-              <strong>${elemIconHTML("Fogo")} Modo Difícil (Sem Overall)</strong>
+              <strong>${uiAssetIconHTML("keshinIcon", "", "diff-card-ie-icon") || elemIconHTML("Fogo")} Modo Difícil (Sem Overall)</strong>
               <span>O Overall fica oculto na lista e não é permitido roletar outro time!</span>
             </div>
           </div>
         </div>
 
         <div class="option-group">
-          <label>${formationIconHTML()} 3. Escolha a Formação Tática:</label>
+          <label class="start-section-title">${formationIconHTML()} 3. Escolha a Formação Tática:</label>
           <div class="formation-pills">
             ${["4-3-3", "4-4-2", "3-4-3", "3-5-2"]
               .map(
@@ -362,10 +372,10 @@ function renderStartMenuScreen() {
         </div>
 
         ${(() => {
-          const isBeta = typeof isBetaMode === "function" && isBetaMode();
+          const isBeta = isBetaSelected;
           return `
         <button class="start-big-btn ${isBeta ? "is-beta" : ""}" id="btn-start-game-now">
-          ${isBeta ? "COMEÇAR TESTE BETA E GIRAR ROLETA!" : "COMEÇAR MODO RELÂMPAGO E GIRAR ROLETA!"}
+          ${buildInazumaBoltSVG("btn-start-bolt")}<span>${isBeta ? "COMEÇAR TESTE BETA E GIRAR ROLETA!" : "COMEÇAR MODO RELÂMPAGO E GIRAR ROLETA!"}</span>
         </button>
           `;
         })()}
@@ -413,6 +423,7 @@ function renderStartMenuScreen() {
       }
       state.gameMode = mode === "beta" ? "beta" : "relampago";
       state.storyLockNotice = false;
+      renderHeaderAndBonds();
       renderStartMenuScreen();
     });
   });
@@ -565,7 +576,7 @@ function renderDraftScreen() {
       : "DAR GO! — PREPARAR MODO RELÂMPAGO";
     container.innerHTML = `
       <div class="draft-team-name-bar">
-        <label for="draft-team-name-input">🏷️ Nome do Time</label>
+        <label for="draft-team-name-input">${uiAssetIconHTML("raimonEmblem", "", "inline-ui-icon")} Nome do Time</label>
         <input
           type="text"
           id="draft-team-name-input"
@@ -1930,19 +1941,19 @@ function isTournamentRunTerminal(t = state.tournament) {
 
 function getRankingStatusBadgeHTML(t) {
   if (typeof isBetaMode === "function" && isBetaMode()) {
-    return `🧪 Modo Teste Beta — campanhas beta não entram no Ranking Oficial`;
+    return `<span class="btn-inline-flex">${uiAssetIconHTML("keshinCoin", "", "inline-ui-icon")} Modo Teste Beta — campanhas beta não entram no Ranking Oficial</span>`;
   }
   const cfg = getRankingConfig();
   if (t?.rankingStatus === "saving") {
-    return `⏳ Salvando campanha no Ranking Global...`;
+    return `<span class="btn-inline-flex">${buildInazumaBoltSVG("inline-svg-icon")} Salvando campanha no Ranking Global...</span>`;
   }
   if (t?.rankingStatus === "online") {
-    return `🌐 Salvo no Ranking Global (${escapeHtml(sanitizeTeamName(t.rankingTeamName))})`;
+    return `<span class="btn-inline-flex">${uiAssetIconHTML("ffLogo", "", "inline-ui-icon")} Salvo no Ranking Global (${escapeHtml(sanitizeTeamName(t.rankingTeamName))})</span>`;
   }
   if (cfg.isOnline && t?.rankingStatus === "local") {
-    return `💾 Salvo localmente (sem conexão ao servidor global)`;
+    return `<span class="btn-inline-flex">${uiAssetIconHTML("manualInazuma", "", "inline-ui-icon")} Salvo localmente (sem conexão ao servidor global)</span>`;
   }
-  return `🏆 Salvo automaticamente no Ranking (${escapeHtml(sanitizeTeamName(t?.rankingTeamName || "Dream Team"))})`;
+  return `<span class="btn-inline-flex">${uiAssetIconHTML("raimonEmblem", "", "inline-ui-icon")} Salvo automaticamente no Ranking (${escapeHtml(sanitizeTeamName(t?.rankingTeamName || "Dream Team"))})</span>`;
 }
 
 function updateRunRankingStatusBadge(t, customHtml = null) {

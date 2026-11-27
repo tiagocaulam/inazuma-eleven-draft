@@ -10272,7 +10272,7 @@ function buildTeamEnergyBarHTML(isLive = false, activeMinute = 0, customPrefix =
   return `
     <div class="team-energy-strip ${isLiveCtx ? "is-live" : ""}" id="${prefix}-team-energy-strip" style="border-color:${band.border}; background:${band.bg};">
       <div class="team-energy-row">
-        <span class="team-energy-title">⚡ Energia do Time: <strong id="${prefix}-team-energy-pill" style="color:${band.color};">${val}% (${band.label})</strong><span class="team-energy-passive-badge" id="${prefix}-team-energy-passive" style="display:${showLateBadge ? "inline-flex" : "none"};">🛡️ -50% (75'+)</span></span>
+        <span class="team-energy-title">${typeof uiAssetIconHTML === "function" ? uiAssetIconHTML("tpPendant", "", "inline-ui-icon") : ""} Energia do Time: <strong id="${prefix}-team-energy-pill" style="color:${band.color};">${val}% (${band.label})</strong><span class="team-energy-passive-badge" id="${prefix}-team-energy-passive" style="display:${showLateBadge ? "inline-flex" : "none"};">${typeof uiAssetIconHTML === "function" ? uiAssetIconHTML("itemSpikeBlock", "", "inline-ui-icon") : ""} -50% (75'+)</span></span>
         <span class="team-energy-desc" id="${prefix}-team-energy-desc">${descText}</span>
       </div>
       <div class="team-energy-bar-bg">
@@ -10382,7 +10382,7 @@ function buildPrepTacticsTriggerBarHTML(t) {
           ${typeof isBetaMode === "function" && isBetaMode() && typeof getCoachRespectInfo === "function"
             ? (() => {
                 const ri = getCoachRespectInfo(t);
-                return `<span class="prep-tac-chip is-respect-${ri.tier.toLowerCase()}" title="Respeito do elenco com o técnico (${ri.label}). Abaixo de 45% jogadores podem desobedecer ordens em campo!">${ri.icon} Respeito: <strong style="color:${ri.color};">${ri.value}%</strong></span>`;
+                return `<span class="prep-tac-chip is-respect-${ri.tier.toLowerCase()}" title="Respeito do elenco com o técnico (${ri.label}). Abaixo de 45% jogadores podem desobedecer ordens em campo!">${ri.iconHTML || ri.icon} Respeito: <strong style="color:${ri.color};">${ri.value}%</strong></span>`;
               })()
             : ""}
         </div>
@@ -11018,7 +11018,7 @@ function buildBetweenMatchPrepHTML(t, stats) {
                 const energyBadge = loc.isRestLocation
                   ? `<span class="pin-energy-tag is-gain">${isRestUsed ? "Usado" : isRestEarlyDay ? "Encerra Dia" : "Grátis"}</span>`
                   : `<span class="pin-energy-tag is-cost">-${reqCost}%</span>`;
-                const plotTagHTML = locPlot ? `<span class="pin-plot-tag" title="Trama aberta no vestiário">🔥 Trama</span>` : "";
+                const plotTagHTML = locPlot ? `<span class="pin-plot-tag" title="Trama aberta no vestiário">${typeof uiAssetIconHTML === "function" ? uiAssetIconHTML("elemFire", "", "inline-ui-icon") : ""} Trama</span>` : "";
                 return `
             <div class="prep-map-pin ${loc.isRestLocation ? "is-rest-pin" : ""} ${isRestReadyNight ? "is-night-highlight" : isRestReady ? "is-rest-open" : ""} ${locPlot ? "has-city-plot" : ""} ${isDisabled ? "is-disabled" : ""}" data-prep-loc="${loc.id}" style="left:${loc.mapX || 50}%; top:${loc.mapY || 50}%;" title="${pinTitle}">
               <div class="prep-map-pin-orb">
@@ -11147,7 +11147,7 @@ function buildBetweenMatchPrepHTML(t, stats) {
         ` : ""}
         ${prep.activePlotContext && prep.activePlotContext.locId === prep.locId ? `
           <div class="prep-city-plot-banner">
-            <div class="prep-city-plot-head">⚡ TRAMA ABERTA EM ${escapeHtml(prep.activePlotContext.locLabel || activeLoc?.title || "CIDADE")} • ${escapeHtml(prep.activePlotContext.aName)} vs ${escapeHtml(prep.activePlotContext.bName)}</div>
+            <div class="prep-city-plot-head">${typeof buildInazumaBoltSVG === "function" ? buildInazumaBoltSVG("inline-svg-icon") : ""} TRAMA ABERTA EM ${escapeHtml(prep.activePlotContext.locLabel || activeLoc?.title || "CIDADE")} • ${escapeHtml(prep.activePlotContext.aName)} vs ${escapeHtml(prep.activePlotContext.bName)}</div>
             <div class="prep-city-plot-voices">
               <div class="prep-city-plot-voice">
                 ${prep.activePlotContext.aSprite ? `<img src="${prep.activePlotContext.aSprite}" alt="${escapeHtml(prep.activePlotContext.aName)}" />` : ""}
@@ -11158,7 +11158,7 @@ function buildBetweenMatchPrepHTML(t, stats) {
                 <div><strong>${escapeHtml(prep.activePlotContext.bName)}:</strong> "${escapeHtml(prep.activePlotContext.talkB)}"</div>
               </div>
             </div>
-            ${prep.activePlotContext.talk3 ? `<div class="prep-city-plot-tip">🧠 3ª Via do Técnico: ${escapeHtml(prep.activePlotContext.talk3)}</div>` : ""}
+            ${prep.activePlotContext.talk3 ? `<div class="prep-city-plot-tip">${typeof uiAssetIconHTML === "function" ? uiAssetIconHTML("manualSkill", "", "inline-ui-icon") : ""} 3ª Via do Técnico: ${escapeHtml(prep.activePlotContext.talk3)}</div>` : ""}
           </div>
         ` : ""}
         <div class="prep-triple-cols-grid ${(prep.choices || []).length >= 4 ? "is-four-cols" : ""}">
@@ -11177,7 +11177,7 @@ function buildBetweenMatchPrepHTML(t, stats) {
     }).join("");
     const recKeshin = rec.previewKeshin || recPlayer.keshin || null;
     const recKeshinHTML = recKeshin
-      ? `<div class="prep-recruit-keshin-pill">${recKeshin.icon ? `<img src="${recKeshin.icon}" alt="" />` : "⚡"} <span>Keshin: <strong>${escapeHtml(recKeshin.name)}</strong>${recKeshin.move ? ` (${escapeHtml(recKeshin.move)})` : ""}</span></div>`
+      ? `<div class="prep-recruit-keshin-pill">${recKeshin.icon ? `<img src="${recKeshin.icon}" alt="" />` : (typeof buildInazumaBoltSVG === "function" ? buildInazumaBoltSVG("inline-svg-icon") : "")} <span>Keshin: <strong>${escapeHtml(recKeshin.name)}</strong>${recKeshin.move ? ` (${escapeHtml(recKeshin.move)})` : ""}</span></div>`
       : `<div class="prep-recruit-keshin-pill" style="opacity:0.78; border-color:rgba(148,163,184,0.35); background:rgba(15,23,42,0.55); color:#cbd5e1;"><span>Espírito Guerreiro: Nenhum (pode despertar depois)</span></div>`;
     bodyHTML = `
       <div class="prep-recruit-container">
@@ -11536,8 +11536,8 @@ function buildBetweenMatchPrepHTML(t, stats) {
         const coopBannerHTML = activeChat.learnedCoop?.learned
           ? `
             <div id="wpp-coop-banner" class="synergy-coop-learned-banner${animFrom >= 0 ? " is-wpp-hidden" : ""}">
-              <div style="font-size:0.7rem; font-weight:900; color:#fde047; text-transform:uppercase; letter-spacing:0.4px;">
-                ⚡ Nova Técnica em ${activeChat.learnedCoop.tier === "TRIO" ? "Trio" : "Dupla"} Desbloqueada!
+              <div style="font-size:0.7rem; font-weight:900; color:#fde047; text-transform:uppercase; letter-spacing:0.4px; display:flex; align-items:center; gap:5px;">
+                ${typeof buildInazumaBoltSVG === "function" ? buildInazumaBoltSVG("inline-svg-icon") : ""} Nova Técnica em ${activeChat.learnedCoop.tier === "TRIO" ? "Trio" : "Dupla"} Desbloqueada!
               </div>
               <div style="font-size:0.96rem; font-weight:900; color:#fff; margin-top:2px;">
                 ${activeChat.learnedCoop.move} <span style="font-size:0.74rem; color:#93c5fd;">(${activeChat.learnedCoop.cat})</span>
@@ -11561,9 +11561,9 @@ function buildBetweenMatchPrepHTML(t, stats) {
             : "is-good";
         const modeBadgeHTML =
           activeChat.interactionMode === "AUTO_COMPLETE"
-            ? `<span class="wpp-mode-pill">✨ Completa</span>`
+            ? `<span class="wpp-mode-pill">${typeof uiAssetIconHTML === "function" ? uiAssetIconHTML("itemMisangaFriend", "", "inline-ui-icon") : ""} Completa</span>`
             : activeChat.interactionMode === "DILEMMA"
-            ? `<span class="wpp-mode-pill is-dilemma">⚖️ Dilema</span>`
+            ? `<span class="wpp-mode-pill is-dilemma">${typeof uiAssetIconHTML === "function" ? uiAssetIconHTML("whistleIcon", "", "inline-ui-icon") : ""} Dilema</span>`
             : "";
 
         const sendIconSVG = `
@@ -11584,7 +11584,7 @@ function buildBetweenMatchPrepHTML(t, stats) {
                 <div class="synergy-outcome-card ${qualCls}">${activeChat.outcomeSummary || ""}</div>
                 <div class="wpp-resolved-actions">
                   ${activeChat.needsFormationAdjust
-                    ? `<button type="button" class="ie-cmd-btn ie-cmd-blue" id="btn-chat-open-formation"><span>📐 Ajustar Formação e Escalação</span></button>`
+                    ? `<button type="button" class="ie-cmd-btn ie-cmd-blue" id="btn-chat-open-formation"><span class="btn-inline-flex">${typeof formationIconHTML === "function" ? formationIconHTML("inline-ui-icon") : ""} Ajustar Formação e Escalação</span></button>`
                     : ""}
                   ${nextUnread
                     ? `<button type="button" class="ie-cmd-btn ie-cmd-gold" id="btn-next-unread-chat" data-next-chat-id="${nextUnread.id}"><span>Próxima Conversa (${unreadThreads.length}) →</span></button>`
@@ -11754,7 +11754,7 @@ function buildBetweenMatchPrepHTML(t, stats) {
                   ? prep.teamChats.filter((c) => !c.resolved).length
                   : 0;
                 const doneChatBtn = unreadDoneChats > 0
-                  ? `<button type="button" class="ie-cmd-btn ie-cmd-blue" id="btn-open-map-chats-done"><span>💬 Conversas (${unreadDoneChats})</span></button>`
+                  ? `<button type="button" class="ie-cmd-btn ie-cmd-blue" id="btn-open-map-chats-done"><span class="btn-inline-flex">${typeof buildInazumaChatSVG === "function" ? buildInazumaChatSVG("inline-svg-icon") : ""} Conversas (${unreadDoneChats})</span></button>`
                   : "";
                 const minCityCost = Math.min(...locations.filter((l) => !l.isRestLocation).map((l) => getPrepLocationCost(l, t)));
                 const cantAffordMoreCity = curTeamEnergy < minCityCost;

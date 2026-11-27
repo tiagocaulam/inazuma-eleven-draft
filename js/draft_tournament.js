@@ -150,7 +150,7 @@ function renderDraftWheelAndRoster(animateWheel = false) {
                     <div class="roster-badges">
                       ${posIconHTML(p.pos, true)}${altPosHTML}
                       <span class="ovr-tag">${state.hideOvrBeforePick && !alreadyPicked ? "OVR ??" : `OVR ${p.ovr}`}</span>
-                      <span class="pwr-base-tag" title="Poder Base do jogador no Nv. 1">${state.hideOvrBeforePick && !alreadyPicked ? "⚔️ Poder ??" : `⚔️ Poder ${basePwr}`}</span>
+                      <span class="pwr-base-tag" title="Poder Base do jogador no Nv. 1">${buildPowerBoltSVG("inline-svg-icon")} ${state.hideOvrBeforePick && !alreadyPicked ? "Poder ??" : `Poder ${basePwr}`}</span>
                       ${elemIconHTML(p.element)}
                       ${hasLink ? `<span class="affinity-badge">+Química</span>` : ""}
                       ${!hasNaturalSlot && !alreadyPicked ? `<span style="font-size:0.62rem; color:#facc15;">(Cheia)</span>` : ""}
@@ -431,7 +431,7 @@ function buildPitchHTML(isComplete = false, liveStaminaByPlayerId = null) {
             ${posIconHTML(slot.role, true)}
             <span class="node-slot-label">${slot.label}${isImprovised ? " *" : ""}</span>
           </div>
-          <div class="node-pwr-pill${isImprovised ? " is-improvised" : ""}" title="${nodeTooltip}">⚔️ ${pPwr.toLocaleString("pt-BR")}</div>
+          <div class="node-pwr-pill${isImprovised ? " is-improvised" : ""}" title="${nodeTooltip}">${buildPowerBoltSVG("inline-svg-icon")} ${pPwr.toLocaleString("pt-BR")}</div>
           ${pStam !== null ? `<div class="node-live-stam-track" title="Fôlego atual: ${pStam}%"><div class="node-live-stam-fill" style="width:${pStam}%; background:${stamCol};"></div></div>` : ""}
         </div>
       `;
@@ -442,7 +442,7 @@ function buildPitchHTML(isComplete = false, liveStaminaByPlayerId = null) {
     <div class="pitch-formation-wrapper">
       <div class="pitch-synergies-header" id="pitch-synergies-header">
         <div class="pitch-synergies-title">
-          <span class="pitch-synergies-icon">🌱</span>
+          <span class="pitch-synergies-icon">${uiAssetIconHTML("itemMisangaFriend", "", "inline-ui-icon")}</span>
           <span>VANTAGENS &amp; SINERGIAS DA ESCALAÇÃO</span>
         </div>
         <div class="pitch-synergies-list">
@@ -461,7 +461,7 @@ function buildPitchHTML(isComplete = false, liveStaminaByPlayerId = null) {
         <div class="pitch-penalty-top"></div>
         <div class="pitch-half-line"></div>
         <div class="pitch-center-circle">
-          ${UI.raimonEmblem ? `<img class="pitch-center-emblem" src="${UI.raimonEmblem}" alt="" />` : "⚡"}
+          ${UI.raimonEmblem ? `<img class="pitch-center-emblem" src="${UI.raimonEmblem}" alt="" />` : buildInazumaBoltSVG("inline-svg-icon")}
         </div>
         <div class="pitch-penalty-bottom"></div>
         <svg class="draft-links-svg" viewBox="0 0 100 100" preserveAspectRatio="none">${linksSVG}</svg>

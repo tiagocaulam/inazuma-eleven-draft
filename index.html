@@ -4,12 +4,14 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Inazuma Eleven Dream Team</title>
-  <link rel="stylesheet" href="style.css?v=20261127c" />
+  <link rel="stylesheet" href="style.css?v=20261127d" />
 </head>
 <body>
   <header class="topbar">
     <div class="brand" id="topbar-brand">
-      <img id="topbar-emblem" class="brand-emblem-img" alt="Inazuma" />
+      <div class="topbar-crest-badge">
+        <img id="topbar-emblem" class="brand-emblem-img" alt="Inazuma" />
+      </div>
       <div class="brand-text-col">
         <h1>INAZUMA ELEVEN</h1>
         <span class="brand-sub" id="topbar-brand-sub">DREAM TEAM • MODO RELÂMPAGO</span>
@@ -18,13 +20,22 @@
 
     <div class="topbar-btns">
       <button id="btn-auto-draft" class="ie-cmd-btn ie-cmd-blue" title="Preencher vagas automaticamente">
-        <span>Auto Escalar</span>
+        <span class="topbar-btn-inner">
+          <svg class="inline-svg-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M13.8 1.8L4.2 13.5h6.1l-1.9 8.7 11.4-12.1h-6.3L13.8 1.8z" fill="#fde047" stroke="#b45309" stroke-width="1.3" stroke-linejoin="round"/></svg>
+          <span class="topbar-btn-txt">Auto Escalar</span>
+        </span>
       </button>
       <button id="btn-settings" class="ie-cmd-btn ie-cmd-slate" title="Configurações e Efeitos Sonoros">
-        <span>⚙️ Som</span>
+        <span class="topbar-btn-inner">
+          <svg class="inline-svg-icon topbar-sound-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" fill="currentColor" fill-opacity="0.25"/><path d="M15.5 8.5a5 5 0 0 1 0 7" stroke="#fde047"/><path d="M18.8 5.8a9 9 0 0 1 0 12.4" stroke="#38bdf8"/></svg>
+          <span class="topbar-btn-txt">Som</span>
+        </span>
       </button>
       <button id="btn-reset" class="ie-cmd-btn ie-cmd-red" title="Voltar ao Menu Inicial">
-        <span>Menu</span>
+        <span class="topbar-btn-inner">
+          <svg class="inline-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5L12 3l9 7.5" /><path d="M5 9.5V20a1 1 0 0 0 1 1h4.5v-5.5h3V21H18a1 1 0 0 0 1-1V9.5" fill="currentColor" fill-opacity="0.18"/></svg>
+          <span class="topbar-btn-txt">Menu</span>
+        </span>
       </button>
     </div>
   </header>
@@ -71,18 +82,18 @@
     <section class="screen-card" id="main-screen-container"></section>
   </main>
 
-  <script src="ui_assets.js?v=20261127c"></script>
-  <script src="data.js?v=20261127c"></script>
-  <script src="ranking_config.js?v=20261127c"></script>
-  <script src="js/core.js?v=20261127c"></script>
-  <script src="js/sfx.js?v=20261127c"></script>
-  <script src="js/draft_tournament.js?v=20261127c"></script>
-  <script src="js/match_render.js?v=20261127c"></script>
-  <script src="js/penalties.js?v=20261127c"></script>
-  <script src="js/match_physics.js?v=20261127c"></script>
-  <script src="js/menu_ranking_save.js?v=20261127c"></script>
-  <script src="js/inazap_engine.js?v=20261127c"></script>
-  <script src="js/prep.js?v=20261127c"></script>
-  <script src="js/ui_main.js?v=20261127c"></script>
+  <script src="ui_assets.js?v=20261127d"></script>
+  <script src="data.js?v=20261127d"></script>
+  <script src="ranking_config.js?v=20261127d"></script>
+  <script src="js/core.js?v=20261127d"></script>
+  <script src="js/sfx.js?v=20261127d"></script>
+  <script src="js/draft_tournament.js?v=20261127d"></script>
+  <script src="js/match_render.js?v=20261127d"></script>
+  <script src="js/penalties.js?v=20261127d"></script>
+  <script src="js/match_physics.js?v=20261127d"></script>
+  <script src="js/menu_ranking_save.js?v=20261127d"></script>
+  <script src="js/inazap_engine.js?v=20261127d"></script>
+  <script src="js/prep.js?v=20261127d"></script>
+  <script src="js/ui_main.js?v=20261127d"></script>
 </body>
 </html>
