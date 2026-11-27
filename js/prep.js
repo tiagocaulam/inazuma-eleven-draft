@@ -2879,10 +2879,12 @@ function applyChatTacticalPatch(t, patch, actors = [], ctx = {}, opts = {}) {
     tac.markedOppId = null;
     changes.push("Marcação Especial: Livre");
   }
-  if (patch.formation && typeof switchTeamFormation === "function" && DB?.formations?.[patch.formation] && state.formation !== patch.formation) {
-    const switched = switchTeamFormation(patch.formation);
+  if (patch.formation && typeof switchTeamFormation === "function" && DB?.formations?.[patch.formation]) {
+    t.playerSuggestedFormation = patch.formation;
+    const prevForm = state.formation;
+    const switched = prevForm !== patch.formation ? switchTeamFormation(patch.formation) : false;
     if (switched) {
-      const lbl = `Formação: ${patch.formation}`;
+      const lbl = `Formação: ${patch.formation} (-50% debuff fora de pos.)`;
       changes.push(lbl);
       if (shouldPromise) recordBetaChatPromise(t, "formation", patch.formation, lbl, leadActor?.id, leadActor?.name);
       // Re-mapeia slotId dos chats abertos pelo player.id após trocar a formação
@@ -2902,6 +2904,8 @@ function applyChatTacticalPatch(t, patch, actors = [], ctx = {}, opts = {}) {
           }
         });
       }
+    } else if (prevForm === patch.formation) {
+      changes.push(`Formação ${patch.formation} mantida (-50% debuff fora de pos.)`);
     }
   }
   return changes;

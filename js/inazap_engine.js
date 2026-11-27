@@ -2157,19 +2157,19 @@
         : `fechar duas linhas sólidas de quatro e sair no contra-ataque em dupla`;
       const msgs = [
         makeProcMsg(core, 0, `Professor, olhando pro jeito que ${opp} joga, o nosso ${curForm} pode sofrer espaço. Mudar pro ${targetForm} ia ajudar demais pra ${formReason}!`, "idea"),
-        makeProcMsg(core, 1, `Concordo! No ${targetForm} cada um sabe certinho onde pisar, só o senhor ajustar as peças no campinho depois.`, "hype")
+        makeProcMsg(core, 1, `Concordo! Mesmo se alguém tiver que quebrar galho fora de posição no ${targetForm}, a gente se ajuda e perde só metade do entrosamento pra compensar.`, "hype")
       ];
       const choices = shuffleChoices([
         {
-          label: `Mudar para ${targetForm} agora e abrir a prancheta para reorganizar os titulares!`,
+          label: `Mudar para ${targetForm} (-50% debuff fora de pos.) e abrir a prancheta!`,
           approachTag: `Formação ${targetForm}`,
           quality: "GREAT",
           tacticsPatch: { formation: targetForm },
           openFormationModal: true,
-          coachLine: `Fechado, vamos de ${targetForm} contra ${opp}! Vou já abrir a escalação pra posicionar todo mundo certinho nesse desenho.`,
+          coachLine: `Fechado, vamos com a ideia de vocês no ${targetForm} contra ${opp}! Vou abrir a escalação, e quem jogar improvisado ali sofre só metade do debuff.`,
           reactions: [
-            makeProcMsg(core, 0, `Boa!! Com o ${targetForm} encaixado, o meio de ${opp} vai ficar sem saída.`, "hype"),
-            makeProcMsg(core, 1, `Tô pronto já! Só encaixar os nomes na formação e partir pro campo.`, "hype")
+            makeProcMsg(core, 0, `Boa!! Com o ${targetForm} encaixado e o grupo fechado, o meio de ${opp} vai ficar sem saída.`, "hype"),
+            makeProcMsg(core, 1, `Tô pronto já! Só ajustar os nomes na prancheta e partir pro campo.`, "hype")
           ]
         },
         {
@@ -3175,13 +3175,36 @@
       .filter((e) => e.p);
     if (fieldPlayers.length === 0) return null;
 
+    const pitchStats = st.pitch?.stats || {};
+    const uShots = Number(pitchStats.userShots) || 0;
+    const oShots = Number(pitchStats.oppShots) || 0;
+    const userNodes = Array.isArray(st.pitch?.userNodes) ? st.pitch.userNodes : [];
+    const outfieldNodes = userNodes.filter((n) => n.role !== "GK");
+    const avgOutfieldStam = outfieldNodes.length > 0
+      ? outfieldNodes.reduce((acc, n) => acc + (Number(n.stamina) || 80), 0) / outfieldNodes.length
+      : 82;
+    let lowestStamEntry = null;
+    if (outfieldNodes.length > 0) {
+      const sortedByStam = outfieldNodes.slice().sort((a, b) => (a.stamina || 80) - (b.stamina || 80));
+      const lowNode = sortedByStam[0];
+      if (lowNode && (lowNode.stamina || 80) < 70) {
+        lowestStamEntry = fieldPlayers.find((e) => e.p.id === lowNode.player?.id) || null;
+      }
+    }
+
     const cap = fieldPlayers.find((e) => e.p.id === tac.captainPlayerId)
       || fieldPlayers.find((e) => resolveInazumaPersona(e.p).voice === "CAPTAIN_FIRE")
       || fieldPlayers[0];
-    const voice2 = fieldPlayers.find((e) => e.p.id !== cap.p.id && (e.slot.role === "FW" || e.slot.role === "MF" || resolveInazumaPersona(e.p).voice === "TACTICIAN"))
+    const fwStar = fieldPlayers.find((e) => e.slot.role === "FW") || cap;
+    const mfStar = fieldPlayers.find((e) => e.p.id !== fwStar.p.id && (e.slot.role === "MF" || resolveInazumaPersona(e.p).voice === "TACTICIAN"))
+      || fieldPlayers.find((e) => e.slot.role === "MF")
       || fieldPlayers.find((e) => e.p.id !== cap.p.id)
       || cap;
-    const gk = fieldPlayers.find((e) => e.slot.role === "GK") || cap;
+    const dfStar = fieldPlayers.find((e) => e.slot.role === "DF" && resolveInazumaPersona(e.p).voice === "STOIC_WALL")
+      || fieldPlayers.find((e) => e.slot.role === "DF")
+      || fieldPlayers.find((e) => e.slot.role === "GK")
+      || cap;
+    const gk = fieldPlayers.find((e) => e.slot.role === "GK") || dfStar;
 
     const spriteFor = (entry) =>
       typeof getPlayerFormSprite === "function" ? getPlayerFormSprite(entry.p, entry.slot.role) : (entry.p.sprite || "");
@@ -3189,11 +3212,8 @@
     const goalNames = Array.isArray(st.goalsUser) ? st.goalsUser.map((g) => g?.name).filter(Boolean) : [];
     const lastGoalName = goalNames.length > 0 ? goalNames[goalNames.length - 1] : null;
     const scorerEntry = lastGoalName ? fieldPlayers.find((e) => e.p.name === lastGoalName) : null;
-    const lead2 = scorerEntry && scorerEntry.p.id !== cap.p.id ? scorerEntry : voice2;
 
-    const pCap = resolveInazumaPersona(cap.p);
     const pGk = resolveInazumaPersona(gk.p);
-
     const isWinning = uScore > oScore;
     const isLosing = uScore < oScore;
     const statusKind = isLosing ? "LOSE" : isWinning ? "WIN" : "DRAW";
@@ -3203,77 +3223,104 @@
       ? (margin >= 2 ? "VANTAGEM SÓLIDA!" : "SEGURE A VANTAGEM!")
       : "TUDO EM ABERTO!";
 
-    const voiceTxt = (entry, pers, mode) => {
-      const v = pers.voice;
-      if (mode === "LOSE") {
-        if (v === "COLD_ACE") return pickVariant([
-          `Estar ${uScore} x ${oScore} atrás contra ${oppName} não interessa. Soltem a bola na frente no 2º tempo que eu resolvo.`,
-          `${uScore} x ${oScore} ainda dá tempo de virar. Só preciso da bola limpa uma vez.`
-        ]);
-        if (v === "HOTHEAD") return pickVariant([
-          `Não vou aceitar sair desse campo perdendo pra ${oppName}!! Manda pressionar em cima agora, professor!`,
-          `Falta 45 minutos inteiros ainda!! Libera a linha alta pra gente amassar ${oppName} na volta!`
-        ]);
-        if (v === "TACTICIAN") return pickVariant([
-          `O meio de ${oppName} abriu espaços nos últimos dez minutos. Com um ajuste fino agora nós viramos esse ${uScore} x ${oScore}!`,
-          `Eles estão marcando adiantado nesse ${uScore} x ${oScore}. Se ligarmos direto pelas pontas quebramos a linha deles!`
-        ]);
-        if (v === "CHILL_JOKER") return pickVariant([
-          `Ei, levanta a cabeça galera! Já viramos jogos piores que esse, bora incendiar o vestiário!`,
-          `Respira fundo pessoal! ${margin === 1 ? "Um golzinho já iguala tudo" : "Ainda tem muito jogo"}, bora acordar na volta!`
-        ]);
-        return pickVariant([
-          `Esse ${uScore} x ${oScore} não acabou!! Todo mundo confia no companheiro do lado porque contra ${oppName} nós vamos buscar a virada!`,
-          `Escutem a torcida ainda cantando lá fora! Vamos dar a resposta em campo contra ${oppName} nesses 45 minutos finais!`
-        ]);
-      }
-      if (mode === "WIN") {
-        if (scorerEntry && scorerEntry.p.id === entry.p.id) {
-          return pickVariant([
-            `Aquele gol foi só o começo contra ${oppName}! Mas ${uScore} x ${oScore} ainda pede concentração máxima na volta.`,
-            `A bola entrou limpa no 1º tempo! Se ${oppName} sair pra cima agora, a gente mata o jogo no contra-ataque.`
-          ]);
-        }
-        if (v === "STOIC_WALL") return pickVariant([
-          `Seguramos bem nesse ${uScore} x ${oScore}, mas ${oppName} vai tentar tudo no 2º tempo. Linha fechada lá atrás!`,
-          `Nenhum segundo de distração lá atrás, ${uScore} x ${oScore} só fica seguro quando soar o apito final.`
-        ]);
-        if (v === "COLD_ACE") return pickVariant([
-          `Boa vantagem, mas jogo só acaba no apito. Se der espaço pra contra-atacar nós matamos ${oppName}.`,
-          `Sem relaxar com ${uScore} x ${oScore}. Quero mais um pra fechar a conta.`
-        ]);
-        if (v === "TACTICIAN") return pickVariant([
-          `Eles vão precisar avançar pra buscar o empate. Se controlarmos o ritmo do meio, a vitória não escapa.`,
-          `Excelente 1º tempo em ${uScore} x ${oScore}. Agora é usar a pressa de ${oppName} contra eles mesmos.`
-        ]);
-        return pickVariant([
-          `Bora manter esse fogo aceso!! ${uScore} x ${oScore} tá ótimo, mas quero ver todo mundo correndo ainda mais na etapa final!`,
-          `Um tempo excelente já foi, falta terminar o serviço contra ${oppName} com a mesma garra!`
-        ]);
-      }
-      if (v === "COLD_ACE") return pickVariant([
-        `${uScore} x ${oScore} tá aberto demais contra ${oppName}. Só me deem a jogada limpa uma vez.`,
-        `Jogo travado em ${uScore} x ${oScore}. Hora de decidir quem erra primeiro.`
-      ]);
-      if (v === "TACTICIAN") return pickVariant([
-        `Primeiro tempo muito estudado nesse ${uScore} x ${oScore}. Qual setor vamos atacar pra quebrar o empate, treinador?`,
-        `Tá muito equilibrado nesse ${uScore} x ${oScore}. Um ajuste de ritmo agora pode abrir a defesa de ${oppName}.`
-      ]);
-      if (v === "CHILL_JOKER") return pickVariant([
-        `Jogo amarrado hein ${uScore} x ${oScore}! Um ajuste certo no intervalo e a torcida explode!`,
-        `${uScore} x ${oScore} pegado demais! Qual é o comando do chefe pra destravar o placar?`
-      ]);
-      return pickVariant([
-        `Empate em ${uScore} x ${oScore} contra ${oppName}! Ninguém abaixa o ritmo agora, os últimos 45 minutos são nossos!`,
-        `Tudo aberto nesse ${uScore} x ${oScore}! Vamos voltar mordendo mais forte pra arrancar essa vitória!`
-      ]);
-    };
+    // Define os 2 protagonistas do vestiário com pedido / dúvida concreta ao treinador
+    const lead1 = isLosing
+      ? (fwStar.p.id !== gk.p.id ? fwStar : cap)
+      : isWinning
+      ? (scorerEntry && scorerEntry.p.id !== gk.p.id ? scorerEntry : (fwStar.p.id !== gk.p.id ? fwStar : cap))
+      : (mfStar.p.id !== gk.p.id ? mfStar : cap);
 
-    const modeKey = isLosing ? "LOSE" : isWinning ? "WIN" : "DRAW";
-    const lead1 = isWinning && !scorerEntry ? gk : cap;
-    const pLead1 = isWinning && !scorerEntry ? pGk : pCap;
-    const safeLead2 = lead2.p.id === lead1.p.id ? (fieldPlayers.find((e) => e.p.id !== lead1.p.id) || lead2) : lead2;
-    const pSafeLead2 = resolveInazumaPersona(safeLead2.p);
+    let lead2Candidates = isWinning
+      ? [lowestStamEntry, dfStar, gk, mfStar, cap]
+      : isLosing && oShots > uShots + 2
+      ? [dfStar, gk, mfStar, cap]
+      : [dfStar, gk, mfStar, fwStar, cap];
+    const lead2 = lead2Candidates.find((c) => c && c.p.id !== lead1.p.id)
+      || fieldPlayers.find((e) => e.p.id !== lead1.p.id)
+      || lead1;
+
+    const pLead1 = resolveInazumaPersona(lead1.p);
+    const pLead2 = resolveInazumaPersona(lead2.p);
+    const n1 = shortFirstName(lead1.p);
+    const n2 = shortFirstName(lead2.p);
+    const dfOrGk = dfStar.p.id !== fwStar.p.id ? dfStar : gk;
+    const gkFirst = shortFirstName(gk.p);
+    const fwFirst = shortFirstName(fwStar.p);
+    const mfFirst = shortFirstName(mfStar.p);
+
+    let askText1 = "";
+    let askText2 = "";
+
+    if (isLosing) {
+      if (oShots > uShots + 2) {
+        askText1 = pickVariant([
+          `Professor, ${oppName} finalizou demais nesse ${uScore} x ${oScore}! Posso adiantar a linha pra apertar eles em cima na volta?`,
+          `Chefe, ficar olhando ${oppName} jogar não dá! Autoriza a gente a subir tudo e buscar a virada desde o primeiro minuto?`
+        ]);
+        askText2 = pickVariant([
+          `Calma, ${n1}, se a gente subir sem cobertura eles matam no contra-ataque! Professor, fechamos a entrada da área ou controlamos pelo meio primeiro?`,
+          `${n1} quer pressão, mas já levamos susto atrás. O plano é proteger o ${gkFirst} primeiro ou girar a bola com paciência no meio?`
+        ]);
+      } else {
+        askText1 = pickVariant([
+          `Só falta um detalhe pra bola entrar nesse ${uScore} x ${oScore}! Posso jogar mais espetado perto da área pra decidir contra ${oppName}?`,
+          `Estamos criando contra ${oppName}, professor! Libera força total no ataque agora pra gente virar logo esse placar?`
+        ]);
+        askText2 = pickVariant([
+          `A bola tá passando no último terço, chefe. É melhor forçar o chute direto igual ${n1} pediu ou trabalhar em triângulo no meio até abrir a zaga?`,
+          `Fica o aviso de trás: se não ajustarmos o espaço entre as linhas, ${oppName} escapa livre. Qual é a ordem do senhor pro 2º tempo?`
+        ]);
+      }
+    } else if (isWinning) {
+      if (avgOutfieldStam < 68) {
+        askText1 = pickVariant([
+          `Vencendo por ${uScore} x ${oScore}, mas ainda cabe mais um gol! Posso manter a pressão alta antes de ${oppName} respirar?`,
+          `Se a gente apertar mais dez minutos lá na frente contra ${oppName}, liquidamos o jogo! Vai liberar ataque total, chefe?`
+        ]);
+        askText2 = pickVariant([
+          `O fôlego das pernas já pesou no 1º tempo, professor! Não é mais inteligente girar o passe curto no meio ou trancar a casinha na defesa?`,
+          `Olho no cansaço, ${n1}! Se corrermos sem controle vamos abrir buraco. Professor, seguramos a bola no meio ou compactamos tudo atrás?`
+        ]);
+      } else if (margin === 1) {
+        askText1 = pickVariant([
+          `Um gol de vantagem em ${uScore} x ${oScore} ainda é pouco! Posso continuar em cima pra buscar o segundo contra ${oppName}?`,
+          `Senti a zaga de ${oppName} balançando! A gente vai pra cima ampliar logo ou prefere administrar?`
+        ]);
+        askText2 = pickVariant([
+          `Eles vão vir com tudo no 2º tempo atrás do empate, professor! Fechamos a cozinha lá atrás ou prendemos a bola no meio pra eles não jogarem?`,
+          `Concordo em não recuar morto, mas não dá pra dar brecha pro empate! Qual postura o senhor manda a gente adotar agora?`
+        ]);
+      } else {
+        askText1 = pickVariant([
+          `Excelente ${uScore} x ${oScore}, professor! Quer que a gente mantenha o pé no acelerador pra transformar em goleada?`,
+          `Estamos mandando no jogo contra ${oppName}! Partimos pra fazer mais ou o senhor prefere poupar pra reta final?`
+        ]);
+        askText2 = pickVariant([
+          `Vantagem ótima, mas um descuido reacende ${oppName}. O senhor manda cadenciar no meio-campo ou fechar a meta do ${gkFirst}?`,
+          `Pra sair sem susto nenhum no placar, é melhor rodar a bola sem pressa ou armar a linha de muro lá atrás, chefe?`
+        ]);
+      }
+    } else {
+      if (uShots <= 1 && oShots <= 1) {
+        askText1 = pickVariant([
+          `Jogo muito amarrado nesse ${uScore} x ${oScore}, professor! Quer que eu tente mais drible e infiltração pelo meio ou manda chutar de fora no abafa?`,
+          `A marcação de ${oppName} travou os espaços no ${uScore} x ${oScore}. A ordem é soltar o ataque sem medo ou rodar a bola até cansar eles?`
+        ]);
+        askText2 = pickVariant([
+          `Se errarmos bote no meio, ${oppName} sai na cara do ${gkFirst}. É hora de arriscar mais na frente ou blindar a defesa e jogar no erro deles?`,
+          `${n1} tá certo que tá fechado, mas não podemos abrir a zaga de graça. Qual caminho o técnico escolhe pra destravar?`
+        ]);
+      } else {
+        askText1 = pickVariant([
+          `Esse ${uScore} x ${oScore} tá lá e cá, professor! Libera o ataque todo pra gente ir buscar o gol da vitória sobre ${oppName}?`,
+          `No próximo espaço que pintar na área contra ${oppName} a bola entra! Posso pressionar alto no 2º tempo, chefe?`
+        ]);
+        askText2 = pickVariant([
+          `Jogo aberto assim é perigoso dos dois lados! Melhor dominar o ritmo no meio-campo ou fechar a defesa primeiro pra não levar o gol?`,
+          `Se atacarmos sem freio eles contra-atacam nas costas, ${n1}. Professor, o time acelera no ataque, gira o meio ou fecha o paredão?`
+        ]);
+      }
+    }
 
     const bubbles = [
       {
@@ -3283,23 +3330,21 @@
         voiceLabel: pLead1.label || "Líder",
         element: lead1.p.element || "Vento",
         sprite: spriteFor(lead1),
-        tone: isLosing ? "tense" : isWinning ? "hype" : "normal",
-        text: voiceTxt(lead1, pLead1, modeKey)
+        tone: isLosing ? "tense" : isWinning ? "hype" : "idea",
+        text: askText1
       },
       {
-        name: safeLead2.p.name,
-        roleLabel: scorerEntry && safeLead2.p.id === scorerEntry.p.id ? "Artilheiro" : safeLead2.slot.role,
-        role: safeLead2.slot.role,
-        voiceLabel: pSafeLead2.label || "Titular",
-        element: safeLead2.p.element || "Vento",
-        sprite: spriteFor(safeLead2),
-        tone: isWinning ? "hype" : "idea",
-        text: voiceTxt(safeLead2, pSafeLead2, modeKey)
+        name: lead2.p.name,
+        roleLabel: lead2.p.id === gk.p.id ? "Goleiro" : (lowestStamEntry && lead2.p.id === lowestStamEntry.p.id ? "Desgaste" : lead2.slot.role),
+        role: lead2.slot.role,
+        voiceLabel: pLead2.label || "Titular",
+        element: lead2.p.element || "Vento",
+        sprite: spriteFor(lead2),
+        tone: isWinning ? "calm" : "tense",
+        text: askText2
       }
     ];
 
-    const fwStar = fieldPlayers.find((e) => e.slot.role === "FW") || cap;
-    const mfStar = fieldPlayers.find((e) => e.slot.role === "MF") || safeLead2;
     const vFw = resolveInazumaPersona(fwStar.p).voice;
     const vMf = resolveInazumaPersona(mfStar.p).voice;
     const vGk = pGk.voice;
@@ -3308,40 +3353,40 @@
       {
         key: "FIRE",
         title: "Espírito de Chama",
-        subtitle: "Pressão total no ataque",
+        subtitle: `Atender ${fwFirst}: pressão total no ataque`,
         buffTag: "+Ataque/Chute • -4% Fôlego",
         reactName: fwStar.p.name,
         reactSprite: spriteFor(fwStar),
         coachText: isWinning
-          ? `Não recuem nem um passo! Vamos matar o jogo contra ${oppName} em cima no 2º tempo!`
-          : `Escutem bem: não viemos assistir ${oppName} jogar! Pressionem lá em cima e chutem com alma desde o apito!`,
+          ? `Eu concordo com o ${n1}: não vamos só assistir ${oppName}! ${fwFirst}, linha alta e agressividade lá na frente pra liquidar o jogo!`
+          : `Ouvi os dois, e vou com a fome do ${n1}: sem medo de errar! ${fwFirst}, empurrem ${oppName} pra dentro da área e finalizem com alma!`,
         playerReact: vFw === "COLD_ACE"
-          ? `Certo. Quando a bola cair na área contra ${oppName}, ela entra.`
-          : `Pode deixar, professor!! No primeiro espaço na área a rede vai balançar!`
+          ? `Certo, professor. Quando a bola chegar limpa na frente de ${oppName}, ela vai entrar.`
+          : `Pode deixar comigo, professor!! Na primeira fresta da zaga deles a rede vai estufar!`
       },
       {
         key: "CALM",
         title: "Ritmo Relâmpago",
-        subtitle: "Posse & drible no meio",
+        subtitle: `Meio-termo com ${mfFirst}: passe e drible`,
         buffTag: "+Drible & Meio-Campo",
         reactName: mfStar.p.name,
         reactSprite: spriteFor(mfStar),
-        coachText: `Cabeça erguida e toque rápido pelo meio! Façam ${oppName} correr atrás da bola até a defesa abrir!`,
+        coachText: `${n1} e ${n2} têm razão: vamos resolver pelo meio! ${mfFirst}, toque rápido, drible curto e cabeça erguida até desmontar ${oppName}!`,
         playerReact: vMf === "COLD_ACE"
-          ? `Entendido. Vou encontrar o espaço limpo no meio.`
-          : `Leitura perfeita! Vamos girar a bola e desmontar a marcação deles no drible!`
+          ? `Entendido. Vou controlar o compasso e achar o espaço limpo no meio.`
+          : `Resposta perfeita, chefe! A gente gira a bola com calma, tira o fôlego de ${oppName} e abre a defesa deles no drible!`
       },
       {
         key: "WALL",
         title: "Paredão Inazuma",
-        subtitle: "Compactar defesa e gol",
+        subtitle: `Ouvir ${n2}: blindar defesa e gol`,
         buffTag: "+Defesa & Goleiro",
         reactName: gk.p.name,
         reactSprite: spriteFor(gk),
-        coachText: `Linha compacta na frente do ${shortFirstName(gk.p.name)}! Primeiro protegemos nossa meta, depois saímos mortais!`,
+        coachText: `${n2} leu o perigo certo! Vamos compactar a zaga na frente do ${gkFirst}, fechar cada chute de ${oppName} e matar na boa!`,
         playerReact: vGk === "COLD_ACE"
-          ? `Meta fechada. Ninguém passa no 2º tempo.`
-          : `Fechado! Da minha área não passa nem sombra de bola no 2º tempo!`
+          ? `Meta fechada. Ninguém passa por mim no 2º tempo.`
+          : `Fechado, professor! Pode confiar que na área do ${dfOrGk.p.name === gk.p.name ? "meu gol" : shortFirstName(dfOrGk.p) + " e na minha"} não entra mais nada!`
       }
     ];
 

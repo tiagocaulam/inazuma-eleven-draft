@@ -984,42 +984,44 @@
         break;
 
       case "roulette_tick": {
-        const pm = Math.max(0.75, Math.min(1.4, Number(opts.pitchMul) || 1));
+        const pm = Math.max(0.75, Math.min(1.45, Number(opts.pitchMul) || 1));
         playNoiseSweep(ctx, dest, {
           noiseType: "white",
           filterType: "bandpass",
-          freqStart: 2050 * pm,
-          freqEnd: 1050 * pm,
-          q: 2.6,
-          dur: 0.016,
+          freqStart: 2450 * pm,
+          freqEnd: 920 * pm,
+          q: 1.65,
+          dur: 0.032,
           attack: 0.002,
-          gain: 0.17
+          gain: 0.42
         });
         playTone(ctx, dest, {
           type: "triangle",
-          freq: 740 * pm,
-          freqEnd: 390 * pm,
-          dur: 0.022,
+          freq: 920 * pm,
+          freqEnd: 380 * pm,
+          dur: 0.042,
           attack: 0.002,
-          gain: 0.11
+          gain: 0.32
         });
         break;
       }
 
       case "roulette_stop":
-        // Trava mecânica da roleta + brilho suave da revelação do time
+        // Trava mecânica da roleta + acorde brilhante da revelação do time
         playNoiseSweep(ctx, dest, {
           noiseType: "white",
           filterType: "bandpass",
-          freqStart: 1450,
-          freqEnd: 650,
-          q: 1.8,
-          dur: 0.028,
+          freqStart: 1750,
+          freqEnd: 620,
+          q: 1.5,
+          dur: 0.048,
           attack: 0.002,
-          gain: 0.22
+          gain: 0.38
         });
-        playTone(ctx, dest, { type: "sine", freq: 523.25, dur: 0.22, attack: 0.004, gain: 0.14 });
-        playTone(ctx, dest, { type: "sine", freq: 783.99, dur: 0.28, delay: 0.055, attack: 0.004, gain: 0.15 });
+        playTone(ctx, dest, { type: "sine", freq: 523.25, dur: 0.24, attack: 0.004, gain: 0.28 });
+        playTone(ctx, dest, { type: "sine", freq: 659.25, dur: 0.26, delay: 0.035, attack: 0.004, gain: 0.24 });
+        playTone(ctx, dest, { type: "sine", freq: 783.99, dur: 0.32, delay: 0.065, attack: 0.004, gain: 0.28 });
+        playTone(ctx, dest, { type: "triangle", freq: 1046.5, dur: 0.34, delay: 0.10, attack: 0.005, gain: 0.20 });
         break;
     }
     return true;
@@ -1033,16 +1035,24 @@
     }
   }
 
-  function playRouletteSpinSequence(durationMs = 1550, tickCount = 19) {
+  function playRouletteSpinSequence(durationMs = 1550, tickCount = 21) {
     stopRouletteSpinAudio();
     if (!isSfxEnabled() || typeof window === "undefined") return false;
     unlockSfxAudio();
-    const total = Math.max(8, Math.min(28, Number(tickCount) || 19));
-    const span = Math.max(400, Number(durationMs) || 1550) - 30;
+    const ctx = ensureAudioContext();
+    if (ctx && ctx.state === "suspended") {
+      try {
+        ctx.resume().catch(() => {});
+      } catch {
+        // ignora
+      }
+    }
+    const total = Math.max(8, Math.min(28, Number(tickCount) || 21));
+    const span = Math.max(400, Number(durationMs) || 1550) - 35;
     for (let i = 0; i < total; i++) {
       const u = i / total;
-      const delayMs = Math.round((0.22 * u + 0.78 * u * u) * span);
-      const pitchMul = 0.94 + u * 0.18;
+      const delayMs = i === 0 ? 10 : Math.round(18 + Math.pow(u, 2.3) * (span - 18));
+      const pitchMul = 0.88 + u * 0.28;
       const tid = setTimeout(() => {
         playSfx("roulette_tick", { pitchMul, force: true });
       }, delayMs);

@@ -1655,6 +1655,7 @@ function saveActiveRunProgress() {
           lastChatActorIds: Array.isArray(t.lastChatActorIds) ? [...t.lastChatActorIds] : [],
           chatTemplateHistory: Array.isArray(t.chatTemplateHistory) ? [...t.chatTemplateHistory] : [],
           tactics: { ...(t.tactics || { lane: "balanced", posture: "balanced", intensity: "medium" }) },
+          playerSuggestedFormation: t.playerSuggestedFormation || null,
           prepBonuses: {
             ...(t.prepBonuses || createFreshPrepBonuses()),
             log: Array.isArray(t.prepBonuses?.log) ? [...t.prepBonuses.log] : []
@@ -1822,6 +1823,7 @@ function resumeSavedRunProgress() {
         acePlayerId: rt.tactics?.acePlayerId || null,
         markedOppId: rt.tactics?.markedOppId || null
       },
+      playerSuggestedFormation: rt.playerSuggestedFormation && DB?.formations?.[rt.playerSuggestedFormation] ? rt.playerSuggestedFormation : null,
       prepBonuses: {
         ...createFreshPrepBonuses(),
         ...(rt.prepBonuses || {}),

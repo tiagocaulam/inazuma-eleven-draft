@@ -21,8 +21,10 @@ function buildLivePitchBoxHTML(st, oppTeam, stats = calcSquadStats(), oppStats =
 
       const initSprite = resolveDynamicNodeSprite(node, pitch);
       const keshinCls = node.keshinState === "ACTIVE" ? "is-keshin-active" : node.keshinState === "EXHAUSTED" ? "is-keshin-exhausted" : "";
+      const visX = typeof mapPitchX === "function" ? mapPitchX(pitch, node.x) : node.x;
+      const visY = typeof mapPitchY === "function" ? mapPitchY(pitch, node.y) : node.y;
       return `
-        <div id="pnode-${node.uid}" class="pitch-player-token ${sideCls} ${ballCls} ${chalCls} ${tiredCls} ${keshinCls}" style="left:${node.x}%; top:${node.y}%;">
+        <div id="pnode-${node.uid}" class="pitch-player-token ${sideCls} ${ballCls} ${chalCls} ${tiredCls} ${keshinCls}" style="left:${visX}%; top:${visY}%;">
           <div class="keshin-flame-aura" aria-hidden="true"></div>
           <div id="pbadge-${node.uid}" class="pitch-token-action-badge"></div>
           <img class="pitch-token-avatar" src="${initSprite}" alt="${shortName}" />
@@ -44,16 +46,21 @@ function buildLivePitchBoxHTML(st, oppTeam, stats = calcSquadStats(), oppStats =
   const possTeamLabel = isUserPoss ? userTeamDisp.toUpperCase() : oppTeam.name.toUpperCase();
 
   const oppTag = (oppTeam.name || "RIV").replace(/[^A-Za-zÀ-ÿ0-9]/g, "").slice(0, 3).toUpperCase() || "RIV";
+  const swappedDir = Boolean(pitch.sidesSwapped);
+  const leftDirEmb = swappedDir ? (oppTeam.emblem ? `<img src="${oppTeam.emblem}" alt="" />` : "⚔") : (UI.raimonEmblem ? `<img src="${UI.raimonEmblem}" alt="" />` : "⚡");
+  const rightDirEmb = swappedDir ? (UI.raimonEmblem ? `<img src="${UI.raimonEmblem}" alt="" />` : "⚡") : (oppTeam.emblem ? `<img src="${oppTeam.emblem}" alt="" />` : "⚔");
+  const initBallX = typeof mapPitchX === "function" ? mapPitchX(pitch, pitch.ballX) : pitch.ballX;
+  const initBallY = typeof mapPitchY === "function" ? mapPitchY(pitch, pitch.ballY) : pitch.ballY;
 
   return `
     <div id="live-pitch-box" class="live-pitch-card ${possCls}">
       <div class="pitch-header-strip">
-        <span class="pitch-side-dir" style="color:#4ade80;">
-          ${UI.raimonEmblem ? `<img src="${UI.raimonEmblem}" alt="" />` : "⚡"} Gol →
+        <span class="pitch-side-dir" id="pitch-dir-left" style="color:${swappedDir ? "#f87171" : "#4ade80"};">
+          ${leftDirEmb} Gol →
         </span>
         <div class="pitch-action-ticker" id="pitch-action-ticker">${pitch.ticker}</div>
-        <span class="pitch-side-dir" style="color:#f87171;">
-          ← Gol <img src="${oppTeam.emblem}" alt="" />
+        <span class="pitch-side-dir" id="pitch-dir-right" style="color:${swappedDir ? "#4ade80" : "#f87171"};">
+          ← Gol ${rightDirEmb}
         </span>
       </div>
 
@@ -158,8 +165,8 @@ function buildLivePitchBoxHTML(st, oppTeam, stats = calcSquadStats(), oppStats =
             </svg>
           </div>
           ${tokensHTML}
-          <div id="live-pitch-ball-shadow" class="pitch-ball-shadow" style="left:${pitch.ballX}%; top:${pitch.ballY}%;"></div>
-          <div id="live-pitch-ball" class="pitch-ball-dot" style="left:${pitch.ballX}%; top:${pitch.ballY}%;">
+          <div id="live-pitch-ball-shadow" class="pitch-ball-shadow" style="left:${initBallX}%; top:${initBallY}%;"></div>
+          <div id="live-pitch-ball" class="pitch-ball-dot" style="left:${initBallX}%; top:${initBallY}%;">
             <span class="pitch-ball-flame" aria-hidden="true"></span>
             <svg class="pitch-ball-spin-svg" viewBox="0 0 36 36" aria-hidden="true">
               <circle cx="18" cy="18" r="8.2" fill="none" stroke="rgba(224,242,254,0.45)" stroke-width="1.2" stroke-dasharray="6 5"/>
@@ -713,11 +720,11 @@ function ensureMatchSupport(st, pitch) {
   pitch.matchSupportInitialized = true;
 }
 
-function triggerStealShockwave(pitch, centerX, centerY, stealerUid, tackledUid = null) {
+function triggerStealShockwave(pitch, centerX, centerY, stealerUid, tackledUid = null, variant = "STEAL") {
   if (!pitch) return;
   const now = performance.now();
   const dur = state.simSpeed === 4 ? 95 : state.simSpeed === 2 ? 220 : 420;
-  pitch.shockFx = { x: centerX, y: centerY, start: now, duration: dur + 120 };
+  pitch.shockFx = { x: centerX, y: centerY, start: now, duration: dur + 120, variant };
   pitch.pushTweens = [];
   pitch.interceptTweens = [];
 
@@ -845,27 +852,92 @@ function resolvePhysicalDribbleClash(st, pitch, carrier, marker, attSupport, def
       ? Math.max(10, Math.min(Math.max(startX - 1.5, maxSafeX), startX + dir * 10.5))
       : Math.min(90, Math.max(Math.min(startX + 1.5, minSafeX), startX + dir * 10.5));
     const dashToY = Math.max(12, Math.min(88, startY + dodgeSign * 5.2));
-    const dashMs = state.simSpeed === 4 ? 95 : state.simSpeed === 2 ? 190 : 380;
+    const cProf = typeof getNodePersonality === "function" ? getNodePersonality(carrier) : { archetype: "EQUILIBRADO" };
+    const moveNameLower = String(ofMove || "").toLowerCase();
+    let dashStyle = null;
+    if (/(giro|tornado|roleta|espiral|dança|danca|rodopio|vórtice|vortice|spin|heel|calcanhar)/i.test(moveNameLower)) {
+      dashStyle = "SPIN";
+    } else if (/(ilusão|ilusao|fantasma|sombra|clone|espelho|miragem|afterimage|bunshin|duplo)/i.test(moveNameLower)) {
+      dashStyle = "PHANTOM_SPLIT";
+    } else if (/(raio|relâmpago|relampago|zig|faísca|faisca|vento|spark|shippuu|trovão|trovao|flash|dash)/i.test(moveNameLower)) {
+      dashStyle = "Z_DASH";
+    } else {
+      const stylePool = cProf.archetype === "ESTRATEGISTA"
+        ? ["SPIN", "PHANTOM_SPLIT", "Z_DASH", "BURST"]
+        : (cProf.archetype === "VELOZ" || cProf.archetype === "INDIVIDUALISTA")
+        ? ["Z_DASH", "PHANTOM_SPLIT", "SPIN", "BURST"]
+        : ["Z_DASH", "SPIN", "PHANTOM_SPLIT", "BURST"];
+      const filteredPool = stylePool.filter((s) => s !== pitch.lastDribbleStyle);
+      const pickList = filteredPool.length > 0 ? filteredPool : stylePool;
+      dashStyle = pickList[Math.floor(Math.random() * pickList.length)];
+    }
+    pitch.lastDribbleStyle = dashStyle;
+
+    let waypoints = null;
+    let ctrlX = null;
+    let ctrlY = null;
+    let decoyToX = null;
+    let decoyToY = null;
+    let trailColor = "#c084fc";
+    let baseDashMs = 380;
+
+    if (dashStyle === "Z_DASH") {
+      const spanX = dashToX - startX;
+      waypoints = [
+        { x: startX, y: startY },
+        { x: Math.max(8, Math.min(92, startX + spanX * 0.34)), y: Math.max(10, Math.min(90, startY - dodgeSign * 5.6)) },
+        { x: Math.max(8, Math.min(92, startX + spanX * 0.68)), y: Math.max(10, Math.min(90, startY + dodgeSign * 6.5)) },
+        { x: dashToX, y: dashToY }
+      ];
+      trailColor = "#38bdf8";
+      baseDashMs = 440;
+    } else if (dashStyle === "SPIN") {
+      ctrlX = Math.max(8, Math.min(92, (startX + dashToX) * 0.5 - dir * 1.4));
+      ctrlY = Math.max(10, Math.min(90, (startY + dashToY) * 0.5 + dodgeSign * 7.8));
+      trailColor = "#facc15";
+      baseDashMs = 430;
+    } else if (dashStyle === "PHANTOM_SPLIT") {
+      ctrlX = Math.max(8, Math.min(92, (startX + dashToX) * 0.5 + dir * 1.2));
+      ctrlY = Math.max(10, Math.min(90, (startY + dashToY) * 0.5 + dodgeSign * 4.5));
+      decoyToX = Math.max(8, Math.min(92, startX + (dashToX - startX) * 0.92));
+      decoyToY = Math.max(10, Math.min(90, startY - dodgeSign * 6.4));
+      trailColor = "#a855f7";
+      baseDashMs = 420;
+    }
+
+    const dashMs = state.simSpeed === 4 ? 95 : state.simSpeed === 2 ? Math.round(baseDashMs * 0.5) : baseDashMs;
 
     pitch.dashFx = {
       uid: carrier.uid,
+      style: dashStyle,
       fromX: startX,
       fromY: startY,
       toX: dashToX,
       toY: dashToY,
+      waypoints,
+      ctrlX,
+      ctrlY,
+      decoyToX,
+      decoyToY,
       start: performance.now(),
       duration: dashMs
     };
     if (typeof playSfx === "function") playSfx("dribble");
     pitch.passTrail = {
       isDash: true,
+      style: dashStyle,
       fromX: startX,
       fromY: startY,
       toX: dashToX,
       toY: dashToY,
+      waypoints,
+      ctrlX,
+      ctrlY,
       curX: startX,
       curY: startY,
-      color: "#c084fc",
+      progress: 0,
+      u: 0,
+      color: trailColor,
       start: performance.now(),
       flightDuration: dashMs,
       fadeUntil: performance.now() + dashMs + 520
@@ -1100,7 +1172,8 @@ function isNodeOffside(receiver, passer, attIsUser, defNodes) {
 function launchContinuousPass(st, pitch, carrier, attNodes, defNodes, strictForward, safeRestart, isOneTwoPass = false, passOptions = {}) {
   const attIsUser = carrier.side === "user";
   const isGkOutlet = carrier.role === "GK";
-  const isSafeProtectedPass = Boolean(safeRestart || isGkOutlet || isOneTwoPass || passOptions.isReturnOneTwo);
+  const isKickoffPass = Boolean(passOptions.isKickoffPass);
+  const isSafeProtectedPass = Boolean(safeRestart || isGkOutlet || isOneTwoPass || passOptions.isReturnOneTwo || isKickoffPass);
   const receiver = passOptions.targetReceiver || pickPassReceiver(attNodes, defNodes, carrier, strictForward, pitch);
   if (!receiver) return false;
 
@@ -1113,7 +1186,7 @@ function launchContinuousPass(st, pitch, carrier, attNodes, defNodes, strictForw
     ? (attIsUser ? Math.max(...oppOutfieldDefs.map((d) => d.x)) : Math.min(...oppOutfieldDefs.map((d) => d.x)))
     : (attIsUser ? 84 : 16);
 
-  const wasOffsideAtPassTime = !pitch.is5v5 && isNodeOffside(receiver, carrier, attIsUser, defNodes);
+  const wasOffsideAtPassTime = !pitch.is5v5 && !isKickoffPass && isNodeOffside(receiver, carrier, attIsUser, defNodes);
   const isReceiverOnside = !wasOffsideAtPassTime;
 
   const effRole = getEffectiveCarrierRole(carrier);
@@ -1126,18 +1199,22 @@ function launchContinuousPass(st, pitch, carrier, attNodes, defNodes, strictForw
   let spaceRollProb = userStyle === "vertical" ? 0.58 : userStyle === "possession" ? 0.30 : 0.42;
   if (capAura === "STRATEGIST") spaceRollProb += 0.14;
   const wantsSpacePass = Boolean(
-    passOptions.forceSpacePass ||
-    isOneTwoPass ||
-    passOptions.isReturnOneTwo ||
-    (!isGkOutlet && !safeRestart && isReceiverOnside && (effRole === "MF" || effRole === "FW") && (forwardSpace >= 5 || fwdDistToCarrier >= 4) && Math.random() < Math.min(0.85, spaceRollProb))
+    !isKickoffPass &&
+    (passOptions.forceSpacePass ||
+      isOneTwoPass ||
+      passOptions.isReturnOneTwo ||
+      (!isGkOutlet && !safeRestart && isReceiverOnside && (effRole === "MF" || effRole === "FW") && (forwardSpace >= 5 || fwdDistToCarrier >= 4) && Math.random() < Math.min(0.85, spaceRollProb)))
   );
 
-  const isThroughBall = Boolean(wantsSpacePass && !wasOffsideAtPassTime && !passOptions.isCross);
+  const isThroughBall = Boolean(wantsSpacePass && !wasOffsideAtPassTime && !passOptions.isCross && !isKickoffPass);
 
   let leadX;
   let leadY;
 
-  if (passOptions.isCross) {
+  if (isKickoffPass) {
+    leadX = Number.isFinite(receiver.x) ? receiver.x : 50;
+    leadY = Number.isFinite(receiver.y) ? receiver.y : 44.2;
+  } else if (passOptions.isCross) {
     const crossBoxX = attIsUser ? Math.max(76, Math.min(85, receiver.x + 1.8)) : Math.min(24, Math.max(15, receiver.x - 1.8));
     leadX = Number.isFinite(crossBoxX) ? crossBoxX : (attIsUser ? 82 : 18);
     leadY = Math.max(24, Math.min(76, receiver.y * 0.72 + 50 * 0.28));
@@ -1255,7 +1332,9 @@ function launchContinuousPass(st, pitch, carrier, attNodes, defNodes, strictForw
 
   const crossWhipBonus = (betaAerial && passOptions.isCross && peakZ < 0.9 ? 2 : 0) + (isOneTouch ? 4 : 0);
   const passSpeed = (peakZ >= 0.9 ? 34 : peakZ > 0 ? 35 : dist > 30 ? 35 : isThroughBall ? 33 : 31) + crossWhipBonus;
-  const duration = betaAerial
+  const duration = isKickoffPass
+    ? Math.max(0.28, Math.min(0.45, dist / 26))
+    : betaAerial
     ? (peakZ >= 0.9
         ? Math.max(0.54, Math.min(1.10, dist / passSpeed))
         : peakZ > 0
@@ -1504,7 +1583,9 @@ function launchContinuousPass(st, pitch, carrier, attNodes, defNodes, strictForw
     fadeUntil: performance.now() + 750
   };
 
-  const badgeTxt = isGkOutlet
+  const badgeTxt = isKickoffPass
+    ? "SAÍDA DE BOLA"
+    : isGkOutlet
     ? (passType === "GK_CLEAR" ? "TIRO LONGO" : "REPOSIÇÃO")
     : passOptions.isCross
     ? "CRUZAMENTO"
@@ -1523,7 +1604,9 @@ function launchContinuousPass(st, pitch, carrier, attNodes, defNodes, strictForw
     : "PASSE";
 
   showPitchBadge(pitch, leadX, leadY, badgeTxt, "badge-pass", 750, isGkOutlet ? "GK" : "BALL");
-  pitch.ticker = isGkOutlet
+  pitch.ticker = isKickoffPass
+    ? `${st.minute}' Saída de Bola: ${carrier.player.name} ➔ ${receiver.player.name}`
+    : isGkOutlet
     ? `${st.minute}' Reposição: ${carrier.player.name} ➔ ${receiver.player.name}`
     : passOptions.isCross
     ? `${st.minute}' Cruzamento na área: ${carrier.player.name} ➔ ${receiver.player.name}!`
@@ -2797,7 +2880,10 @@ function launchContinuousShot(st, pitch, shooterNode, defNodes, attSupport, defS
       pitch.ballX = blockerNode.x + (blockerNode.side === "user" ? 1.9 : -1.9);
       pitch.ballY = blockerNode.y + 1.0;
       pitch.passTrail = null;
-      if (state.simSpeed !== 1) triggerSaveImplosion(pitch, duelX, duelY);
+      if (state.simSpeed !== 1) {
+        triggerSaveImplosion(pitch, duelX, duelY);
+        triggerStealShockwave(pitch, blockerNode.x, blockerNode.y, blockerNode.uid, shooterNode?.uid || null, "INTERCEPT");
+      }
       showPitchBadge(pitch, blockerNode.x, blockerNode.y, blockMoveName, "badge-steal", 1000, "DF");
 
       if (!origAttIsUser) {
@@ -2844,6 +2930,7 @@ function launchContinuousShot(st, pitch, shooterNode, defNodes, attSupport, defS
       if (typeof playSfx === "function") playSfx("near_miss");
       if (state.simSpeed === 1) {
         triggerSaveImplosion(pitch, pitch.ballX, pitch.ballY);
+        triggerStealShockwave(pitch, blockerNode.x, blockerNode.y, blockerNode.uid, shooterNode?.uid || null, "INTERCEPT");
       }
       showNodeBadge(pitch, blockerNode.uid, `Bloqueou • ${blockMoveName}`, "badge-steal", 1100, "DF");
       if (skipRestart || state.simSpeed !== 1) return false;
@@ -3322,6 +3409,40 @@ function stepContinuousPhysics(st, pitch, dt) {
       syncLivePitchDOM(st);
       if (handleMinuteEndBoundaries(st, ovrDiff)) return;
     }
+  }
+
+  // Saída de bola organizada no centro de campo: aguarda breve alinhamento e toca no círculo central!
+  if (pitch.kickoffState && pitch.kickoffState.active) {
+    pitch.kickoffState.timer -= dt;
+    pitch.ballMode = "CARRIED";
+    pitch.ballSide = pitch.kickoffState.side;
+    pitch.carrierUid = pitch.kickoffState.takerUid;
+    pitch.ballX = 50;
+    pitch.ballY = 50;
+    pitch.ballZ = 0;
+    allNodes.forEach((n) => {
+      n.vx = 0;
+      n.vy = 0;
+    });
+    if (pitch.kickoffState.timer <= 0) {
+      const ko = pitch.kickoffState;
+      pitch.kickoffState = null;
+      pitch.justKickedOff = false;
+      const koAtt = ko.side === "user" ? pitch.userNodes : pitch.oppNodes;
+      const koDef = ko.side === "user" ? pitch.oppNodes : pitch.userNodes;
+      const koTaker = findPitchNode(pitch, ko.takerUid) || koAtt.find((n) => n.uid === pitch.carrierUid);
+      const koPartner = findPitchNode(pitch, ko.partnerUid) || koAtt.find((n) => n.uid !== koTaker?.uid && n.role !== "GK");
+      if (koTaker && koPartner) {
+        launchContinuousPass(st, pitch, koTaker, koAtt, koDef, false, true, false, {
+          targetReceiver: koPartner,
+          isKickoffPass: true
+        });
+        showNodeBadge(pitch, koTaker.uid, "Saída de Bola", "badge-pass", 950, "BALL");
+        pitch.ticker = `${st.minute}' Saída de bola! ${koTaker.player.name} toca no meio para ${koPartner.player.name}!`;
+        syncLivePitchDOM(st);
+      }
+    }
+    return;
   }
 
   // Steering + integração suave de velocidade e separação entre colegas (ZERO teleporte!)
@@ -4615,6 +4736,7 @@ function stepContinuousPhysics(st, pitch, dt) {
             pitch.ballY = intFootY;
           }
 
+          triggerStealShockwave(pitch, interceptor.x, interceptor.y, interceptor.uid, ps.passerNode?.uid || null, "INTERCEPT");
           if (ps.passerNode) showNodeBadge(pitch, ps.passerNode.uid, "Interceptado", "badge-lost", 1450);
           showNodeBadge(pitch, interceptor.uid, "Interceptou", "badge-steal", 1450, "BALL");
           if (!attIsUser) {
@@ -4690,6 +4812,7 @@ function stepContinuousPhysics(st, pitch, dt) {
           pitch.ballVz = 0;
           airDef.carryTime = 0;
           airDef.decisionTimer = 0.25;
+          triggerStealShockwave(pitch, airDef.x, airDef.y, airDef.uid, receiver?.uid || null, "INTERCEPT");
           showNodeBadge(pitch, airDef.uid, "Interceptação!", "badge-steal", 1300, "DF");
           if (!attIsUser) {
             pitch.stats.userSteals++;

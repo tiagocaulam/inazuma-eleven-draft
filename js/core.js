@@ -653,6 +653,7 @@ function createFreshTournamentState() {
     prepMatchTimerId: null,
     prep: null,
     prepBonuses: createFreshPrepBonuses(),
+    playerSuggestedFormation: null,
     pairAffinity: {},
     pendingMatchQuests: [],
     activeCityPlots: [],
@@ -1551,10 +1552,17 @@ function getPlayerFormSprite(player, roleOrMode) {
   return player.sprite || "";
 }
 
-function getEffectiveOvr(player, slotRole) {
+function hasHalfOutOfPosPenalty(player, isOpponent = false) {
+  if (isOpponent || !player || player._isOpponent) return false;
+  const suggested = state.tournament?.playerSuggestedFormation;
+  if (!suggested || state.formation !== suggested) return false;
+  return Object.values(state.squad || {}).some((sp) => sp && sp.id === player.id);
+}
+
+function getEffectiveOvr(player, slotRole, isOpponent = false) {
   if (!player) return 0;
   // OVR é a média dos status base do jogador no Nv. 1 (fixo).
-  // Apenas improvisar fora da posição reduz o OVR tático naquela vaga.
+  // Apenas improvisar fora da posição reduz o OVR tático naquela vaga (metade do debuff na formação sugerida pelo elenco).
   if (!slotRole || playerMatchesRole(player, slotRole)) return player.ovr;
   const validPos = getPlayerPositionsList(player);
   const adj = validPos.some(
@@ -1563,7 +1571,9 @@ function getEffectiveOvr(player, slotRole) {
       (pos === "MF" && (slotRole === "DF" || slotRole === "FW")) ||
       (pos === "FW" && slotRole === "MF")
   );
-  return Math.max(45, player.ovr - (adj ? 6 : 14));
+  const basePenalty = adj ? 6 : 14;
+  const penalty = hasHalfOutOfPosPenalty(player, isOpponent) ? Math.round(basePenalty / 2) : basePenalty;
+  return Math.max(45, player.ovr - penalty);
 }
 
 function getPlayerLevel(player) {
@@ -1794,7 +1804,7 @@ function calcBasePlayerPowerAtLevel1(effOvr) {
 function calcIndividualPlayerPower(player, slotRole = null, forcedLevel = null, extraComboPower = 0) {
   if (!player) return 60;
   const role = slotRole || player.pos || "MF";
-  const effOvr = getEffectiveOvr(player, role);
+  const effOvr = getEffectiveOvr(player, role, Boolean(player._isOpponent));
   const lvl = forcedLevel != null ? Math.max(1, forcedLevel) : getPlayerLevel(player);
   const basePwr = calcBasePlayerPowerAtLevel1(effOvr);
   const pwrPerLvl = calcPowerPerLevel(effOvr);
@@ -2254,10 +2264,10 @@ function evaluateTeamStats(slots, getPlayerForSlot, options = {}) {
     } else if (dispName) {
       improvisedPlayers.push(dispName);
     }
-    const eff = getEffectiveOvr(p, s.role);
+    const eff = getEffectiveOvr(p, s.role, isOpponent);
     const pLvl = isOpponent ? Math.max(1, oppLevel) : getPlayerLevel(p);
     const pPwr = isOpponent
-      ? calcIndividualPlayerPower({ ...p, level: pLvl }, s.role, pLvl)
+      ? calcIndividualPlayerPower({ ...p, level: pLvl, _isOpponent: true }, s.role, pLvl)
       : calcIndividualPlayerPower(p, s.role, pLvl);
 
     sumOvr += eff;
@@ -2396,9 +2406,13 @@ function evaluateTeamStats(slots, getPlayerForSlot, options = {}) {
   // 0. Debuff apenas quando há jogador fora de posição (11/11 é o padrão sem bônus extra!)
   if (count > 0 && correctPosCount < count) {
     const improvised = count - correctPosCount;
+    const isHalfDebuff = Boolean(
+      state.tournament?.playerSuggestedFormation &&
+      state.formation === state.tournament.playerSuggestedFormation
+    );
     activeBonds.push({
       type: "warn-pos",
-      label: `${formationIconHTML("inline-ui-icon")} ${improvised} fora de pos. (-OVR)`,
+      label: `${formationIconHTML("inline-ui-icon")} ${improvised} fora de pos. (${isHalfDebuff ? "-50% debuff · Ideia do Elenco" : "-OVR"})`,
       players: improvisedPlayers
     });
   }
@@ -2904,6 +2918,7 @@ function getEvolvedOpponentRoster(oppTeam, stageIdx) {
     const raw = assignments[slot.id];
     const copy = {
       ...raw,
+      _isOpponent: true,
       level: oppLevel,
       moves: JSON.parse(JSON.stringify(raw.moves || { SH: [], OF: [], DF: [], GK: [] })),
       bonusStats: { ...(raw.bonusStats || { for: 0, tec: 0, def: 0, vel: 0, fis: 0 }) },

@@ -1,4 +1,38 @@
 // Sorteia o próximo time e anima o carrossel da roleta sem piscar!
+function computeExactWheelOffset(wheelBox, stripEl, targetIdx) {
+  if (!wheelBox || !stripEl || !stripEl.children) return 0;
+  const targetEl = stripEl.children[targetIdx];
+  const boxCenter = (wheelBox.clientWidth || 340) / 2;
+  if (
+    targetEl &&
+    typeof stripEl.getBoundingClientRect === "function" &&
+    typeof targetEl.getBoundingClientRect === "function"
+  ) {
+    const stripRect = stripEl.getBoundingClientRect();
+    const tgtRect = targetEl.getBoundingClientRect();
+    if (stripRect.width > 0 && tgtRect.width > 0) {
+      const relCenter = tgtRect.left - stripRect.left + tgtRect.width / 2;
+      return Math.round(boxCenter - relCenter);
+    }
+  }
+  return targetEl
+    ? Math.round(boxCenter - (targetEl.offsetLeft + targetEl.offsetWidth / 2))
+    : Math.round(boxCenter - targetIdx * 126 - 63);
+}
+
+let draftWheelResizeBound = false;
+function recenterDraftWheel() {
+  if (state?.phase !== "draft" || state?.isSpinning) return;
+  const wheelBox = document.getElementById("wheel-box");
+  const stripEl = document.getElementById("wheel-strip");
+  if (!wheelBox || !stripEl || !stripEl.dataset) return;
+  const targetIdx = Number(stripEl.dataset.targetIdx);
+  if (!Number.isFinite(targetIdx) || !stripEl.children?.[targetIdx]) return;
+  const offset = computeExactWheelOffset(wheelBox, stripEl, targetIdx);
+  stripEl.style.transition = "none";
+  stripEl.style.transform = `translateX(${offset}px)`;
+}
+
 function spinNextTeam(isManualReroll = false) {
   if (state.isSpinning) return;
   if (isManualReroll) {
@@ -240,20 +274,31 @@ function renderDraftWheelAndRoster(animateWheel = false) {
   // Posiciona e anima a tira da roleta com alinhamento exato pelo DOM dentro do marcador dourado
   const wheelBox = document.getElementById("wheel-box");
   const stripEl = document.getElementById("wheel-strip");
+  if (stripEl) stripEl.dataset.targetIdx = String(targetIdx);
   const targetEl = stripEl && stripEl.children ? stripEl.children[targetIdx] : null;
-  const boxCenter = (wheelBox ? wheelBox.clientWidth : 340) / 2;
-  const finalOffset = targetEl
-    ? Math.round(boxCenter - (targetEl.offsetLeft + targetEl.offsetWidth / 2))
-    : Math.round(boxCenter - targetIdx * 126 - 63);
+  if (!draftWheelResizeBound && typeof window !== "undefined" && typeof window.addEventListener === "function") {
+    draftWheelResizeBound = true;
+    window.addEventListener("resize", recenterDraftWheel);
+  }
 
   if (animateWheel && stripEl) {
     stripEl.style.transition = "none";
-    stripEl.style.transform = `translateX(0px)`;
-    void stripEl.offsetWidth;
-    stripEl.style.transition = "transform 1.55s cubic-bezier(0.12, 0.82, 0.18, 1)";
-    stripEl.style.transform = `translateX(${finalOffset}px)`;
+    stripEl.style.transform = "translateX(0px)";
+    const applySpinTransform = () => {
+      if (!document.body?.contains || document.body.contains(stripEl)) {
+        const finalOffset = computeExactWheelOffset(wheelBox, stripEl, targetIdx);
+        stripEl.style.transition = "transform 1.55s cubic-bezier(0.12, 0.82, 0.18, 1)";
+        stripEl.style.transform = `translateX(${finalOffset}px)`;
+      }
+    };
+    if (typeof requestAnimationFrame === "function") {
+      requestAnimationFrame(() => applySpinTransform());
+    } else {
+      void stripEl.offsetWidth;
+      applySpinTransform();
+    }
     if (typeof playRouletteSpinSequence === "function") {
-      playRouletteSpinSequence(1550, 19);
+      playRouletteSpinSequence(1550, 21);
     }
 
     state.spinTimerId = setTimeout(() => {
@@ -261,15 +306,23 @@ function renderDraftWheelAndRoster(animateWheel = false) {
       state.isSpinning = false;
       if (typeof stopRouletteSpinAudio === "function") stopRouletteSpinAudio();
       if (typeof playSfx === "function") playSfx("roulette_stop", { force: true });
+      if (targetEl && targetEl.classList) targetEl.classList.add("is-winner");
       const rev = document.getElementById("roster-reveal-section");
       if (rev) {
         rev.innerHTML = buildRevealedTeamHTML();
         bindRosterEvents();
       }
+      if (typeof requestAnimationFrame === "function") {
+        requestAnimationFrame(() => recenterDraftWheel());
+      } else {
+        recenterDraftWheel();
+      }
     }, 1620);
   } else if (stripEl) {
     state.isSpinning = false;
-    stripEl.style.transform = `translateX(${finalOffset}px)`;
+    if (targetEl && targetEl.classList) targetEl.classList.add("is-winner");
+    stripEl.style.transition = "none";
+    stripEl.style.transform = `translateX(${computeExactWheelOffset(wheelBox, stripEl, targetIdx)}px)`;
     bindRosterEvents();
   }
 }

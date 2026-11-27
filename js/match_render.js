@@ -107,10 +107,37 @@ function calcNodeBaseSpeed(tacticalRole, effOvr, player = null) {
   return roleMult * spdFactor;
 }
 
+function mapPitchX(pitch, x) {
+  const v = Number(x);
+  const safe = Number.isFinite(v) ? v : 50;
+  return pitch && pitch.sidesSwapped ? 100 - safe : safe;
+}
+
+function mapPitchY(pitch, y) {
+  const v = Number(y);
+  const safe = Number.isFinite(v) ? v : 50;
+  return pitch && pitch.sidesSwapped ? 100 - safe : safe;
+}
+
+function mapPitchSide(pitch, side) {
+  if (!pitch || !pitch.sidesSwapped) return side;
+  return side === "left" ? "right" : side === "right" ? "left" : side;
+}
+
 function resetPitchForKickoff(pitch, kickoffSide, snapNodes = false, isGoalReset = false) {
   if (!pitch) return;
   const koNodes = kickoffSide === "user" ? pitch.userNodes : pitch.oppNodes;
-  const koMid = koNodes.find((n) => n.role === "MF") || koNodes[5] || koNodes[0];
+  const koPool = (koNodes || [])
+    .filter((n) => n.role !== "GK")
+    .slice()
+    .sort((a, b) => {
+      const rank = (r) => (r === "FW" ? 2 : r === "MF" ? 1 : 0);
+      return rank(b.role) - rank(a.role) || Math.abs((a.baseY ?? 50) - 50) - Math.abs((b.baseY ?? 50) - 50);
+    });
+  const koTaker = koPool[0] || (koNodes || [])[0] || null;
+  const koPartner = koPool.find((n) => n.uid !== koTaker?.uid && (n.role === "MF" || n.role === "FW"))
+    || koPool.find((n) => n.uid !== koTaker?.uid)
+    || null;
 
   // Após um gol, apenas os goleiros recuperam energia; jogadores de linha não recuperam com o gol!
   if (isGoalReset) {
@@ -132,8 +159,11 @@ function resetPitchForKickoff(pitch, kickoffSide, snapNodes = false, isGoalReset
     n.carryTime = 0;
     n.decisionTimer = 0.25;
     if (snapNodes) {
-      const halfClampX =
-        n.side === "user" ? Math.min(46, n.baseX) : Math.max(54, n.baseX);
+      const isUser = n.side === "user";
+      let halfClampX = isUser ? Math.min(46, n.baseX) : Math.max(54, n.baseX);
+      if (n.role !== "GK" && Math.hypot(halfClampX - 50, (n.baseY ?? 50) - 50) < 11.5) {
+        halfClampX = isUser ? Math.min(39.5, halfClampX) : Math.max(60.5, halfClampX);
+      }
       n.x = halfClampX;
       n.y = n.baseY;
       n.targetX = halfClampX;
@@ -141,9 +171,10 @@ function resetPitchForKickoff(pitch, kickoffSide, snapNodes = false, isGoalReset
     }
   });
 
+  const koDir = kickoffSide === "user" ? 1 : -1;
   pitch.ballSide = kickoffSide;
   pitch.ballMode = "CARRIED";
-  pitch.carrierUid = koMid ? koMid.uid : "u_MF1";
+  pitch.carrierUid = koTaker ? koTaker.uid : "u_MF1";
   pitch.challengerUid = null;
   pitch.chaserUid = null;
   pitch.looseAttChaserUid = null;
@@ -184,12 +215,27 @@ function resetPitchForKickoff(pitch, kickoffSide, snapNodes = false, isGoalReset
   pitch.saveRingFx = null;
   pitch.justKickedOff = true;
 
-  if (koMid) {
-    koMid.x = 50;
-    koMid.y = 50;
-    koMid.targetX = 50;
-    koMid.targetY = 50;
+  if (koTaker) {
+    koTaker.x = Number((50 - koDir * 0.6).toFixed(1));
+    koTaker.y = 50;
+    koTaker.targetX = koTaker.x;
+    koTaker.targetY = 50;
   }
+  if (koPartner) {
+    koPartner.x = Number((50 - koDir * 5.4).toFixed(1));
+    koPartner.y = 44.2;
+    koPartner.targetX = koPartner.x;
+    koPartner.targetY = koPartner.y;
+  }
+  pitch.kickoffState = koTaker && koPartner
+    ? {
+        active: true,
+        side: kickoffSide,
+        takerUid: koTaker.uid,
+        partnerUid: koPartner.uid,
+        timer: 0.42
+      }
+    : null;
 }
 
 function showRefereeWhistleModal(st, type, onProceed) {
@@ -340,7 +386,7 @@ function showRefereeWhistleModal(st, type, onProceed) {
             )
             .join("")}
         </div>
-        <div class="ht-cmd-prompt">Escolha a instrução do técnico (o 2º tempo só começa quando você clicar abaixo):</div>
+        <div class="ht-cmd-prompt">O vestiário pediu sua palavra — responda para definir o plano do 2º tempo (o jogo só continua ao clicar abaixo):</div>
         <div class="ht-cmd-grid">
           ${(halftimeData.choices || [])
             .map(
@@ -596,16 +642,20 @@ function handleMinuteEndBoundaries(st, ovrDiff) {
       st.pitch.minuteFloat = 45;
       st.pitch.stoppageTicks = 0;
       st.pitch.stoppageBoundaryMin = null;
-      st.pitch.ticker = `45' Fim do 1º tempo! Placar: ${st.userScore} x ${st.oppScore} (+${rec.userField}% Fôlego${restNote})`;
+      st.pitch.sidesSwapped = true;
+      st.pitch.ticker = `45' Fim do 1º tempo! Placar: ${st.userScore} x ${st.oppScore} (+${rec.userField}% Fôlego${restNote}) — Times trocam de lado!`;
       const secondHalfSide = st.pitch.initialSide === "user" ? "opp" : "user";
       resetPitchForKickoff(st.pitch, secondHalfSide, true);
       syncLivePitchDOM(st);
+      if (typeof renderPitchDOMFrame === "function" && typeof document !== "undefined") {
+        renderPitchDOMFrame(st.pitch, st, performance.now());
+      }
     }
     const teamDisp = typeof getActiveTeamName === "function" ? getActiveTeamName() : "Dream Team";
     prependNarrationLine(
       st,
       "nar-pass",
-      `45' [Intervalo] Árbitro apitou o fim do 1º tempo (${st.userScore} x ${st.oppScore}) — ${teamDisp} recupera +${rec.userField}% de fôlego (+${rec.userGk}% GOL)${restNote}!`,
+      `45' [Intervalo] Árbitro apitou o fim do 1º tempo (${st.userScore} x ${st.oppScore}) — ${teamDisp} recupera +${rec.userField}% de fôlego (+${rec.userGk}% GOL)${restNote}! Equipes trocam de lado!`,
       null,
       null,
       "FF"
@@ -636,6 +686,7 @@ function handleMinuteEndBoundaries(st, ovrDiff) {
       st.pitch.minuteFloat = 90;
       st.pitch.stoppageTicks = 0;
       st.pitch.stoppageBoundaryMin = null;
+      st.pitch.sidesSwapped = false;
       resetPitchForKickoff(st.pitch, "user", true);
       st.pitch.ticker = `90' Prorrogação iniciada! ${teamDisp} recupera +${rec.userField}% de fôlego${restNote}!`;
       syncLivePitchDOM(st);
@@ -673,8 +724,9 @@ function handleMinuteEndBoundaries(st, ovrDiff) {
       st.pitch.minuteFloat = 105;
       st.pitch.stoppageTicks = 0;
       st.pitch.stoppageBoundaryMin = null;
+      st.pitch.sidesSwapped = true;
       resetPitchForKickoff(st.pitch, "opp", true);
-      st.pitch.ticker = `105' Virada da Prorrogação! Fôlego recarregado (+${rec.userField}%${restNote}) para os 15 minutos finais!`;
+      st.pitch.ticker = `105' Virada da Prorrogação! Fôlego recarregado (+${rec.userField}%${restNote}) e troca de lado!`;
       syncLivePitchDOM(st);
     }
     const teamDisp = typeof getActiveTeamName === "function" ? getActiveTeamName() : "Dream Team";
@@ -1067,7 +1119,7 @@ function buildOpponentLineup(oppTeam, stageIdx) {
   const { formSlots, assignments, oppLevel } = getEvolvedOpponentRoster(oppTeam, stageIdx);
   return formSlots.map((slot, idx) => {
     const player = assignments[slot.id];
-    const effOvr = getEffectiveOvr(player, slot.role);
+    const effOvr = getEffectiveOvr(player, slot.role, true);
     const indivPower = calcIndividualPlayerPower(player, slot.role, oppLevel);
     const attrs = calcPlayerAttributes(player, slot.role, oppLevel);
     const baseX = Math.max(7, Math.min(93, 100 - ((96 - slot.y) * 0.78 + 4)));
@@ -1170,6 +1222,8 @@ function initMatchPitchState(st, stageIdx) {
     userNodes,
     oppNodes,
     oppTeamName: st.oppTeam.name,
+    oppTeamEmblem: st.oppTeam.emblem || "",
+    sidesSwapped: false,
     initialSide: startSide,
     ballSide: startSide,
     ballMode: "CARRIED",
@@ -1199,6 +1253,7 @@ function initMatchPitchState(st, stageIdx) {
     sameActionStreak: 0,
     teamConsecutivePasses: 0,
     justKickedOff: true,
+    kickoffState: null,
     passTrail: null,
     interceptTweens: [],
     floatBadge: null,
@@ -1255,6 +1310,9 @@ function initMatchPitchState(st, stageIdx) {
       })()
     }
   };
+  resetPitchForKickoff(pitch, startSide, true, false);
+  const koTakerNode = findPitchNode(pitch, pitch.carrierUid) || startNode;
+  pitch.ticker = `0' Saída de bola no centro — ${koTakerNode?.player?.name || "Meio-campo"} inicia a partida!`;
   recomputePitchTargets(pitch);
   return pitch;
 }
@@ -2462,9 +2520,11 @@ function syncNodeBadgesDOM(pitch, now) {
     if (!badgeEl) return;
     const nb = pitch.nodeBadges ? pitch.nodeBadges[node.uid] : null;
     if (nb && now < nb.until) {
+      const visNx = mapPitchX(pitch, node.x);
+      const visNy = mapPitchY(pitch, node.y);
       const edgeCls = [
-        node.y < 25 ? "pos-below" : "",
-        node.x < 22 ? "pos-left" : node.x > 78 ? "pos-right" : ""
+        visNy < 25 ? "pos-below" : "",
+        visNx < 22 ? "pos-left" : visNx > 78 ? "pos-right" : ""
       ]
         .filter(Boolean)
         .join(" ");
@@ -2554,21 +2614,44 @@ function resolveDynamicNodeSprite(node, pitch) {
 }
 
 function renderPitchDOMFrame(pitch, st, now) {
-  // 1) Animações de dash (drible) e repulsão da onda de choque (roubo), inclusive durante a pausa breve
+  // 1) Animações de dash (drible: Z, giro 360°, espectro duplo, explosão) e repulsão da onda de choque
   if (pitch.dashFx) {
     const df = pitch.dashFx;
     const dNode = findPitchNode(pitch, df.uid);
     const t = Math.min(1, Math.max(0, (now - df.start) / df.duration));
-    const eased = 1 - Math.pow(1 - t, 3);
+    let curX;
+    let curY;
+    if (df.style === "Z_DASH" && Array.isArray(df.waypoints) && df.waypoints.length >= 4) {
+      const segCount = df.waypoints.length - 1;
+      const scaled = t * segCount;
+      const segIdx = Math.min(segCount - 1, Math.floor(scaled));
+      const localT = scaled - segIdx;
+      const localEased = localT * (2 - localT);
+      const a = df.waypoints[segIdx];
+      const b = df.waypoints[segIdx + 1];
+      curX = a.x + (b.x - a.x) * localEased;
+      curY = a.y + (b.y - a.y) * localEased;
+    } else if ((df.style === "SPIN" || df.style === "PHANTOM_SPLIT") && Number.isFinite(df.ctrlX) && typeof evalQuadraticBezier === "function") {
+      const eased = 1 - Math.pow(1 - t, 2.2);
+      const pt = evalQuadraticBezier(df.fromX, df.fromY, df.ctrlX, df.ctrlY, df.toX, df.toY, eased);
+      curX = pt.x;
+      curY = pt.y;
+    } else {
+      const eased = 1 - Math.pow(1 - t, 3);
+      curX = df.fromX + (df.toX - df.fromX) * eased;
+      curY = df.fromY + (df.toY - df.fromY) * eased;
+    }
     if (dNode) {
-      dNode.x = df.fromX + (df.toX - df.fromX) * eased;
-      dNode.y = df.fromY + (df.toY - df.fromY) * eased;
+      dNode.x = curX;
+      dNode.y = curY;
       const dir = dNode.side === "user" ? 1 : -1;
       pitch.ballX = dNode.x + dir * 2.0;
       pitch.ballY = dNode.y + 0.9;
       if (pitch.passTrail && pitch.passTrail.isDash) {
         pitch.passTrail.curX = dNode.x;
         pitch.passTrail.curY = dNode.y;
+        pitch.passTrail.progress = t;
+        pitch.passTrail.u = t;
         pitch.passTrail.fadeUntil = Math.max(pitch.passTrail.fadeUntil, now + 380);
       }
     }
@@ -2635,8 +2718,10 @@ function renderPitchDOMFrame(pitch, st, now) {
       } else {
         node.jumpZ = 0;
       }
-      const liftedNodeY = Math.max(2, node.y - jZ * 3.0);
-      el.style.left = `${node.x.toFixed(2)}%`;
+      const visNodeX = mapPitchX(pitch, node.x);
+      const visNodeY = mapPitchY(pitch, node.y);
+      const liftedNodeY = Math.max(2, visNodeY - jZ * 3.0);
+      el.style.left = `${visNodeX.toFixed(2)}%`;
       el.style.top = `${liftedNodeY.toFixed(2)}%`;
       el.classList.toggle("is-jumping", jZ > 0.04);
       if (jZ > 0.04) {
@@ -2648,6 +2733,7 @@ function renderPitchDOMFrame(pitch, st, now) {
       }
       el.classList.toggle("is-coop-star", Boolean(coopStarSet && coopStarSet.has(node.uid)));
       const isDribbleDash = node.uid === activeDashUid;
+      const dashStyle = isDribbleDash ? (pitch.dashFx?.style || "BURST") : "";
       const isReceiveDash = Boolean(
         !isDribbleDash &&
         node.receiveDashUntil &&
@@ -2655,6 +2741,9 @@ function renderPitchDOMFrame(pitch, st, now) {
         pitch.carrierUid !== node.uid
       );
       el.classList.toggle("is-dashing", isDribbleDash);
+      el.classList.toggle("is-dribble-spin", dashStyle === "SPIN");
+      el.classList.toggle("is-dribble-zdash", dashStyle === "Z_DASH");
+      el.classList.toggle("is-dribble-phantom", dashStyle === "PHANTOM_SPLIT");
       el.classList.toggle("is-receiving-dash", isReceiveDash);
       if (node.player?.formSprites) {
         const nextSprite = resolveDynamicNodeSprite(node, pitch);
@@ -2666,14 +2755,16 @@ function renderPitchDOMFrame(pitch, st, now) {
       }
       if ((isDribbleDash || isReceiveDash) && state.simSpeed === 1 && el.parentElement && typeof document.createElement === "function") {
         const lastGhostAt = node._lastDashGhostAt || 0;
-        if (now - lastGhostAt >= 55) {
+        const ghostInterval = isDribbleDash ? 38 : 55;
+        if (now - lastGhostAt >= ghostInterval) {
           node._lastDashGhostAt = now;
           const worldEl = el.parentElement;
           const gSprite = node._renderedSprite || (typeof getPlayerFormSprite === "function" ? getPlayerFormSprite(node.player, node.role) : node.player?.sprite);
           if (gSprite && worldEl && typeof worldEl.appendChild === "function") {
+            const styleCls = dashStyle === "SPIN" ? " is-spin" : dashStyle === "Z_DASH" ? " is-zdash" : dashStyle === "PHANTOM_SPLIT" ? " is-phantom" : "";
             const ghost = document.createElement("div");
-            ghost.className = `pitch-dash-ghost ${node.side === "opp" ? "side-opp" : "side-user"}${isDribbleDash ? " is-dribble" : ""}`;
-            ghost.style.left = `${node.x.toFixed(2)}%`;
+            ghost.className = `pitch-dash-ghost ${node.side === "opp" ? "side-opp" : "side-user"}${isDribbleDash ? " is-dribble" : ""}${styleCls}`;
+            ghost.style.left = `${visNodeX.toFixed(2)}%`;
             ghost.style.top = `${liftedNodeY.toFixed(2)}%`;
             const gImg = document.createElement("img");
             gImg.src = gSprite;
@@ -2682,7 +2773,27 @@ function renderPitchDOMFrame(pitch, st, now) {
             worldEl.appendChild(ghost);
             setTimeout(() => {
               if (ghost.parentNode) ghost.parentNode.removeChild(ghost);
-            }, 290);
+            }, 310);
+
+            if (isDribbleDash && dashStyle === "PHANTOM_SPLIT" && pitch.dashFx && Number.isFinite(pitch.dashFx.decoyToX)) {
+              const df = pitch.dashFx;
+              const dtFrac = Math.min(1, Math.max(0, (now - df.start) / df.duration));
+              const decEased = 1 - Math.pow(1 - dtFrac, 2.2);
+              const rawDecX = df.fromX + (df.decoyToX - df.fromX) * decEased;
+              const rawDecY = df.fromY + (df.decoyToY - df.fromY) * decEased;
+              const decoy = document.createElement("div");
+              decoy.className = `pitch-dash-ghost ${node.side === "opp" ? "side-opp" : "side-user"} is-dribble is-phantom-decoy`;
+              decoy.style.left = `${mapPitchX(pitch, rawDecX).toFixed(2)}%`;
+              decoy.style.top = `${mapPitchY(pitch, rawDecY).toFixed(2)}%`;
+              const dImg = document.createElement("img");
+              dImg.src = gSprite;
+              dImg.alt = "";
+              decoy.appendChild(dImg);
+              worldEl.appendChild(decoy);
+              setTimeout(() => {
+                if (decoy.parentNode) decoy.parentNode.removeChild(decoy);
+              }, 320);
+            }
           }
         }
       }
@@ -2698,15 +2809,16 @@ function renderPitchDOMFrame(pitch, st, now) {
       const t = Math.max(0, Math.min(1, (now - sf.start) / sf.duration));
       const eased = 1 - Math.pow(1 - t, 2.2);
       const sizePx = 28 + eased * 130;
-      shockEl.style.left = `${sf.x.toFixed(1)}%`;
-      shockEl.style.top = `${sf.y.toFixed(1)}%`;
+      shockEl.style.left = `${mapPitchX(pitch, sf.x).toFixed(1)}%`;
+      shockEl.style.top = `${mapPitchY(pitch, sf.y).toFixed(1)}%`;
       shockEl.style.width = `${sizePx.toFixed(0)}px`;
       shockEl.style.height = `${sizePx.toFixed(0)}px`;
       shockEl.style.opacity = (0.95 * (1 - t)).toFixed(2);
+      shockEl.classList.toggle("is-intercept", sf.variant === "INTERCEPT");
       shockEl.classList.add("is-active");
     } else {
       pitch.shockFx = null;
-      shockEl.classList.remove("is-active");
+      shockEl.classList.remove("is-active", "is-intercept");
       shockEl.style.opacity = "0";
     }
   }
@@ -2719,8 +2831,8 @@ function renderPitchDOMFrame(pitch, st, now) {
       const eased = Math.pow(t, 0.72);
       const sizePx = 136 - eased * 118;
       const opacity = t < 0.75 ? 0.35 + (t / 0.75) * 0.6 : Math.max(0, 0.95 * (1 - (t - 0.75) / 0.25));
-      saveRingEl.style.left = `${sr.x.toFixed(1)}%`;
-      saveRingEl.style.top = `${sr.y.toFixed(1)}%`;
+      saveRingEl.style.left = `${mapPitchX(pitch, sr.x).toFixed(1)}%`;
+      saveRingEl.style.top = `${mapPitchY(pitch, sr.y).toFixed(1)}%`;
       saveRingEl.style.width = `${Math.max(16, sizePx).toFixed(0)}px`;
       saveRingEl.style.height = `${Math.max(16, sizePx).toFixed(0)}px`;
       saveRingEl.style.opacity = opacity.toFixed(2);
@@ -2739,15 +2851,16 @@ function renderPitchDOMFrame(pitch, st, now) {
       const t = Math.max(0, Math.min(1, (now - gb.start) / gb.duration));
       const scale = 0.52 + Math.sin(t * Math.PI * 0.5) * 0.88;
       const opacity = t < 0.15 ? 1 : Math.max(0, Math.pow(1 - (t - 0.15) / 0.85, 1.35));
-      const dirScaleX = gb.side === "right" ? -1 : 1;
-      goalBurstEl.className = `pitch-goal-burst side-${gb.side} is-active`;
+      const visSide = mapPitchSide(pitch, gb.side);
+      const dirScaleX = visSide === "right" ? -1 : 1;
+      goalBurstEl.className = `pitch-goal-burst side-${visSide} is-active`;
       // Posicionamento exato onde a bola estufou a rede do gol (núcleo do SVG está em cx=24/160 = 15%, cy=70/140 = 50%)
       if (typeof gb.x === "number") {
-        goalBurstEl.style.left = `${gb.x.toFixed(1)}%`;
+        goalBurstEl.style.left = `${mapPitchX(pitch, gb.x).toFixed(1)}%`;
         goalBurstEl.style.right = "auto";
       }
       if (typeof gb.y === "number") {
-        goalBurstEl.style.top = `${gb.y.toFixed(1)}%`;
+        goalBurstEl.style.top = `${mapPitchY(pitch, gb.y).toFixed(1)}%`;
       }
       goalBurstEl.style.transform = `translate(-15%, -50%) scaleX(${dirScaleX}) scale(${scale.toFixed(3)})`;
       goalBurstEl.style.opacity = opacity.toFixed(3);
@@ -2795,9 +2908,9 @@ function renderPitchDOMFrame(pitch, st, now) {
     }
 
     if (isShot) {
-      // Disparo direto reto: distorção de movimento (squash & stretch alinhado à trajetória)
-      const dx = f.toX - f.fromX;
-      const dy = (f.toY - f.fromY) * 0.55;
+      // Disparo direto reto: distorção de movimento (squash & stretch alinhado à trajetória visual)
+      const dx = mapPitchX(pitch, f.toX) - mapPitchX(pitch, f.fromX);
+      const dy = (mapPitchY(pitch, f.toY) - mapPitchY(pitch, f.fromY)) * 0.55;
       const angleDeg = Math.atan2(dy, dx) * (180 / Math.PI);
       const flightIntensity = f.linear ? 0.65 + 0.35 * Math.sin(t * Math.PI) : Math.sin(t * Math.PI);
       const stretch = 1.0 + flightIntensity * 0.72;
@@ -2856,10 +2969,12 @@ function renderPitchDOMFrame(pitch, st, now) {
   }
 
   const ballZVis = !betaOn || isShotBall ? 0 : Math.max(0, Math.min(1.8, Number(pitch.ballZ) || 0));
+  const visBallX = mapPitchX(pitch, pitch.ballX);
+  const visBallY = mapPitchY(pitch, pitch.ballY);
   const ballShadowEl = document.getElementById("live-pitch-ball-shadow");
   if (ballShadowEl) {
-    ballShadowEl.style.left = `${pitch.ballX.toFixed(2)}%`;
-    ballShadowEl.style.top = `${(pitch.ballY + 0.6).toFixed(2)}%`;
+    ballShadowEl.style.left = `${visBallX.toFixed(2)}%`;
+    ballShadowEl.style.top = `${(visBallY + 0.6).toFixed(2)}%`;
     if (ballZVis > 0.02) {
       const shScale = Math.max(0.48, 1 - ballZVis * 0.28);
       const shAlpha = Math.max(0.22, 0.72 - ballZVis * 0.28);
@@ -2872,9 +2987,9 @@ function renderPitchDOMFrame(pitch, st, now) {
   }
 
   const ballEl = document.getElementById("live-pitch-ball");
-  const liftedY = Math.max(2, pitch.ballY - ballZVis * BETA_BALL_LIFT_MULT);
+  const liftedY = Math.max(2, visBallY - ballZVis * BETA_BALL_LIFT_MULT);
   if (ballEl) {
-    ballEl.style.left = `${pitch.ballX.toFixed(2)}%`;
+    ballEl.style.left = `${visBallX.toFixed(2)}%`;
     ballEl.style.top = `${liftedY.toFixed(2)}%`;
     ballEl.style.transform = ballTransform;
     ballEl.style.zIndex = ballZVis > 0.45 ? "16" : "9";
@@ -2905,50 +3020,82 @@ function renderPitchDOMFrame(pitch, st, now) {
   if (lineGlow && lineMain) {
     const tr = pitch.passTrail;
     if (tr && now < tr.fadeUntil) {
-      const fromX = Number.isFinite(tr.fromX) ? tr.fromX : 50;
-      const fromY = Number.isFinite(tr.fromY) ? tr.fromY : 50;
+      const visSwapped = Boolean(pitch.sidesSwapped);
+      const rawFromX = Number.isFinite(tr.fromX) ? tr.fromX : 50;
+      const rawFromY = Number.isFinite(tr.fromY) ? tr.fromY : 50;
+      const fromX = mapPitchX(pitch, rawFromX);
+      const fromY = mapPitchY(pitch, rawFromY);
       const rawEndX = tr.curX !== undefined ? tr.curX : tr.toX;
-      const isActivelyFlying = pitch.ballMode === "PASS_FLIGHT" || isShotBall;
-      const rawEndY = betaOn && isActivelyFlying ? liftedY : (tr.curY !== undefined ? tr.curY : tr.toY);
-      const endX = Number.isFinite(rawEndX) ? rawEndX : fromX;
-      const endY = Number.isFinite(rawEndY) ? rawEndY : fromY;
+      const isActivelyFlying = pitch.ballMode === "PASS_FLIGHT" || isShotBall || Boolean(tr.isDash && pitch.dashFx);
+      const rawEndY = tr.curY !== undefined ? tr.curY : tr.toY;
+      const endX = Number.isFinite(rawEndX) ? mapPitchX(pitch, rawEndX) : fromX;
+      const endY = betaOn && (pitch.ballMode === "PASS_FLIGHT" || isShotBall)
+        ? liftedY
+        : (Number.isFinite(rawEndY) ? mapPitchY(pitch, rawEndY) : fromY);
       const remain = Math.max(0, Math.min(1, (tr.fadeUntil - now) / 420));
       let pathD = "";
-      if (!isActivelyFlying && tr.frozenPathD) {
+      if (!isActivelyFlying && tr.frozenPathD && tr.frozenSwapped === visSwapped) {
         pathD = tr.frozenPathD;
+      } else if (tr.isDash && Array.isArray(tr.waypoints) && tr.waypoints.length >= 3) {
+        const wps = tr.waypoints;
+        const maxSeg = wps.length - 1;
+        const p = Math.max(0.05, Math.min(1, Number(tr.progress) || 1));
+        const reached = p * maxSeg;
+        const pts = [`M ${mapPitchX(pitch, wps[0].x).toFixed(1)} ${mapPitchY(pitch, wps[0].y).toFixed(1)}`];
+        for (let i = 1; i < wps.length; i++) {
+          if (i <= reached) {
+            pts.push(`L ${mapPitchX(pitch, wps[i].x).toFixed(1)} ${mapPitchY(pitch, wps[i].y).toFixed(1)}`);
+          } else if (i - 1 < reached) {
+            const frac = reached - (i - 1);
+            const ix = wps[i - 1].x + (wps[i].x - wps[i - 1].x) * frac;
+            const iy = wps[i - 1].y + (wps[i].y - wps[i - 1].y) * frac;
+            pts.push(`L ${mapPitchX(pitch, ix).toFixed(1)} ${mapPitchY(pitch, iy).toFixed(1)}`);
+          }
+        }
+        pathD = pts.join(" ");
+        tr.frozenPathD = pathD;
+        tr.frozenSwapped = visSwapped;
       } else if (isShotBall || tr.isShot) {
         pathD = `M ${fromX.toFixed(1)} ${fromY.toFixed(1)} L ${endX.toFixed(1)} ${endY.toFixed(1)}`;
         tr.frozenPathD = pathD;
+        tr.frozenSwapped = visSwapped;
       } else if (betaOn && (tr.peakZ || 0) > 0.01) {
         const steps = 14;
         const maxP = Math.max(0.02, Math.min(1, Number(tr.progress) || Number(tr.u) || 1));
-        const cpx = Number.isFinite(tr.ctrlX) ? tr.ctrlX : (fromX + (tr.toX ?? endX)) * 0.5;
-        const cpy = Number.isFinite(tr.ctrlY) ? tr.ctrlY : (fromY + (tr.toY ?? endY)) * 0.5;
-        const dstX = Number.isFinite(tr.toX) ? tr.toX : endX;
-        const dstY = Number.isFinite(tr.toY) ? tr.toY : endY;
+        const rawDstX = Number.isFinite(tr.toX) ? tr.toX : (Number.isFinite(rawEndX) ? rawEndX : rawFromX);
+        const rawDstY = Number.isFinite(tr.toY) ? tr.toY : (Number.isFinite(rawEndY) ? rawEndY : rawFromY);
+        const rawCpx = Number.isFinite(tr.ctrlX) ? tr.ctrlX : (rawFromX + rawDstX) * 0.5;
+        const rawCpy = Number.isFinite(tr.ctrlY) ? tr.ctrlY : (rawFromY + rawDstY) * 0.5;
         const segs = [];
         for (let s = 0; s <= steps; s++) {
           const tp = (s / steps) * maxP;
           const up = typeof easePassProgress === "function" ? easePassProgress(tp) : tp;
           const pt = typeof evalQuadraticBezier === "function"
-            ? evalQuadraticBezier(fromX, fromY, cpx, cpy, dstX, dstY, up)
-            : { x: fromX + (dstX - fromX) * up, y: fromY + (dstY - fromY) * up };
+            ? evalQuadraticBezier(rawFromX, rawFromY, rawCpx, rawCpy, rawDstX, rawDstY, up)
+            : { x: rawFromX + (rawDstX - rawFromX) * up, y: rawFromY + (rawDstY - rawFromY) * up };
+          const vx = mapPitchX(pitch, pt.x);
+          const visPtY = mapPitchY(pitch, pt.y);
           const zAt = 4 * tp * (1 - tp) * tr.peakZ;
-          const vy = Math.max(2, pt.y - zAt * BETA_BALL_LIFT_MULT);
-          segs.push(`${s === 0 ? "M" : "L"} ${pt.x.toFixed(1)} ${vy.toFixed(1)}`);
+          const vy = Math.max(2, visPtY - zAt * BETA_BALL_LIFT_MULT);
+          segs.push(`${s === 0 ? "M" : "L"} ${vx.toFixed(1)} ${vy.toFixed(1)}`);
         }
         pathD = segs.join(" ");
         tr.frozenPathD = pathD;
+        tr.frozenSwapped = visSwapped;
       } else if (Number.isFinite(tr.ctrlX) && Number.isFinite(tr.ctrlY)) {
         const u = Number.isFinite(tr.u) ? Math.max(0.02, Math.min(1, tr.u)) : 1;
         // De Casteljau: sub-curva exata de 0 até u para o traçado acompanhar a parábola da bola!
-        const subCx = fromX + (tr.ctrlX - fromX) * u;
-        const subCy = fromY + (tr.ctrlY - fromY) * u;
+        const rawSubCx = rawFromX + (tr.ctrlX - rawFromX) * u;
+        const rawSubCy = rawFromY + (tr.ctrlY - rawFromY) * u;
+        const subCx = mapPitchX(pitch, rawSubCx);
+        const subCy = mapPitchY(pitch, rawSubCy);
         pathD = `M ${fromX.toFixed(1)} ${fromY.toFixed(1)} Q ${subCx.toFixed(1)} ${subCy.toFixed(1)} ${endX.toFixed(1)} ${endY.toFixed(1)}`;
         tr.frozenPathD = pathD;
+        tr.frozenSwapped = visSwapped;
       } else {
         pathD = `M ${fromX.toFixed(1)} ${fromY.toFixed(1)} L ${endX.toFixed(1)} ${endY.toFixed(1)}`;
         tr.frozenPathD = pathD;
+        tr.frozenSwapped = visSwapped;
       }
       lineGlow.setAttribute("d", pathD);
       lineGlow.setAttribute("stroke", tr.color);
@@ -2958,7 +3105,7 @@ function renderPitchDOMFrame(pitch, st, now) {
       lineMain.setAttribute("stroke", tr.color);
       lineMain.setAttribute(
         "stroke-dasharray",
-        (isShotBall || tr.isShot) ? "" : (betaOn && tr.isAerial) ? "3.4 2.2" : "2.2 1.6"
+        (isShotBall || tr.isShot || (tr.isDash && tr.waypoints)) ? "" : (betaOn && tr.isAerial) ? "3.4 2.2" : "2.2 1.6"
       );
       lineMain.style.opacity = (0.94 * remain).toFixed(2);
     } else {
@@ -2988,8 +3135,8 @@ function renderPitchDOMFrame(pitch, st, now) {
         if (showRing) {
           const ringColor = ps.isOneTwoPass ? "#facc15" : "#38bdf8";
           passRingEl.style.display = "block";
-          passRingEl.style.left = `${ps.toX}%`;
-          passRingEl.style.top = `${ps.toY}%`;
+          passRingEl.style.left = `${mapPitchX(pitch, ps.toX)}%`;
+          passRingEl.style.top = `${mapPitchY(pitch, ps.toY)}%`;
           passRingEl.style.borderColor = ringColor;
           passRingEl.classList.toggle("is-wing-switch", Boolean(ps.isWingSwitch));
           passRingEl.classList.toggle("is-one-two", Boolean(ps.isOneTwoPass));
@@ -3008,10 +3155,10 @@ function renderPitchDOMFrame(pitch, st, now) {
       const nB = findPitchNode(pitch, sfx.toUids?.[0]);
       if (nA && nB) {
         const remainSyn = Math.max(0, Math.min(1, (sfx.start + sfx.duration - now) / sfx.duration));
-        synLineEl.setAttribute("x1", nA.x.toFixed(1));
-        synLineEl.setAttribute("y1", nA.y.toFixed(1));
-        synLineEl.setAttribute("x2", nB.x.toFixed(1));
-        synLineEl.setAttribute("y2", nB.y.toFixed(1));
+        synLineEl.setAttribute("x1", mapPitchX(pitch, nA.x).toFixed(1));
+        synLineEl.setAttribute("y1", mapPitchY(pitch, nA.y).toFixed(1));
+        synLineEl.setAttribute("x2", mapPitchX(pitch, nB.x).toFixed(1));
+        synLineEl.setAttribute("y2", mapPitchY(pitch, nB.y).toFixed(1));
         synLineEl.setAttribute("stroke", sfx.color || "#facc15");
         synLineEl.setAttribute("stroke-width", "1.4");
         synLineEl.style.opacity = (0.88 * remainSyn).toFixed(2);
@@ -3029,8 +3176,8 @@ function renderPitchDOMFrame(pitch, st, now) {
     const fb = pitch.floatBadge;
     if (fb && now < fb.until) {
       badgeEl.className = `pitch-float-badge ${fb.cls} is-visible`;
-      badgeEl.style.left = `${fb.x.toFixed(1)}%`;
-      badgeEl.style.top = `${fb.y.toFixed(1)}%`;
+      badgeEl.style.left = `${mapPitchX(pitch, fb.x).toFixed(1)}%`;
+      badgeEl.style.top = `${mapPitchY(pitch, fb.y).toFixed(1)}%`;
       const fKey = `${fb.iconCat || ""}|${fb.text}`;
       if (badgeEl.dataset.renderKey !== fKey) {
         badgeEl.dataset.renderKey = fKey;
@@ -3046,7 +3193,7 @@ function renderPitchDOMFrame(pitch, st, now) {
   const gLeft = document.getElementById("pitch-goal-left");
   const gRight = document.getElementById("pitch-goal-right");
   if (gLeft && gRight) {
-    const activeFlash = pitch.goalFlashUntil && now < pitch.goalFlashUntil ? pitch.goalFlashSide : null;
+    const activeFlash = pitch.goalFlashUntil && now < pitch.goalFlashUntil ? mapPitchSide(pitch, pitch.goalFlashSide) : null;
     gLeft.classList.toggle("goal-flash", activeFlash === "left");
     gRight.classList.toggle("goal-flash", activeFlash === "right");
   }
@@ -3103,8 +3250,8 @@ function updatePitchCameraTransform(pitch, now = performance.now(), snapImmediat
     pitch.camY += (targetY - pitch.camY) * alpha;
   }
 
-  const focusPxX = (pitch.camX / 100) * ww;
-  const focusPxY = (pitch.camY / 100) * wh;
+  const focusPxX = (mapPitchX(pitch, pitch.camX) / 100) * ww;
+  const focusPxY = (mapPitchY(pitch, pitch.camY) / 100) * wh;
   const tx = Math.min(0, Math.max(vw - ww, vw * 0.5 - focusPxX));
   const ty = Math.min(0, Math.max(vh - wh, vh * 0.5 - focusPxY));
   worldEl.style.transform = `translate3d(${tx.toFixed(1)}px, ${ty.toFixed(1)}px, 0)`;
@@ -3632,7 +3779,7 @@ function syncLivePitchDOM(st) {
     possBar.classList.toggle("poss-opp", !isUserPoss);
     const userUpper = (typeof getActiveTeamName === "function" ? getActiveTeamName() : "Dream Team").toUpperCase();
     const teamLabel = isUserPoss ? userUpper : (pitch.oppTeamName || "ADVERSÁRIO").toUpperCase();
-    const dirArrow = isUserPoss ? "Atacando ➔" : "⬅ Atacando";
+    const dirArrow = isUserPoss !== Boolean(pitch.sidesSwapped) ? "Atacando ➔" : "⬅ Atacando";
     possBar.innerHTML = `
       <span class="poss-team-chip">
         <span class="poss-pulse-dot"></span>
@@ -3640,6 +3787,18 @@ function syncLivePitchDOM(st) {
       </span>
       <span class="poss-dir-label">${dirArrow}</span>
     `;
+  }
+
+  const dirLeftEl = document.getElementById("pitch-dir-left");
+  const dirRightEl = document.getElementById("pitch-dir-right");
+  if (dirLeftEl && dirRightEl) {
+    const swapped = Boolean(pitch.sidesSwapped);
+    const userEmb = UI?.raimonEmblem ? `<img src="${UI.raimonEmblem}" alt="" />` : "⚡";
+    const oppEmb = pitch.oppTeamEmblem ? `<img src="${pitch.oppTeamEmblem}" alt="" />` : "⚔";
+    dirLeftEl.style.color = swapped ? "#f87171" : "#4ade80";
+    dirLeftEl.innerHTML = `${swapped ? oppEmb : userEmb} Gol →`;
+    dirRightEl.style.color = swapped ? "#4ade80" : "#f87171";
+    dirRightEl.innerHTML = `← Gol ${swapped ? userEmb : oppEmb}`;
   }
 
   const tacNow = getTactics();
