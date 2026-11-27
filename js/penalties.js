@@ -81,7 +81,8 @@ function awardPostMatchExperience(st) {
       Math.min(5, ps.passesOk || 0) * 2.0 +
       Math.min(4, ps.dribblesOk || 0) * 2.5;
     const perfXp = Math.min(38, rawPerfXp);
-    const gained = Math.round((baseXp + cleanSheetBonus + marginBonus + perfXp) * xpMult);
+    const luckyMul = typeof hasPlayerEquippedItem === "function" && hasPlayerEquippedItem(p, "lucky_amulet") ? 1.20 : 1.0;
+    const gained = Math.round((baseXp + cleanSheetBonus + marginBonus + perfXp) * xpMult * luckyMul);
     minXpGained = Math.min(minXpGained, gained);
     maxXpGained = Math.max(maxXpGained, gained);
 

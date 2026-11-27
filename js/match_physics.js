@@ -451,8 +451,13 @@ function evaluateCoopMoveSupport(moveName, cat, actorNode, teamNodes, pitch, awa
     total += partnerRaw * proxMul;
   });
 
-  const cap = isShot ? (partners.length >= 2 ? 3.8 : 2.6) : (partners.length >= 2 ? 2.8 : 2.0);
+  let cap = isShot ? (partners.length >= 2 ? 3.8 : 2.6) : (partners.length >= 2 ? 2.8 : 2.0);
   if (actorNode?.side === "user" && !pitch?.is5v5) {
+    const ccLvl = state.tournament?.prepBonuses?.chainCoopLvl || 0;
+    if (ccLvl > 0) {
+      total *= [1, 1.15, 1.30, 1.45][ccLvl] || 1;
+      cap += ccLvl * 0.35;
+    }
     if (
       Array.isArray(state.tournament?.nextMatchChatBuffs) &&
       state.tournament.nextMatchChatBuffs.some((b) => b.type === "COOP_SYNC" && actorNode?.player?.id && b.playerIds?.includes(actorNode.player.id))
@@ -1003,7 +1008,9 @@ function resolveGkRushClash(st, pitch, carrier, oppGk, attSupport, defSupport, o
   let gkWon = handGrabSure;
   if (!handGrabSure) {
     const ofPick = pickStaminaGatedMove(carrier, "OF");
-    const gkScore = calcNodeDuelScore(oppGk, defSupport, carrier?.player?.element, "GK") + gkPick.duelBonus + 2.4;
+    const gkRefLvl = oppGk.side === "user" && !pitch?.is5v5 ? (state.tournament?.prepBonuses?.gkReflexLvl || 0) : 0;
+    const gkRefBonus = [0, 0.6, 1.2, 1.8][gkRefLvl] || 0;
+    const gkScore = calcNodeDuelScore(oppGk, defSupport, carrier?.player?.element, "GK") + gkPick.duelBonus + 2.4 + gkRefBonus;
     const attScore = calcNodeDuelScore(carrier, attSupport, oppGk?.player?.element, "OF") + ofPick.duelBonus;
     gkWon = Math.random() < logisticWinProb(gkScore, attScore, 1.4, 0.52, 0.94);
     spendStamina(carrier, Math.max(1.5, ofPick.cost * 0.4));
@@ -2356,7 +2363,8 @@ function launchContinuousShot(st, pitch, shooterNode, defNodes, attSupport, defS
           : null;
       const chainAffLv = chainPairAff?.level || 0;
 
-      let willProb = 0.40 + ([0, 0.08, 0.16, 0.24][chainAffLv] || 0);
+      const ccLvl = curAttIsUser && !pitch.is5v5 ? (state.tournament?.prepBonuses?.chainCoopLvl || 0) : 0;
+      let willProb = 0.40 + ([0, 0.08, 0.16, 0.24][chainAffLv] || 0) + ([0, 0.10, 0.20, 0.30][ccLvl] || 0);
       if (cPick.isCanonicalChain) willProb += 0.22;
       if (shooterDisadv && chainBetterVsGk) willProb += 0.22;
       if (isLongShotPlay) willProb += 0.16;
@@ -2372,7 +2380,8 @@ function launchContinuousShot(st, pitch, shooterNode, defNodes, attSupport, defS
         spendStamina(chainNode, cPick.cost);
         const ovrBoost = Math.max(0, (chainNode.effOvr - 75) * 0.15);
         const affChainBoost = [0, 0.5, 1.1, 1.8][chainAffLv] || 0;
-        const chainPowerBoost = 4.8 + ovrBoost + cPick.bonus + affChainBoost;
+        const chainBuffBoost = [0, 0.6, 1.2, 1.8][ccLvl] || 0;
+        const chainPowerBoost = 4.8 + ovrBoost + cPick.bonus + affChainBoost + chainBuffBoost;
         if (typeof isBetaMode === "function" && isBetaMode() && curAttIsUser && !pitch.is5v5 && typeof addPairAffinityPoints === "function") {
           addPairAffinityPoints(activeShooter.player, chainNode.player, 12, "chains");
           pitch.synergyLinkFx = {
@@ -3009,12 +3018,16 @@ function stepContinuousPhysics(st, pitch, dt) {
     if (n.duelCooldown > 0) n.duelCooldown = Math.max(0, n.duelCooldown - dt);
     if (n.staggerTimer > 0) n.staggerTimer = Math.max(0, n.staggerTimer - dt);
 
+    const kSurgeLvl = n.side === "user" && !pitch.is5v5 ? (state.tournament?.prepBonuses?.keshinSurgeLvl || 0) : 0;
+    const hasKCharm = typeof hasPlayerEquippedItem === "function" && hasPlayerEquippedItem(n.player, "keshin_charm");
+
     // KESHIN DINÂMICA: 1x por jogo, jogador decide quando invocar (nunca em esforço Baixo!), fica forte e depois cansa!
     if (n.keshinState === "ACTIVE") {
       n.keshinTimer = Math.max(0, (n.keshinTimer || 0) - dt);
       if (n.keshinTimer <= 0) {
         n.keshinState = "EXHAUSTED";
-        n.stamina = Math.max(25, n.stamina - 18);
+        const exhaustCost = Math.max(4, ([18, 15, 12, 9][kSurgeLvl] || 9) - (hasKCharm ? 3 : 0));
+        n.stamina = Math.max(25, n.stamina - exhaustCost);
         showNodeBadge(pitch, n.uid, "Exausto (Pós-Keshin)", "badge-lost", 1500);
         prependNarrationLine(
           st,
@@ -3051,6 +3064,9 @@ function stepContinuousPhysics(st, pitch, dt) {
 
         if (isBigMoment) {
           const intBoost = n.side === "user" && !pitch.is5v5 && getTactics().intensity === "high" ? 1.45 : 1.0;
+          const keshinItemMul =
+            (n.side === "user" && !pitch.is5v5 ? ([1, 1.25, 1.50, 1.75][kSurgeLvl] || 1) : 1) *
+            (hasKCharm ? 1.45 : 1.0);
           const baseRate =
             isCarrying && isAttackerRole && inStrikeZone
               ? 0.48
@@ -3061,7 +3077,7 @@ function stepContinuousPhysics(st, pitch, dt) {
               : isPlaymakerRole && st.minute >= 32 && isCloseMatch
               ? 0.14
               : 0.06;
-          const triggerChance = baseRate * (0.75 + (prof.ego + prof.combativeness) * 0.35) * intBoost * dt;
+          const triggerChance = baseRate * (0.75 + (prof.ego + prof.combativeness) * 0.35) * intBoost * keshinItemMul * dt;
           if (Math.random() < triggerChance) {
             n.keshinUsed = true;
             n.keshinState = "ACTIVE";
@@ -4462,7 +4478,11 @@ function stepContinuousPhysics(st, pitch, dt) {
       const ballInDefBox = oppGk && (attIsUser ? pitch.ballX >= 78 : pitch.ballX <= 22) && Math.abs(pitch.ballY - 50) <= 24;
       if (oppGk && ballInDefBox && visualPitchDist(oppGk.x, oppGk.y, pitch.ballX, pitch.ballY) <= 3.4) {
         oppGk.duelCooldown = 1.25;
-        const gkCatchProb = Math.max(0.42, Math.min(0.86, 0.58 + ((oppGk.effOvr || 80) - (ps.passerNode?.effOvr || 75)) * 0.015));
+        const gkRefCrossLvl = oppGk.side === "user" && !pitch?.is5v5 ? (state.tournament?.prepBonuses?.gkReflexLvl || 0) : 0;
+        const gkCatchProb = Math.max(
+          0.42,
+          Math.min(0.92, 0.58 + ((oppGk.effOvr || 80) - (ps.passerNode?.effOvr || 75)) * 0.015 + ([0, 0.05, 0.10, 0.15][gkRefCrossLvl] || 0))
+        );
         if (Math.random() < gkCatchProb) {
           spendStamina(oppGk, 2.0);
           pitch.ballSide = oppGk.side;
@@ -4519,6 +4539,9 @@ function stepContinuousPhysics(st, pitch, dt) {
             const mult = [1, 0.85, 0.72, 0.60][pbLvl] || 0.60;
             finalInterceptProb *= mult;
           }
+          if (typeof hasPlayerEquippedItem === "function" && hasPlayerEquippedItem(ps.passerNode?.player, "tactical_visor")) {
+            finalInterceptProb *= 0.84;
+          }
           if (!pitch.is5v5) {
             const tac = getTactics();
             if ((pitch.hissatsuTacticTimer || 0) > 0 && pitch.activeHissatsuTacticId === "route_of_sky") {
@@ -4547,6 +4570,10 @@ function stepContinuousPhysics(st, pitch, dt) {
             }
           }
         } else if (!attIsUser && !pitch.is5v5 && finalInterceptProb > 0) {
+          const psLvl = state.tournament?.prepBonuses?.pressStealLvl || 0;
+          if (psLvl > 0) {
+            finalInterceptProb = Math.min(0.68, finalInterceptProb * ([1, 1.12, 1.24, 1.35][psLvl] || 1.35));
+          }
           if ((pitch.hissatsuTacticTimer || 0) > 0 && (pitch.activeHissatsuTacticId === "catenaccio" || pitch.activeHissatsuTacticId === "lightning_press")) {
             finalInterceptProb = Math.min(0.75, finalInterceptProb * 1.28);
           }

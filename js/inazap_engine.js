@@ -1609,6 +1609,15 @@
       return rp && !rp.keshin && a.role !== "GK";
     });
 
+    const gearHolders = actors.filter((a) => (Array.isArray(a.equipTitles) && a.equipTitles.length > 0) || Boolean(a.equipTitle));
+    const lessGearedActor = actors.find((a) => (!a.equipTitles || a.equipTitles.length === 0) && !a.equipTitle) ||
+      actors.find((a) => (a.equipTitles?.length || (a.equipTitle ? 1 : 0)) < (gearHolders[0]?.equipTitles?.length || 1));
+    const hasGearEnvyPair = Boolean(gearHolders.length >= 1 && lessGearedActor && lessGearedActor.id !== gearHolders[0].id);
+    const hasGearComboOrPair =
+      gearHolders.length >= 2 ||
+      (typeof calcSquadStats === "function" &&
+        (calcSquadStats()?.activeBonds || []).some((b) => /Combo|Muralha|Tempestade|Arsenal|Cérebro|Guardião|Vínculo/i.test(String(b.label || ""))));
+
     const kindsPool = [
       "QUEST_LEARN_MOVE",
       "QUEST_AWAKEN_KESHIN",
@@ -1624,7 +1633,11 @@
       "PROC_TOURNAMENT_FEVER",
       "PROC_SET_PIECE_CHOREOGRAPHY",
       "PROC_BENCH_FATIGUE_ROTATION",
-      "PROC_RIVAL_TRASH_TALK"
+      "PROC_RIVAL_TRASH_TALK",
+      "PROC_ITEM_ENVY",
+      "PROC_ITEM_WISHLIST",
+      "PROC_RAIRAIKEN_RAMEN",
+      "PROC_GEAR_COMBO_HYPE"
     ];
 
     let kind = forcedKind;
@@ -1633,6 +1646,8 @@
         if (k === "QUEST_AWAKEN_KESHIN" && !eligibleKeshin) return false;
         if (k === "PROC_EX_CLUB_REUNION" && !exClubActor && !sharedSchoolPair) return false;
         if (k === "PROC_ELEMENTAL_MATCHUP" && !hasElemEdge) return false;
+        if (k === "PROC_ITEM_ENVY" && !hasGearEnvyPair) return false;
+        if (k === "PROC_GEAR_COMBO_HYPE" && !hasGearComboOrPair) return false;
         return true;
       });
       const recentProc = t && Array.isArray(t._usedProcKinds) ? t._usedProcKinds.slice(-6) : [];
@@ -2794,6 +2809,253 @@
         categoryIcon: "🔥",
         badgeClass: "cat-tension",
         title: `Recado de ${star}`,
+        coreActors: core,
+        messages: msgs,
+        choices
+      });
+    }
+
+    // 20b. Intriga / Comparação de Equipamentos na Cidade
+    if (kind === "PROC_ITEM_ENVY") {
+      const envied =
+        actors.find((a) => (Array.isArray(a.equipTitles) && a.equipTitles.length > 0) || Boolean(a.equipTitle)) ||
+        pickFairActor();
+      const envious =
+        pickOther([envied.id], (a) => (!a.equipTitles || a.equipTitles.length === 0) && !a.equipTitle) ||
+        pickOther([envied.id]);
+      const peacemaker = pickOther([envied.id, envious.id], (a) => resolveInazumaPersona(a).voice !== "COLD_ACE");
+      const core = [envious, envied, peacemaker].filter((v, i, arr) => v && arr.findIndex((x) => x.id === v.id) === i);
+      if (core.length < 2) return null;
+      const itemTitle = (envied.equipTitles && envied.equipTitles[0]) || envied.equipTitle || "as chuteiras especiais da loja";
+      const msgs = [
+        makeProcMsg(core, 0, `Nada contra você, ${shortFirstName(envied)}, mas todo mundo viu ${itemTitle} indo direto pro teu armário enquanto eu sigo com o básico.`, "tense"),
+        makeProcMsg(core, 1, `Eu nem pedi tratamento diferente, ${shortFirstName(envious)}. Só vesti o que o técnico separou pro jogo contra ${opp}.`, "calm"),
+        ...(core[2] ? [makeProcMsg(core, 2, `Gente, comparar equipamento agora só divide o grupo. Professor, resolve isso antes do treino.`, "tense", { quote: { speakerName: core[0].name, text: itemTitle } })] : [])
+      ];
+      const choices = shuffleChoices([
+        {
+          label: `Garantir que a próxima parada nas Lojas de Inazuma prioriza ${shortFirstName(envious)}!`,
+          approachTag: "Equilibrar Lojas / +Moral",
+          quality: "GREAT",
+          coachLine: `Anotado, ${shortFirstName(envious)}. Na próxima ida às Lojas de Inazuma você passa na frente pra equipar o time de igual pra igual.`,
+          customEffects: { affPts: 14, respectDelta: 3, indivRespectDelta: 4, xpAmt: 25, buffType: "MORALE_BOOST" },
+          reactions: [
+            makeProcMsg(core, 0, `Assim sim, professor! Agora entro bem mais leve pra buscar a titularidade contra ${opp}.`, "hype"),
+            makeProcMsg(core, 1, `Fechado demais, quanto mais gente equipada aqui, mais forte o time fica.`, "praise")
+          ]
+        },
+        {
+          label: `Explicar que ${itemTitle} soma combo pro time inteiro e cobrar resposta em campo.`,
+          approachTag: "+Química / +Poder",
+          quality: "GOOD",
+          coachLine: `Cada item equipado fortalece o conjunto todo, inclusive quem dá cobertura no setor. Quero todo mundo focado no jogo!`,
+          customEffects: { chemDelta: 2, pwrDelta: 8, affPts: 10, respectDelta: 1 },
+          reactions: [
+            makeProcMsg(core, 1, `Verdade, o combo da loja puxa o grupo inteiro junto.`, "calm"),
+            makeProcMsg(core, 0, `Entendido, professor. Vou fazer por merecer o próximo equipamento em campo.`, "calm")
+          ]
+        },
+        {
+          label: `Dizer que quem reclama pouco antes do jogo ainda precisa provar mais em campo.`,
+          approachTag: "-Clima / Abre Trama nas Lojas",
+          quality: "POOR",
+          coachLine: `Equipamento se conquista nos 90 minutos contra ${opp}, não cobrando no grupo.`,
+          customEffects: {
+            affPts: -6,
+            respectDelta: -3,
+            indivRespectDelta: -5,
+            indivRespectIdxs: [0],
+            setArc: "TRETA_ABERTA",
+            cityPlotLoc: "town",
+            note: `Atrito por ${itemTitle} (resolver nas Lojas de Inazuma)`
+          },
+          reactions: [
+            makeProcMsg(core, 0, `Beleza... então vou ficar quieto no meu canto e resolver tudo sozinho.`, "toxic"),
+            ...(core[2] ? [makeProcMsg(core, 2, `Pesou o clima... isso ainda vai dar conversa lá nas Lojas de Inazuma.`, "tense")] : [])
+          ]
+        }
+      ]);
+      return baseResult({
+        id: "proc_item_envy",
+        category: "RAIVA",
+        categoryLabel: "Clima & Itens",
+        categoryIcon: "🛍️",
+        badgeClass: "cat-tension",
+        title: `Disputa por ${itemTitle}`,
+        coreActors: core,
+        messages: msgs,
+        choices
+      });
+    }
+
+    // 20c. Plano de Combo / Pedido de Equipamento na Loja
+    if (kind === "PROC_ITEM_WISHLIST") {
+      const ownedSet = new Set(actors.flatMap((a) => (Array.isArray(a.equipIds) ? a.equipIds : [])));
+      let wish = null;
+      if (ownedSet.has("glove_legend") && !ownedSet.has("shoes_legend")) {
+        wish = { itemTitle: "Chuteiras Lendárias", targetRoles: ["FW", "MF"], combo: "Combo Lendário" };
+      } else if (ownedSet.has("shoes_legend") && !ownedSet.has("glove_legend")) {
+        wish = { itemTitle: "Luvas Lendárias", targetRoles: ["GK"], combo: "Combo Lendário" };
+      } else if (ownedSet.has("tactical_visor") && !ownedSet.has("captain_armband")) {
+        wish = { itemTitle: "Braçadeira Dourada do Capitão", targetRoles: ["MF", "DF"], combo: "Cérebro do Time" };
+      } else if (ownedSet.has("captain_armband") && !ownedSet.has("tactical_visor")) {
+        wish = { itemTitle: "Óculos Táticos do Estrategista", targetRoles: ["MF", "DF"], combo: "Cérebro do Time" };
+      } else if (ownedSet.has("raimon_keeper_gloves") && !ownedSet.has("spike_block")) {
+        wish = { itemTitle: "Travas de Bloqueio", targetRoles: ["DF"], combo: "Guardião da Torre" };
+      } else if (ownedSet.has("misanga_friend") && !ownedSet.has("lucky_amulet")) {
+        wish = { itemTitle: "Talismã da Fortuna de Inazuma", targetRoles: ["MF", "FW", "DF"], combo: "Vínculo Inazuma" };
+      } else {
+        const defaultWishes = [
+          { itemTitle: "Óculos Táticos do Estrategista", targetRoles: ["MF", "DF"], combo: "Cérebro do Time" },
+          { itemTitle: "Luvas da Torre de Aço", targetRoles: ["GK"], combo: "Guardião da Torre" },
+          { itemTitle: "Amuleto do Espírito Guerreiro", targetRoles: ["FW", "MF", "DF"], combo: "Guardião da Torre" },
+          { itemTitle: "Talismã da Fortuna de Inazuma", targetRoles: ["MF", "FW"], combo: "Vínculo Inazuma" }
+        ];
+        wish = defaultWishes[Math.floor(Math.random() * defaultWishes.length)];
+      }
+      const requester = pickFairActor((a) => wish.targetRoles.includes(a.role)) || pickFairActor();
+      const tact = pickOther([requester.id], (a) => resolveInazumaPersona(a).voice === "TACTICIAN" || a.role === "MF");
+      const third = pickOther([requester.id, tact.id]);
+      const core = [requester, tact, third].filter((v, i, arr) => v && arr.findIndex((x) => x.id === v.id) === i);
+      if (core.length < 2) return null;
+      const msgs = [
+        makeProcMsg(core, 0, `Professor, passei pela vitrine das Lojas de Inazuma e vi ${wish.itemTitle}. Se encaixar no nosso setor, ativa o combo ${wish.combo}!`, "idea"),
+        makeProcMsg(core, 1, `Olhei os números dessa combinação também. Contra ${opp}, o salto de química com ${wish.combo} faz diferença nos duelos.`, "praise"),
+        ...(core[2] ? [makeProcMsg(core, 2, `Vale a pena guardar uma visita na cidade só pra fechar essa dupla de itens.`, "calm")] : [])
+      ];
+      const choices = shuffleChoices([
+        {
+          label: `Mirar ${wish.itemTitle} nas Lojas e já ensaiar a conexão do setor hoje!`,
+          approachTag: `Plano ${wish.combo}`,
+          quality: "GREAT",
+          coachLine: `Gostei da visão de elenco, ${shortFirstName(requester)}. Vamos buscar ${wish.itemTitle} e já sincronizar vocês em campo!`,
+          customEffects: { affPts: 18, xpAmt: 24, chemDelta: 2, buffType: "COOP_SYNC" },
+          reactions: [
+            makeProcMsg(core, 0, `Fechado! Quando pintar na roleta da cidade a gente já sabe onde encaixar.`, "hype"),
+            makeProcMsg(core, 1, `Com ${wish.combo} alinhado o time ganha outro padrão contra ${opp}.`, "praise")
+          ]
+        },
+        {
+          label: `Focar primeiro na preparação tática para ${opp} e avaliar a compra depois.`,
+          approachTag: "Pragmático / +Poder",
+          quality: "GOOD",
+          coachLine: `Boa dica no radar! Primeiro fechamos o plano tático contra ${opp} e vemos o que aparece na loja.`,
+          customEffects: { affPts: 12, respectDelta: 2, pwrDelta: 6 },
+          reactions: [
+            makeProcMsg(core, 0, `Justo, professor! Se sobrar energia a gente dá um pulo lá.`, "calm"),
+            makeProcMsg(core, 1, `Sensato. Prioridade total nos três pontos agora.`, "calm")
+          ]
+        }
+      ]);
+      return baseResult({
+        id: "proc_item_wishlist",
+        category: "TATICA_RIVAL",
+        categoryLabel: "Mercado & Combos",
+        categoryIcon: "🧠",
+        badgeClass: "cat-tactic",
+        title: `Meta: ${wish.itemTitle}`,
+        coreActors: core,
+        messages: msgs,
+        choices
+      });
+    }
+
+    // 20d. Resenha no Lámen do Mestre Hibiki (Rairaiken)
+    if (kind === "PROC_RAIRAIKEN_RAMEN") {
+      const lead = pickFairActor((a) => resolveInazumaPersona(a).voice !== "COLD_ACE") || pickFairActor();
+      const buddy = pickOther([lead.id], (a) => resolveInazumaPersona(a).voice === "CHILL_JOKER" || resolveInazumaPersona(a).voice === "CAPTAIN_FIRE") || pickOther([lead.id]);
+      const third = pickOther([lead.id, buddy.id]);
+      const core = [lead, buddy, third].filter((v, i, arr) => v && arr.findIndex((x) => x.id === v.id) === i);
+      if (core.length < 2) return null;
+      const msgs = [
+        makeProcMsg(core, 0, `Passamos perto da barraca do Mestre Hibiki agora e ele reservou o balcão pro time fechar no Lámen Especial do Rairaiken!`, "hype"),
+        makeProcMsg(core, 1, `Esse lámen salva qualquer perna pesada depois dos treinos. Dá até um ânimo novo antes de encarar ${opp}.`, "praise"),
+        ...(core[2] ? [makeProcMsg(core, 2, `Sem contar que todo mundo sentado na mesma mesa limpa qualquer tensão do vestiário.`, "calm")] : [])
+      ];
+      const choices = shuffleChoices([
+        {
+          label: `Liberar a parada no Rairaiken pro grupo recarregar energia e entrosamento!`,
+          approachTag: "+Energia / +Química",
+          quality: "GREAT",
+          coachLine: `Podem ir sim! Elenco inteiro no Rairaiken pra recuperar o fôlego e entrar unido contra ${opp}.`,
+          customEffects: { energyDelta: 10, affPts: 18, chemDelta: 3, buffType: "MORALE_BOOST" },
+          reactions: [
+            makeProcMsg(core, 0, `Boa, professor!! O Mestre Hibiki já mandou preparar as tigelas reforçadas!`, "hype"),
+            makeProcMsg(core, 1, `Amanhã o fôlego vai sobrar no segundo tempo.`, "praise")
+          ]
+        },
+        {
+          label: `Fazer um lanche rápido lá e voltar cedo pro estudo tático de ${opp}.`,
+          approachTag: "Equilíbrio / +XP",
+          quality: "GOOD",
+          coachLine: `Boa iniciativa! Comam bem no Rairaiken e já voltem focados na leitura do jogo contra ${opp}.`,
+          customEffects: { energyDelta: 5, xpAmt: 25, affPts: 12, buffType: "RIVAL_READ" },
+          reactions: [
+            makeProcMsg(core, 1, `Combinado, professor! Tigela rápida e olho no vídeo do rival.`, "calm"),
+            makeProcMsg(core, 2 || 0, `Energia em dia e plano na cabeça.`, "calm")
+          ]
+        }
+      ]);
+      return baseResult({
+        id: "proc_rairaiken_ramen",
+        category: "ELOGIO",
+        categoryLabel: "Lámen Rairaiken",
+        categoryIcon: "🍜",
+        badgeClass: "cat-chem",
+        title: `Convite do Rairaiken`,
+        coreActors: core,
+        messages: msgs,
+        choices
+      });
+    }
+
+    // 20e. Moral pelos Equipamentos & Combos Ativos
+    if (kind === "PROC_GEAR_COMBO_HYPE") {
+      const gHolders = actors.filter((a) => (Array.isArray(a.equipTitles) && a.equipTitles.length > 0) || Boolean(a.equipTitle));
+      const g0 = gHolders[0] || pickFairActor();
+      const g1 = gHolders.find((a) => a.id !== g0.id) || pickOther([g0.id]);
+      const g2 = pickOther([g0.id, g1.id]);
+      const core = [g0, g1, g2].filter((v, i, arr) => v && arr.findIndex((x) => x.id === v.id) === i);
+      if (core.length < 2) return null;
+      const item0 = (g0.equipTitles && g0.equipTitles[0]) || g0.equipTitle || "os equipamentos novos";
+      const item1 = (g1.equipTitles && g1.equipTitles[0]) || g1.equipTitle || "os ajustes do clube";
+      const msgs = [
+        makeProcMsg(core, 0, `Testei ${item0} no coletivo agora e a diferença na resposta em campo tá absurda!`, "hype"),
+        makeProcMsg(core, 1, `Aqui também encaixou demais com ${item1}. Parece que o setor inteiro ganhou outra velocidade contra ${opp}.`, "praise"),
+        ...(core[2] ? [makeProcMsg(core, 2, `Se a gente juntar esse ganho de equipamento com disciplina tática, ninguém segura nossa transição.`, "idea")] : [])
+      ];
+      const choices = shuffleChoices([
+        {
+          label: `Pressionar ${opp} em ritmo alto aproveitando o embalo dos equipamentos!`,
+          approachTag: "+Poder / Pressão Alta",
+          quality: "GREAT",
+          tacticsPatch: { intensity: "high" },
+          coachLine: `Então coloquem essa confiança pra correr! Contra ${opp} vamos subir a intensidade desde o apito inicial!`,
+          customEffects: { pwrDelta: 8, affPts: 16, buffType: "BLOOD_FOCUS" },
+          reactions: [
+            makeProcMsg(core, 0, `Pode deixar! Vamos pra cima desde o primeiro minuto.`, "hype"),
+            makeProcMsg(core, 1, `Ritmo forte pra não deixar ${opp} respirar.`, "hype")
+          ]
+        },
+        {
+          label: `Converter essa vantagem técnica em controle frio e passes seguros.`,
+          approachTag: "+Química / +Sintonia",
+          quality: "GOOD",
+          coachLine: `Boa leitura de vocês. Usem essa confiança pra trocar passes com calma e controlar o jogo.`,
+          customEffects: { chemDelta: 2, affPts: 14, xpAmt: 24, buffType: "COOP_SYNC" },
+          reactions: [
+            makeProcMsg(core, 1, `Fechado, controle limpo da bola até abrir a zaga deles.`, "calm"),
+            makeProcMsg(core, 0, `Sincronia lá em cima pro jogo.`, "calm")
+          ]
+        }
+      ]);
+      return baseResult({
+        id: "proc_gear_combo_hype",
+        category: "ELOGIO",
+        categoryLabel: "Arsenal do Time",
+        categoryIcon: "⚡",
+        badgeClass: "cat-chem",
+        title: `Sintonia de Arsenal`,
         coreActors: core,
         messages: msgs,
         choices

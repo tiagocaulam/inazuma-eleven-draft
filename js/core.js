@@ -492,8 +492,16 @@ function createFreshPrepBonuses() {
     passBypassLvl: 0,
     counterShotLvl: 0,
     dribbleEdgeLvl: 0,
+    pressStealLvl: 0,
+    chainCoopLvl: 0,
+    gkReflexLvl: 0,
+    keshinSurgeLvl: 0,
     log: []
   };
+}
+
+function hasPlayerEquippedItem(player, itemId) {
+  return Boolean(itemId && Array.isArray(player?.equippedItems) && player.equippedItems.some((it) => it && it.id === itemId));
 }
 
 const RANKING_LOCAL_KEY = "ie_dream_team_rankings_v2";
@@ -1862,6 +1870,9 @@ function pickStaminaGatedMove(node, category) {
   const userIntensity = node?.side === "user" ? getTactics().intensity : "medium";
   const masteryLvl = node?.side === "user" ? (state.tournament?.prepBonuses?.hissatsuMasteryLvl || 0) : 0;
   const masteryBonus = [0, 0.6, 1.2, 1.8][masteryLvl] || 0;
+  const keshinSurgeLvl = node?.side === "user" ? (state.tournament?.prepBonuses?.keshinSurgeLvl || 0) : 0;
+  const hasKeshinCharm = typeof hasPlayerEquippedItem === "function" && hasPlayerEquippedItem(node?.player, "keshin_charm");
+  const hasTowerGloves = category === "GK" && typeof hasPlayerEquippedItem === "function" && hasPlayerEquippedItem(node?.player, "raimon_keeper_gloves");
 
   // Técnica exclusiva de Keshin (quando invocada e compatível com a ação)
   const keshin = node?.player?.keshin;
@@ -1871,6 +1882,8 @@ function pickStaminaGatedMove(node, category) {
     stamina >= 28 &&
     (keshin.moveCat === category || (!keshin.moveCat && (category === "SH" || category === "GK")))
   ) {
+    const kSurgeDuel = [0, 0.6, 1.2, 1.8][keshinSurgeLvl] || 0;
+    const kSurgeCostMul = ([1, 0.85, 0.72, 0.60][keshinSurgeLvl] || 0.60) * (hasKeshinCharm ? 0.80 : 1.0) * (hasTowerGloves ? 0.85 : 1.0);
     return {
       move: `Keshin: ${keshin.move}`,
       rawMove: keshin.move,
@@ -1878,8 +1891,8 @@ function pickStaminaGatedMove(node, category) {
       isKeshinMove: true,
       exhausted: false,
       gatedReason: null,
-      cost: category === "GK" || category === "SH" ? 18 : 15,
-      duelBonus: 2.35 + masteryBonus
+      cost: Math.max(6, Math.round((category === "GK" || category === "SH" ? 18 : 15) * kSurgeCostMul)),
+      duelBonus: 2.35 + masteryBonus + kSurgeDuel
     };
   }
 
@@ -1913,6 +1926,17 @@ function pickStaminaGatedMove(node, category) {
     else standardMoves.push(m);
   });
 
+  const scaleMoveCost = (rawCost, isHeavyFlag) => {
+    let c = rawCost;
+    if (isHeavyFlag && keshinSurgeLvl > 0) {
+      c *= [1, 0.94, 0.88, 0.82][keshinSurgeLvl] || 0.82;
+    }
+    if (hasTowerGloves) {
+      c *= 0.85;
+    }
+    return Math.max(3, Math.round(c));
+  };
+
   // Intensidade BAIXA: economiza energia com jogadas sem técnica ou apenas técnicas padrão (nunca vaza técnica pesada)
   if (userIntensity === "low") {
     if (category !== "GK" && category !== "SH" && Math.random() < 0.50) {
@@ -1932,7 +1956,7 @@ function pickStaminaGatedMove(node, category) {
         isHeavy: false,
         exhausted: false,
         gatedReason: null,
-        cost: Math.round(stdCost * 0.72),
+        cost: scaleMoveCost(Math.round(stdCost * 0.72), false),
         duelBonus: masteryBonus
       };
     }
@@ -1943,7 +1967,7 @@ function pickStaminaGatedMove(node, category) {
         isHeavy: false,
         exhausted: false,
         gatedReason: "LOW_ECONOMY",
-        cost: stdCost + 2,
+        cost: scaleMoveCost(stdCost + 2, false),
         duelBonus: -0.4 + masteryBonus
       };
     }
@@ -1969,7 +1993,7 @@ function pickStaminaGatedMove(node, category) {
       isHeavy,
       exhausted: false,
       gatedReason: null,
-      cost: isHeavy ? heavyCost : stdCost,
+      cost: scaleMoveCost(isHeavy ? heavyCost : stdCost, isHeavy),
       duelBonus: (isHeavy ? 1.4 : 0) + extraBonus + masteryBonus
     };
   }
@@ -1983,7 +2007,7 @@ function pickStaminaGatedMove(node, category) {
       isHeavy: false,
       exhausted: false,
       gatedReason: heavyMoves.length > 0 ? "YELLOW" : null,
-      cost: stdCost,
+      cost: scaleMoveCost(stdCost, false),
       duelBonus: -0.35 + highYellowBonus + masteryBonus
     };
   }
@@ -1997,7 +2021,7 @@ function pickStaminaGatedMove(node, category) {
       isHeavy: false,
       exhausted: false,
       gatedReason: "YELLOW",
-      cost: stdCost + 4,
+      cost: scaleMoveCost(stdCost + 4, false),
       duelBonus: -0.7 + highYellowBonus + masteryBonus
     };
   }
@@ -2485,10 +2509,10 @@ function evaluateTeamStats(slots, getPlayerForSlot, options = {}) {
       players: mergeUnique(itemHoldersMap["shoes_thunder"], itemHoldersMap["captain_armband"], itemHoldersMap["elem_crest_boost"])
     });
   }
-  // Combo 4: Esquadrão Equipado (3 ou mais jogadores distintos equipados com itens)
+  // Combo 4: Esquadrão Equipado (3 ou mais jogadores distintos equipados com itens — com teto equilibrado)
   const uniqueEquippedPlayers = mergeUnique(equippedPlayersList);
   if (uniqueEquippedPlayers.length >= 3) {
-    const cPwr = uniqueEquippedPlayers.length * 14;
+    const cPwr = Math.min(140, uniqueEquippedPlayers.length * 14);
     bondsPower += cPwr;
     activeCombos.push({
       label: `🎒 Arsenal (${uniqueEquippedPlayers.length}x: +${cPwr})`,
@@ -2513,6 +2537,36 @@ function evaluateTeamStats(slots, getPlayerForSlot, options = {}) {
       });
     }
   });
+  // Combo 6: Cérebro do Time (Óculos Táticos + Braçadeira Dourada ou Chuteiras do Trovão)
+  if (equippedItemIds.has("tactical_visor") && (equippedItemIds.has("captain_armband") || equippedItemIds.has("shoes_thunder"))) {
+    const cPwr = 55;
+    chem += 7;
+    bondsPower += cPwr;
+    activeCombos.push({
+      label: `🧠 Cérebro do Time (+${cPwr} • +7%)`,
+      players: mergeUnique(itemHoldersMap["tactical_visor"], itemHoldersMap["captain_armband"], itemHoldersMap["shoes_thunder"])
+    });
+  }
+  // Combo 7: Guardião da Torre (Luvas da Torre de Aço + Travas de Bloqueio ou Amuleto Keshin)
+  if (equippedItemIds.has("raimon_keeper_gloves") && (equippedItemIds.has("spike_block") || equippedItemIds.has("keshin_charm"))) {
+    const cPwr = 55;
+    chem += 6;
+    bondsPower += cPwr;
+    activeCombos.push({
+      label: `🗼 Guardião da Torre (+${cPwr} • +6%)`,
+      players: mergeUnique(itemHoldersMap["raimon_keeper_gloves"], itemHoldersMap["spike_block"], itemHoldersMap["keshin_charm"])
+    });
+  }
+  // Combo 8: Vínculo Inazuma (Pulseira da Amizade + Talismã da Fortuna)
+  if (equippedItemIds.has("misanga_friend") && equippedItemIds.has("lucky_amulet")) {
+    const cPwr = 50;
+    chem += 8;
+    bondsPower += cPwr;
+    activeCombos.push({
+      label: `✨ Vínculo Inazuma (+${cPwr} • +8%)`,
+      players: mergeUnique(itemHoldersMap["misanga_friend"], itemHoldersMap["lucky_amulet"])
+    });
+  }
 
   activeCombos.forEach((cb) => {
     activeBonds.push({

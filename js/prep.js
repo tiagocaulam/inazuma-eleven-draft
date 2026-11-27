@@ -32,7 +32,7 @@ function getPrepScopeLabel(ev) {
   if (ev.kind === "PASSIVE_DOUBLE_EVENT") return "Permanente • Cidade";
   if (ev.kind === "PASSIVE_LATE_RESIST") return "Permanente • 75'+";
   if (ev.kind === "STREET_5V5") return "5 Titulares";
-  if (ev.kind === "ENERGY_DRINK") return "Elenco Todo";
+  if (ev.kind === "ENERGY_DRINK" || ev.kind === "RAMEN_FEAST") return "Elenco Todo";
   if (ev.kind === "REST_ACTIVE") {
     if (ev.restMode === "TACTICAL") return "Energia + Elenco";
     if (ev.restMode === "SNACK") return "Próxima Partida";
@@ -54,6 +54,7 @@ function getPrepScopeLabel(ev) {
     if (r.length === 1 && r[0] === "GK") return "Goleiro";
     if (r.length === 1 && r[0] === "DF") return "1 Zagueiro";
     if (r.length === 2 && r.includes("FW") && r.includes("MF")) return "1 ATQ ou MEI";
+    if (r.length === 2 && r.includes("MF") && r.includes("DF")) return "1 MEI ou DEF";
     if (r.length === 3 && !r.includes("GK")) return "1 Jogador de Linha";
     return "1 Titular";
   }
@@ -70,7 +71,11 @@ function getPrepScopeLabel(ev) {
       xpSpiritLvl: "Pós-Partida",
       passBypassLvl: "Passes em Campo",
       counterShotLvl: "Defesa / Contra-Chute",
-      dribbleEdgeLvl: "Dribles 1x1"
+      dribbleEdgeLvl: "Dribles 1x1",
+      pressStealLvl: "Marcação & Roubo",
+      chainCoopLvl: "Chain & Co-op",
+      gkReflexLvl: "Goleiro",
+      keshinSurgeLvl: "Keshin & Supremas"
     };
     return map[ev.buffKey] || "Elenco Todo";
   }
@@ -101,22 +106,46 @@ function getPrepChoiceComboHTML(ev) {
     return `<div class="prep-choice-combo"><strong>Sinergia:</strong> comba com <em>Chuteiras Lendárias</em> (+65) e <em>Travas de Bloqueio</em> (+55).</div>`;
   }
   if (ev.id === "spike_block") {
-    const ready = itemIds.has("glove_legend");
-    return ready
-      ? `<div class="prep-choice-combo is-combo-ready"><strong>Combo pronto!</strong> Você já tem Luvas Lendárias (+55 Poder • +6% Quím)</div>`
-      : `<div class="prep-choice-combo"><strong>Sinergia:</strong> combine com <em>Luvas Lendárias</em> para +55 Poder e +6% Química.</div>`;
+    const hasGlove = itemIds.has("glove_legend");
+    const hasTower = itemIds.has("raimon_keeper_gloves");
+    if (hasGlove && hasTower) {
+      return `<div class="prep-choice-combo is-combo-ready"><strong>Combo duplo pronto!</strong> Ativa Muralha Impenetrável (+55) e Guardião da Torre (+55)!</div>`;
+    }
+    if (hasGlove) {
+      return `<div class="prep-choice-combo is-combo-ready"><strong>Combo pronto!</strong> Você já tem Luvas Lendárias (+55 Poder • +6% Quím)</div>`;
+    }
+    if (hasTower) {
+      return `<div class="prep-choice-combo is-combo-ready"><strong>Combo pronto!</strong> Você já tem Luvas da Torre de Aço (+55 Poder • +6% Quím)</div>`;
+    }
+    return `<div class="prep-choice-combo"><strong>Sinergia:</strong> combine com <em>Luvas Lendárias</em> ou <em>Luvas da Torre de Aço</em> (+55 Poder • +6% Quím).</div>`;
   }
   if (ev.id === "shoes_thunder") {
-    const ready = itemIds.has("captain_armband") || itemIds.has("elem_crest_boost");
-    return ready
-      ? `<div class="prep-choice-combo is-combo-ready"><strong>Combo pronto!</strong> Ativa Tempestade Relâmpago (+50 Poder • +6% Quím)</div>`
-      : `<div class="prep-choice-combo"><strong>Sinergia:</strong> combine com <em>Braçadeira</em> ou <em>Insígnia</em> para +50 Poder e +6% Química.</div>`;
+    const hasTempest = itemIds.has("captain_armband") || itemIds.has("elem_crest_boost");
+    const hasBrain = itemIds.has("tactical_visor");
+    if (hasTempest && hasBrain) {
+      return `<div class="prep-choice-combo is-combo-ready"><strong>Combo duplo pronto!</strong> Ativa Tempestade Relâmpago (+50) e Cérebro do Time (+55)!</div>`;
+    }
+    if (hasTempest) {
+      return `<div class="prep-choice-combo is-combo-ready"><strong>Combo pronto!</strong> Ativa Tempestade Relâmpago (+50 Poder • +6% Quím)</div>`;
+    }
+    if (hasBrain) {
+      return `<div class="prep-choice-combo is-combo-ready"><strong>Combo pronto!</strong> Você já tem Óculos Táticos (+55 Poder • +7% Quím)</div>`;
+    }
+    return `<div class="prep-choice-combo"><strong>Sinergia:</strong> comba com <em>Braçadeira</em>, <em>Insígnia</em> (+50) ou <em>Óculos Táticos</em> (+55).</div>`;
   }
   if (ev.id === "captain_armband") {
-    const ready = itemIds.has("shoes_thunder");
-    return ready
-      ? `<div class="prep-choice-combo is-combo-ready"><strong>Combo pronto!</strong> Você já tem Chuteiras do Trovão (+50 Poder • +6% Quím)</div>`
-      : `<div class="prep-choice-combo"><strong>Sinergia:</strong> combine com <em>Chuteiras do Trovão</em> para +50 Poder e +6% Química.</div>`;
+    const hasThunder = itemIds.has("shoes_thunder");
+    const hasVisor = itemIds.has("tactical_visor");
+    if (hasThunder && hasVisor) {
+      return `<div class="prep-choice-combo is-combo-ready"><strong>Combo duplo pronto!</strong> Ativa Tempestade Relâmpago (+50) e Cérebro do Time (+55)!</div>`;
+    }
+    if (hasThunder) {
+      return `<div class="prep-choice-combo is-combo-ready"><strong>Combo pronto!</strong> Você já tem Chuteiras do Trovão (+50 Poder • +6% Quím)</div>`;
+    }
+    if (hasVisor) {
+      return `<div class="prep-choice-combo is-combo-ready"><strong>Combo pronto!</strong> Você já tem Óculos Táticos (+55 Poder • +7% Quím)</div>`;
+    }
+    return `<div class="prep-choice-combo"><strong>Sinergia:</strong> combine com <em>Chuteiras do Trovão</em> (+50) ou <em>Óculos Táticos</em> (+55).</div>`;
   }
   if (ev.id === "elem_crest_boost") {
     const ready = itemIds.has("shoes_thunder");
@@ -124,11 +153,39 @@ function getPrepChoiceComboHTML(ev) {
       ? `<div class="prep-choice-combo is-combo-ready"><strong>Combo pronto!</strong> Comba com Chuteiras do Trovão (+50 Poder) + Domínio Elemental (3+ iguais).</div>`
       : `<div class="prep-choice-combo"><strong>Sinergia:</strong> com 3+ titulares do mesmo elemento ativa <em>Domínio Elemental</em> (+14 Poder/jogador).</div>`;
   }
+  if (ev.id === "tactical_visor") {
+    const ready = itemIds.has("captain_armband") || itemIds.has("shoes_thunder");
+    return ready
+      ? `<div class="prep-choice-combo is-combo-ready"><strong>Combo pronto!</strong> Ativa Cérebro do Time (+55 Poder • +7% Quím)</div>`
+      : `<div class="prep-choice-combo"><strong>Sinergia:</strong> combine com <em>Braçadeira Dourada</em> ou <em>Chuteiras do Trovão</em> para +55 Poder e +7% Quím.</div>`;
+  }
+  if (ev.id === "raimon_keeper_gloves") {
+    const ready = itemIds.has("spike_block") || itemIds.has("keshin_charm");
+    return ready
+      ? `<div class="prep-choice-combo is-combo-ready"><strong>Combo pronto!</strong> Ativa Guardião da Torre (+55 Poder • +6% Quím)</div>`
+      : `<div class="prep-choice-combo"><strong>Sinergia:</strong> combine com <em>Travas de Bloqueio</em> ou <em>Amuleto Keshin</em> para +55 Poder e +6% Quím.</div>`;
+  }
+  if (ev.id === "keshin_charm") {
+    const ready = itemIds.has("raimon_keeper_gloves");
+    return ready
+      ? `<div class="prep-choice-combo is-combo-ready"><strong>Combo pronto!</strong> Você já tem Luvas da Torre de Aço (+55 Poder • +6% Quím)</div>`
+      : `<div class="prep-choice-combo"><strong>Sinergia:</strong> combine com <em>Luvas da Torre de Aço</em> para ativar Guardião da Torre (+55 Poder • +6% Quím).</div>`;
+  }
+  if (ev.id === "lucky_amulet") {
+    const ready = itemIds.has("misanga_friend");
+    return ready
+      ? `<div class="prep-choice-combo is-combo-ready"><strong>Combo pronto!</strong> Você já tem Pulseira da Amizade (+50 Poder • +8% Quím)</div>`
+      : `<div class="prep-choice-combo"><strong>Sinergia:</strong> combine com <em>Pulseira da Amizade</em> para ativar Vínculo Inazuma (+50 Poder • +8% Quím).</div>`;
+  }
   if (ev.id === "misanga_friend") {
-    const nextCnt = Math.min(11, equippedPlayerCount + 1);
+    const hasLucky = itemIds.has("lucky_amulet");
+    const nextCnt = Math.min(10, equippedPlayerCount + 1);
+    if (hasLucky) {
+      return `<div class="prep-choice-combo is-combo-ready"><strong>Combo pronto!</strong> Ativa Vínculo Inazuma (+50 Poder • +8% Quím) + Arsenal (${nextCnt}/10)!</div>`;
+    }
     return equippedPlayerCount >= 2
-      ? `<div class="prep-choice-combo is-combo-ready"><strong>Arsenal ativo!</strong> ${nextCnt} jogadores equipados (+${nextCnt * 14} Poder coletivo).</div>`
-      : `<div class="prep-choice-combo"><strong>Arsenal:</strong> equipe 3+ jogadores diferentes para ganhar +14 Poder por jogador equipado (${equippedPlayerCount}/3).</div>`;
+      ? `<div class="prep-choice-combo is-combo-ready"><strong>Arsenal ativo!</strong> ${nextCnt} jogadores equipados (+${nextCnt * 14} Poder coletivo). Comba com <em>Talismã da Fortuna</em>!</div>`
+      : `<div class="prep-choice-combo"><strong>Sinergia:</strong> comba com <em>Talismã da Fortuna</em> (+50 Poder • +8% Quím) e soma ao <em>Arsenal</em> (${equippedPlayerCount}/3).</div>`;
   }
   return "";
 }
@@ -139,12 +196,17 @@ function getPrepBuffPill(ev) {
   if (ev.kind === "PASSIVE_DOUBLE_EVENT") return `<span class="b-tech">4 Ações/Rodada</span> • <span class="b-chem">-3% Custo · 4ª Ação 50% OFF</span>`;
   if (ev.kind === "PASSIVE_LATE_RESIST") return `<span class="b-chem">-50% Desgaste (75'+)</span>`;
   if (ev.kind === "STREET_5V5") return `<span class="b-lvl">+95–115 XP</span> • <span class="b-tech">Recruta Craque</span>`;
-  if (ev.id === "shoes_legend") return `<span class="b-lvl">+1 Nv</span> • <span class="b-pwr">+5 FOR / +7 VEL</span> • <span class="b-pwr">+26 Poder</span>`;
-  if (ev.id === "glove_legend") return `<span class="b-lvl">+1 Nv</span> • <span class="b-pwr">+6 DEF / +3 FIS</span> • <span class="b-pwr">+28 Poder</span>`;
-  if (ev.id === "shoes_thunder") return `<span class="b-lvl">+1 Nv</span> • <span class="b-chem">+11 VEL / +3 TEC</span> • <span class="b-pwr">+22 Poder</span>`;
-  if (ev.id === "spike_block") return `<span class="b-lvl">+1 Nv</span> • <span class="b-pwr">+5 DEF / +4 FIS</span> • <span class="b-pwr">+24 Poder</span>`;
-  if (ev.id === "captain_armband") return `<span class="b-lvl">+1 Nv</span> • <span class="b-tech">+4 TEC / +3 FOR / +3 FIS</span> • <span class="b-chem">+8% Quím</span>`;
-  if (ev.id === "misanga_friend") return `<span class="b-lvl">+1 Nv</span> • <span class="b-tech">+4 TEC / +3 FOR / +3 FIS</span> • <span class="b-chem">+8% Quím</span>`;
+  if (ev.id === "shoes_legend") return `<span class="b-lvl">+1 Nv</span> • <span class="b-pwr">+5 FOR / +5 VEL</span> • <span class="b-pwr">+26 Poder</span>`;
+  if (ev.id === "glove_legend") return `<span class="b-lvl">+1 Nv</span> • <span class="b-pwr">+6 DEF / +4 FIS</span> • <span class="b-pwr">+28 Poder</span>`;
+  if (ev.id === "shoes_thunder") return `<span class="b-lvl">+1 Nv</span> • <span class="b-chem">+8 VEL / +3 TEC</span> • <span class="b-pwr">+22 Poder</span>`;
+  if (ev.id === "spike_block") return `<span class="b-lvl">+1 Nv</span> • <span class="b-pwr">+5 DEF / +5 FIS</span> • <span class="b-pwr">+24 Poder</span>`;
+  if (ev.id === "captain_armband") return `<span class="b-lvl">+1 Nv</span> • <span class="b-tech">+4 FOR / +3 TEC / +3 FIS</span> • <span class="b-chem">+6% Quím</span>`;
+  if (ev.id === "misanga_friend") return `<span class="b-lvl">+1 Nv</span> • <span class="b-tech">+4 TEC / +4 FIS / +2 VEL</span> • <span class="b-chem">+8% Quím</span>`;
+  if (ev.id === "tactical_visor") return `<span class="b-lvl">+1 Nv</span> • <span class="b-tech">+6 TEC / +2 VEL</span> • <span class="b-chem">-16% Intercep.</span>`;
+  if (ev.id === "raimon_keeper_gloves") return `<span class="b-lvl">+1 Nv</span> • <span class="b-pwr">+5 DEF / +4 FIS</span> • <span class="b-chem">-15% Gasto GK</span>`;
+  if (ev.id === "keshin_charm") return `<span class="b-lvl">+1 Nv</span> • <span class="b-tech">Keshin +45% / -20% Custo</span> • <span class="b-pwr">+24 Poder</span>`;
+  if (ev.id === "lucky_amulet") return `<span class="b-lvl">+1 Nv</span> • <span class="b-lvl">+20% XP Jogo</span> • <span class="b-chem">+6% Quím</span>`;
+  if (ev.id === "hibiki_ramen") return `<span class="b-chem">+25% Energia</span> • <span class="b-lvl">+35 XP</span> • <span class="b-tech">+Sintonia &amp; +4% Quím</span>`;
   if (ev.id === "elem_crest_boost") return `<span class="b-lvl">+125 XP</span> • <span class="b-pwr">+12 Poder</span> <span class="b-tech">(por titular igual)</span>`;
   if (ev.id === "elem_resonance_tome") return `<span class="b-lvl">+145 XP (Todos)</span> • <span class="b-chem">+6% Quím</span> • <span class="b-pwr">Links +</span>`;
   if (ev.id === "secret_hissatsu_mastery") return `<span class="b-lvl">+1 Nv (+65 XP Elenco)</span> • <span class="b-tech">Técnica Suprema</span> • <span class="b-pwr">+22 Poder</span>`;
@@ -203,6 +265,26 @@ function getPrepBuffPill(ev) {
       const pct = [0, 3, 5, 8][nextLvl] || 8;
       return `<span class="b-pwr">+${pct}% Chance Drible (+2% Corredor)</span>`;
     }
+    if (ev.buffKey === "pressStealLvl") {
+      const pct = [0, 3, 6, 9][nextLvl] || 9;
+      const intPct = [0, 12, 24, 35][nextLvl] || 35;
+      return `<span class="b-pwr">+${pct}% Desarme</span> • <span class="b-chem">+${intPct}% Intercep.</span>`;
+    }
+    if (ev.buffKey === "chainCoopLvl") {
+      const chPct = [0, 10, 20, 30][nextLvl] || 30;
+      const coopPct = [0, 15, 30, 45][nextLvl] || 45;
+      return `<span class="b-tech">+${chPct}% Chain Shot</span> • <span class="b-pwr">+${coopPct}% Co-op</span>`;
+    }
+    if (ev.buffKey === "gkReflexLvl") {
+      const gkPct = [0, 3, 6, 10][nextLvl] || 10;
+      const crossPct = [0, 5, 10, 15][nextLvl] || 15;
+      return `<span class="b-pwr">+${gkPct}% Defesa GK</span> • <span class="b-chem">+${crossPct}% Saída Alta</span>`;
+    }
+    if (ev.buffKey === "keshinSurgeLvl") {
+      const wakePct = [0, 25, 50, 75][nextLvl] || 75;
+      const costPct = [0, 15, 28, 40][nextLvl] || 40;
+      return `<span class="b-tech">+${wakePct}% Despertar</span> • <span class="b-chem">-${costPct}% Custo Keshin</span>`;
+    }
   }
   if (ev.kind === "REST_ACTIVE") {
     if (ev.restMode === "TACTICAL") {
@@ -213,7 +295,7 @@ function getPrepBuffPill(ev) {
     }
     return `<span class="b-chem">+${ev.energyGain || 45}% Energia</span>`;
   }
-  if (ev.kind === "ENERGY_DRINK") return `<span class="b-chem">+${ev.energyGain || 35}% Energia</span> • <span class="b-pwr">+${ev.teamPower || 14} Poder</span>`;
+  if (ev.kind === "ENERGY_DRINK") return `<span class="b-chem">+${ev.energyGain || 40}% Energia</span> • <span class="b-pwr">+${ev.teamPower || 12} Poder</span>`;
   if (ev.levelGain && ev.indivPower) return `<span class="b-lvl">+${ev.levelGain} Nv</span> • <span class="b-pwr">+${ev.indivPower} Poder</span>`;
   if (ev.levelGain) return `<span class="b-lvl">+${ev.levelGain} Nível(is)</span>`;
   if (ev.teamPower) return `<span class="b-pwr">+${ev.teamPower} Poder</span>`;
@@ -269,6 +351,26 @@ function getPrepChoiceSummary(ev) {
       const pct = [0, 3, 5, 8][nextLvl] || 8;
       return `Aumenta em <span class="b-pwr">+${pct}% a chance</span> de passar pelo marcador no 1x1, com <span class="b-tech">+2% extra</span> no corredor tático escolhido.`;
     }
+    if (ev.buffKey === "pressStealLvl") {
+      const pct = [0, 3, 6, 9][nextLvl] || 9;
+      const intPct = [0, 12, 24, 35][nextLvl] || 35;
+      return `Eleva a pressão defensiva do time em campo, dando <span class="b-pwr">+${pct}% em duelos de roubo</span> e <span class="b-chem">+${intPct}% interceptações</span> de passe.`;
+    }
+    if (ev.buffKey === "chainCoopLvl") {
+      const chPct = [0, 10, 20, 30][nextLvl] || 30;
+      const coopPct = [0, 15, 30, 45][nextLvl] || 45;
+      return `Aumenta em <span class="b-tech">+${chPct}% os Chain Shots</span> em sequência e amplia em <span class="b-pwr">+${coopPct}% o bônus</span> de técnicas em Dupla/Trio.`;
+    }
+    if (ev.buffKey === "gkReflexLvl") {
+      const gkPct = [0, 3, 6, 10][nextLvl] || 10;
+      const crossPct = [0, 5, 10, 15][nextLvl] || 15;
+      return `Afia o reflexo do goleiro sob a barra: <span class="b-pwr">+${gkPct}% em defesas e abafas</span> e <span class="b-chem">+${crossPct}% para agarrar cruzamentos altos</span>.`;
+    }
+    if (ev.buffKey === "keshinSurgeLvl") {
+      const wakePct = [0, 25, 50, 75][nextLvl] || 75;
+      const costPct = [0, 15, 28, 40][nextLvl] || 40;
+      return `Acelera em <span class="b-tech">+${wakePct}% o despertar de Espíritos Guerreiros</span> e reduz em <span class="b-chem">${costPct}% o gasto das técnicas Keshin</span> e exaustão pós-aura.`;
+    }
   }
   return ev.summary || "";
 }
@@ -323,10 +425,10 @@ function getPrepLocationsCatalog() {
           targetRoles: ["FW", "MF"],
           levelGain: 1,
           indivPower: 26,
-          spdBoost: 3,
+          spdBoost: 2,
           teamPower: 14,
           teamChem: 0,
-          weight: 2.1,
+          weight: 2.0,
           summary: `Deixa <span class="b-pwr">chutes mais potentes</span> e aumenta a <span class="b-chem">velocidade</span> para vencer corridas e dribles em 1 Atacante ou Meia.`
         },
         {
@@ -339,8 +441,21 @@ function getPrepLocationsCatalog() {
           indivPower: 28,
           teamPower: 14,
           teamChem: 0,
-          weight: 1.9,
+          weight: 1.55,
           summary: `Reforça as <span class="b-pwr">defesas do goleiro</span> contra chutes fortes e aumenta o <span class="b-chem">fôlego</span> para segurar pressão constante.`
+        },
+        {
+          id: "raimon_keeper_gloves",
+          title: "Luvas da Torre de Aço",
+          icon: UI.itemGloveRaimon || UI.steelTowerIcon,
+          kind: "ITEM_PICK",
+          targetRoles: ["GK"],
+          levelGain: 1,
+          indivPower: 25,
+          teamPower: 12,
+          teamChem: 2,
+          weight: 1.55,
+          summary: `Reduz em <span class="b-chem">15% o gasto de energia</span> do goleiro nas defesas, mantendo o nível alto até os minutos finais.`
         },
         {
           id: "shoes_thunder",
@@ -350,11 +465,11 @@ function getPrepLocationsCatalog() {
           targetRoles: ["FW", "MF", "DF"],
           levelGain: 1,
           indivPower: 22,
-          spdBoost: 5,
+          spdBoost: 4,
           teamPower: 12,
           teamChem: 0,
-          weight: 2.2,
-          summary: `Explosão máxima de <span class="b-chem">velocidade</span> para escapar da marcação, além de <span class="b-tech">passes e dribles mais precisos</span>.`
+          weight: 2.05,
+          summary: `Explosão equilibrada de <span class="b-chem">velocidade</span> para escapar da marcação, além de <span class="b-tech">passes e dribles mais precisos</span>.`
         },
         {
           id: "spike_block",
@@ -366,8 +481,21 @@ function getPrepLocationsCatalog() {
           indivPower: 24,
           teamPower: 12,
           teamChem: 0,
-          weight: 1.9,
+          weight: 1.55,
           summary: `Fortalece <span class="b-pwr">desarmes e bloqueios</span> na zaga, além de dar mais <span class="b-chem">resistência física</span> nos duelos defensivos.`
+        },
+        {
+          id: "tactical_visor",
+          title: "Óculos Táticos do Estrategista",
+          icon: UI.manualSkill || UI.formation,
+          kind: "ITEM_PICK",
+          targetRoles: ["MF", "DF"],
+          levelGain: 1,
+          indivPower: 22,
+          teamPower: 14,
+          teamChem: 4,
+          weight: 1.9,
+          summary: `Amplia a leitura de passe (<span class="b-tech">+6 TEC / +2 VEL</span>) e reduz em <span class="b-chem">16%</span> a chance de interceptação nos passes do portador.`
         },
         {
           id: "captain_armband",
@@ -378,9 +506,22 @@ function getPrepLocationsCatalog() {
           levelGain: 1,
           indivPower: 24,
           teamPower: 16,
-          teamChem: 8,
+          teamChem: 6,
+          weight: 1.75,
+          summary: `Transforma 1 titular em <span class="b-tech">referência de força e liderança</span>, elevando a <span class="b-chem">Química</span> e o poder do time inteiro.`
+        },
+        {
+          id: "keshin_charm",
+          title: "Amuleto do Espírito Guerreiro",
+          icon: UI.keshinCoin || UI.manualKeshin,
+          kind: "ITEM_PICK",
+          targetRoles: ["GK", "DF", "MF", "FW"],
+          levelGain: 1,
+          indivPower: 24,
+          teamPower: 14,
+          teamChem: 2,
           weight: 1.8,
-          summary: `Transforma 1 titular em <span class="b-tech">referência técnica e física</span>, elevando a <span class="b-chem">Química</span> e o poder do time inteiro.`
+          summary: `Aumenta em <span class="b-tech">+45% a chance de despertar Keshin</span>, corta em <span class="b-chem">20% o gasto</span> da aura e dá garra extra nos duelos.`
         },
         {
           id: "elem_crest_boost",
@@ -391,7 +532,7 @@ function getPrepLocationsCatalog() {
           indivPower: 12,
           teamPower: 12,
           teamChem: 5,
-          weight: 2.0,
+          weight: 1.9,
           summary: `Evolui de uma vez todos os titulares do <span class="b-tech">mesmo elemento</span> escolhido com <span class="b-lvl">+125 XP</span> e <span class="b-pwr">+12 Poder</span> cada.`
         },
         {
@@ -404,18 +545,43 @@ function getPrepLocationsCatalog() {
           indivPower: 20,
           teamPower: 14,
           teamChem: 8,
-          weight: 1.7,
-          summary: `Aumenta <span class="b-tech">técnica, força e resistência</span> de 1 titular e impulsiona o <span class="b-chem">entrosamento coletivo</span> do elenco.`
+          weight: 1.75,
+          summary: `Aumenta <span class="b-tech">técnica, resistência e agilidade</span> de 1 titular, eleva a <span class="b-chem">Química</span> e aproxima a sintonia com os vizinhos de setor.`
+        },
+        {
+          id: "lucky_amulet",
+          title: "Talismã da Fortuna de Inazuma",
+          icon: UI.itemBraceletFortune || UI.tpPendant,
+          kind: "ITEM_PICK",
+          targetRoles: ["GK", "DF", "MF", "FW"],
+          levelGain: 1,
+          indivPower: 20,
+          teamPower: 14,
+          teamChem: 6,
+          weight: 1.75,
+          summary: `Abençoa 1 titular com <span class="b-lvl">+20% XP pós-jogo</span>, refina técnica e fôlego (<span class="b-tech">+4 TEC / +3 FIS / +2 VEL</span>) e traz +6% Química.`
+        },
+        {
+          id: "hibiki_ramen",
+          title: "Lámen Especial do Rairaiken",
+          icon: UI.onigiriIcon || UI.sportsDrink,
+          kind: "RAMEN_FEAST",
+          energyGain: 25,
+          xpGain: 35,
+          teamPower: 16,
+          teamChem: 4,
+          weight: 1.9,
+          summary: `Reúne o elenco na barraca do Mestre Hibiki: <span class="b-chem">+25% Energia</span>, <span class="b-lvl">+35 XP</span> no time todo, <span class="b-chem">+4% Química</span> e fortalece duplas.`
         },
         {
           id: "energy_drink",
           title: "Bebida Energética Raijin",
           icon: UI.sportsDrink || UI.onigiriIcon || UI.itemPendantLightning,
           kind: "ENERGY_DRINK",
-          energyGain: 35,
-          teamPower: 14,
-          weight: 2.3,
-          summary: `Recarrega a <span class="b-chem">energia do elenco na hora</span> para continuar treinando na cidade ou entrar inteiro no jogo.`
+          energyGain: 40,
+          teamPower: 12,
+          weight: 1.7,
+          summary: `Recarrega a <span class="b-chem">energia do elenco na hora</span> (+40%) para continuar treinando na cidade ou entrar inteiro no jogo.`
         },
         {
           id: "efficiency_upgrade",
@@ -603,6 +769,28 @@ function getPrepLocationsCatalog() {
           teamPower: 12,
           weight: 1.8,
           summary: `Facilita vencer duelos de 1x1 no drible, com bônus extra ao atacar pelo corredor tático escolhido.`
+        },
+        {
+          id: "press_steal_upgrade",
+          title: "Pressão Asfixiante",
+          icon: UI.moveDF || UI.itemSpikeBlock,
+          kind: "SCALABLE_BUFF",
+          buffKey: "pressStealLvl",
+          maxLevel: 3,
+          teamPower: 11,
+          weight: 1.8,
+          summary: `Aumenta a chance de roubar a bola nos duelos defensivos e interceptar passes adversários no meio-campo.`
+        },
+        {
+          id: "chain_coop_upgrade",
+          title: "Sincronia de Chain &amp; Duplas",
+          icon: UI.moveSH || UI.formation,
+          kind: "SCALABLE_BUFF",
+          buffKey: "chainCoopLvl",
+          maxLevel: 3,
+          teamPower: 12,
+          weight: 1.8,
+          summary: `Aumenta a frequência e potência dos Chain Shots e amplifica técnicas combinadas em Dupla ou Trio.`
         }
       ]
     },
@@ -715,6 +903,28 @@ function getPrepLocationsCatalog() {
           teamPower: 12,
           weight: 1.8,
           summary: `Ativa Contra-Chutes com mais frequência e potência quando um defensor entra na trajetória do chute rival.`
+        },
+        {
+          id: "gk_reflex_upgrade",
+          title: "Reflexo do Guardião",
+          icon: UI.moveGK || UI.itemGloveRaimon,
+          kind: "SCALABLE_BUFF",
+          buffKey: "gkReflexLvl",
+          maxLevel: 3,
+          teamPower: 12,
+          weight: 1.8,
+          summary: `Eleva as defesas e abafas do goleiro sob a barra e melhora a saída pelo alto em cruzamentos na área.`
+        },
+        {
+          id: "keshin_surge_upgrade",
+          title: "Domínio da Incorporação",
+          icon: UI.keshinMajin || UI.manualKeshin,
+          kind: "SCALABLE_BUFF",
+          buffKey: "keshinSurgeLvl",
+          maxLevel: 3,
+          teamPower: 12,
+          weight: 1.7,
+          summary: `Acelera a invocação de Espíritos Guerreiros, aumenta a força das técnicas Keshin e corta o custo de energia.`
         }
       ]
     },
@@ -1358,6 +1568,63 @@ function isPrepNightTime(t = state.tournament) {
   return curE < cheapestCost;
 }
 
+function buildCityPlotOptionPitch(ev, side, myName, otherName) {
+  if (!ev) return side === "A" ? `Confia na minha escolha, professor!` : `Minha ideia ajuda muito mais o grupo!`;
+  const title = ev.title || "essa opção";
+  const id = String(ev.id || "");
+  const bk = String(ev.buffKey || "");
+  const isSideA = side === "A";
+
+  if (id === "hibiki_ramen") {
+    return isSideA
+      ? `Professor, leva o time pro "${title}"! Sentar todo mundo na barraca do Mestre Hibiki acalma os ânimos e devolve energia!`
+      : `Nem tudo se resolve correndo, ${myName}: "${title}" junta o elenco inteiro e tira esse clima pesado!`;
+  }
+  if (id === "tactical_visor" || bk === "passBypassLvl" || bk === "midSynergyLvl") {
+    return isSideA
+      ? `Professor, com "${title}" a bola vai chegar limpa lá na frente sem o rival cortar nossos passes!`
+      : `Sem visão e posse limpa a gente só corre à toa! Temos que fechar "${title}" hoje!`;
+  }
+  if (id === "raimon_keeper_gloves" || id === "glove_legend" || bk === "gkReflexLvl" || bk === "defBlockLvl") {
+    return isSideA
+      ? `Segura a barra lá atrás com "${title}", professor! Com a defesa blindada o resto do time sobe confiante!`
+      : `Para de olhar só pro ataque, ${otherName}! "${title}" fecha o gol e garante o resultado!`;
+  }
+  if (id === "keshin_charm" || ev.kind === "KESHIN_PICK" || bk === "keshinSurgeLvl") {
+    return isSideA
+      ? `Hora de elevar o nível do Espírito Guerreiro com "${title}"! No jogo grande isso decide sozinho!`
+      : `Se for para virar o jogo na raça, professor, investe logo em "${title}"!`;
+  }
+  if (id === "shoes_legend" || id === "shoes_thunder" || bk === "wingExplosionLvl" || bk === "dribbleEdgeLvl") {
+    return isSideA
+      ? `Me dá "${title}", professor! Eu quebro a linha no 1x1 e resolvo na velocidade!`
+      : `Falta explosão na frente! Escolhe "${title}" que a zaga rival não acompanha!`;
+  }
+  if (id === "spike_block" || bk === "pressStealLvl" || bk === "counterShotLvl") {
+    return isSideA
+      ? `Com "${title}" a gente sufoca a saída de bola deles e castiga no erro!`
+      : `Quer ganhar dividida forte, ${otherName}? Então fecha "${title}" sem pensar duas vezes!`;
+  }
+  if (id === "lucky_amulet" || id === "misanga_friend" || id === "captain_armband" || bk === "xpSpiritLvl") {
+    return isSideA
+      ? `Investir em "${title}" puxa o moral, o entrosamento e a evolução do time inteiro!`
+      : `Não adianta talento solto sem grupo fechado! Vamos de "${title}"!`;
+  }
+  if (ev.kind === "COLLECTIVE" || ev.kind === "STREET_5V5" || bk === "chainCoopLvl") {
+    return isSideA
+      ? `Resolve isso na bola com "${title}", professor! Treinar junto vale mais que qualquer discussão!`
+      : `Chega de teoria, ${otherName}! Bora provar em campo com "${title}"!`;
+  }
+  if (ev.kind === "REST_ACTIVE") {
+    return isSideA
+      ? `Olha o cansaço do elenco, professor! O certo agora é escolher "${title}" e recuperar as pernas!`
+      : `Se não descansar em "${title}", amanhã ninguém corre nem no primeiro tempo!`;
+  }
+  return isSideA
+    ? `Professor, eu quero fazer "${title}"! É exatamente o que vai destravar meu jogo agora!`
+    : `Nem pensar, ${otherName}! O que o time precisa de verdade agora é "${title}"!`;
+}
+
 function buildCityPlotDebateContext(t, plot, choices = []) {
   if (!plot || !Array.isArray(choices) || choices.length === 0) return null;
   const aName = plot.aName || "Jogador A";
@@ -1385,8 +1652,8 @@ function buildCityPlotDebateContext(t, plot, choices = []) {
   if (opt3) {
     byChoiceIdx[2] = { side: "THIRD", playerId: null, playerName: "Técnico", title: opt3.title, badge: `🧠 3ª Via (Sua Decisão)` };
   }
-  const talkA = optA ? `Professor, eu quero fazer "${optA.title}"! É exatamente o que vai destravar meu jogo agora!` : `Confia na minha escolha, professor!`;
-  const talkB = optB ? `Nem pensar, professor! O que o time precisa de verdade é "${optB.title}"!` : `Minha ideia ajuda muito mais o grupo!`;
+  const talkA = buildCityPlotOptionPitch(optA, "A", aName, bName);
+  const talkB = buildCityPlotOptionPitch(optB, "B", bName, aName);
   const talk3 = opt3 ? `Ou então o senhor corta pelo meio e manda "${opt3.title}" pros dois engolirem o orgulho.` : "";
   return {
     plotId: plot.id,
@@ -1639,15 +1906,92 @@ function handleChoosePrepOption(choiceEvent, choiceIdx = -1) {
   // 2.5 Bebida Energética
   if (choiceEvent.kind === "ENERGY_DRINK") {
     const prevE = Math.round(getTeamEnergy());
-    const gain = choiceEvent.energyGain || 35;
+    const gain = choiceEvent.energyGain || 40;
     const nextE = Math.round(adjustTeamEnergy(gain));
-    const pwr = choiceEvent.teamPower || 14;
+    const pwr = choiceEvent.teamPower || 12;
     t.prepBonuses.power += pwr;
     t.prepBonuses.log.push(`${choiceEvent.title} (+${gain}% Energia)`);
     prep.phase = "DONE";
     prep.affectedPlayers = [];
     const plotNoteDrink = typeof resolveCityPlotsForLocation === "function" ? resolveCityPlotsForLocation(t, prep.locId, choiceEvent.title) : "";
     prep.appliedMsg = `<span class="b-chem">+${gain}% de Energia do Time</span> (${prevE}% ➔ ${nextE}%) e <span class="b-pwr">+${pwr} Poder</span>!${plotNoteDrink}`;
+    renderAll();
+    return;
+  }
+
+  // 2.5b Lámen Especial do Rairaiken (Energia + XP coletivo + Química + Sintonia em Beta)
+  if (choiceEvent.kind === "RAMEN_FEAST") {
+    const prevE = Math.round(getTeamEnergy());
+    const gain = choiceEvent.energyGain || 25;
+    const xpGain = choiceEvent.xpGain || 35;
+    const chemGain = choiceEvent.teamChem || 4;
+    const pwr = choiceEvent.teamPower || 16;
+    const nextE = Math.round(adjustTeamEnergy(gain));
+    const slots = getSlots();
+    const affected = [];
+    slots.forEach((slot) => {
+      const p = state.squad[slot.id];
+      if (!p) return;
+      const prevLvl = getPlayerLevel(p);
+      const beforePwr = calcIndividualPlayerPower(p, slot.role, prevLvl);
+      const xpRes = gainPlayerXp(p, xpGain, slot.role);
+      const newLvl = getPlayerLevel(p);
+      const afterPwr = calcIndividualPlayerPower(p, slot.role, newLvl);
+      affected.push({
+        name: p.name,
+        role: slot.role,
+        sprite: getPlayerFormSprite(p, slot.role),
+        xpGained: xpGain,
+        prevLevel: prevLvl,
+        newLevel: newLvl,
+        levelsGained: Math.max(0, newLvl - prevLvl),
+        pwrGained: Math.max(0, afterPwr - beforePwr),
+        newPwr: afterPwr,
+        learnedMoves: xpRes.learnedMoves || []
+      });
+    });
+    t.prepBonuses.xp += xpGain;
+    t.prepBonuses.chem = (t.prepBonuses.chem || 0) + chemGain;
+    t.prepBonuses.power += pwr;
+    let ramenBetaNote = "";
+    if (typeof isBetaMode === "function" && isBetaMode()) {
+      const pairList = [];
+      for (let i = 0; i < slots.length; i++) {
+        for (let j = i + 1; j < slots.length; j++) {
+          const pA = state.squad[slots[i].id];
+          const pB = state.squad[slots[j].id];
+          if (!pA || !pB) continue;
+          const arc = typeof getBetaPairArc === "function" ? getBetaPairArc(pA, pB, t) : null;
+          const aff = typeof getPairAffinityEntry === "function" ? getPairAffinityEntry(pA, pB, t) : { points: 0, level: 0 };
+          pairList.push({ pA, pB, arcState: arc?.state || "", pts: aff?.points || 0 });
+        }
+      }
+      pairList.sort((a, b) => (a.arcState === "RIVALIDADE_FRIA" ? -1000 : 0) - (b.arcState === "RIVALIDADE_FRIA" ? -1000 : 0) || a.pts - b.pts);
+      const boostedPairs = [];
+      let calmedRival = false;
+      pairList.slice(0, 2).forEach((ent) => {
+        if (typeof addPairAffinityPoints === "function") {
+          addPairAffinityPoints(ent.pA, ent.pB, 10, null, t);
+        }
+        if (!calmedRival && ent.arcState === "RIVALIDADE_FRIA" && typeof setBetaPairArc === "function") {
+          setBetaPairArc(ent.pA, ent.pB, "RECONCILIADOS", "Lámen do Rairaiken", t);
+          calmedRival = true;
+        }
+        boostedPairs.push(`${ent.pA.name} &amp; ${ent.pB.name}`);
+      });
+      if (boostedPairs.length > 0) {
+        ramenBetaNote = ` • <span class="b-tech">+10 Sintonia</span> (${boostedPairs.join(", ")}${calmedRival ? " · Rivalidade superada" : ""})`;
+      }
+    }
+    t.prepBonuses.log.push(`${choiceEvent.title} (+${gain}% Energia, +${xpGain} XP)`);
+    prep.phase = "DONE";
+    prep.affectedPlayers = affected;
+    const plotNoteRamen = typeof resolveCityPlotsForLocation === "function" ? resolveCityPlotsForLocation(t, prep.locId, choiceEvent.title) : "";
+    prep.appliedMsg = `${choiceEvent.title}: <span class="b-chem">+${gain}% Energia</span> (${prevE}% ➔ ${nextE}%), <span class="b-lvl">+${xpGain} XP</span> (11 titulares), <span class="b-chem">+${chemGain}% Química</span> e <span class="b-pwr">+${pwr} Poder</span>${ramenBetaNote}!${plotNoteRamen}`;
+    if (typeof playSfx === "function") {
+      const anyUp = affected.some((ap) => (ap.levelsGained || 0) > 0 || (ap.learnedMoves && ap.learnedMoves.length > 0));
+      playSfx(anyUp ? "level_up" : "prep_reward");
+    }
     renderAll();
     return;
   }
@@ -1731,6 +2075,22 @@ function handleChoosePrepOption(choiceEvent, choiceIdx = -1) {
     } else if (key === "dribbleEdgeLvl") {
       const pct = [0, 3, 5, 8][nextL] || 8;
       effectTxt = `<span class="b-pwr">+${pct}% chance</span> nos dribles 1x1 (+2% extra no corredor tático)`;
+    } else if (key === "pressStealLvl") {
+      const pct = [0, 3, 6, 9][nextL] || 9;
+      const intPct = [0, 12, 24, 35][nextL] || 35;
+      effectTxt = `<span class="b-pwr">+${pct}% desarmes</span> na defesa e <span class="b-chem">+${intPct}% interceptações</span> de passe`;
+    } else if (key === "chainCoopLvl") {
+      const chPct = [0, 10, 20, 30][nextL] || 30;
+      const coopPct = [0, 15, 30, 45][nextL] || 45;
+      effectTxt = `<span class="b-tech">+${chPct}% frequência de Chain Shots</span> e <span class="b-pwr">+${coopPct}% bônus Co-op</span>`;
+    } else if (key === "gkReflexLvl") {
+      const gkPct = [0, 3, 6, 10][nextL] || 10;
+      const crossPct = [0, 5, 10, 15][nextL] || 15;
+      effectTxt = `<span class="b-pwr">+${gkPct}% defesas/abafas do GK</span> e <span class="b-chem">+${crossPct}% interceptações aéreas</span>`;
+    } else if (key === "keshinSurgeLvl") {
+      const wakePct = [0, 25, 50, 75][nextL] || 75;
+      const costPct = [0, 15, 28, 40][nextL] || 40;
+      effectTxt = `<span class="b-tech">+${wakePct}% despertar Keshin</span> e <span class="b-chem">-${costPct}% custo</span> em técnicas Keshin`;
     }
 
     t.prepBonuses.log.push(`${choiceEvent.title} Nv. ${nextL}`);
@@ -1948,6 +2308,7 @@ function applyPrepPlayerReward(slotId) {
     if (typeof isBetaMode === "function" && isBetaMode() && player?.id && typeof ensureBetaDynamicsState === "function") {
       ensureBetaDynamicsState(t);
       t.prepFavoritismCounts[player.id] = (t.prepFavoritismCounts[player.id] || 0) + 1;
+      t.lastFavoritedItem = { playerId: player.id, playerName: player.name, itemId: event.id, itemTitle: event.title };
     }
     if (!Array.isArray(player.equippedItems)) player.equippedItems = [];
     const alreadyHas = player.equippedItems.some((it) => it.id === event.id || it.title === event.title);
@@ -1958,14 +2319,44 @@ function applyPrepPlayerReward(slotId) {
         player.bonusSpd = (player.bonusSpd || 0) + event.spdBoost;
       }
       if (!player.bonusStats) player.bonusStats = { for: 0, tec: 0, def: 0, vel: 0, fis: 0 };
-      if (event.id === "shoes_legend") { player.bonusStats.for += 5; player.bonusStats.vel += 4; }
-      else if (event.id === "shoes_thunder") { player.bonusStats.vel += 6; player.bonusStats.tec += 3; }
-      else if (event.id === "glove_legend") { player.bonusStats.def += 6; player.bonusStats.fis += 3; }
-      else if (event.id === "spike_block") { player.bonusStats.def += 5; player.bonusStats.fis += 4; }
-      else if (event.id === "misanga_friend" || event.id === "captain_armband") {
-        player.bonusStats.tec += 4; player.bonusStats.for += 3; player.bonusStats.fis += 3;
+      if (event.id === "shoes_legend") { player.bonusStats.for += 5; player.bonusStats.vel += 3; }
+      else if (event.id === "shoes_thunder") { player.bonusStats.vel += 4; player.bonusStats.tec += 3; }
+      else if (event.id === "glove_legend") { player.bonusStats.def += 6; player.bonusStats.fis += 4; }
+      else if (event.id === "raimon_keeper_gloves") { player.bonusStats.def += 5; player.bonusStats.fis += 4; }
+      else if (event.id === "spike_block") { player.bonusStats.def += 5; player.bonusStats.fis += 5; }
+      else if (event.id === "tactical_visor") { player.bonusStats.tec += 6; player.bonusStats.vel += 2; }
+      else if (event.id === "captain_armband") {
+        player.bonusStats.for += 4; player.bonusStats.tec += 3; player.bonusStats.fis += 3;
+      }
+      else if (event.id === "misanga_friend") {
+        player.bonusStats.tec += 4; player.bonusStats.fis += 4; player.bonusStats.vel += 2;
+      }
+      else if (event.id === "keshin_charm") {
+        player.bonusStats.for += 3; player.bonusStats.def += 3; player.bonusStats.fis += 3;
+      }
+      else if (event.id === "lucky_amulet") {
+        player.bonusStats.tec += 4; player.bonusStats.fis += 3; player.bonusStats.vel += 2;
       }
       player.equippedItems.push({ id: event.id, title: event.title, icon: event.icon });
+    }
+    let misangaPairNote = "";
+    if (!alreadyHas && event.id === "misanga_friend" && typeof isBetaMode === "function" && isBetaMode() && typeof addPairAffinityPoints === "function") {
+      const neighbors = getSlots()
+        .filter((s) => s.id !== slot.id && state.squad?.[s.id])
+        .map((s) => ({
+          mate: state.squad[s.id],
+          dist: Math.hypot((s.x || 50) - (slot.x || 50), (s.y || 50) - (slot.y || 50))
+        }))
+        .sort((a, b) => a.dist - b.dist)
+        .slice(0, 2);
+      const syncedNames = [];
+      neighbors.forEach(({ mate }) => {
+        addPairAffinityPoints(player, mate, 12, null, t);
+        syncedNames.push(mate.name);
+      });
+      if (syncedNames.length > 0) {
+        misangaPairNote = ` • <span class="b-tech">+12 Sintonia</span> (${syncedNames.join(", ")})`;
+      }
     }
     const newLvl = getPlayerLevel(player);
     const learnedMoves = checkAndLearnLevelMoves(player, slot.role);
@@ -1982,7 +2373,7 @@ function applyPrepPlayerReward(slotId) {
       newPwr: afterPwr,
       learnedMoves
     });
-    msg = `${player.name} equipou <span class="b-tech">${event.title}</span> (<span class="b-lvl">Nv. ${prevLvl} → Nv. ${newLvl}</span> • <span class="b-pwr">+${pwrDelta} Poder</span>).`;
+    msg = `${player.name} equipou <span class="b-tech">${event.title}</span> (<span class="b-lvl">Nv. ${prevLvl} → Nv. ${newLvl}</span> • <span class="b-pwr">+${pwrDelta} Poder</span>${misangaPairNote}).`;
   } else if (event.kind === "KESHIN_PICK") {
     if (!player.keshin) {
       const usedKeshins = new Set(
@@ -2288,6 +2679,8 @@ function buildChatActorProfile(slot, player, t = state.tournament) {
     teamId: player.teamId || "",
     ovr: player.ovr || 80,
     keshinName: player.keshin?.name || null,
+    equipIds: Array.isArray(player.equippedItems) ? player.equippedItems.map((it) => it && it.id).filter(Boolean) : [],
+    equipTitles: Array.isArray(player.equippedItems) ? player.equippedItems.map((it) => it && it.title).filter(Boolean) : [],
     equipTitle: Array.isArray(player.equippedItems) && player.equippedItems[0]?.title ? player.equippedItems[0].title : null,
     isCaptain: Boolean(capObj?.player?.id && capObj.player.id === player.id),
     isAce,
@@ -6274,6 +6667,50 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
     })
   }),
   mkAutoChatTemplate({
+    id: "auto_found_visor_tactics",
+    category: "RESENHA",
+    categoryIcon: "👓",
+    title: "Sala Tática Esquecida",
+    actorSpecs: [{ role: "MF" }, { role: "DF" }],
+    dialogue: (a) => [
+      { idx: 1, text: `${a[0].name}, olha o estojo trancado que eu achei embaixo das pranchetas antigas do clube.` },
+      { idx: 0, text: `Mentira! São Óculos Táticos do Estrategista originais, igual aos dos armadores veteranos!`, tone: "hype" },
+      { idx: 1, text: `Bota pra treinar leitura de passe hoje mesmo! Vai sobrar espaço livre no meio.`, tone: "hype" },
+      { idx: 0, text: `Com essa precisão extra contra a marcação rival, cada bola enfiada entra limpa!` }
+    ],
+    outcome: (a) => ({
+      kind: "FOUND_ITEM",
+      itemId: "tactical_visor",
+      targetActorIdx: 0,
+      headline: `👓 Achado tático na prancheta!`,
+      note: `${a[0].name} equipou os Óculos Táticos`,
+      affPts: 14,
+      chemDelta: 2
+    })
+  }),
+  mkAutoChatTemplate({
+    id: "auto_found_keshin_charm",
+    category: "ELOGIO",
+    categoryIcon: "🌀",
+    title: "Brilho na Torre de Aço",
+    actorSpecs: [{ role: "FW" }, { role: "MF" }],
+    dialogue: (a) => [
+      { idx: 0, text: `Ei ${a[1].name}, olha esse pingente brilhando perto dos pneus da Torre de Aço!` },
+      { idx: 1, text: `Caramba! É o Amuleto do Espírito Guerreiro que os antigos campeões usavam nos treinos pesados!`, tone: "hype" },
+      { idx: 0, text: `Senti uma pressão absurda só de segurar ele. Parece que a aura responde na hora!`, tone: "hype" },
+      { idx: 1, text: `Leva pro jogo! Quando o duelo apertar, esse amuleto segura o fôlego inteiro.` }
+    ],
+    outcome: (a) => ({
+      kind: "FOUND_ITEM",
+      itemId: "keshin_charm",
+      targetActorIdx: 0,
+      headline: `🌀 Relíquia encontrada na Torre de Aço!`,
+      note: `${a[0].name} ganhou o Amuleto do Espírito Guerreiro`,
+      affPts: 16,
+      xpAmt: 20
+    })
+  }),
+  mkAutoChatTemplate({
     id: "auto_coop_late_night",
     category: "CRIAR_TECNICA",
     categoryIcon: "⚡",
@@ -7578,10 +8015,13 @@ SPONTANEOUS_CHAT_TEMPLATES.push(
     category: "RAIVA",
     title: "Indireta sobre Favoritismo",
     actorSpecs: [{ role: "FW" }, { role: "DF" }],
-    dialogue: (a) => [
-      { idx: 1, text: `Só eu que reparei que todo treino especial e equipamento vai para o ${a[0].name}? A gente aqui também rala todo dia, professor.`, tone: "tense" },
-      { idx: 0, text: `Ei, eu não pedi nada! Só aproveitei as oportunidades que o técnico deu.` }
-    ],
+    dialogue: (a, ctx) => {
+      const favItem = ctx?.favItemTitle ? ` (até ${ctx.favItemTitle})` : "";
+      return [
+        { idx: 1, text: `Só eu que reparei que todo treino especial e equipamento${favItem} vai para o ${a[0].name}? A gente aqui também rala todo dia, professor.`, tone: "tense" },
+        { idx: 0, text: `Ei, eu não pedi nada! Só aproveitei as oportunidades que o técnico deu.` }
+      ];
+    },
     options: (a) => [
       {
         label: `Reconhecer e dar atenção especial para ${a[1].name} agora`,
@@ -7957,12 +8397,16 @@ function stampThreadTimestamps(msgs, baseMin) {
 }
 
 const CHAT_FINDABLE_ITEMS = [
-  { id: "shoes_thunder", title: "Chuteiras do Relâmpago", roles: ["FW", "MF"], bonusPower: 18, spdBoost: 4, bonusStats: { vel: 6, tec: 3 }, iconKey: "itemShoesThunder" },
-  { id: "shoes_legend", title: "Chuteiras Lendárias", roles: ["FW", "MF"], bonusPower: 20, spdBoost: 3, bonusStats: { for: 5, vel: 4 }, iconKey: "itemShoesLegend" },
-  { id: "glove_legend", title: "Luvas Lendárias", roles: ["GK", "DF"], bonusPower: 20, spdBoost: 0, bonusStats: { def: 6, fis: 3 }, iconKey: "itemGloveLegend" },
-  { id: "spike_block", title: "Caneleira de Bloqueio", roles: ["DF", "GK", "MF"], bonusPower: 18, spdBoost: 0, bonusStats: { def: 5, fis: 4 }, iconKey: "itemSpikeBlock" },
-  { id: "misanga_friend", title: "Pulseira da Amizade", roles: ["MF", "FW", "DF", "GK"], bonusPower: 16, spdBoost: 2, bonusStats: { tec: 4, for: 3, fis: 3 }, iconKey: "itemMisanga" },
-  { id: "captain_armband", title: "Braçadeira do Líder", roles: ["MF", "DF", "GK", "FW"], bonusPower: 18, spdBoost: 1, bonusStats: { tec: 4, for: 3, fis: 3 }, iconKey: "itemArmband" }
+  { id: "shoes_thunder", title: "Chuteiras do Trovão", roles: ["FW", "MF", "DF"], bonusPower: 22, spdBoost: 4, bonusStats: { vel: 4, tec: 3 }, iconKey: "itemShoesThunder" },
+  { id: "shoes_legend", title: "Chuteiras Lendárias", roles: ["FW", "MF"], bonusPower: 26, spdBoost: 2, bonusStats: { for: 5, vel: 3 }, iconKey: "itemShoesLegend" },
+  { id: "glove_legend", title: "Luvas Lendárias", roles: ["GK"], bonusPower: 28, spdBoost: 0, bonusStats: { def: 6, fis: 4 }, iconKey: "itemGloveLegend" },
+  { id: "raimon_keeper_gloves", title: "Luvas da Torre de Aço", roles: ["GK"], bonusPower: 25, spdBoost: 0, bonusStats: { def: 5, fis: 4 }, iconKey: "itemGloveRaimon" },
+  { id: "spike_block", title: "Travas de Bloqueio", roles: ["DF"], bonusPower: 24, spdBoost: 0, bonusStats: { def: 5, fis: 5 }, iconKey: "itemSpikeBlock" },
+  { id: "tactical_visor", title: "Óculos Táticos do Estrategista", roles: ["MF", "DF"], bonusPower: 22, spdBoost: 2, bonusStats: { tec: 6, vel: 2 }, iconKey: "manualSkill" },
+  { id: "misanga_friend", title: "Pulseira da Amizade", roles: ["MF", "FW", "DF", "GK"], bonusPower: 20, spdBoost: 2, bonusStats: { tec: 4, fis: 4, vel: 2 }, iconKey: "itemMisangaFriend" },
+  { id: "captain_armband", title: "Braçadeira Dourada do Capitão", roles: ["MF", "DF", "GK", "FW"], bonusPower: 24, spdBoost: 0, bonusStats: { for: 4, tec: 3, fis: 3 }, iconKey: "captain" },
+  { id: "keshin_charm", title: "Amuleto do Espírito Guerreiro", roles: ["GK", "DF", "MF", "FW"], bonusPower: 24, spdBoost: 0, bonusStats: { for: 3, def: 3, fis: 3 }, iconKey: "keshinCoin" },
+  { id: "lucky_amulet", title: "Talismã da Fortuna de Inazuma", roles: ["GK", "DF", "MF", "FW"], bonusPower: 20, spdBoost: 2, bonusStats: { tec: 4, fis: 3, vel: 2 }, iconKey: "itemBraceletFortune" }
 ];
 
 function grantFoundItemFromChat(t, targetSlotId, preferredItemId = null) {
@@ -8386,7 +8830,7 @@ const CITY_PLOT_LOC_LABELS = {
   rest: "Dormitório do Clube"
 };
 
-function ensureCityPlotForFeud(t, pA, pB, topic = "") {
+function ensureCityPlotForFeud(t, pA, pB, topic = "", preferredLocId = null) {
   if (typeof isBetaMode === "function" && !isBetaMode()) return null;
   if (!t || !pA || !pB) return null;
   if (typeof ensureBetaDynamicsState === "function") ensureBetaDynamicsState(t);
@@ -8401,7 +8845,10 @@ function ensureCityPlotForFeud(t, pA, pB, topic = "") {
   const locIds = ["riverbank", "training", "town", "rest"];
   const freeLocs = locIds.filter((id) => !usedLocs.has(id));
   const pool = freeLocs.length > 0 ? freeLocs : locIds;
-  const pickedLoc = pool[Math.floor(Math.random() * pool.length)];
+  const pickedLoc =
+    preferredLocId && locIds.includes(preferredLocId)
+      ? preferredLocId
+      : pool[Math.floor(Math.random() * pool.length)];
   const entry = {
     id: `plot_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
     arcKey: key,
@@ -9010,7 +9457,8 @@ function generateInitialRoundTeamChats(t = state.tournament) {
     } else if (favEntries.length > 0 && favEntries[0][1] >= 2 && Math.random() < 0.38) {
       const favId = favEntries[0][0];
       t.prepFavoritismCounts[favId] = 0;
-      const ch = spawnContextualBetaChat(t, "FAVORITISM", { preferredPlayerIds: [favId], extraCtx: { favPlayerId: favId } });
+      const favItemTitle = t.lastFavoritedItem?.playerId === favId ? (t.lastFavoritedItem.itemTitle || null) : (t.lastFavoritedItem?.itemTitle || null);
+      const ch = spawnContextualBetaChat(t, "FAVORITISM", { preferredPlayerIds: [favId], extraCtx: { favPlayerId: favId, favItemTitle } });
       if (ch) created.push(ch);
     }
   }
@@ -9516,7 +9964,7 @@ function resolveSpontaneousTeamChat(chatId, choiceIdx) {
   if (targetArc && selectedIds.length >= 2 && typeof setBetaPairArc === "function") {
     setBetaPairArc(state.squad[selectedIds[0]], state.squad[selectedIds[1]], targetArc, chat.title, t);
     if (targetArc === "TRETA_ABERTA") {
-      const createdPlot = ensureCityPlotForFeud(t, state.squad[selectedIds[0]], state.squad[selectedIds[1]], chat.title);
+      const createdPlot = ensureCityPlotForFeud(t, state.squad[selectedIds[0]], state.squad[selectedIds[1]], chat.title, ce?.cityPlotLoc || null);
       detailRows.push(`<span style="color:#fca5a5;">🔥 Treta Aberta${createdPlot ? ` (Resolver em ${escapeHtml(createdPlot.locLabel)})` : ""}</span>`);
     }
     else if (targetArc === "RECONCILIADOS") detailRows.push(`<span class="b-chem">✨ Reconciliados</span>`);
@@ -10329,6 +10777,34 @@ function buildActiveScalableBuffsHTML(t) {
       fullTitle: "Drible Imparável",
       stat: (l) => `+${[0, 3, 5, 8][l] || 8}% Chance Drible (+2% Corredor)`,
       desc: () => "Facilita vencer duelos 1x1 no drible, com chance extra ao atacar pelo corredor tático escolhido."
+    },
+    {
+      key: "pressStealLvl",
+      label: "Pressão Roubo",
+      fullTitle: "Pressão Asfixiante",
+      stat: (l) => `+${[0, 3, 6, 9][l] || 9}% Roubo • +${[0, 12, 24, 35][l] || 35}% Intercep.`,
+      desc: () => "Eleva a agressividade na marcação defensiva para desarmar portadores e interceptar passes."
+    },
+    {
+      key: "chainCoopLvl",
+      label: "Chain & Co-op",
+      fullTitle: "Sincronia de Chain & Duplas",
+      stat: (l) => `+${[0, 10, 20, 30][l] || 30}% Chain • +${[0, 15, 30, 45][l] || 45}% Co-op`,
+      desc: () => "Aumenta a frequência e potência dos Chain Shots em sequência e o bônus das técnicas em Dupla/Trio."
+    },
+    {
+      key: "gkReflexLvl",
+      label: "Reflexo GK",
+      fullTitle: "Reflexo do Guardião",
+      stat: (l) => `+${[0, 3, 6, 10][l] || 10}% Defesa GK • +${[0, 5, 10, 15][l] || 15}% Cruzamento`,
+      desc: () => "Melhora as defesas e abafas do goleiro sob a barra e sua saída pelo alto em cruzamentos na área."
+    },
+    {
+      key: "keshinSurgeLvl",
+      label: "Domínio Keshin",
+      fullTitle: "Domínio da Incorporação",
+      stat: (l) => `+${[0, 25, 50, 75][l] || 75}% Despertar • -${[0, 15, 28, 40][l] || 40}% Custo`,
+      desc: () => "Acelera a invocação de Espíritos Guerreiros em campo e reduz drasticamente o desgaste das técnicas Keshin."
     }
   ];
 
@@ -10593,8 +11069,8 @@ function buildBetweenMatchPrepHTML(t, stats) {
         badgeTxt = "PASSIVA";
       } else if (chosenWinner.kind === "ITEM_PICK" || chosenWinner.kind === "ELEM_BOOST_PICK") {
         badgeTxt = "EQUIPAMENTO";
-      } else if (chosenWinner.kind === "ENERGY_DRINK") {
-        badgeTxt = "CONSUMÍVEL";
+      } else if (chosenWinner.kind === "ENERGY_DRINK" || chosenWinner.kind === "RAMEN_FEAST") {
+        badgeTxt = chosenWinner.kind === "RAMEN_FEAST" ? "BANQUETE" : "CONSUMÍVEL";
       } else if (chosenWinner.kind === "REST_ACTIVE") {
         badgeTxt = "DORMITÓRIO GRÁTIS";
       } else if (chosenWinner.kind === "STREET_5V5") {

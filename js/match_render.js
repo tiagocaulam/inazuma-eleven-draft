@@ -931,6 +931,14 @@ function calcNodeDuelScore(node, teamSupportBonus, opponentElem = null, actionKi
           }
         }
       }
+      const gkReflexLvl = state.tournament?.prepBonuses?.gkReflexLvl || 0;
+      if (gkReflexLvl > 0 && roleOrAction === "GK") {
+        tacticalAndEnergyAdj += [0, 0.8, 1.6, 2.4][gkReflexLvl] || 0;
+      }
+      const pressStealLvl = state.tournament?.prepBonuses?.pressStealLvl || 0;
+      if (pressStealLvl > 0 && roleOrAction === "DF") {
+        tacticalAndEnergyAdj += [0, 0.7, 1.4, 2.1][pressStealLvl] || 0;
+      }
     }
   } else if (node.side === "opp") {
     const sIdx = !isIn5v5 ? (state.tournament?.stageIndex || 0) : 0;
@@ -948,6 +956,22 @@ function calcNodeDuelScore(node, teamSupportBonus, opponentElem = null, actionKi
     // Marcação Especial escolhida no Scout do Adversário (apenas jogadores de linha)
     if (!isIn5v5 && node.role !== "GK" && getTactics().markedOppId && node.player?.id === getTactics().markedOppId && (roleOrAction === "SH" || roleOrAction === "OF")) {
       tacticalAndEnergyAdj -= 1.4;
+    }
+  }
+
+  if (typeof hasPlayerEquippedItem === "function" && node.player) {
+    if (roleOrAction === "SH" && hasPlayerEquippedItem(node.player, "shoes_legend")) {
+      tacticalAndEnergyAdj += 0.5;
+    }
+    if (roleOrAction === "GK" && hasPlayerEquippedItem(node.player, "glove_legend")) {
+      tacticalAndEnergyAdj += 0.6;
+    }
+    if (roleOrAction === "DF" && hasPlayerEquippedItem(node.player, "spike_block")) {
+      tacticalAndEnergyAdj += 0.5;
+    }
+    if (hasPlayerEquippedItem(node.player, "keshin_charm")) {
+      if (node.keshinState === "ACTIVE") tacticalAndEnergyAdj += 0.8;
+      else if (!node.player.keshin) tacticalAndEnergyAdj += 0.5;
     }
   }
 
