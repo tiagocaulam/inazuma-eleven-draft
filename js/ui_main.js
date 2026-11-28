@@ -1668,6 +1668,7 @@ function renderAll() {
 function goToMenu() {
   saveActiveRunProgress();
   clearRankingEscListener();
+  if (typeof clearStoryIntroRuntime === "function") clearStoryIntroRuntime();
   clearTournamentTimers(false);
   if (state.spinTimerId) {
     clearTimeout(state.spinTimerId);

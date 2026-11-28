@@ -34,10 +34,12 @@ function wrapStoryClipboardHTML(innerHTML, clipTitle = "PRANCHETA TÁTICA • MO
   if (typeof isStoryMode !== "function" || !isStoryMode()) return innerHTML;
   return `
     <div class="story-clipboard-frame">
-      <div class="story-clipboard-top">
+      <div class="story-clipboard-header">
         <div class="story-clip-clamp" aria-hidden="true"><span></span></div>
-        <span class="story-clip-label">${escapeHtml(clipTitle)}</span>
-        <span class="story-wip-pill">BETA WIP</span>
+        <div class="story-clipboard-title-row">
+          <span class="story-clip-label">${escapeHtml(clipTitle)}</span>
+          <span class="story-wip-pill">BETA WIP</span>
+        </div>
       </div>
       <div class="story-clipboard-body">
         ${innerHTML}
@@ -46,11 +48,26 @@ function wrapStoryClipboardHTML(innerHTML, clipTitle = "PRANCHETA TÁTICA • MO
   `;
 }
 
+function clearStoryIntroRuntime() {
+  if (typeof window !== "undefined") {
+    if (window._storyIntroTypeTimer) {
+      clearInterval(window._storyIntroTypeTimer);
+      window._storyIntroTypeTimer = null;
+    }
+    if (window._storyIntroKeyHandler && typeof document !== "undefined" && typeof document.removeEventListener === "function") {
+      document.removeEventListener("keydown", window._storyIntroKeyHandler);
+      window._storyIntroKeyHandler = null;
+    }
+  }
+}
+
 function initFreshStoryIntroState() {
+  clearStoryIntroRuntime();
   state.storyRun = {
     active: true,
     wip: true,
     phase: "INTRO",
+    introStep: 0,
     bench: [],
     usedFullNames: [],
     leagueFullNames: [],
@@ -60,91 +77,296 @@ function initFreshStoryIntroState() {
   return state.storyRun;
 }
 
+function beginStoryDraftFromIntro(nameVal = "") {
+  const cleanVal = String(nameVal || state.draftTeamName || "").trim();
+  state.draftTeamName = cleanVal;
+  if (typeof setSavedTeamName === "function" && cleanVal) setSavedTeamName(cleanVal);
+  clearStoryIntroRuntime();
+  if (state.spinTimerId) {
+    clearTimeout(state.spinTimerId);
+    state.spinTimerId = null;
+  }
+  if (typeof stopRouletteSpinAudio === "function") stopRouletteSpinAudio();
+  state.isSpinning = false;
+  state.phase = "draft";
+  state.squad = {};
+  state.selectedPlayer = null;
+  state.peekField = false;
+  state.swapSlotId = null;
+  state.swapBenchIdx = null;
+  state.rerollsLeft = state.hideOvrBeforePick ? 0 : 3;
+  state.usedTeamIds = [];
+  state.tournament = createFreshTournamentState();
+  if (!state.storyRun) initFreshStoryIntroState();
+  state.storyRun.phase = "DRAFT";
+  spinNextTeam(false);
+}
+
 // ============================================================================
-// ATO I — NARRAÇÃO INICIAL DO MODO HISTÓRIA (WIP)
+// ATO I — NARRAÇÃO INTERATIVA ESTILO RPG / VISUAL NOVEL (MODO HISTÓRIA WIP)
 // ============================================================================
 function renderStoryIntroScreen() {
   const container = document.getElementById("main-screen-container");
   if (!container) return;
 
+  clearStoryIntroRuntime();
   if (!state.storyRun) initFreshStoryIntroState();
+  state.storyRun.phase = "INTRO";
+
   const curName = state.draftTeamName !== null && state.draftTeamName !== undefined
     ? state.draftTeamName
     : (typeof getSavedTeamName === "function" ? getSavedTeamName() : "");
 
+  const step = Math.max(0, Math.min(4, Number(state.storyRun.introStep) || 0));
+  state.storyRun.introStep = step;
+
   const ffIco = typeof ffLogoIconHTML === "function" ? ffLogoIconHTML("inline-ui-icon") : "";
   const boltIco = typeof buildInazumaBoltSVG === "function" ? buildInazumaBoltSVG("inline-svg-icon") : "";
   const formIco = typeof formationIconHTML === "function" ? formationIconHTML("inline-ui-icon") : "";
-  const raimonIco = typeof uiAssetIconHTML === "function" ? uiAssetIconHTML("raimonEmblem", "", "story-intro-crest") : "";
+  const raimonSrc = UI.raimonEmblem || "";
+  const ffSrc = UI.ffLogo || raimonSrc;
+  const campSrc = UI.iconCampinho || UI.locRiverbank || "";
 
-  container.innerHTML = `
-    <div class="story-intro-card">
-      <div class="story-intro-head">
-        <div class="story-intro-badges">
-          <span class="story-wip-pill">MODO HISTÓRIA • WIP (FASE 1 DE 3)</span>
-          <span class="story-phase-badge">${ffIco} Projeto Série A → Mundial de Clubes</span>
+  const scenes = [
+    {
+      bg: UI.stadiumBg || "",
+      chapter: "ATO I · CONVITE DA FEDERAÇÃO",
+      speakerIcon: ffSrc,
+      speaker: "DIRETOR DA FEDERAÇÃO",
+      text: "Treinador! A nova Série A Inazuma acaba de abrir uma vaga especial. Você foi escolhido para assumir o 10º clube e construir uma equipe do zero!",
+      visualHTML: `
+        <div class="story-vn-emblem-hero">
+          ${ffSrc ? `<img class="story-vn-hero-crest" src="${ffSrc}" alt="Federação Inazuma" />` : ""}
+          <div class="story-vn-eyebrow">TEMPORADA INAUGURAL • FASE 1 (WIP)</div>
+          <h2 class="story-vn-hero-title">PROJETO CLUBE ESPECIAL</h2>
+          <p class="story-vn-hero-sub">Do rascunho na Prancheta Tática ao topo da Série A Nacional</p>
         </div>
-        <h2 class="story-intro-title">${raimonIco} Convite Oficial do Projeto Clube Especial</h2>
-        <p class="story-intro-lead">
-          A Federação abriu uma vaga emergencial de treinador para montar um clube do zero e disputar a <strong>Série A Inazuma</strong> (10 times, turno único e <strong>zero jogadores repetidos</strong> em toda a liga).
-          Quem terminar no <strong>Top 2</strong> garante vaga direta no <strong>Mundial de Clubes</strong>; <strong>3º e 4º</strong> vão ao Play-In.
-        </p>
-      </div>
-
-      <div class="story-intro-pillars">
-        <div class="story-pillar-item">
-          <strong>${boltIco} 1. Prancheta Tática (11 + 3 Rerolls)</strong>
-          <span>Gire a roleta de clubes para escalar seus 11 titulares. Todo escolhido sai do pool global da liga.</span>
+      `
+    },
+    {
+      bg: UI.stadiumBg || "",
+      chapter: "ATO I · REGULAMENTO DA SÉRIE A",
+      speakerIcon: ffSrc,
+      speaker: "DIRETOR DA FEDERAÇÃO",
+      text: "Dez clubes se enfrentam em turno único de 9 rodadas — sem jogadores repetidos na liga. O Top 2 vai direto ao Mundial de Clubes, e 3º e 4º disputam o Play-In.",
+      visualHTML: `
+        <div class="story-vn-visual-head">
+          <div class="story-vn-eyebrow">REGRAS DO CAMPEONATO</div>
+          <h3 class="story-vn-stage-title">Série A Inazuma — Turno Único</h3>
         </div>
-        <div class="story-pillar-item">
-          <strong>${ffIco} 2. Banco de 5 Reservas via 5x5</strong>
-          <span>Jogadores talentosos sem clube formam times de rua no Campinho 5x5. Vença para contratá-los para o banco!</span>
+        <div class="story-vn-rules-strip">
+          <div class="story-vn-rule-tile">
+            <span class="story-vn-rule-kpi">10 CLUBES</span>
+            <span class="story-vn-rule-desc">9 rodadas (empate vale 1 pt)</span>
+          </div>
+          <div class="story-vn-rule-tile">
+            <span class="story-vn-rule-kpi">ZERO CLONES</span>
+            <span class="story-vn-rule-desc">Nenhum atleta repetido na liga</span>
+          </div>
+          <div class="story-vn-rule-tile">
+            <span class="story-vn-rule-kpi">TOP 2 / G-4</span>
+            <span class="story-vn-rule-desc">Mundial direto • 3º–4º Play-In</span>
+          </div>
         </div>
-        <div class="story-pillar-item">
-          <strong>${formIco} 3. Série A Viva &amp; Notas 0–10</strong>
-          <span>Scout completo do rival, tabela de 10 clubes, estatísticas da liga e avaliação 0.0–10.0 após cada jogo.</span>
+      `
+    },
+    {
+      bg: UI.locTraining || UI.stadiumBg || "",
+      chapter: "ATO I · PRANCHETA & ANÁLISE",
+      speakerIcon: raimonSrc,
+      speaker: "COMISSÃO TÉCNICA",
+      text: "Na Prancheta Tática você monta seus 11 titulares na roleta (com 3 rerolls). A cada rodada terá Scout completo dos rivais, Tabela e Notas de 0.0 a 10.0!",
+      visualHTML: `
+        <div class="story-vn-visual-head">
+          <div class="story-vn-eyebrow">SEUS INSTRUMENTOS DE TREINADOR</div>
+          <h3 class="story-vn-stage-title">Prancheta, Scout &amp; Estatísticas</h3>
         </div>
-      </div>
-
-      <div class="story-intro-config">
-        <div class="story-config-row">
-          <label for="story-intro-team-name">Nome do Seu Clube:</label>
-          <input
-            type="text"
-            id="story-intro-team-name"
-            class="draft-team-name-input"
-            maxlength="28"
-            placeholder="Ex: Inazuma Phoenix (padrão: Dream Team)"
-            value="${escapeHtml(curName || "")}"
-          />
+        <div class="story-vn-rules-strip">
+          <div class="story-vn-rule-tile">
+            <span class="story-vn-rule-kpi">11 TITULARES</span>
+            <span class="story-vn-rule-desc">Roleta com 3 rerolls na Prancheta</span>
+          </div>
+          <div class="story-vn-rule-tile">
+            <span class="story-vn-rule-kpi">NOTAS 0–10</span>
+            <span class="story-vn-rule-desc">Avaliação real + Artilharia e GK</span>
+          </div>
+          <div class="story-vn-rule-tile">
+            <span class="story-vn-rule-kpi">SCOUT XI</span>
+            <span class="story-vn-rule-desc">Veja todos os 11 de cada rival</span>
+          </div>
         </div>
-        <div class="story-config-row">
-          <span>Formação Inicial na Prancheta:</span>
-          <div class="formation-pills" style="margin:0;">
-            ${["4-3-3", "4-4-2", "3-4-3", "3-5-2"]
-              .map(
-                (f) => `<button type="button" class="form-pill ${state.formation === f ? "selected" : ""}" data-story-form="${f}">${f}</button>`
-              )
+      `
+    },
+    {
+      bg: UI.locRiverbank || UI.stadiumBg || "",
+      chapter: "ATO I · PENEIRAS NO CAMPINHO",
+      speakerIcon: raimonSrc,
+      speaker: "COMISSÃO TÉCNICA",
+      text: "Seu elenco começa sem reservas — mas craques sem clube disputam rachões 5x5 no Campinho! Vença esses duelos para contratar até 5 reservas.",
+      visualHTML: `
+        <div class="story-vn-bench-preview">
+          <div class="story-vn-bench-head">
+            ${campSrc ? `<img class="story-vn-camp-ico" src="${campSrc}" alt="" />` : ""}
+            <div>
+              <div class="story-vn-eyebrow">EXPANSÃO DE ELENCO</div>
+              <h3 class="story-vn-stage-title">BANCO DE 5 RESERVAS · AGENTES LIVRES</h3>
+            </div>
+          </div>
+          <div class="story-vn-slots-row">
+            ${[1, 2, 3, 4, 5]
+              .map((num) => `
+                <div class="story-vn-slot-chip">
+                  <span class="svsc-num">VAGA ${num}</span>
+                  <span class="svsc-tag">5x5 Livre</span>
+                </div>
+              `)
               .join("")}
           </div>
         </div>
-      </div>
+      `
+    },
+    {
+      bg: UI.stadiumBg || "",
+      chapter: "ATO I · REGISTRO DO CLUBE",
+      speakerIcon: ffSrc,
+      speaker: "DIRETOR DA FEDERAÇÃO",
+      text: "Tudo pronto na federação! Batize o seu clube, escolha sua formação inicial e abra a Prancheta Tática para escalar seus 11 titulares.",
+      visualHTML: `
+        <div class="story-vn-contract-card">
+          <div class="story-vn-visual-head" style="text-align:left;">
+            <div class="story-vn-eyebrow">REGISTRO OFICIAL NA SÉRIE A</div>
+            <h3 class="story-vn-stage-title">Assinatura de Clube &amp; Esquema</h3>
+          </div>
+          <div class="story-intro-config">
+            <div class="story-config-row">
+              <label for="story-intro-team-name">${raimonSrc ? `<img src="${raimonSrc}" alt="" class="inline-ui-icon" />` : ""} Nome do Seu Clube:</label>
+              <input
+                type="text"
+                id="story-intro-team-name"
+                class="draft-team-name-input"
+                maxlength="28"
+                placeholder="Ex: Inazuma Phoenix (padrão: Dream Team)"
+                value="${escapeHtml(curName || "")}"
+              />
+            </div>
+            <div class="story-config-row">
+              <span>${formIco} Formação Inicial:</span>
+              <div class="formation-pills" style="margin:0; justify-content:flex-start;">
+                ${["4-3-3", "4-4-2", "3-4-3", "3-5-2"]
+                  .map(
+                    (f) => `<button type="button" class="form-pill ${state.formation === f ? "selected" : ""}" data-story-form="${f}">${f}</button>`
+                  )
+                  .join("")}
+              </div>
+            </div>
+          </div>
+        </div>
+      `
+    }
+  ];
 
-      <div class="story-intro-actions">
-        <button type="button" class="ie-cmd-btn" id="btn-story-back-menu" style="background:#334155;">
-          <span>← Voltar ao Menu</span>
-        </button>
-        <button type="button" class="start-big-btn is-story" id="btn-story-begin-draft" style="width:auto; flex:1; min-width:240px;">
-          ${boltIco}<span>ABRIR PRANCHETA TÁTICA (ESCALAR 11 TITULARES) ▶</span>
-        </button>
+  const scene = scenes[step] || scenes[0];
+  const skipTypeNow = Boolean(state.storyRun._skipIntroTypeOnce);
+  state.storyRun._skipIntroTypeOnce = false;
+
+  container.innerHTML = `
+    <div class="story-vn-stage">
+      ${scene.bg ? `<div class="story-vn-bg" style="background-image:url('${scene.bg}');"></div>` : ""}
+      <div class="story-vn-scrim"></div>
+      <div class="story-vn-content">
+        <div class="story-vn-topbar">
+          <div class="story-vn-top-left">
+            <span class="story-phase-badge">${ffIco} ${escapeHtml(scene.chapter)}</span>
+            <span class="story-wip-pill">WIP</span>
+            <div class="story-vn-progress" aria-label="Progresso da introdução">
+              ${scenes
+                .map((_, idx) => `<span class="story-vn-pip ${idx < step ? "is-done" : idx === step ? "is-active" : ""}"></span>`)
+                .join("")}
+            </div>
+          </div>
+          <div class="story-vn-top-right">
+            <button type="button" class="story-vn-nav-btn" id="btn-story-back-menu">← Menu</button>
+            ${
+              step < 4
+                ? `<button type="button" class="story-vn-nav-btn is-skip" id="btn-story-skip-intro">Pular ▶▶</button>`
+                : ""
+            }
+          </div>
+        </div>
+
+        <div class="story-vn-visual">
+          ${scene.visualHTML}
+        </div>
+
+        <div class="story-vn-dialog-box" id="story-vn-dialog-box">
+          <div class="story-vn-speaker">
+            ${scene.speakerIcon ? `<img src="${scene.speakerIcon}" alt="" />` : ""}
+            <span>${escapeHtml(scene.speaker)}</span>
+          </div>
+          <p class="story-vn-text" id="story-vn-dialogue-text" data-full-text="${escapeHtml(scene.text)}">${
+            skipTypeNow ? `${escapeHtml(scene.text)}` : `<span class="story-vn-caret" aria-hidden="true"></span>`
+          }</p>
+          <div class="story-vn-dialog-actions">
+            <span class="story-vn-step-counter">${step + 1} / ${scenes.length} · Clique na caixa ou Próximo</span>
+            <div class="story-vn-btn-group">
+              ${
+                step > 0
+                  ? `<button type="button" class="ie-cmd-btn story-vn-prev-btn" id="btn-story-prev"><span>← Anterior</span></button>`
+                  : ""
+              }
+              ${
+                step < 4
+                  ? `<button type="button" class="ie-cmd-btn ie-cmd-green" id="btn-story-next"><span>Próximo ▶</span></button>`
+                  : `<button type="button" class="ie-cmd-btn ie-cmd-gold" id="btn-story-begin-draft">${boltIco}<span>ABRIR PRANCHETA TÁTICA ▶</span></button>`
+              }
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   `;
+
+  // Efeito máquina de escrever no diálogo (pula instantaneamente ao clicar ou completar)
+  const textEl = document.getElementById("story-vn-dialogue-text");
+  let typingDone = skipTypeNow;
+  const finishTypingNow = () => {
+    if (window._storyIntroTypeTimer) {
+      clearInterval(window._storyIntroTypeTimer);
+      window._storyIntroTypeTimer = null;
+    }
+    typingDone = true;
+    if (textEl) textEl.textContent = scene.text;
+  };
+
+  if (!skipTypeNow && textEl && typeof setInterval === "function") {
+    let charIdx = 0;
+    window._storyIntroTypeTimer = setInterval(() => {
+      charIdx += 1;
+      if (charIdx >= scene.text.length) {
+        finishTypingNow();
+      } else {
+        textEl.innerHTML = `${escapeHtml(scene.text.slice(0, charIdx))}<span class="story-vn-caret" aria-hidden="true"></span>`;
+      }
+    }, 16);
+  }
+
+  const goToStep = (nextIdx, skipAnim = false) => {
+    clearStoryIntroRuntime();
+    state.storyRun.introStep = Math.max(0, Math.min(4, nextIdx));
+    state.storyRun._skipIntroTypeOnce = Boolean(skipAnim);
+    renderStoryIntroScreen();
+  };
 
   const nameInput = document.getElementById("story-intro-team-name");
   if (nameInput) {
     nameInput.addEventListener("input", () => {
       state.draftTeamName = nameInput.value;
+    });
+    nameInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        beginStoryDraftFromIntro(nameInput.value);
+      }
     });
   }
 
@@ -153,7 +375,7 @@ function renderStoryIntroScreen() {
       const f = btn.getAttribute("data-story-form");
       if (f && DB.formations?.[f]) {
         state.formation = f;
-        renderStoryIntroScreen();
+        goToStep(step, true);
       }
     });
   });
@@ -165,31 +387,66 @@ function renderStoryIntroScreen() {
     });
   }
 
+  const skipBtn = document.getElementById("btn-story-skip-intro");
+  if (skipBtn) {
+    skipBtn.addEventListener("click", () => goToStep(4, false));
+  }
+
+  const prevBtn = document.getElementById("btn-story-prev");
+  if (prevBtn) {
+    prevBtn.addEventListener("click", () => goToStep(step - 1, true));
+  }
+
+  const nextBtn = document.getElementById("btn-story-next");
+  if (nextBtn) {
+    nextBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      goToStep(step + 1, false);
+    });
+  }
+
+  const dialogBox = document.getElementById("story-vn-dialog-box");
+  if (dialogBox) {
+    dialogBox.addEventListener("click", (e) => {
+      const target = e.target;
+      if (target && typeof target.closest === "function" && target.closest("button, input, select, textarea, label")) {
+        return;
+      }
+      if (!typingDone) {
+        finishTypingNow();
+      } else if (step < 4) {
+        goToStep(step + 1, false);
+      }
+    });
+  }
+
   const startBtn = document.getElementById("btn-story-begin-draft");
   if (startBtn) {
     startBtn.addEventListener("click", () => {
-      const val = nameInput ? nameInput.value.trim() : (state.draftTeamName || "");
-      state.draftTeamName = val;
-      if (typeof setSavedTeamName === "function" && val) setSavedTeamName(val);
-      if (state.spinTimerId) {
-        clearTimeout(state.spinTimerId);
-        state.spinTimerId = null;
-      }
-      if (typeof stopRouletteSpinAudio === "function") stopRouletteSpinAudio();
-      state.isSpinning = false;
-      state.phase = "draft";
-      state.squad = {};
-      state.selectedPlayer = null;
-      state.peekField = false;
-      state.swapSlotId = null;
-      state.swapBenchIdx = null;
-      state.rerollsLeft = state.hideOvrBeforePick ? 0 : 3;
-      state.usedTeamIds = [];
-      state.tournament = createFreshTournamentState();
-      if (!state.storyRun) initFreshStoryIntroState();
-      state.storyRun.phase = "DRAFT";
-      spinNextTeam(false);
+      beginStoryDraftFromIntro(nameInput ? nameInput.value : state.draftTeamName);
     });
+  }
+
+  if (typeof document !== "undefined" && typeof document.addEventListener === "function") {
+    const keyFn = (e) => {
+      if (state.phase !== "story_intro") {
+        clearStoryIntroRuntime();
+        return;
+      }
+      const activeTag = document.activeElement?.tagName;
+      if (activeTag === "INPUT" || activeTag === "TEXTAREA") return;
+      if (e.key === "Enter" || e.key === " " || e.key === "ArrowRight") {
+        e.preventDefault();
+        if (!typingDone) finishTypingNow();
+        else if (step < 4) goToStep(step + 1, false);
+        else beginStoryDraftFromIntro(nameInput ? nameInput.value : state.draftTeamName);
+      } else if (e.key === "ArrowLeft" && step > 0) {
+        e.preventDefault();
+        goToStep(step - 1, true);
+      }
+    };
+    window._storyIntroKeyHandler = keyFn;
+    document.addEventListener("keydown", keyFn);
   }
 }
 
@@ -199,6 +456,7 @@ function renderStoryIntroScreen() {
 function renderStorySquadRevealScreen() {
   const container = document.getElementById("main-screen-container");
   if (!container) return;
+  clearStoryIntroRuntime();
   if (!state.storyRun) initFreshStoryIntroState();
   state.storyRun.phase = "SQUAD_REVEAL";
 
@@ -206,50 +464,47 @@ function renderStorySquadRevealScreen() {
     state.draftTeamName = typeof getSavedTeamName === "function" ? getSavedTeamName() : "";
   }
 
+  const boltIco = typeof buildInazumaBoltSVG === "function" ? buildInazumaBoltSVG("inline-svg-icon") : "";
   const revealBody = `
     <div class="story-reveal-banner">
-      <div>
-        <div class="story-reveal-eyebrow">ELENCO PRINCIPAL FECHADO (11/11) • SÉRIE A INAZUMA</div>
-        <h3>Pronto para comandar sua equipe na liga nacional!</h3>
-        <p>
-          Todos os 11 titulares já saíram do pool global (nenhum rival terá clones deles).
-          <strong>Dica:</strong> seu banco começa com <strong>5 vagas abertas</strong> — vença desafios <strong>5x5 no Campinho</strong> durante a temporada para contratar agentes livres sem clube!
-        </p>
+      <div class="story-reveal-copy">
+        <div class="story-reveal-eyebrow">${boltIco} ELENCO FECHADO (11/11) • SÉRIE A INAZUMA</div>
+        <h3>Titulares garantidos e sem clones na liga!</h3>
+        <p>Seu banco começa com <strong>5 vagas abertas</strong> — vença partidas <strong>5x5 no Campinho</strong> durante a temporada para contratar reservas livres.</p>
+      </div>
+      <div class="story-reveal-cta-col">
+        <button class="ie-cmd-btn ie-cmd-green" id="btn-start-story-league">
+          <span>INICIAR SÉRIE A (10 TIMES) ▶</span>
+        </button>
       </div>
     </div>
 
-    <div class="draft-team-name-bar">
-      <label for="draft-team-name-input">${uiAssetIconHTML("raimonEmblem", "", "inline-ui-icon")} Nome do Clube</label>
-      <input
-        type="text"
-        id="draft-team-name-input"
-        class="draft-team-name-input"
-        maxlength="28"
-        placeholder="Ex: Inazuma Phoenix (padrão: Dream Team)"
-        value="${escapeHtml(state.draftTeamName || "")}"
-      />
-      <span class="draft-team-name-hint">Tabela da Série A • Notas 0–10</span>
-    </div>
-
-    <div class="story-reveal-form-row">
-      <span>Ajustar Formação:</span>
-      <div class="formation-pills" style="margin:0;">
-        ${["4-3-3", "4-4-2", "3-4-3", "3-5-2"]
-          .map((f) => `<button type="button" class="form-pill ${state.formation === f ? "selected" : ""}" data-reveal-form="${f}">${f}</button>`)
-          .join("")}
+    <div class="story-reveal-controls">
+      <div class="story-reveal-name-group">
+        <label for="draft-team-name-input">${uiAssetIconHTML("raimonEmblem", "", "inline-ui-icon")} Clube:</label>
+        <input
+          type="text"
+          id="draft-team-name-input"
+          class="draft-team-name-input"
+          maxlength="28"
+          placeholder="Ex: Inazuma Phoenix"
+          value="${escapeHtml(state.draftTeamName || "")}"
+        />
       </div>
-    </div>
-
-    <div class="go-ready-actions" style="display:flex; justify-content:center; margin:10px 0 12px;">
-      <button class="ie-cmd-btn ie-cmd-green" id="btn-start-story-league" style="padding:14px 30px; font-size:1.02rem; box-shadow: 0 4px 18px rgba(74, 222, 128, 0.42);">
-        <span>CONFIRMAR ELENCO E INICIAR SÉRIE A (10 TIMES) ▶</span>
-      </button>
+      <div class="story-reveal-form-row">
+        <span>Formação:</span>
+        <div class="formation-pills" style="margin:0;">
+          ${["4-3-3", "4-4-2", "3-4-3", "3-5-2"]
+            .map((f) => `<button type="button" class="form-pill ${state.formation === f ? "selected" : ""}" data-reveal-form="${f}">${f}</button>`)
+            .join("")}
+        </div>
+      </div>
     </div>
 
     ${buildPitchHTML(true)}
   `;
 
-  container.innerHTML = wrapStoryClipboardHTML(revealBody, "PRANCHETA TÁTICA • CONFIRMAÇÃO DOS 11 TITULARES");
+  container.innerHTML = wrapStoryClipboardHTML(revealBody, "PRANCHETA TÁTICA • 11 TITULARES PRONTOS");
 
   const nameInputEl = document.getElementById("draft-team-name-input");
   if (nameInputEl) {
@@ -1065,16 +1320,16 @@ function buildStoryLeagueHubBarHTML(t) {
         </div>
       </div>
       <div class="story-league-bar-actions">
-        <button type="button" class="ie-cmd-btn ie-cmd-blue" id="btn-open-story-table">
+        <button type="button" class="ie-cmd-btn ie-cmd-blue story-hub-btn" id="btn-open-story-table">
           <span>Tabela (10)</span>
         </button>
-        <button type="button" class="ie-cmd-btn ie-cmd-gold" id="btn-open-story-stats">
+        <button type="button" class="ie-cmd-btn ie-cmd-gold story-hub-btn" id="btn-open-story-stats">
           <span>Estatísticas &amp; Notas</span>
         </button>
-        <button type="button" class="ie-cmd-btn" id="btn-open-story-scout" style="background:#334155;">
+        <button type="button" class="ie-cmd-btn story-hub-btn is-slate" id="btn-open-story-scout">
           <span>${formIco} Scout (11)</span>
         </button>
-        <button type="button" class="ie-cmd-btn" id="btn-open-story-bench" style="background:#1e293b;">
+        <button type="button" class="ie-cmd-btn story-hub-btn is-emerald" id="btn-open-story-bench">
           <span>Banco (${benchCount}/5)</span>
         </button>
       </div>
