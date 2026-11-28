@@ -228,7 +228,7 @@ function renderDraftWheelAndRoster(animateWheel = false) {
     });
   }
 
-  container.innerHTML = `
+  const draftCoreHTML = `
     <div class="ie-section-bar">
       <div class="ie-section-title">
         ${formationIconHTML()} <span>SCOUTING • RODADA ${pickedCount + 1} DE 11</span>
@@ -270,6 +270,11 @@ function renderDraftWheelAndRoster(animateWheel = false) {
       }
     </div>
   `;
+
+  container.innerHTML =
+    typeof wrapStoryClipboardHTML === "function"
+      ? wrapStoryClipboardHTML(draftCoreHTML, `PRANCHETA TÁTICA • CONVOCAÇÃO ${pickedCount + 1}/11 · MODO HISTÓRIA (WIP)`)
+      : draftCoreHTML;
 
   // Posiciona e anima a tira da roleta com alinhamento exato pelo DOM dentro do marcador dourado
   const wheelBox = document.getElementById("wheel-box");
@@ -566,7 +571,10 @@ function createTournamentStage({
   oppBuffPct = 0,
   oppLevel = 1,
   isGroupStage = false,
-  groupRoundIdx = -1
+  groupRoundIdx = -1,
+  isStoryLeague = false,
+  allowDraw = false,
+  storyRoundIdx = null
 }) {
   return {
     stageName,
@@ -577,6 +585,10 @@ function createTournamentStage({
     oppLevel,
     isGroupStage,
     groupRoundIdx,
+    isStoryLeague: Boolean(isStoryLeague),
+    allowDraw: Boolean(allowDraw),
+    storyRoundIdx: typeof storyRoundIdx === "number" ? storyRoundIdx : null,
+    storyPlayerRatings: null,
     minute: 0,
     maxMinute: 90,
     userScore: 0,

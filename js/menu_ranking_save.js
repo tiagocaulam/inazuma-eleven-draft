@@ -16,14 +16,15 @@ function renderHeaderAndBonds() {
   }
   const subEl = document.getElementById("topbar-brand-sub");
   const tagsEl = document.getElementById("topbar-status-tags");
+  const isStory = typeof isStoryMode === "function" && isStoryMode();
   const isBeta = typeof isBetaMode === "function" && isBetaMode();
-  const modeLabel = isBeta ? "TESTE BETA" : "MODO RELÂMPAGO";
-  const modeShort = isBeta ? "Teste Beta" : "Relâmpago";
-  const modePillHTML = `<span class="topbar-mode-tag ${isBeta ? "is-beta" : "is-relampago"}">${modeShort}</span>`;
+  const modeLabel = isStory ? "MODO HISTÓRIA (WIP)" : isBeta ? "TESTE BETA" : "MODO RELÂMPAGO";
+  const modeShort = isStory ? "História WIP" : isBeta ? "Teste Beta" : "Relâmpago";
+  const modePillHTML = `<span class="topbar-mode-tag ${isStory ? "is-story" : isBeta ? "is-beta" : "is-relampago"}">${modeShort}</span>`;
   const activeTeamDisp = typeof getActiveTeamName === "function" ? getActiveTeamName() : "Dream Team";
   const activeUpper = activeTeamDisp.toUpperCase();
 
-  if (state.phase === "menu") {
+  if (state.phase === "menu" || state.phase === "story_intro") {
     if (subEl) subEl.textContent = `DREAM TEAM ${modeLabel}`;
     if (tagsEl) tagsEl.innerHTML = modePillHTML;
   } else if (state.phase === "tournament") {
@@ -31,8 +32,8 @@ function renderHeaderAndBonds() {
     const comp = state.tournament?.prep
       ? state.tournament.stages?.[state.tournament.prep.nextStageIdx]?.competition
       : curSt?.competition;
-    const compTag = comp === "WORLD" ? "MUNDIAL (FFI)" : "FUTEBOL FRONTEIRA";
-    const compPretty = comp === "WORLD" ? "Mundial FFI" : "Futebol Fronteira";
+    const compTag = comp === "SERIE_A" ? "SÉRIE A INAZUMA" : comp === "WORLD" ? "MUNDIAL (FFI)" : "FUTEBOL FRONTEIRA";
+    const compPretty = comp === "SERIE_A" ? "Série A Inazuma" : comp === "WORLD" ? "Mundial FFI" : "Futebol Fronteira";
     if (subEl) {
       subEl.textContent =
         activeTeamDisp !== "Dream Team" ? `${activeUpper} ${modeLabel} ${compTag}` : `${modeLabel} ${compTag}`;
@@ -43,7 +44,7 @@ function renderHeaderAndBonds() {
         : "";
       const ffIcon = typeof ffLogoIconHTML === "function" ? ffLogoIconHTML("topbar-ff-ico") : "";
       const compPart = `<span class="topbar-comp-tag">${ffIcon}<span>${compPretty}</span></span>`;
-      const showModePart = isBeta || activeTeamDisp === "Dream Team";
+      const showModePart = isBeta || isStory || activeTeamDisp === "Dream Team";
       tagsEl.innerHTML = `${teamPart}${compPart}${showModePart ? modePillHTML : ""}`;
     }
   } else {
@@ -59,7 +60,7 @@ function renderHeaderAndBonds() {
   const headerWrap = document.getElementById("hud-bars-wrap");
   if (!headerWrap) return;
 
-  if (state.phase === "menu") {
+  if (state.phase === "menu" || state.phase === "story_intro") {
     headerWrap.style.display = "none";
     return;
   }
@@ -265,7 +266,8 @@ function renderStartMenuScreen() {
   const stadiumStyle = UI.stadiumBg ? `background-image: url('${UI.stadiumBg}');` : "";
   const rankCfg = getRankingConfig();
   const savedRun = loadActiveRunPreview();
-  const isBetaSelected = typeof isBetaMode === "function" && isBetaMode();
+  const isStorySelected = typeof isStoryMode === "function" && isStoryMode();
+  const isBetaSelected = !isStorySelected && typeof isBetaMode === "function" && isBetaMode();
 
   container.innerHTML = `
     <div class="start-menu-card">
@@ -288,7 +290,7 @@ function renderStartMenuScreen() {
         </button>
         <div class="start-hero-content">
           ${UI.ieLogo ? `<img class="start-ie-logo" src="${UI.ieLogo}" alt="Inazuma Eleven" />` : `<h2>INAZUMA ELEVEN</h2>`}
-          <div class="start-title-ribbon ${isBetaSelected ? "is-beta" : ""}">DREAM TEAM • ${isBetaSelected ? "TESTE BETA" : "MODO RELÂMPAGO"}</div>
+          <div class="start-title-ribbon ${isStorySelected ? "is-story" : isBetaSelected ? "is-beta" : ""}">DREAM TEAM • ${isStorySelected ? "MODO HISTÓRIA (WIP)" : isBetaSelected ? "TESTE BETA" : "MODO RELÂMPAGO"}</div>
         </div>
         <div class="start-hero-lightning-bar" aria-hidden="true"></div>
       </div>
@@ -316,8 +318,9 @@ function renderStartMenuScreen() {
           <div class="mode-select-grid">
             ${(() => {
               const isBeta = isBetaSelected;
+              const isStory = isStorySelected;
               return `
-            <div class="mode-card ${!isBeta ? "selected" : ""}" data-game-mode="relampago">
+            <div class="mode-card ${!isBeta && !isStory ? "selected" : ""}" data-game-mode="relampago">
               <div class="mode-card-head">
                 <div class="mode-card-title">
                   ${uiAssetIconHTML("itemShoesThunder", "", "mode-card-ie-icon") || elemIconHTML("Vento")}
@@ -343,28 +346,21 @@ function renderStartMenuScreen() {
               </span>
             </div>
 
-            <div class="mode-card is-locked is-full-row" data-game-mode="historia" aria-disabled="true">
+            <div class="mode-card is-story is-full-row ${isStory ? "selected" : ""}" data-game-mode="historia">
               <div class="mode-card-head">
                 <div class="mode-card-title">
-                  <span class="mode-title-lock" aria-hidden="true">
-                    ${uiAssetIconHTML("raimonEmblem", "", "mode-card-ie-icon") || buildInazumaLockSVG("inline-svg-icon")}
-                  </span>
+                  ${uiAssetIconHTML("raimonEmblem", "", "mode-card-ie-icon") || buildInazumaBoltSVG("inline-svg-icon")}
                   <strong>Modo História</strong>
                 </div>
-                <span class="mode-badge is-locked">EM BREVE</span>
+                <span class="mode-badge is-story-wip">WIP • BETA</span>
               </div>
               <span class="mode-card-desc">
-                Faça a história do seu time crescendo a partir do começo — evolua seus jogadores passo a passo até conquistar tudo!
+                <strong>Em desenvolvimento (Fase 1):</strong> Prancheta Tática (11 titulares + 5 reservas no 5x5), <strong>Série A com 10 clubes sem clones</strong>, Notas 0–10 e Estatísticas!
               </span>
             </div>
               `;
             })()}
           </div>
-          ${
-            state.storyLockNotice
-              ? `<div class="mode-locked-toast">${buildInazumaLockSVG("inline-svg-icon")} O <strong>Modo História</strong> ainda está em desenvolvimento e chegará em breve! Por enquanto, jogue o <strong>Modo Relâmpago</strong> ou experimente o <strong>Teste Beta</strong>.</div>`
-              : ""
-          }
         </div>
 
         <div class="option-group">
@@ -397,10 +393,17 @@ function renderStartMenuScreen() {
         </div>
 
         ${(() => {
+          const isStory = isStorySelected;
           const isBeta = isBetaSelected;
+          const ctaCls = isStory ? "is-story" : isBeta ? "is-beta" : "";
+          const ctaLabel = isStory
+            ? "COMEÇAR MODO HISTÓRIA (WIP)!"
+            : isBeta
+            ? "COMEÇAR TESTE BETA E GIRAR ROLETA!"
+            : "COMEÇAR MODO RELÂMPAGO E GIRAR ROLETA!";
           return `
-        <button class="start-big-btn ${isBeta ? "is-beta" : ""}" id="btn-start-game-now">
-          ${buildInazumaBoltSVG("btn-start-bolt")}<span>${isBeta ? "COMEÇAR TESTE BETA E GIRAR ROLETA!" : "COMEÇAR MODO RELÂMPAGO E GIRAR ROLETA!"}</span>
+        <button class="start-big-btn ${ctaCls}" id="btn-start-game-now">
+          ${buildInazumaBoltSVG("btn-start-bolt")}<span>${ctaLabel}</span>
         </button>
           `;
         })()}
@@ -441,12 +444,7 @@ function renderStartMenuScreen() {
   container.querySelectorAll("[data-game-mode]").forEach((el) => {
     el.addEventListener("click", () => {
       const mode = el.getAttribute("data-game-mode");
-      if (mode === "historia") {
-        state.storyLockNotice = true;
-        renderStartMenuScreen();
-        return;
-      }
-      state.gameMode = mode === "beta" ? "beta" : "relampago";
+      state.gameMode = mode === "historia" ? "historia" : mode === "beta" ? "beta" : "relampago";
       state.storyLockNotice = false;
       renderHeaderAndBonds();
       renderStartMenuScreen();
@@ -493,14 +491,21 @@ function renderStartMenuScreen() {
     if (typeof stopRouletteSpinAudio === "function") stopRouletteSpinAudio();
     state.isSpinning = false;
     state.storyLockNotice = false;
-    state.phase = "draft";
     state.squad = {};
     state.selectedPlayer = null;
     state.peekField = false;
     state.swapSlotId = null;
+    state.swapBenchIdx = null;
     state.rerollsLeft = state.hideOvrBeforePick ? 0 : 3;
     state.usedTeamIds = [];
     state.tournament = createFreshTournamentState();
+    if (typeof isStoryMode === "function" && isStoryMode() && typeof initFreshStoryIntroState === "function") {
+      initFreshStoryIntroState();
+      state.phase = "story_intro";
+      renderMainScreen();
+      return;
+    }
+    state.phase = "draft";
     spinNextTeam(false);
   });
 
@@ -593,6 +598,10 @@ function renderDraftScreen() {
 
   // Se já escolheu os 11 jogadores -> Mostra Campo com instrução de troca, Nome do Time e DAR GO!
   if (pickedCount >= 11) {
+    if (typeof isStoryMode === "function" && isStoryMode() && typeof renderStorySquadRevealScreen === "function") {
+      renderStorySquadRevealScreen();
+      return;
+    }
     if (state.draftTeamName === null || state.draftTeamName === undefined) {
       state.draftTeamName = typeof getSavedTeamName === "function" ? getSavedTeamName() : "";
     }
@@ -654,7 +663,7 @@ function renderDraftScreen() {
     const sel = state.selectedPlayer;
     const hasNaturalOpen = sel ? getPlayerPositionsList(sel).some((r) => openRoles.has(r)) : true;
 
-    container.innerHTML = `
+    const placingCoreHTML = `
       <div class="placing-banner">
         ${
           sel
@@ -697,6 +706,10 @@ function renderDraftScreen() {
 
       ${buildPitchHTML()}
     `;
+    container.innerHTML =
+      typeof wrapStoryClipboardHTML === "function"
+        ? wrapStoryClipboardHTML(placingCoreHTML, `PRANCHETA TÁTICA • ESCALANDO ${pickedCount + 1}/11 · MODO HISTÓRIA (WIP)`)
+        : placingCoreHTML;
 
     document.getElementById("btn-back-to-team").addEventListener("click", () => {
       state.selectedPlayer = null;
@@ -1507,9 +1520,10 @@ function deserializePrepFromSave(rawPrep, t) {
         player: baseP,
         team,
         teamId: team?.id ?? rc?.teamId ?? baseP.teamId,
-        teamName: team?.name || baseP.teamName || "Time Rival",
+        teamName: team?.name || rc?.teamName || baseP.teamName || "Time Rival",
         emblem: team?.emblem || "",
-        role: rc?.role || baseP.pos || "MF"
+        role: rc?.role || baseP.pos || "MF",
+        previewKeshin: rc?.previewKeshin || null
       };
     } else {
       prep.phase = "DONE";
@@ -1529,19 +1543,22 @@ function clearActiveRunProgress() {
 
 function saveActiveRunProgress() {
   try {
-    if (state.phase === "menu") return;
+    if (state.phase === "menu" || state.phase === "story_intro") return;
+    const isStorySave = typeof isStoryMode === "function" && isStoryMode();
+    const isBetaSave = !isStorySave && typeof isBetaMode === "function" && isBetaMode();
+    const saveModeKey = isStorySave ? "historia" : isBetaSave ? "beta" : "relampago";
+    const modePrefix = isStorySave ? "[HISTÓRIA WIP] " : isBetaSave ? "[BETA] " : "";
     if (state.phase === "draft") {
       const pickedCount = getPickedCount();
       if (pickedCount === 0 && !state.currentTeam) return;
       const stats = calcSquadStats();
       const diffLabel = state.hideOvrBeforePick ? "Difícil" : "Fácil";
-      const isBetaSave = typeof isBetaMode === "function" && isBetaMode();
       const draftStageTitle = pickedCount >= 11 ? "Draft 11/11 Pronto" : `Draft (${pickedCount}/11 Escalados)`;
       const payload = {
         v: 1,
         savedAt: new Date().toISOString(),
         phase: "draft",
-        gameMode: isBetaSave ? "beta" : "relampago",
+        gameMode: saveModeKey,
         formation: state.formation || "4-3-3",
         hideOvrBeforePick: Boolean(state.hideOvrBeforePick),
         simSpeed: state.simSpeed || 1,
@@ -1549,10 +1566,11 @@ function saveActiveRunProgress() {
         usedTeamIds: Array.isArray(state.usedTeamIds) ? [...state.usedTeamIds] : [],
         currentTeamId: state.currentTeam?.id ?? null,
         squad: serializeSquadForSave(state.squad),
+        storyRun: isStorySave && typeof serializeStoryRunForSave === "function" ? serializeStoryRunForSave(state.storyRun) : null,
         preview: {
           phase: "draft",
           pickedCount,
-          stageLabel: `${isBetaSave ? "[BETA] " : ""}${draftStageTitle}`,
+          stageLabel: `${modePrefix}${draftStageTitle}`,
           metaLine: `${state.formation} • Modo ${diffLabel} • Poder ${Math.round(stats.power || 0).toLocaleString("pt-BR")}`
         }
       };
@@ -1574,14 +1592,13 @@ function saveActiveRunProgress() {
           : getTeamEnergy();
       const stats = calcSquadStats();
       const focusStage = t.prep ? t.stages?.[t.prep.nextStageIdx] || curSt : curSt;
-      const isBetaSave = typeof isBetaMode === "function" && isBetaMode();
       const stageTitle = focusStage?.stageName || "Torneio";
       const baseStageLabel = t.prep
         ? `Preparação · ${stageTitle}`
         : curSt?.finished
         ? `Pós-Jogo · ${stageTitle}`
         : `Partida · ${stageTitle}`;
-      const stageLabel = `${isBetaSave ? "[BETA] " : ""}${baseStageLabel}`;
+      const stageLabel = `${modePrefix}${baseStageLabel}`;
       const metaLine = `Poder ${Math.round(stats.power || 0).toLocaleString("pt-BR")} • Nv. ${stats.avgLevel || 1} • Energia ${Math.round(safeEnergy)}% • ${state.formation}`;
 
       const compactStages = (t.stages || []).map((s) => ({
@@ -1593,6 +1610,10 @@ function saveActiveRunProgress() {
         oppLevel: s.oppLevel || 1,
         isGroupStage: Boolean(s.isGroupStage),
         groupRoundIdx: s.groupRoundIdx ?? -1,
+        isStoryLeague: Boolean(s.isStoryLeague),
+        allowDraw: Boolean(s.allowDraw),
+        storyRoundIdx: typeof s.storyRoundIdx === "number" ? s.storyRoundIdx : null,
+        storyPlayerRatings: Array.isArray(s.storyPlayerRatings) ? JSON.parse(JSON.stringify(s.storyPlayerRatings)) : null,
         minute: s.finished ? s.minute : 0,
         maxMinute: s.finished ? s.maxMinute : 90,
         userScore: s.finished ? s.userScore || 0 : 0,
@@ -1612,6 +1633,7 @@ function saveActiveRunProgress() {
         penaltiesText: s.finished ? s.penaltiesText || null : null,
         _groupRecorded: Boolean(s._groupRecorded),
         _bracketRecorded: Boolean(s._bracketRecorded),
+        _storyRecorded: Boolean(s._storyRecorded),
         _groupSnapshotBefore: s._groupSnapshotBefore ? serializeWorldGroupForSave(s._groupSnapshotBefore) : null,
         stats: s.finished ? compactPitchStatsForSave(s.pitch?.stats) : null
       }));
@@ -1620,12 +1642,13 @@ function saveActiveRunProgress() {
         v: 1,
         savedAt: new Date().toISOString(),
         phase: "tournament",
-        gameMode: isBetaSave ? "beta" : "relampago",
+        gameMode: saveModeKey,
         formation: state.formation || "4-3-3",
         hideOvrBeforePick: Boolean(state.hideOvrBeforePick),
         simSpeed: state.simSpeed || 1,
         usedTeamIds: Array.isArray(state.usedTeamIds) ? [...state.usedTeamIds] : [],
         squad: serializeSquadForSave(state.squad),
+        storyRun: isStorySave && typeof serializeStoryRunForSave === "function" ? serializeStoryRunForSave(state.storyRun) : null,
         tournament: {
           runId: t.runId,
           runEditToken: t.runEditToken,
@@ -1716,13 +1739,18 @@ function resumeSavedRunProgress() {
   state.selectedPlayer = null;
   state.peekField = false;
   state.swapSlotId = null;
+  state.swapBenchIdx = null;
 
-  state.gameMode = save.gameMode === "beta" ? "beta" : "relampago";
+  state.gameMode = save.gameMode === "historia" ? "historia" : save.gameMode === "beta" ? "beta" : "relampago";
   state.formation = DB.formations?.[save.formation] ? save.formation : "4-3-3";
   state.hideOvrBeforePick = Boolean(save.hideOvrBeforePick);
   state.simSpeed = [1, 2, 4].includes(save.simSpeed) ? save.simSpeed : 1;
   state.usedTeamIds = Array.isArray(save.usedTeamIds) ? [...save.usedTeamIds] : [];
   state.squad = deserializeSquadFromSave(save.squad);
+  state.storyRun =
+    state.gameMode === "historia" && save.storyRun && typeof deserializeStoryRunFromSave === "function"
+      ? deserializeStoryRunFromSave(save.storyRun)
+      : null;
 
   if (save.phase === "draft") {
     state.phase = "draft";
@@ -1741,7 +1769,8 @@ function resumeSavedRunProgress() {
     const rt = save.tournament;
     const fresh = createFreshTournamentState();
     const restoredStages = (rt.stages || []).map((rs, idx) => {
-      const oppTeam = findTeamById(rs.oppTeamId) || DB.teams?.[0];
+      const storyTeam = state.storyRun?.league?.teams?.find((tm) => String(tm.id) === String(rs.oppTeamId)) || null;
+      const oppTeam = storyTeam || findTeamById(rs.oppTeamId) || DB.teams?.[0];
       const minLvl = STAGE_OPPONENT_LEVELS[Math.min(idx, STAGE_OPPONENT_LEVELS.length - 1)] || 1;
       const stage = createTournamentStage({
         stageName: rs.stageName || "Partida",
@@ -1749,9 +1778,12 @@ function resumeSavedRunProgress() {
         competition: rs.competition || "FF",
         ovrBoost: rs.ovrBoost || 0,
         oppBuffPct: rs.oppBuffPct || 0,
-        oppLevel: Math.max(rs.oppLevel || 1, minLvl),
+        oppLevel: rs.isStoryLeague ? (Number(rs.oppLevel) || 1) : Math.max(rs.oppLevel || 1, minLvl),
         isGroupStage: Boolean(rs.isGroupStage),
-        groupRoundIdx: rs.groupRoundIdx ?? -1
+        groupRoundIdx: rs.groupRoundIdx ?? -1,
+        isStoryLeague: Boolean(rs.isStoryLeague),
+        allowDraw: Boolean(rs.allowDraw),
+        storyRoundIdx: typeof rs.storyRoundIdx === "number" ? rs.storyRoundIdx : null
       });
       stage.finished = Boolean(rs.finished);
       if (stage.finished) {
@@ -1771,8 +1803,10 @@ function resumeSavedRunProgress() {
         stage.won = rs.won;
         stage.isDraw = Boolean(rs.isDraw);
         stage.penaltiesText = rs.penaltiesText || null;
+        stage.storyPlayerRatings = Array.isArray(rs.storyPlayerRatings) ? rs.storyPlayerRatings : null;
         stage._groupRecorded = Boolean(rs._groupRecorded);
         stage._bracketRecorded = Boolean(rs._bracketRecorded);
+        stage._storyRecorded = Boolean(rs._storyRecorded);
         if (rs._groupSnapshotBefore) {
           stage._groupSnapshotBefore = deserializeWorldGroupFromSave(rs._groupSnapshotBefore);
         }
@@ -1959,6 +1993,9 @@ function isTournamentRunTerminal(t = state.tournament) {
   if (!t || !Array.isArray(t.stages) || t.stages.length === 0) return false;
   const st = t.stages[t.stageIndex];
   if (!st || !st.finished) return false;
+  if (st.isStoryLeague) {
+    return Boolean(t.stageIndex >= t.stages.length - 1);
+  }
   const isFFFinalWin = Boolean(st.won && st.competition === "FF" && t.stageIndex === 3 && !t.worldUnlocked);
   const isWorldFinalWin = Boolean(st.won && t.worldUnlocked && t.stageIndex === t.stages.length - 1);
   const isGroupElim = Boolean(st.isGroupStage && st.groupRoundIdx === 2 && getUserGroupRank(t.worldGroup) > 2);
@@ -1967,6 +2004,9 @@ function isTournamentRunTerminal(t = state.tournament) {
 }
 
 function getRankingStatusBadgeHTML(t) {
+  if (typeof isStoryMode === "function" && isStoryMode()) {
+    return `<span class="btn-inline-flex">${uiAssetIconHTML("raimonEmblem", "", "inline-ui-icon")} Modo História (WIP) — campanhas em desenvolvimento não entram no Ranking Oficial</span>`;
+  }
   if (typeof isBetaMode === "function" && isBetaMode()) {
     return `<span class="btn-inline-flex">${uiAssetIconHTML("keshinCoin", "", "inline-ui-icon")} Modo Teste Beta — campanhas beta não entram no Ranking Oficial</span>`;
   }

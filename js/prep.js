@@ -1281,16 +1281,27 @@ function buildStreet5v5Matchup() {
       .filter(Boolean)
       .map((p) => (p.fullName || p.name || "").toLowerCase())
   );
-  // Seleciona um craque estrela (OVR 88 a 96) para liderar o time adversário de rua!
+  const freeAgentCands =
+    typeof isStoryMode === "function" && isStoryMode() && typeof getStoryFreeAgent5v5Candidates === "function"
+      ? getStoryFreeAgent5v5Candidates()
+      : null;
+
   const starCandidates = [];
-  DB.teams.forEach((t) => {
-    t.players.forEach((p) => {
-      const fn = (p.fullName || p.name || "").toLowerCase();
-      if (!usedOppIds.has(p.id) && !usedFullNames.has(fn) && p.ovr >= 87) {
-        starCandidates.push({ player: p, teamName: t.name, teamId: t.id, emblem: t.emblem, role: p.pos });
-      }
+  if (freeAgentCands && freeAgentCands.length >= 5) {
+    freeAgentCands.forEach((c) => {
+      if ((c.player?.ovr || 0) >= 84) starCandidates.push(c);
     });
-  });
+    if (starCandidates.length === 0) starCandidates.push(...freeAgentCands);
+  } else {
+    DB.teams.forEach((t) => {
+      t.players.forEach((p) => {
+        const fn = (p.fullName || p.name || "").toLowerCase();
+        if (!usedOppIds.has(p.id) && !usedFullNames.has(fn) && p.ovr >= 87) {
+          starCandidates.push({ player: p, teamName: t.name, teamId: t.id, emblem: t.emblem, role: p.pos });
+        }
+      });
+    });
+  }
   const starRecruit = starCandidates.length > 0
     ? starCandidates[Math.floor(Math.random() * starCandidates.length)]
     : null;
@@ -1329,14 +1340,29 @@ function buildStreet5v5Matchup() {
       return starRecruit;
     }
     const cands = [];
-    DB.teams.forEach((t) => {
-      t.players.forEach((p) => {
-        const fn = (p.fullName || p.name || "").toLowerCase();
-        if (!usedOppIds.has(p.id) && !usedFullNames.has(fn) && p.pos === role && p.ovr >= 76 && p.ovr <= 89) {
-          cands.push({ player: p, teamName: t.name, teamId: t.id, emblem: t.emblem, role });
+    if (freeAgentCands && freeAgentCands.length >= 5) {
+      freeAgentCands.forEach((c) => {
+        const fn = (c.player?.fullName || c.player?.name || "").toLowerCase();
+        if (!usedOppIds.has(c.player.id) && !usedFullNames.has(fn) && c.role === role) {
+          cands.push(c);
         }
       });
-    });
+      if (cands.length === 0) {
+        freeAgentCands.forEach((c) => {
+          const fn = (c.player?.fullName || c.player?.name || "").toLowerCase();
+          if (!usedOppIds.has(c.player.id) && !usedFullNames.has(fn)) cands.push(c);
+        });
+      }
+    } else {
+      DB.teams.forEach((t) => {
+        t.players.forEach((p) => {
+          const fn = (p.fullName || p.name || "").toLowerCase();
+          if (!usedOppIds.has(p.id) && !usedFullNames.has(fn) && p.pos === role && p.ovr >= 76 && p.ovr <= 89) {
+            cands.push({ player: p, teamName: t.name, teamId: t.id, emblem: t.emblem, role });
+          }
+        });
+      });
+    }
     const picked = cands[Math.floor(Math.random() * cands.length)] || { player: DB.teams[0].players[0], teamName: DB.teams[0].name, teamId: DB.teams[0].id, emblem: DB.teams[0].emblem, role };
     usedOppIds.add(picked.player.id);
     usedFullNames.add((picked.player.fullName || picked.player.name || "").toLowerCase());
@@ -11183,16 +11209,57 @@ function buildBetweenMatchPrepHTML(t, stats) {
     const recKeshinHTML = recKeshin
       ? `<div class="prep-recruit-keshin-pill">${recKeshin.icon ? `<img src="${recKeshin.icon}" alt="" />` : (typeof buildInazumaBoltSVG === "function" ? buildInazumaBoltSVG("inline-svg-icon") : "")} <span>Keshin: <strong>${escapeHtml(recKeshin.name)}</strong>${recKeshin.move ? ` (${escapeHtml(recKeshin.move)})` : ""}</span></div>`
       : `<div class="prep-recruit-keshin-pill" style="opacity:0.78; border-color:rgba(148,163,184,0.35); background:rgba(15,23,42,0.55); color:#cbd5e1;"><span>Espírito Guerreiro: Nenhum (pode despertar depois)</span></div>`;
+    const isStoryFreeAgent = typeof isStoryMode === "function" && isStoryMode() && state.storyRun;
+    const curBench = isStoryFreeAgent && Array.isArray(state.storyRun.bench) ? state.storyRun.bench : [];
+    const benchRecruitBlockHTML = isStoryFreeAgent
+      ? curBench.length < 5
+        ? `
+          <div class="story-recruit-bench-box">
+            <div>
+              <strong>Vaga Aberta no Banco de Reservas (${curBench.length}/5)</strong>
+              <span>Contrate o agente livre ${escapeHtml(recPlayer.name)} direto para o banco sem precisar tirar ninguém dos 11 titulares!</span>
+            </div>
+            <button type="button" class="ie-cmd-btn ie-cmd-green" id="btn-recruit-to-bench">
+              <span>Contratar para o Banco (${curBench.length + 1}/5) ▶</span>
+            </button>
+          </div>
+        `
+        : `
+          <div class="story-recruit-bench-full">
+            <div style="font-size:0.78rem; font-weight:800; color:#facc15; margin-bottom:6px;">
+              Banco Completo (5/5) — clique em um reserva para substituí-lo por ${escapeHtml(recPlayer.name)}:
+            </div>
+            <div class="story-bench-grid">
+              ${curBench
+                .map(
+                  (bp, bIdx) => `
+                <button type="button" class="story-bench-card is-swap-target" data-recruit-replace-bench="${bIdx}">
+                  <img class="story-bench-avatar" src="${getPlayerFormSprite(bp, bp.pos || "MF")}" alt="${escapeHtml(bp.name)}" />
+                  <div class="story-bench-info">
+                    <div class="story-bench-name">${posIconHTML(bp.pos || "MF", true)} <span>${escapeHtml(bp.name)}</span></div>
+                    <div class="story-bench-meta">OVR ${bp.ovr} • Substituir reserva</div>
+                  </div>
+                </button>
+              `
+                )
+                .join("")}
+            </div>
+          </div>
+        `
+      : "";
     bodyHTML = `
       <div class="prep-recruit-container">
         <div class="prep-recruit-hero">
-          <div class="prep-recruit-badge">⭐ OPORTUNIDADE DE RECRUTAMENTO DE CRAQUE ⭐</div>
+          <div class="prep-recruit-badge">⭐ ${isStoryFreeAgent ? "PENEIRA 5x5 • AGENTE LIVRE DISPONÍVEL" : "OPORTUNIDADE DE RECRUTAMENTO DE CRAQUE"} ⭐</div>
           <div style="font-size:1.15rem; font-weight:900; color:#fff; margin-top:6px;">
             ${recPlayer.name} (OVR ${recPlayer.ovr} · ${recPlayer.pos}) quer jogar no seu time!
           </div>
           <div style="font-size:0.78rem; color:#cbd5e1; max-width:620px; margin:4px auto 0;">
-            Após a vitória no 5x5, este craque do ${rec.teamName} reconheceu a força da sua equipe e quer uma vaga como titular.
-            Selecione quem você deseja substituir no seu time principal:
+            ${
+              isStoryFreeAgent
+                ? `Após a vitória no 5x5, este agente livre sem clube se apresentou para assinar contrato com sua equipe. Contrate para o banco (${curBench.length}/5) ou assuma como titular!`
+                : `Após a vitória no 5x5, este craque do ${rec.teamName} reconheceu a força da sua equipe e quer uma vaga como titular. Selecione quem você deseja substituir no seu time principal:`
+            }
           </div>
         </div>
 
@@ -11206,8 +11273,10 @@ function buildBetweenMatchPrepHTML(t, stats) {
           </div>
         </div>
 
+        ${benchRecruitBlockHTML}
+
         <div style="font-size:0.78rem; font-weight:800; color:#facc15; margin:14px 0 6px;">
-          Clique no titular que sairá para dar lugar a ${recPlayer.name}:
+          ${isStoryFreeAgent ? `Ou clique em um titular para colocar ${recPlayer.name} direto no XI inicial:` : `Clique no titular que sairá para dar lugar a ${recPlayer.name}:`}
         </div>
         <div class="prep-pick-grid">
           ${getSlots().map((slot) => {
@@ -11799,6 +11868,7 @@ function buildBetweenMatchPrepHTML(t, stats) {
 
   return `
     <div class="prep-stage-card" style="position:relative;">
+      ${typeof buildStoryLeagueHubBarHTML === "function" ? buildStoryLeagueHubBarHTML(t) : ""}
       ${topBannerHTML}
       ${bodyHTML}
     </div>

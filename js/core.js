@@ -552,6 +552,9 @@ function isPermanentRunEnd(t = state.tournament) {
   if (!t || !Array.isArray(t.stages) || t.stages.length === 0) return false;
   const st = t.stages[t.stageIndex];
   if (!st || !st.finished) return false;
+  if (st.isStoryLeague) {
+    return Boolean(t.stageIndex >= t.stages.length - 1);
+  }
   const isWorldFinalWin = Boolean(st.won && t.worldUnlocked && t.stageIndex === t.stages.length - 1);
   const isGroupElim = Boolean(st.isGroupStage && st.groupRoundIdx === 2 && getUserGroupRank(t.worldGroup) > 2);
   const isKnockoutLoss = Boolean(!st.isGroupStage && !st.won);
@@ -1185,17 +1188,23 @@ const state = {
   selectedPlayer: null,
   peekField: false,
   swapSlotId: null,
+  swapBenchIdx: null,
   rerollsLeft: 3,
   isSpinning: false,
   spinTimerId: null,
   usedTeamIds: [],
   draftTeamName: null,
+  storyRun: null,
   simSpeed: 1, // 1 = 420ms/min, 2 = 200ms/min, 4 = 80ms/min
   tournament: createFreshTournamentState()
 };
 
+function isStoryMode() {
+  return state.gameMode === "historia";
+}
+
 function isBetaMode() {
-  return state.gameMode === "beta";
+  return state.gameMode === "beta" || state.gameMode === "historia";
 }
 
 function getTeamEnergy() {

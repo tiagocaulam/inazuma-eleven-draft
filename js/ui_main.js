@@ -250,6 +250,7 @@ function buildUserSquadModalHTML(stats, t) {
           <div id="squad-pitch-modal-body">
             ${buildPitchHTML(true)}
           </div>
+          ${typeof buildStoryBenchSectionHTML === "function" ? buildStoryBenchSectionHTML() : ""}
         </div>
 
         <div id="modal-panel-tactics" class="modal-tactics-section">
@@ -514,8 +515,9 @@ function renderTournamentScreen() {
   const isFFFinalWin = Boolean(st.finished && st.won && st.competition === "FF" && t.stageIndex === 3 && !t.worldUnlocked);
   const isWorldFinalWin = Boolean(st.finished && st.won && t.worldUnlocked && t.stageIndex === t.stages.length - 1);
   const isGroupElim = Boolean(st.finished && st.isGroupStage && st.groupRoundIdx === 2 && getUserGroupRank(t.worldGroup) > 2);
-  const isKnockoutLoss = Boolean(st.finished && !st.isGroupStage && !st.won);
-  const isRunEnded = isWorldFinalWin || isGroupElim || isKnockoutLoss || (isFFFinalWin && t.showRunSummary);
+  const isStorySeasonEnded = Boolean(st.isStoryLeague && st.finished && t.stageIndex >= t.stages.length - 1);
+  const isKnockoutLoss = Boolean(st.finished && !st.isGroupStage && !st.isStoryLeague && !st.won);
+  const isRunEnded = isWorldFinalWin || isGroupElim || isKnockoutLoss || isStorySeasonEnded || (isFFFinalWin && t.showRunSummary);
 
   if (t.prep) {
     container.innerHTML = `
@@ -523,6 +525,7 @@ function renderTournamentScreen() {
       ${buildBetweenMatchPrepHTML(t, stats)}
       ${buildUserSquadModalHTML(stats, t)}
       ${bracketModalHTML}
+      ${typeof buildStoryModalsHTML === "function" ? buildStoryModalsHTML(t) : ""}
     `;
 
     const squadModal = document.getElementById("squad-overview-modal");
@@ -534,6 +537,41 @@ function renderTournamentScreen() {
     const modalEyebrow = document.getElementById("squad-modal-eyebrow");
     const modalTitle = document.getElementById("squad-modal-title");
 
+    const refreshSquadPitchAndBench = () => {
+      const pitchBody = document.getElementById("squad-pitch-modal-body");
+      if (pitchBody) {
+        pitchBody.innerHTML = buildPitchHTML(true);
+        bindSquadModalPitch();
+      }
+      const benchWrap = document.getElementById("story-bench-section");
+      if (benchWrap && typeof buildStoryBenchSectionHTML === "function") {
+        benchWrap.outerHTML = buildStoryBenchSectionHTML();
+        bindStoryBenchSwapEvents();
+      }
+      renderHeaderAndBonds();
+      syncTacticsLeadersDOM(squadModal);
+      const pwrVal = document.getElementById("squad-modal-pwr-val");
+      if (pwrVal) pwrVal.textContent = calcSquadStats().power.toLocaleString("pt-BR");
+    };
+
+    const bindStoryBenchSwapEvents = () => {
+      const benchGrid = document.getElementById("story-bench-grid");
+      if (!benchGrid) return;
+      benchGrid.querySelectorAll("[data-story-bench-idx]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const bIdx = Number(btn.getAttribute("data-story-bench-idx"));
+          if (!Number.isFinite(bIdx)) return;
+          if (state.swapSlotId && typeof swapStarterWithBench === "function") {
+            swapStarterWithBench(state.swapSlotId, bIdx);
+          } else {
+            state.swapSlotId = null;
+            state.swapBenchIdx = state.swapBenchIdx === bIdx ? null : bIdx;
+          }
+          refreshSquadPitchAndBench();
+        });
+      });
+    };
+
     const bindSquadModalPitch = () => {
       const pitchBody = document.getElementById("squad-pitch-modal-body");
       if (!pitchBody) return;
@@ -541,7 +579,9 @@ function renderTournamentScreen() {
         node.addEventListener("click", () => {
           const slotId = node.getAttribute("data-slot");
           if (!slotId || !state.squad[slotId]) return;
-          if (!state.swapSlotId) {
+          if (typeof state.swapBenchIdx === "number" && typeof swapStarterWithBench === "function") {
+            swapStarterWithBench(slotId, state.swapBenchIdx);
+          } else if (!state.swapSlotId) {
             state.swapSlotId = slotId;
           } else {
             if (state.swapSlotId !== slotId) {
@@ -552,17 +592,14 @@ function renderTournamentScreen() {
             }
             state.swapSlotId = null;
           }
-          pitchBody.innerHTML = buildPitchHTML(true);
-          bindSquadModalPitch();
-          renderHeaderAndBonds();
-          syncTacticsLeadersDOM(squadModal);
-          const pwrVal = document.getElementById("squad-modal-pwr-val");
-          if (pwrVal) pwrVal.textContent = calcSquadStats().power.toLocaleString("pt-BR");
+          refreshSquadPitchAndBench();
         });
       });
+      bindStoryBenchSwapEvents();
     };
     const closeSquadModal = () => {
       state.swapSlotId = null;
+      state.swapBenchIdx = null;
       hideBondPlayersTooltip();
       if (squadModal) squadModal.classList.remove("is-open");
       renderTournamentScreen();
@@ -570,6 +607,7 @@ function renderTournamentScreen() {
     const openSplitModal = (mode) => {
       if (!squadModal) return;
       state.swapSlotId = null;
+      state.swapBenchIdx = null;
       const isTactics = mode === "tactics";
       if (panelSquad) panelSquad.style.display = isTactics ? "none" : "block";
       if (panelTactics) panelTactics.style.display = isTactics ? "block" : "none";
@@ -677,6 +715,22 @@ function renderTournamentScreen() {
         const cIdx = parseInt(cardEl.getAttribute("data-prep-choice-idx"), 10);
         const chosen = t.prep.choices?.[cIdx];
         if (chosen) handleChoosePrepOption(chosen, cIdx);
+      });
+    });
+
+    const benchRecruitBtn = document.getElementById("btn-recruit-to-bench");
+    if (benchRecruitBtn && t.prep.recruitCandidate && typeof recruitFreeAgentToBench === "function") {
+      benchRecruitBtn.addEventListener("click", () => {
+        recruitFreeAgentToBench(t.prep.recruitCandidate, null);
+      });
+    }
+
+    container.querySelectorAll("[data-recruit-replace-bench]").forEach((benchTarget) => {
+      benchTarget.addEventListener("click", () => {
+        const bIdx = Number(benchTarget.getAttribute("data-recruit-replace-bench"));
+        if (Number.isFinite(bIdx) && t.prep.recruitCandidate && typeof recruitFreeAgentToBench === "function") {
+          recruitFreeAgentToBench(t.prep.recruitCandidate, bIdx);
+        }
       });
     });
 
@@ -851,6 +905,7 @@ function renderTournamentScreen() {
     }
 
     bindTournamentBracketModalEvents(null);
+    if (typeof bindStoryModalEvents === "function") bindStoryModalEvents(t);
 
     const proceedBtn = document.getElementById("btn-prep-proceed");
     if (proceedBtn) {
@@ -864,6 +919,13 @@ function renderTournamentScreen() {
   }
 
   if (isRunEnded && t.showRunSummary) {
+    if (isStorySeasonEnded && typeof buildStorySeasonEndHTML === "function") {
+      container.innerHTML = buildStorySeasonEndHTML(t, stats);
+      if (typeof bindStoryModalEvents === "function") bindStoryModalEvents(t);
+      const backBtn = document.getElementById("btn-story-back-menu");
+      if (backBtn) backBtn.addEventListener("click", () => goToMenu());
+      return;
+    }
     const runSummaryObj = computeTournamentRunSummary(t);
     maybeAutoSaveRunToRanking(t);
     // No relatório final, não repete cards de chaveamento/topo nem de fases anteriores
@@ -950,7 +1012,38 @@ function renderTournamentScreen() {
 
   let postMatchBarHTML = "";
   if (st.finished) {
-    if (isFFFinalWin) {
+    if (st.isStoryLeague) {
+      const league = state.storyRun?.league;
+      const rank = typeof getUserStoryRank === "function" ? getUserStoryRank(league) : 1;
+      const userRow = (league?.teams || []).find((tm) => tm.isUser) || { pts: 0 };
+      const resTxt = st.won ? "Vitória na Série A!" : st.isDraw ? "Empate na Série A!" : `Derrota para ${st.oppTeam.name}`;
+      const nextStage = t.stages[t.stageIndex + 1];
+      if (nextStage) {
+        postMatchBarHTML = `
+          <div class="match-finish-bar ${st.won ? "is-win" : st.isDraw ? "" : "is-loss"}">
+            <div>
+              <strong>${resTxt} • ${rank}º lugar (${userRow.pts || 0} pts)</strong>
+              <span>Notas 0–10 e estatísticas da rodada atualizadas! Avance para preparar a ${nextStage.stageName}.</span>
+            </div>
+            <button class="ie-cmd-btn ie-cmd-green" id="btn-next-round">
+              <span>Preparar para ${nextStage.stageName} →</span>
+            </button>
+          </div>
+        `;
+      } else {
+        postMatchBarHTML = `
+          <div class="match-finish-bar ${rank <= 2 ? "is-win" : rank <= 4 ? "" : "is-loss"}">
+            <div>
+              <strong>Fim da Série A Inazuma! ${rank}º lugar (${userRow.pts || 0} pts)</strong>
+              <span>Todas as 9 rodadas concluídas. Confira suas notas finais e premiação da temporada!</span>
+            </div>
+            <button class="ie-cmd-btn ie-cmd-gold" id="btn-view-run-results">
+              <span>Ver Classificação Final &amp; Premiação →</span>
+            </button>
+          </div>
+        `;
+      }
+    } else if (isFFFinalWin) {
       postMatchBarHTML = `
         <div class="match-finish-bar is-win">
           <div>
@@ -1018,7 +1111,7 @@ function renderTournamentScreen() {
 
   if (!st.pitch) st.pitch = initMatchPitchState(st, t.stageIndex);
   const oppStats = calcOpponentStats(st.oppTeam, t.stageIndex);
-  const compHeaderLabel = st.competition === "WORLD" ? "MUNDIAL (FFI)" : "FUTEBOL FRONTEIRA";
+  const compHeaderLabel = st.competition === "SERIE_A" ? "SÉRIE A INAZUMA" : st.competition === "WORLD" ? "MUNDIAL (FFI)" : "FUTEBOL FRONTEIRA";
 
   // Na tela de partida ao vivo / transmissão, o banner de topo (bracketHTML) é omitido
   // para evitar redundâncias (adversário, status e competição já aparecem no cabeçalho e placar da partida).
@@ -1472,6 +1565,8 @@ function renderMainScreen() {
   renderHeaderAndBonds();
   if (state.phase === "menu") {
     renderStartMenuScreen();
+  } else if (state.phase === "story_intro" && typeof renderStoryIntroScreen === "function") {
+    renderStoryIntroScreen();
   } else if (state.phase === "tournament") {
     renderTournamentScreen();
     saveActiveRunProgress();
@@ -1587,8 +1682,10 @@ function goToMenu() {
   state.selectedPlayer = null;
   state.peekField = false;
   state.swapSlotId = null;
+  state.swapBenchIdx = null;
   state.usedTeamIds = [];
   state.draftTeamName = null;
+  state.storyRun = null;
   state.tournament = createFreshTournamentState();
   renderAll();
 }

@@ -269,7 +269,9 @@ function showRefereeWhistleModal(st, type, onProceed) {
     t &&
     t.stages &&
     t.stageIndex + 1 < t.stages.length &&
-    (st.isGroupStage
+    (st.isStoryLeague
+      ? true
+      : st.isGroupStage
       ? st.groupRoundIdx < 2 || getUserGroupRank(t.worldGroup) <= 2
       : st.won)
   );
@@ -675,7 +677,7 @@ function handleMinuteEndBoundaries(st, ovrDiff) {
     return true;
   }
 
-  if (st.minute === 90 && st.userScore === st.oppScore && st.maxMinute === 90 && !st.isGroupStage) {
+  if (st.minute === 90 && st.userScore === st.oppScore && st.maxMinute === 90 && !st.isGroupStage && !st.allowDraw) {
     st.maxMinute = 120;
     st.running = false;
     clearTournamentTimers(false);
@@ -757,7 +759,7 @@ function handleMinuteEndBoundaries(st, ovrDiff) {
     clearTournamentTimers(false);
     st.running = false;
 
-    if (!st.isGroupStage && st.userScore === st.oppScore && !st.penalties) {
+    if (!st.isGroupStage && !st.allowDraw && st.userScore === st.oppScore && !st.penalties) {
       st.finished = false;
       st.penalties = createPenaltyShootoutState(st);
       if (st.pitch) {
@@ -802,13 +804,15 @@ function handleMinuteEndBoundaries(st, ovrDiff) {
       null,
       "FF"
     );
-    if (st.isGroupStage) {
+    if (st.isStoryLeague) {
+      if (typeof finalizeStoryLeagueRound === "function") finalizeStoryLeagueRound(st);
+    } else if (st.isGroupStage) {
       finalizeWorldGroupRound(st);
     } else if (typeof advanceTournamentBracketAfterStage === "function") {
       advanceTournamentBracketAfterStage(st);
     }
     awardPostMatchExperience(st);
-    if (isTournamentRunTerminal(state.tournament)) {
+    if (!st.isStoryLeague && isTournamentRunTerminal(state.tournament)) {
       maybeAutoSaveRunToRanking(state.tournament);
     }
 
@@ -4001,6 +4005,7 @@ function buildMatchRecapBoxHTML(st, oppTeam, stats = calcSquadStats(), oppStats 
           }</span>
         </div>
       </div>
+      ${typeof buildStoryRecapRatingsHTML === "function" ? buildStoryRecapRatingsHTML(st) : ""}
     </div>
   `;
 }
