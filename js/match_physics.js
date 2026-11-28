@@ -429,10 +429,6 @@ function getCoopShotPartners(moveName, shooterNode, teamNodes, pitch, cat = "SH"
 }
 
 function evaluateCoopMoveSupport(moveName, cat, actorNode, teamNodes, pitch, awardAffinity = true) {
-  if (typeof isBetaMode === "function" && !isBetaMode()) {
-    const partners = cat === "SH" ? getCoopShotPartners(moveName, actorNode, teamNodes, pitch, "SH") : [];
-    return { partners, bonusScore: 0, summaryTag: "" };
-  }
   const partners = getCoopShotPartners(moveName, actorNode, teamNodes, pitch, cat);
   if (!partners || partners.length === 0) {
     return { partners: [], bonusScore: 0, summaryTag: "" };
@@ -465,24 +461,26 @@ function evaluateCoopMoveSupport(moveName, cat, actorNode, teamNodes, pitch, awa
       total *= [1, 1.15, 1.30, 1.45][ccLvl] || 1;
       cap += ccLvl * 0.35;
     }
-    if (
-      Array.isArray(state.tournament?.nextMatchChatBuffs) &&
-      state.tournament.nextMatchChatBuffs.some((b) => b.type === "COOP_SYNC" && actorNode?.player?.id && b.playerIds?.includes(actorNode.player.id))
-    ) {
-      total += 0.80;
-    }
-    if (typeof getBetaPairArc === "function") {
-      partners.forEach((pt) => {
-        const arc = getBetaPairArc(actorNode.player, pt.node?.player);
-        if (!arc) return;
-        if (arc.state === "PARCERIA_EM_ALTA" || arc.state === "RECONCILIADOS") total += 0.45;
-        else if (arc.state === "TRETA_ABERTA") total -= 0.55;
-      });
-    }
-    if (typeof getCoachRespectInfo === "function") {
-      const rTier = getCoachRespectInfo().tier;
-      if (rTier === "HIGH") total += 0.25;
-      else if (rTier === "LOW") total -= 0.35;
+    if (typeof isBetaMode === "function" && isBetaMode()) {
+      if (
+        Array.isArray(state.tournament?.nextMatchChatBuffs) &&
+        state.tournament.nextMatchChatBuffs.some((b) => b.type === "COOP_SYNC" && actorNode?.player?.id && b.playerIds?.includes(actorNode.player.id))
+      ) {
+        total += 0.80;
+      }
+      if (typeof getBetaPairArc === "function") {
+        partners.forEach((pt) => {
+          const arc = getBetaPairArc(actorNode.player, pt.node?.player);
+          if (!arc) return;
+          if (arc.state === "PARCERIA_EM_ALTA" || arc.state === "RECONCILIADOS") total += 0.45;
+          else if (arc.state === "TRETA_ABERTA") total -= 0.55;
+        });
+      }
+      if (typeof getCoachRespectInfo === "function") {
+        const rTier = getCoachRespectInfo().tier;
+        if (rTier === "HIGH") total += 0.25;
+        else if (rTier === "LOW") total -= 0.35;
+      }
     }
   }
   const bonusScore = Number(Math.max(0, Math.min(cap, total)).toFixed(2));
@@ -513,10 +511,6 @@ function applyCoopStaminaCost(actorNode, baseCost, partners) {
   if (!actorNode) return;
   const cost = Number(baseCost) || 0;
   if (cost <= 0) return;
-  if (typeof isBetaMode === "function" && !isBetaMode()) {
-    spendStamina(actorNode, cost);
-    return;
-  }
   const fitPartners = (partners || []).filter((pt) => pt.node && (pt.node.stamina || 0) >= 45);
   if (fitPartners.length === 0) {
     spendStamina(actorNode, cost);
@@ -1264,8 +1258,8 @@ function launchContinuousPass(st, pitch, carrier, attNodes, defNodes, strictForw
   const dy = leadY - fromY;
   const dist = Math.hypot(dx, dy) || 0.1;
 
-  // Classificação real de altura da bola (GROUND / CHIP / LOB / CROSS / GK_CLEAR) apenas no modo Teste Beta
-  const betaAerial = typeof isBetaMode === "function" && isBetaMode();
+  // Classificação real de altura da bola (GROUND / CHIP / LOB / CROSS / GK_CLEAR)
+  const betaAerial = true;
   let passType = "GROUND";
   let peakZ = 0;
   if (betaAerial) {
@@ -1812,7 +1806,7 @@ function selectShotBlockerEntry(pathEnemies) {
 }
 
 function triggerNodeJump(node, peak = 0.78, duration = 0.44) {
-  if (!node || typeof isBetaMode !== "function" || !isBetaMode()) return;
+  if (!node) return;
   node.jumpPeak = Math.max(0.25, Math.min(0.85, Number(peak) || 0.78));
   node.jumpDurationMs = Math.max(220, Math.min(540, Math.round((Number(duration) || 0.44) * 1000)));
   node.jumpStartMs = performance.now();
@@ -1867,7 +1861,7 @@ function launchContinuousShot(st, pitch, shooterNode, defNodes, attSupport, defS
   pitch.ballZ = 0;
   pitch.ballVz = 0;
 
-  const betaShotFx = typeof isBetaMode === "function" && isBetaMode();
+  const betaShotFx = true;
   const isAerialMove =
     isCrossVolley ||
     (shotInfo.isHissatsu &&
@@ -3319,26 +3313,24 @@ function stepContinuousPhysics(st, pitch, dt) {
     if ((n.synergyPassBuffTimer || 0) > 0) n.synergyPassBuffTimer = Math.max(0, n.synergyPassBuffTimer - dt);
   });
 
-  if (typeof isBetaMode === "function" && isBetaMode()) {
-    if (pitch.coopFreeze) {
-      const nowCf = performance.now();
-      if (nowCf < pitch.coopFreeze.start + pitch.coopFreeze.duration) {
-        // Freeze-frame cinematográfico: o resto do campo congela enquanto a Dupla/Trio converge!
-        return;
-      }
-      pitch.coopFreeze = null;
+  if (pitch.coopFreeze) {
+    const nowCf = performance.now();
+    if (nowCf < pitch.coopFreeze.start + pitch.coopFreeze.duration) {
+      // Freeze-frame cinematográfico: o resto do campo congela enquanto a Dupla/Trio converge!
+      return;
     }
-    pitch.ballSpinDeg = ((pitch.ballSpinDeg || 0) + (pitch.ballSpinVel || 0) * dt) % 360;
-    if (pitch.ballMode === "CARRIED" && !pitch.ballFlight) {
-      if ((pitch.ballZ || 0) > 0) {
-        pitch.ballZ = Math.max(0, pitch.ballZ - dt * 2.15);
-        pitch.ballVz = 0;
-      }
-      const cCarrier = findPitchNode(pitch, pitch.carrierUid);
-      const cSpd = cCarrier ? Math.hypot(cCarrier.vx || 0, cCarrier.vy || 0) : 0;
-      const dirSign = (cCarrier?.side || pitch.ballSide) === "user" ? 1 : -1;
-      pitch.ballSpinVel = cSpd > 0.5 ? dirSign * Math.min(340, 110 + cSpd * 11) : (pitch.ballSpinVel || 0) * Math.exp(-5 * dt);
+    pitch.coopFreeze = null;
+  }
+  pitch.ballSpinDeg = ((pitch.ballSpinDeg || 0) + (pitch.ballSpinVel || 0) * dt) % 360;
+  if (pitch.ballMode === "CARRIED" && !pitch.ballFlight) {
+    if ((pitch.ballZ || 0) > 0) {
+      pitch.ballZ = Math.max(0, pitch.ballZ - dt * 2.15);
+      pitch.ballVz = 0;
     }
+    const cCarrier = findPitchNode(pitch, pitch.carrierUid);
+    const cSpd = cCarrier ? Math.hypot(cCarrier.vx || 0, cCarrier.vy || 0) : 0;
+    const dirSign = (cCarrier?.side || pitch.ballSide) === "user" ? 1 : -1;
+    pitch.ballSpinVel = cSpd > 0.5 ? dirSign * Math.min(340, 110 + cSpd * 11) : (pitch.ballSpinVel || 0) * Math.exp(-5 * dt);
   }
 
   // Avança minutos do relógio (com mini-acréscimo +1'..+3' se lance perigoso acontecer no limite!) e recupera energia fora da posse
@@ -3571,7 +3563,7 @@ function stepContinuousPhysics(st, pitch, dt) {
     const footY = carrier.y + 0.9 + weave;
     // Domínio suave sem teleporte: puxa a bola naturalmente do ponto de contato até o pé de condução
     if (!pitch.ballFlight) {
-      const betaSoft = typeof isBetaMode === "function" && isBetaMode();
+      const betaSoft = true;
       const settleRate = carrier.carryTime < 0.25 ? (betaSoft ? 10 : 14) : 28;
       const alpha = Math.min(1, dt * settleRate);
       pitch.ballX += (footX - pitch.ballX) * alpha;
@@ -4277,8 +4269,6 @@ function stepContinuousPhysics(st, pitch, dt) {
       const forceRecycle = carrier.carryTime >= holdLimit && (!inFinalThird || blockingDefs >= 1);
 
       if (
-        typeof isBetaMode === "function" &&
-        isBetaMode() &&
         carrier.role === "DF" &&
         nearestDefDist < 4.8 &&
         (attIsUser ? carrier.x < 35 : carrier.x > 65) &&
@@ -4436,7 +4426,7 @@ function stepContinuousPhysics(st, pitch, dt) {
         }
       });
     }
-    const isBetaCatch = typeof isBetaMode === "function" && isBetaMode();
+    const isBetaCatch = true;
     pitch.lastAssistCandidate = playMeta.isGkOutlet
       ? null
       : { passerUid: playMeta.passerUid, receiverUid: catcher.uid, side: catcher.side };
@@ -4461,7 +4451,8 @@ function stepContinuousPhysics(st, pitch, dt) {
     }
     if (attIsUser && !pitch.is5v5 && playMeta.passerNode) {
       if (
-        isBetaCatch &&
+        typeof isBetaMode === "function" &&
+        isBetaMode() &&
         catcher.uid !== playMeta.passerUid &&
         typeof addPairAffinityPoints === "function"
       ) {
@@ -4585,7 +4576,7 @@ function stepContinuousPhysics(st, pitch, dt) {
     const pos = evalQuadraticBezier(ps.fromX, ps.fromY, cpx, cpy, ps.toX, ps.toY, u);
     pitch.ballX = pos.x;
     pitch.ballY = pos.y;
-    const peakZ = typeof isBetaMode === "function" && isBetaMode() ? (Number(ps.peakZ) || 0) : 0;
+    const peakZ = Number(ps.peakZ) || 0;
     const pClamped = Math.max(0, Math.min(1, ps.progress));
     pitch.ballZ = peakZ > 0 ? 4 * pClamped * (1 - pClamped) * peakZ : 0;
     if (pitch.passTrail && !pitch.passTrail.isDash) {
@@ -4827,8 +4818,8 @@ function stepContinuousPhysics(st, pitch, dt) {
       }
     }
 
-    // Recepção apenas por alcance FÍSICO real (no Teste Beta exige descida real antes de dominar bolas altas!)
-    const isBetaFlight = typeof isBetaMode === "function" && isBetaMode();
+    // Recepção apenas por alcance FÍSICO real (exige descida real antes de dominar bolas altas!)
+    const isBetaFlight = true;
     const canCatchByHeight = isBetaFlight
       ? (peakZ < 0.45 || (ps.progress >= 0.82 && pitch.ballZ <= 0.36) || pitch.ballZ <= 0.24)
       : (peakZ < 0.60 || pitch.ballZ <= 0.62 || ps.progress >= 0.72);
@@ -4906,25 +4897,20 @@ function stepContinuousPhysics(st, pitch, dt) {
     pitch.ballX += ls.vx * dt;
     pitch.ballY += ls.vy * dt;
 
-    if (typeof isBetaMode === "function" && isBetaMode()) {
-      const GRAVITY = 6.2;
-      pitch.ballVz = (pitch.ballVz || 0) - GRAVITY * dt;
-      pitch.ballZ = (pitch.ballZ || 0) + pitch.ballVz * dt;
-      if (pitch.ballZ <= 0) {
-        pitch.ballZ = 0;
-        pitch.ballVz = Math.abs(pitch.ballVz) > 0.45 ? Math.abs(pitch.ballVz) * 0.52 : 0;
-      }
-      // Desaceleração natural do spin na grama e leve curva magnus em bolas com efeito
-      pitch.ballSpinVel = (pitch.ballSpinVel || 0) * Math.exp(-1.9 * dt);
-      const spdNow = Math.hypot(ls.vx, ls.vy);
-      if (spdNow > 2.5 && Math.abs(pitch.ballSpinVel || 0) > 80) {
-        const swerve = (pitch.ballSpinVel / 600) * 1.45 * dt;
-        ls.vx += (-ls.vy / spdNow) * swerve;
-        ls.vy += (ls.vx / spdNow) * swerve;
-      }
-    } else {
+    const GRAVITY = 6.2;
+    pitch.ballVz = (pitch.ballVz || 0) - GRAVITY * dt;
+    pitch.ballZ = (pitch.ballZ || 0) + pitch.ballVz * dt;
+    if (pitch.ballZ <= 0) {
       pitch.ballZ = 0;
-      pitch.ballVz = 0;
+      pitch.ballVz = Math.abs(pitch.ballVz) > 0.45 ? Math.abs(pitch.ballVz) * 0.52 : 0;
+    }
+    // Desaceleração natural do spin na grama e leve curva magnus em bolas com efeito
+    pitch.ballSpinVel = (pitch.ballSpinVel || 0) * Math.exp(-1.9 * dt);
+    const spdNow = Math.hypot(ls.vx, ls.vy);
+    if (spdNow > 2.5 && Math.abs(pitch.ballSpinVel || 0) > 80) {
+      const swerve = (pitch.ballSpinVel / 600) * 1.45 * dt;
+      ls.vx += (-ls.vy / spdNow) * swerve;
+      ls.vy += (ls.vx / spdNow) * swerve;
     }
 
     if (pitch.ballX < 7.0) {
@@ -4947,10 +4933,8 @@ function stepContinuousPhysics(st, pitch, dt) {
     [...attNodes, ...defNodes].forEach((n) => {
       if (n.staggerTimer > 0) return;
       if (n.uid === ls.passerUid && ls.age < 0.35) return;
-      if (typeof isBetaMode === "function" && isBetaMode()) {
-        const maxCatchZ = n.role === "GK" ? 0.85 : 0.48;
-        if ((pitch.ballZ || 0) > maxCatchZ) return;
-      }
+      const maxCatchZ = n.role === "GK" ? 0.85 : 0.48;
+      if ((pitch.ballZ || 0) > maxCatchZ) return;
       const d = visualPitchDist(n.x, n.y, pitch.ballX, pitch.ballY);
       const reach = n.uid === ls.receiverUid || n.role === "GK" ? 2.75 : 2.35;
       if (d <= reach) {

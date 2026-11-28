@@ -329,7 +329,7 @@ function renderStartMenuScreen() {
                 <span class="mode-badge is-active">LIBERADO</span>
               </div>
               <span class="mode-card-desc">
-                Roleta entre <strong>57 times</strong>, preparação em Inazuma antes de cada jogo, <strong>Futebol Fronteira</strong> e <strong>Mundial (FFI)</strong>!
+                Roleta entre <strong>57 times</strong>, <strong>Física Aérea 2.5D</strong>, <strong>Vestiário no Intervalo</strong>, <strong>Futebol Fronteira</strong>, <strong>Mundial (FFI)</strong> e <strong>Ranking Oficial</strong>!
               </span>
             </div>
 
@@ -342,7 +342,7 @@ function renderStartMenuScreen() {
                 <span class="mode-badge is-beta">BETA</span>
               </div>
               <span class="mode-card-desc">
-                Novidades em teste: <strong>Sintonia Dinâmica</strong> entre jogadores, <strong>Técnicas em Dupla/Trio</strong> mais fortes e <strong>Física Aérea 2.5D</strong> da bola (fora do Ranking oficial).
+                Recursos experimentais: <strong>Sintonia Dinâmica</strong> entre duplas, <strong>InaZap &amp; Mundo Vivo</strong>, <strong>Respeito ao Técnico</strong> e treinos de química (fora do Ranking oficial).
               </span>
             </div>
 

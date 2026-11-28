@@ -333,8 +333,6 @@ function showRefereeWhistleModal(st, type, onProceed) {
 
   const halftimeData =
     isHalftime &&
-    typeof isBetaMode === "function" &&
-    isBetaMode() &&
     typeof buildHalftimeLockerTalk === "function"
       ? buildHalftimeLockerTalk(st)
       : null;
@@ -918,8 +916,8 @@ function calcNodeDuelScore(node, teamSupportBonus, opponentElem = null, actionKi
       if (tac.intensity === "high") tacticalAndEnergyAdj += 1.1;
       else if (tac.intensity === "low") tacticalAndEnergyAdj -= 2.1;
 
-      // Preleção do Intervalo (Teste Beta • 2º Tempo)
-      if (curMin >= 45 && livePitch?.halftimeBuff && typeof isBetaMode === "function" && isBetaMode()) {
+      // Preleção do Intervalo (2º Tempo)
+      if (curMin >= 45 && livePitch?.halftimeBuff) {
         if (livePitch.halftimeBuff === "FIRE" && (roleOrAction === "SH" || roleOrAction === "FW")) {
           tacticalAndEnergyAdj += 1.8;
         } else if (livePitch.halftimeBuff === "CALM" && (roleOrAction === "OF" || roleOrAction === "MF")) {
@@ -1587,7 +1585,7 @@ function computeNodeRoleTarget(node, pitch, carrier, chaserUid, coverUid, deepes
     const ps = pitch.passState;
     const curBallX = pitch.ballX ?? ps.toX;
     const curBallY = pitch.ballY ?? ps.toY;
-    const isBetaAir = typeof isBetaMode === "function" && isBetaMode() && (Number(ps.peakZ) || 0) >= 0.45;
+    const isBetaAir = (Number(ps.peakZ) || 0) >= 0.45;
     const meetBlend = ps.progress >= 0.45 ? Math.min(1, (ps.progress - 0.45) / 0.55) : 0;
     const aimX = ps.toX * (1 - meetBlend) + curBallX * meetBlend;
     const aimY = ps.toY * (1 - meetBlend) + curBallY * meetBlend;
@@ -1617,7 +1615,7 @@ function computeNodeRoleTarget(node, pitch, carrier, chaserUid, coverUid, deepes
   // 1B) Bola solta rolando no gramado: recebedor e perseguidor mais próximo disparam (dash) para disputar a posse!
   if (pitch.ballMode === "LOOSE_BALL" && pitch.looseState) {
     const ls = pitch.looseState;
-    const isBetaBall = typeof isBetaMode === "function" && isBetaMode();
+    const isBetaBall = true;
     const rawDist = Math.hypot((pitch.ballX ?? 50) - node.x, (pitch.ballY ?? 50) - node.y);
     const lookT = isBetaBall ? Math.min(0.40, 0.14 + rawDist * 0.014) : 0.16;
     const predX = Math.max(6, Math.min(94, (pitch.ballX ?? 50) + (ls.vx || 0) * lookT));
@@ -1771,8 +1769,6 @@ function computeNodeRoleTarget(node, pitch, carrier, chaserUid, coverUid, deepes
   if (tr === "GK") {
     node.isGkRushing = false;
     const isBetaCross =
-      typeof isBetaMode === "function" &&
-      isBetaMode() &&
       pitch.ballMode === "PASS_FLIGHT" &&
       pitch.passState &&
       pitch.ballSide !== node.side &&
@@ -1865,7 +1861,7 @@ function computeNodeRoleTarget(node, pitch, carrier, chaserUid, coverUid, deepes
       node.staggerTimer <= 0
     ) {
       const ps = pitch.passState;
-      const isBetaAir = typeof isBetaMode === "function" && isBetaMode() && (Number(ps.peakZ) || 0) >= 0.45;
+      const isBetaAir = (Number(ps.peakZ) || 0) >= 0.45;
       if (isBetaAir && coverUid === node.uid && chaserUid !== node.uid) {
         const covX = (ps.toX ?? ballX) * 0.66 + ownGoalX * 0.34;
         const covY = (ps.toY ?? ballY) * 0.74 + 50 * 0.26;
@@ -1880,7 +1876,7 @@ function computeNodeRoleTarget(node, pitch, carrier, chaserUid, coverUid, deepes
         : (chaserUid === node.uid ? 0.65 : 0.85);
       const cutX = (ps.fromX ?? ballX) * (1 - predFrac) + (ps.toX ?? ballX) * predFrac;
       const cutY = (ps.fromY ?? ballY) * (1 - predFrac) + (ps.toY ?? ballY) * predFrac;
-      const iqBoost = (typeof isBetaMode === "function" && isBetaMode() && prof.vision >= 0.72) ? 0.08 : 0;
+      const iqBoost = (prof.vision >= 0.72) ? 0.08 : 0;
       return {
         tx: Math.max(8, Math.min(92, cutX)),
         ty: Math.max(10, Math.min(90, cutY)),
@@ -2684,7 +2680,7 @@ function renderPitchDOMFrame(pitch, st, now) {
 
   const activeDashUid = pitch.dashFx ? pitch.dashFx.uid : null;
   const simClock = pitch.simTime || 0;
-  const betaOn = typeof isBetaMode === "function" && isBetaMode();
+  const betaOn = true;
   const activeCoopFreeze = betaOn && pitch.coopFreeze && now < pitch.coopFreeze.start + pitch.coopFreeze.duration ? pitch.coopFreeze : null;
   if (!activeCoopFreeze && pitch.coopFreeze) pitch.coopFreeze = null;
   const coopStarSet = activeCoopFreeze
@@ -3559,7 +3555,7 @@ function pickPassReceiver(nodes, defNodes, carrier, strictForward = false, pitch
     const isRouteOfSkyNow =
       attIsUser && !pitch?.is5v5 && (pitch?.hissatsuTacticTimer || 0) > 0 && pitch?.activeHissatsuTacticId === "route_of_sky";
     const chipLobW =
-      betaPickOn && laneDefDist < 4.5 && minDefDist >= 6.5 && (prof.archetype === "ESTRATEGISTA" || isRouteOfSkyNow) ? 1.22 : 1.0;
+      laneDefDist < 4.5 && minDefDist >= 6.5 && (prof.archetype === "ESTRATEGISTA" || isRouteOfSkyNow) ? 1.22 : 1.0;
 
     const cbSafeBuildupW =
       carrierTr === "CB" && (recTr === "DM" || recTr === "FB" || recTr === "CM" || recTr === "LIB") && dist <= 28 && minDefDist >= 6.5
