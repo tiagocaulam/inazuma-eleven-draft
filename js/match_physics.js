@@ -106,6 +106,8 @@ function buildLivePitchBoxHTML(st, oppTeam, stats = calcSquadStats(), oppStats =
           <div class="pitch-small-box-right"></div>
           <div class="pitch-arc-left"></div>
           <div class="pitch-arc-right"></div>
+          <div class="pitch-pen-dot-left"></div>
+          <div class="pitch-pen-dot-right"></div>
           <div class="pitch-goal-left" id="pitch-goal-left">${buildGoalTopDownSVG("left")}</div>
           <div class="pitch-goal-right" id="pitch-goal-right">${buildGoalTopDownSVG("right")}</div>
 

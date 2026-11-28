@@ -516,11 +516,17 @@ function buildPitchHTML(isComplete = false, liveStaminaByPlayerId = null) {
           : ""
       }
       <div class="soccer-pitch">
+        <div class="pitch-inner-frame"></div>
         <div class="pitch-penalty-top"></div>
+        <div class="pitch-goal-box-top"></div>
+        <div class="pitch-arc-top"></div>
         <div class="pitch-half-line"></div>
         <div class="pitch-center-circle">
           ${UI.raimonEmblem ? `<img class="pitch-center-emblem" src="${UI.raimonEmblem}" alt="" />` : buildInazumaBoltSVG("inline-svg-icon")}
         </div>
+        <div class="pitch-center-spot"></div>
+        <div class="pitch-arc-bottom"></div>
+        <div class="pitch-goal-box-bottom"></div>
         <div class="pitch-penalty-bottom"></div>
         <svg class="draft-links-svg" viewBox="0 0 100 100" preserveAspectRatio="none">${linksSVG}</svg>
         <div id="pitch-nodes-container">${nodesHTML}</div>

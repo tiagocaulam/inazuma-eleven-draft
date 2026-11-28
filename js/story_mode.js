@@ -1483,23 +1483,48 @@ function buildStoryFullScoutBodyHTML(t) {
 
   const evolved = getEvolvedOpponentRoster(oppTeam, focusIdx);
   const oppStats = calcOpponentStats(oppTeam, focusIdx);
-  const lineupCards = (evolved.formSlots || []).map((slot) => {
+  const formSlots = evolved.formSlots || [];
+  const adjPairs = typeof getAdjacentSlotPairs === "function" ? getAdjacentSlotPairs(formSlots) : [];
+  const elemColors = {
+    Fogo: "#ef4444",
+    Floresta: "#22c55e",
+    Vento: "#38bdf8",
+    Montanha: "#f59e0b"
+  };
+
+  const linksSVG = adjPairs
+    .map(([a, b]) => {
+      const pA = evolved.assignments?.[a.id];
+      const pB = evolved.assignments?.[b.id];
+      if (pA && pB && pA.element && pA.element === pB.element) {
+        const col = elemColors[pA.element] || "#f97316";
+        return `<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="${col}" stroke-width="1.35" stroke-opacity="0.86" stroke-linecap="round" />`;
+      }
+      return `<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="rgba(255,255,255,0.18)" stroke-width="0.6" stroke-dasharray="1.8 1.8" />`;
+    })
+    .join("");
+
+  const oppNodesHTML = formSlots.map((slot) => {
     const p = evolved.assignments?.[slot.id];
     if (!p) return "";
     const effOvr = getEffectiveOvr(p, slot.role, true);
+    const ovrTierCls =
+      effOvr >= 100 ? "ovr-t100" : effOvr >= 90 ? "ovr-t90" : effOvr >= 80 ? "ovr-t80" : effOvr >= 70 ? "ovr-t70" : effOvr >= 60 ? "ovr-t60" : "ovr-t50";
     const moveName = typeof getPrimaryMoveForRole === "function" ? getPrimaryMoveForRole(p, slot.role) : (p.hissatsu || "Jogada Direta");
+    const renderY = slot.role === "GK" ? 90.5 : slot.role === "DF" && slot.y >= 73 ? 71.5 : slot.y;
+    const tipText = `${p.name} • OVR ${effOvr} (${slot.label}) • ${moveName}${p.keshin ? ` • Keshin: ${p.keshin.name}` : ""}`;
     return `
-      <div class="story-scout-player-card">
-        <img src="${getPlayerFormSprite(p, slot.role)}" alt="${escapeHtml(p.name)}" />
-        <div class="sspc-body">
-          <div class="sspc-top">
-            ${posIconHTML(slot.role, true)}
-            ${elemIconHTML(p.element, "inline-elem-icon")}
-            <strong title="${escapeHtml(p.name)}">${escapeHtml(p.name)}</strong>
-          </div>
-          <div class="sspc-meta">OVR ${effOvr} · ${slot.label}</div>
-          <div class="sspc-move">${escapeHtml(moveName)}</div>
-          ${p.keshin ? `<div class="sspc-keshin">⚡ ${escapeHtml(p.keshin.name)}</div>` : ""}
+      <div class="field-node occupied is-scout-rival story-scout-pitch-node" style="left:${slot.x}%; top:${renderY}%;" title="${escapeHtmlAttr(tipText)}">
+        ${p.keshin ? `<span class="node-keshin-dot" title="Keshin: ${escapeHtmlAttr(p.keshin.name)}">⚡</span>` : ""}
+        <div class="node-ovr ${ovrTierCls}">${effOvr}</div>
+        <div class="node-avatar-wrap">
+          <img class="node-avatar" src="${getPlayerFormSprite(p, slot.role)}" alt="${escapeHtml(p.name)}" />
+          ${elemIconHTML(p.element, "node-elem-mini")}
+        </div>
+        <div class="node-name">${escapeHtml(p.name)}</div>
+        <div class="node-pos-row">
+          ${posIconHTML(slot.role, true)}
+          <span class="node-slot-label">${escapeHtml(slot.label)}</span>
         </div>
       </div>
     `;
@@ -1508,15 +1533,27 @@ function buildStoryFullScoutBodyHTML(t) {
   return `
     <div class="story-scout-modal-head">
       ${oppTeam.emblem ? `<img src="${oppTeam.emblem}" alt="" />` : ""}
-      <div>
-        <div style="font-size:0.7rem; color:#facc15; font-weight:900;">${escapeHtml(nextStage.stageName)} • Nv.${oppStats.oppLevel || 1} • Formação ${escapeHtml(oppTeam.formation || "4-3-3")}</div>
-        <strong style="font-size:1.05rem; color:#fff;">${escapeHtml(oppTeam.name)}</strong>
-        <div style="font-size:0.74rem; color:#cbd5e1;">ATQ ${oppStats.atk} · MEI ${oppStats.mid} · DEF ${oppStats.def} · OVR ${oppStats.ovr} · Poder ${oppStats.power.toLocaleString("pt-BR")}</div>
+      <div class="story-scout-head-info">
+        <div class="story-scout-head-meta">${escapeHtml(nextStage.stageName)} • Nv.${oppStats.oppLevel || 1} • Formação ${escapeHtml(oppTeam.formation || "4-3-3")}</div>
+        <strong class="story-scout-head-name">${escapeHtml(oppTeam.name)}</strong>
+        <div class="story-scout-head-stats">ATQ ${oppStats.atk} · MEI ${oppStats.mid} · DEF ${oppStats.def} · OVR ${oppStats.ovr} · Poder ${oppStats.power.toLocaleString("pt-BR")}</div>
       </div>
     </div>
-    <div class="story-subhead" style="margin-top:10px;">Escalação Completa (11 Titulares Únicos)</div>
-    <div class="story-scout-xi-grid">
-      ${lineupCards}
+    <div class="soccer-pitch is-scout-pitch">
+      <div class="pitch-inner-frame"></div>
+      <div class="pitch-penalty-top"></div>
+      <div class="pitch-goal-box-top"></div>
+      <div class="pitch-arc-top"></div>
+      <div class="pitch-half-line"></div>
+      <div class="pitch-center-circle">
+        ${oppTeam.emblem ? `<img class="pitch-center-emblem" src="${oppTeam.emblem}" alt="" />` : ""}
+      </div>
+      <div class="pitch-center-spot"></div>
+      <div class="pitch-arc-bottom"></div>
+      <div class="pitch-goal-box-bottom"></div>
+      <div class="pitch-penalty-bottom"></div>
+      <svg class="draft-links-svg" viewBox="0 0 100 100" preserveAspectRatio="none">${linksSVG}</svg>
+      <div>${oppNodesHTML}</div>
     </div>
   `;
 }

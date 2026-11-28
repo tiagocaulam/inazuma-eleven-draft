@@ -615,7 +615,19 @@ function getPrepLocationsCatalog() {
           teamPower: 12,
           weight: 1.8,
           summary: `Acelera a subida de nível do elenco multiplicando o <span class="b-lvl">XP ganho após cada partida</span>.`
-        }
+        },
+        ...(typeof isStoryMode === "function" && isStoryMode()
+          ? [
+              {
+                id: "city_scout_bench",
+                title: "Olheiro na Cidade (Reserva + Treino)",
+                icon: UI.iconCampinho || UI.manualInazuma || UI.ffLogo,
+                kind: "STORY_CITY_SCOUT",
+                weight: 3.1,
+                summary: `Encontra <span class="b-tech">1 Agente Livre</span> para o <span class="b-lvl">Banco de Reservas</span> e dá <span class="b-pwr">+16 Poder e +65 XP</span> a <span class="b-chem">3 titulares</span>!`
+              }
+            ]
+          : [])
       ]
     },
     {
@@ -1125,6 +1137,14 @@ function getEligiblePrepEventsForLocation(loc, t) {
     if (ev.kind === "PASSIVE_LATE_RESIST" && bonuses.lateMatchNoStaminaLoss) return false;
     if (ev.kind === "SCALABLE_BUFF") {
       return (bonuses[ev.buffKey] || 0) < (ev.maxLevel || 3);
+    }
+    if (ev.kind === "STORY_CITY_SCOUT") {
+      return (
+        typeof isStoryMode === "function" &&
+        isStoryMode() &&
+        typeof getStoryFreeAgent5v5Candidates === "function" &&
+        getStoryFreeAgent5v5Candidates().length > 0
+      );
     }
     if (ev.id === "elem_resonance_tome" && bonuses.elemResonance) return false;
     if (ev.id === "captain_armband") {
@@ -2133,6 +2153,80 @@ function handleChoosePrepOption(choiceEvent, choiceIdx = -1) {
   if (choiceEvent.kind === "STREET_5V5") {
     prep.clash5v5 = buildStreet5v5Matchup();
     prep.phase = "RESULT";
+    if (typeof saveActiveRunProgress === "function") saveActiveRunProgress();
+    renderTournamentScreen();
+    return;
+  }
+
+  // 3.5 Olheiro na Cidade (Modo História: encontra Agente Livre pro Banco + buff em 3 titulares!)
+  if (choiceEvent.kind === "STORY_CITY_SCOUT") {
+    const cands = typeof getStoryFreeAgent5v5Candidates === "function" ? getStoryFreeAgent5v5Candidates() : [];
+    const curBench = Array.isArray(state.storyRun?.bench) ? state.storyRun.bench : [];
+    const benchRoles = curBench.reduce((acc, p) => {
+      const r = p?.pos || "MF";
+      acc[r] = (acc[r] || 0) + 1;
+      return acc;
+    }, {});
+    const rankedCands = cands.slice().sort((a, b) => (benchRoles[a.role] || 0) - (benchRoles[b.role] || 0) || Math.random() - 0.5);
+    const picked = rankedCands[0] || null;
+    if (picked?.player) {
+      if (picked.player.keshin) {
+        picked.previewKeshin = { ...picked.player.keshin };
+      } else if (Math.random() < 0.22 && typeof pickCanonicalKeshinForPlayer === "function") {
+        picked.previewKeshin = pickCanonicalKeshinForPlayer(
+          picked.player,
+          picked.role || "MF",
+          new Set(),
+          Math.floor(Math.random() * 1000)
+        );
+      } else {
+        picked.previewKeshin = null;
+      }
+    }
+
+    const slots = getSlots().filter((s) => state.squad?.[s.id]);
+    const shuffledSlots = slots.slice().sort(() => Math.random() - 0.5).slice(0, 3);
+    const affected = [];
+    let totalPwr = 0;
+    shuffledSlots.forEach((sl) => {
+      const p = state.squad[sl.id];
+      const prevLvl = getPlayerLevel(p);
+      const beforePwr = calcIndividualPlayerPower(p, sl.role, prevLvl);
+      const xpRes = gainPlayerXp(p, 65, sl.role);
+      p.bonusPower = (p.bonusPower || 0) + 16;
+      const newLvl = getPlayerLevel(p);
+      const afterPwr = calcIndividualPlayerPower(p, sl.role, newLvl);
+      const pwrGain = Math.max(16, afterPwr - beforePwr);
+      totalPwr += pwrGain;
+      affected.push({
+        name: p.name,
+        role: sl.role,
+        sprite: getPlayerFormSprite(p, sl.role),
+        xpGained: 65,
+        prevLevel: prevLvl,
+        newLevel: newLvl,
+        levelsGained: Math.max(0, newLvl - prevLvl),
+        pwrGained: pwrGain,
+        newPwr: afterPwr,
+        learnedMoves: xpRes.learnedMoves || []
+      });
+    });
+
+    t.prepBonuses.xp += 65;
+    t.prepBonuses.chem = (t.prepBonuses.chem || 0) + 2;
+    t.prepBonuses.power += totalPwr;
+    t.prepBonuses.log.push(`Olheiro na Cidade (+${affected.length} titulares, +${totalPwr} Poder)`);
+    prep.affectedPlayers = affected;
+
+    if (picked?.player) {
+      prep.recruitCandidate = picked;
+      prep.phase = "RECRUIT_OFFER";
+      prep.appliedMsg = `Olheiro encontrou o agente livre ${picked.player.name} (OVR ${picked.player.ovr}) e treinou ${affected.length} titulares (+${totalPwr} Poder, +2% Química)!`;
+    } else {
+      prep.phase = "DONE";
+      prep.appliedMsg = `Olheiro da Cidade treinou ${affected.length} titulares (+${totalPwr} Poder, +65 XP, +2% Química)!`;
+    }
+    if (typeof playSfx === "function") playSfx("prep_reward");
     if (typeof saveActiveRunProgress === "function") saveActiveRunProgress();
     renderTournamentScreen();
     return;
@@ -11247,16 +11341,19 @@ function buildBetweenMatchPrepHTML(t, stats) {
           </div>
         `
       : "";
+    const isCityScoutOffer = isStoryFreeAgent && prep.event?.kind === "STORY_CITY_SCOUT";
     bodyHTML = `
       <div class="prep-recruit-container">
         <div class="prep-recruit-hero">
-          <div class="prep-recruit-badge">⭐ ${isStoryFreeAgent ? "PENEIRA 5x5 • AGENTE LIVRE DISPONÍVEL" : "OPORTUNIDADE DE RECRUTAMENTO DE CRAQUE"} ⭐</div>
+          <div class="prep-recruit-badge">⭐ ${isCityScoutOffer ? "OLHEIRO NA CIDADE • AGENTE LIVRE + TREINO" : isStoryFreeAgent ? "PENEIRA 5x5 • AGENTE LIVRE DISPONÍVEL" : "OPORTUNIDADE DE RECRUTAMENTO DE CRAQUE"} ⭐</div>
           <div style="font-size:1.15rem; font-weight:900; color:#fff; margin-top:6px;">
             ${recPlayer.name} (OVR ${recPlayer.ovr} · ${recPlayer.pos}) quer jogar no seu time!
           </div>
           <div style="font-size:0.78rem; color:#cbd5e1; max-width:620px; margin:4px auto 0;">
             ${
-              isStoryFreeAgent
+              isCityScoutOffer
+                ? `${prep.appliedMsg || "3 titulares ganharam Poder e XP na cidade!"} Além disso, este agente livre aceitou assinar para o banco (${curBench.length}/5) ou assumir vaga titular:`
+                : isStoryFreeAgent
                 ? `Após a vitória no 5x5, este agente livre sem clube se apresentou para assinar contrato com sua equipe. Contrate para o banco (${curBench.length}/5) ou assuma como titular!`
                 : `Após a vitória no 5x5, este craque do ${rec.teamName} reconheceu a força da sua equipe e quer uma vaga como titular. Selecione quem você deseja substituir no seu time principal:`
             }
@@ -11868,7 +11965,7 @@ function buildBetweenMatchPrepHTML(t, stats) {
 
   return `
     <div class="prep-stage-card" style="position:relative;">
-      ${typeof buildStoryLeagueHubBarHTML === "function" ? buildStoryLeagueHubBarHTML(t) : ""}
+      ${prep.phase === "CHOOSE_LOC" && typeof buildStoryLeagueHubBarHTML === "function" ? buildStoryLeagueHubBarHTML(t) : ""}
       ${topBannerHTML}
       ${bodyHTML}
     </div>

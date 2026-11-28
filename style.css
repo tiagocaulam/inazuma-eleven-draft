@@ -487,8 +487,11 @@ body {
   gap: 5px;
 }
 .draft-team-name-input {
-  flex: 1 1 220px;
-  max-width: 310px;
+  flex: 1 1 auto;
+  width: 100%;
+  max-width: 300px;
+  min-height: 40px;
+  height: 40px;
   padding: 8px 12px;
   border-radius: 8px;
   border: 1.5px solid rgba(96, 165, 250, 0.55);
@@ -1587,17 +1590,33 @@ body.phase-menu .screen-card,
   max-width: 600px;
   height: 615px;
   margin: 0 auto;
-  background: repeating-linear-gradient(
-    180deg,
-    #166534 0px,
-    #166534 45px,
-    #15803d 45px,
-    #15803d 90px
-  );
-  border: 3px solid rgba(255, 255, 255, 0.9);
-  border-radius: 14px;
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(254, 240, 138, 0.08) 0%, transparent 56%),
+    radial-gradient(ellipse at 50% 50%, rgba(74, 222, 128, 0.09) 0%, rgba(0, 0, 0, 0.22) 100%),
+    repeating-linear-gradient(
+      180deg,
+      #146934 0px,
+      #146934 44px,
+      #1b7e40 44px,
+      #1b7e40 88px
+    );
+  border: 2px solid rgba(134, 239, 172, 0.42);
+  border-radius: 16px;
   overflow: hidden;
-  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.65), inset 0 0 55px rgba(0, 0, 0, 0.35);
+  box-shadow:
+    0 18px 42px rgba(0, 0, 0, 0.72),
+    inset 0 0 0 8px rgba(7, 30, 16, 0.48),
+    inset 0 0 58px rgba(0, 0, 0, 0.36);
+}
+
+.pitch-inner-frame {
+  position: absolute;
+  inset: 10px;
+  border: 2px solid rgba(248, 255, 250, 0.68);
+  border-radius: 8px;
+  pointer-events: none;
+  z-index: 2;
+  box-shadow: 0 0 6px rgba(0, 0, 0, 0.28);
 }
 
 .pitch-swap-instruction-pill {
@@ -1630,10 +1649,12 @@ body.phase-menu .screen-card,
 .pitch-half-line {
   position: absolute;
   top: 50%;
-  left: 0;
-  right: 0;
+  left: 10px;
+  right: 10px;
   height: 2px;
-  background: rgba(255, 255, 255, 0.55);
+  background: rgba(248, 255, 250, 0.68);
+  z-index: 2;
+  pointer-events: none;
 }
 
 .pitch-center-circle {
@@ -1643,43 +1664,117 @@ body.phase-menu .screen-card,
   width: 112px;
   height: 112px;
   transform: translate(-50%, -50%);
-  border: 2px solid rgba(255, 255, 255, 0.55);
+  border: 2px solid rgba(248, 255, 250, 0.68);
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   pointer-events: none;
+  z-index: 2;
+}
+
+.pitch-center-spot {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(248, 255, 250, 0.85);
+  pointer-events: none;
+  z-index: 2;
 }
 
 .pitch-center-emblem {
   width: 62px;
   height: 62px;
   object-fit: contain;
-  opacity: 0.28;
+  opacity: 0.24;
 }
 
 .pitch-penalty-top {
   position: absolute;
-  top: 0;
+  top: 10px;
   left: 50%;
   transform: translateX(-50%);
   width: 55%;
   max-width: 220px;
   height: 68px;
-  border: 2px solid rgba(255, 255, 255, 0.55);
+  border: 2px solid rgba(248, 255, 250, 0.68);
   border-top: none;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.pitch-goal-box-top {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 26%;
+  max-width: 108px;
+  height: 26px;
+  border: 2px solid rgba(248, 255, 250, 0.56);
+  border-top: none;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.pitch-arc-top {
+  position: absolute;
+  top: 76px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 74px;
+  height: 20px;
+  border: 2px solid rgba(248, 255, 250, 0.56);
+  border-top: none;
+  border-radius: 0 0 74px 74px;
+  pointer-events: none;
+  z-index: 2;
 }
 
 .pitch-penalty-bottom {
   position: absolute;
-  bottom: 0;
+  bottom: 10px;
   left: 50%;
   transform: translateX(-50%);
   width: 55%;
   max-width: 220px;
   height: 74px;
-  border: 2px solid rgba(255, 255, 255, 0.55);
+  border: 2px solid rgba(248, 255, 250, 0.68);
   border-bottom: none;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.pitch-goal-box-bottom {
+  position: absolute;
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 26%;
+  max-width: 108px;
+  height: 28px;
+  border: 2px solid rgba(248, 255, 250, 0.56);
+  border-bottom: none;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.pitch-arc-bottom {
+  position: absolute;
+  bottom: 82px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 74px;
+  height: 20px;
+  border: 2px solid rgba(248, 255, 250, 0.56);
+  border-bottom: none;
+  border-radius: 74px 74px 0 0;
+  pointer-events: none;
+  z-index: 2;
 }
 
 .draft-links-svg {
@@ -3288,11 +3383,13 @@ body.phase-menu .screen-card,
   position: relative;
   width: 100%;
   height: 205px;
-  border-radius: 10px;
-  border: 2px solid rgba(255, 255, 255, 0.55);
+  border-radius: 12px;
+  border: 2px solid rgba(56, 189, 248, 0.36);
   overflow: hidden;
-  background: #14532d;
-  box-shadow: inset 0 0 28px rgba(0, 0, 0, 0.5);
+  background: #105529;
+  box-shadow:
+    inset 0 0 38px rgba(0, 0, 0, 0.56),
+    0 8px 24px rgba(0, 0, 0, 0.45);
 }
 
 .pitch-world {
@@ -3302,12 +3399,20 @@ body.phase-menu .screen-card,
   width: 225%;
   height: 195%;
   background:
+    radial-gradient(ellipse at 50% 48%, rgba(74, 222, 128, 0.11) 0%, transparent 66%),
+    repeating-linear-gradient(
+      0deg,
+      rgba(255, 255, 255, 0.014) 0px,
+      rgba(255, 255, 255, 0.014) 32px,
+      transparent 32px,
+      transparent 64px
+    ),
     repeating-linear-gradient(
       90deg,
-      #14532d 0px,
-      #14532d 44px,
-      #166534 44px,
-      #166534 88px
+      #125d2d 0px,
+      #125d2d 44px,
+      #187338 44px,
+      #187338 88px
     );
   will-change: transform;
   transform: translate3d(0, 0, 0);
@@ -3325,10 +3430,11 @@ body.phase-menu .screen-card,
   right: 4.5%;
   top: 6%;
   bottom: 6%;
-  border: 2px solid rgba(255, 255, 255, 0.52);
+  border: 2px solid rgba(248, 255, 250, 0.68);
   pointer-events: none;
   z-index: 2;
   box-sizing: border-box;
+  box-shadow: 0 0 6px rgba(0, 0, 0, 0.32);
 }
 
 .pitch-line-mid {
@@ -3337,7 +3443,7 @@ body.phase-menu .screen-card,
   top: 6%;
   bottom: 6%;
   width: 2px;
-  background: rgba(255, 255, 255, 0.42);
+  background: rgba(248, 255, 250, 0.64);
   transform: translateX(-50%);
   pointer-events: none;
   z-index: 2;
@@ -3349,7 +3455,7 @@ body.phase-menu .screen-card,
   top: 50%;
   width: 112px;
   height: 112px;
-  border: 2px solid rgba(255, 255, 255, 0.42);
+  border: 2px solid rgba(248, 255, 250, 0.68);
   border-radius: 50%;
   transform: translate(-50%, -50%);
   pointer-events: none;
@@ -3360,9 +3466,9 @@ body.phase-menu .screen-card,
   position: absolute;
   left: 50%;
   top: 50%;
-  width: 6px;
-  height: 6px;
-  background: rgba(255, 255, 255, 0.72);
+  width: 7px;
+  height: 7px;
+  background: rgba(248, 255, 250, 0.88);
   border-radius: 50%;
   transform: translate(-50%, -50%);
   pointer-events: none;
@@ -3376,7 +3482,7 @@ body.phase-menu .screen-card,
   top: 22%;
   bottom: 22%;
   width: 13.5%;
-  border: 2px solid rgba(255, 255, 255, 0.45);
+  border: 2px solid rgba(248, 255, 250, 0.66);
   border-left: none;
   pointer-events: none;
   z-index: 2;
@@ -3388,7 +3494,7 @@ body.phase-menu .screen-card,
   top: 22%;
   bottom: 22%;
   width: 13.5%;
-  border: 2px solid rgba(255, 255, 255, 0.45);
+  border: 2px solid rgba(248, 255, 250, 0.66);
   border-right: none;
   pointer-events: none;
   z-index: 2;
@@ -3401,7 +3507,7 @@ body.phase-menu .screen-card,
   top: 35%;
   bottom: 35%;
   width: 4.8%;
-  border: 2px solid rgba(255, 255, 255, 0.40);
+  border: 2px solid rgba(248, 255, 250, 0.60);
   border-left: none;
   pointer-events: none;
   z-index: 2;
@@ -3413,7 +3519,7 @@ body.phase-menu .screen-card,
   top: 35%;
   bottom: 35%;
   width: 4.8%;
-  border: 2px solid rgba(255, 255, 255, 0.40);
+  border: 2px solid rgba(248, 255, 250, 0.60);
   border-right: none;
   pointer-events: none;
   z-index: 2;
@@ -3426,7 +3532,7 @@ body.phase-menu .screen-card,
   top: 50%;
   width: 40px;
   height: 56px;
-  border: 2px solid rgba(255, 255, 255, 0.38);
+  border: 2px solid rgba(248, 255, 250, 0.56);
   border-left: none;
   border-radius: 0 40px 40px 0;
   transform: translateY(-50%);
@@ -3440,12 +3546,33 @@ body.phase-menu .screen-card,
   top: 50%;
   width: 40px;
   height: 56px;
-  border: 2px solid rgba(255, 255, 255, 0.38);
+  border: 2px solid rgba(248, 255, 250, 0.56);
   border-right: none;
   border-radius: 40px 0 0 40px;
   transform: translateY(-50%);
   pointer-events: none;
   z-index: 2;
+}
+
+.pitch-pen-dot-left,
+.pitch-pen-dot-right {
+  position: absolute;
+  top: 50%;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: rgba(248, 255, 250, 0.85);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 2;
+}
+
+.pitch-pen-dot-left {
+  left: 13.8%;
+}
+
+.pitch-pen-dot-right {
+  left: 86.2%;
 }
 
 /* Trave do gol posicionada no local exato:
@@ -12746,8 +12873,12 @@ body.phase-menu .screen-card,
 }
 
 .story-config-row input {
+  flex: 0 0 auto;
   width: 100%;
-  padding: 10px 12px;
+  max-width: 100%;
+  height: 42px;
+  min-height: 42px;
+  padding: 9px 12px;
   border-radius: 8px;
   border: 1.5px solid rgba(56, 189, 248, 0.42);
   background: #061024;
@@ -12842,34 +12973,44 @@ body.phase-menu .screen-card,
   color: #f8fafc;
 }
 
-/* Prancheta Tática envolvendo o Draft sem borda dupla apertada */
+/* Prancheta Tática de Madeira Laranja/Marrom envolvendo o Draft e Escalação */
 .story-clipboard-frame {
   position: relative;
   width: 100%;
-  border-radius: 14px;
-  padding: 12px 14px 14px;
-  background: linear-gradient(180deg, #16243d 0%, #091326 100%);
-  border: 1.5px solid rgba(52, 211, 153, 0.42);
-  border-top: 4px solid #b45309;
-  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.58);
+  border-radius: 16px;
+  padding: 16px 14px 14px;
+  background:
+    repeating-linear-gradient(
+      118deg,
+      rgba(255, 224, 178, 0.04) 0px,
+      rgba(255, 224, 178, 0.04) 10px,
+      transparent 10px,
+      transparent 22px
+    ),
+    linear-gradient(155deg, #a8521c 0%, #853b12 46%, #5f270b 100%);
+  border: 2px solid #c97330;
+  box-shadow:
+    0 20px 44px rgba(0, 0, 0, 0.68),
+    inset 0 1px 0 rgba(254, 240, 138, 0.32),
+    inset 0 0 28px rgba(45, 16, 4, 0.45);
 }
 
 .story-clipboard-header {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   margin-bottom: 12px;
 }
 
 .story-clip-clamp {
-  width: 104px;
-  height: 14px;
-  margin-top: -19px;
-  border-radius: 6px 6px 2px 2px;
-  background: linear-gradient(180deg, #e2e8f0 0%, #94a3b8 60%, #475569 100%);
-  border: 1.5px solid #cbd5e1;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.55);
+  width: 112px;
+  height: 16px;
+  margin-top: -22px;
+  border-radius: 7px 7px 3px 3px;
+  background: linear-gradient(180deg, #f1f5f9 0%, #94a3b8 55%, #475569 100%);
+  border: 1.5px solid #e2e8f0;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
 }
 
 .story-clipboard-title-row {
@@ -12884,13 +13025,18 @@ body.phase-menu .screen-card,
   font-size: 0.76rem;
   font-weight: 900;
   text-transform: uppercase;
-  letter-spacing: 0.85px;
-  color: #fef08a;
+  letter-spacing: 0.9px;
+  color: #fef3c7;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
 }
 
 .story-clipboard-body {
   width: 100%;
   min-width: 0;
+  background: rgba(6, 15, 34, 0.94);
+  border-radius: 10px;
+  padding: 12px;
+  border: 1px solid rgba(254, 240, 138, 0.16);
 }
 
 /* Reveal de Elenco após os 11 titulares */
@@ -13470,83 +13616,82 @@ body.phase-menu .screen-card,
   color: #94a3b8;
 }
 
-/* Modal Scout Completo do Rival (11 titulares) */
+/* Modal Scout Completo do Rival em Formação (11 titulares) */
 .story-scout-modal-head {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   margin-bottom: 12px;
-  font-size: 0.8rem;
-  color: #cbd5e1;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.78);
+  border: 1px solid rgba(249, 115, 22, 0.35);
 }
 
 .story-scout-modal-head img {
-  width: 34px;
-  height: 34px;
+  width: 38px;
+  height: 38px;
   object-fit: contain;
-}
-
-.story-scout-xi-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-  max-height: 390px;
-  overflow-y: auto;
-}
-
-.story-scout-player-card {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  padding: 8px 10px;
-  border-radius: 8px;
-  background: rgba(15, 23, 42, 0.82);
-  border: 1px solid rgba(148, 163, 184, 0.24);
-}
-
-.story-scout-player-card img {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  object-fit: cover;
   flex-shrink: 0;
 }
 
-.sspc-body {
-  flex: 1;
-  min-width: 0;
+.story-scout-head-info {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  min-width: 0;
 }
 
-.sspc-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 6px;
-  font-size: 0.78rem;
+.story-scout-head-meta {
+  font-size: 0.7rem;
+  color: #facc15;
+  font-weight: 900;
+}
+
+.story-scout-head-name {
+  font-size: 1.05rem;
   color: #fff;
+  font-weight: 900;
 }
 
-.sspc-meta {
-  font-size: 0.67rem;
-  color: #93c5fd;
+.story-scout-head-stats {
+  font-size: 0.74rem;
+  color: #cbd5e1;
   font-weight: 700;
 }
 
-.sspc-move {
-  font-size: 0.68rem;
-  color: #fde047;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.soccer-pitch.is-scout-pitch {
+  max-width: 560px;
+  height: 495px;
 }
 
-.sspc-keshin {
-  font-size: 0.65rem;
-  color: #d8b4fe;
-  font-weight: 800;
+.field-node.occupied.is-scout-rival {
+  cursor: help;
+  border-color: rgba(249, 115, 22, 0.85);
+  background: linear-gradient(170deg, #431407 0%, #170a1c 100%);
+}
+
+.story-scout-pitch-node {
+  width: 82px;
+  min-height: 76px;
+}
+
+.node-keshin-dot {
+  position: absolute;
+  top: -7px;
+  left: -6px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #9333ea, #3b82f6);
+  border: 1.5px solid #e9d5ff;
+  color: #fef08a;
+  font-size: 0.58rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.65);
+  z-index: 4;
 }
 
 /* Notas 0–10 no Recap Pós-Jogo */
@@ -13743,6 +13888,14 @@ body.phase-menu .screen-card,
   color: #fef08a;
 }
 
+.story-reveal-name-group .draft-team-name-input {
+  flex: 1 1 180px;
+  max-width: 260px;
+  height: 38px;
+  min-height: 38px;
+  padding: 7px 11px;
+}
+
 @media (max-width: 680px) {
   .story-vn-stage {
     min-height: 410px;
@@ -13757,7 +13910,6 @@ body.phase-menu .screen-card,
   .story-vn-rules-strip,
   .story-intro-config,
   .story-results-grid,
-  .story-scout-xi-grid,
   .story-awards-grid {
     grid-template-columns: 1fr;
   }
@@ -13783,6 +13935,13 @@ body.phase-menu .screen-card,
     padding: 14px;
   }
   .story-clipboard-frame {
-    padding: 10px 8px 10px;
+    padding: 12px 8px 10px;
+  }
+  .soccer-pitch.is-scout-pitch {
+    height: 430px;
+  }
+  .story-scout-pitch-node {
+    width: 56px;
+    min-height: 62px;
   }
 }
